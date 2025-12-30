@@ -1,0 +1,348 @@
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+import React, { useState, useEffect } from 'react';
+import { Gem, AlertTriangle, RefreshCw, Lock, ArrowRight, Radio, XCircle, CheckCircle2, ArrowUp, ChevronDown, ChevronUp, Leaf, Hammer, X } from 'lucide-react';
+import { GameStep, Action, GameState, BuildingType } from '../types';
+import { BUILDINGS } from '../utils/voxelConstants';
+
+interface TutorialOverlayProps {
+    step: GameStep;
+    dispatch: React.Dispatch<Action>;
+    setSidebarOpen: (mode: 'NONE' | 'OPS' | 'SHOP') => void;
+    playSfx: (type: any) => void;
+}
+
+export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ step, dispatch, setSidebarOpen, playSfx }) => {
+    // Start collapsed for cleaner HUD (except INTRO which should be visible)
+    const [isCollapsed, setIsCollapsed] = useState(step !== GameStep.INTRO);
+
+    // Only auto-expand on INTRO step
+    useEffect(() => {
+        if (step === GameStep.INTRO) setIsCollapsed(false);
+    }, [step]);
+
+    if (step === GameStep.PLAYING || step === GameStep.GAME_OVER) return null;
+
+    const content = {
+        [GameStep.INTRO]: {
+            title: "UPLINK ESTABLISHED",
+            subtitle: "Mission Control",
+            text: "Welcome, Director. Harmonize Zimbabwean industry with the local ecosystem.",
+            buttonText: "INITIATE",
+            action: () => dispatch({ type: 'ADVANCE_TUTORIAL' })
+        },
+        [GameStep.TUTORIAL_MINE]: {
+            title: "PHASE 1: SUPPLY",
+            subtitle: "Acquisition",
+            text: "Open the Supply Catalog to acquire buildings. They store in your inventory.",
+            tasks: ["Buy a Staff Quarters", "Buy a Wash Plant"],
+            buttonText: "OPEN SUPPLY",
+            action: () => setSidebarOpen('SHOP')
+        },
+        [GameStep.TUTORIAL_SELL]: {
+            title: "PHASE 2: ECONOMY",
+            subtitle: "Logistics",
+            text: "Liquidiate minerals in the Operations Menu to acquire AGT credits.",
+            tasks: ["Open Operations", "Sell Minerals"],
+            buttonText: "OPEN OPS",
+            action: () => setSidebarOpen('OPS')
+        },
+        [GameStep.TUTORIAL_BUY]: {
+            title: "PHASE 3: ECO",
+            subtitle: "Sustainability",
+            text: "Pollution is high. Deploy Solar Arrays to offset ecological damage.",
+            tasks: ["Buy Solar Arrays"],
+            buttonText: "OPEN SUPPLY",
+            action: () => {
+                setSidebarOpen('SHOP');
+                dispatch({ type: 'ADVANCE_TUTORIAL' });
+            }
+        },
+        [GameStep.TUTORIAL_PLACE]: {
+            title: "PHASE 4: EXPAND",
+            subtitle: "Construction",
+            text: "Select a building from the inventory below to activate placement mode.",
+            tasks: ["Place from Inventory"],
+            buttonText: null,
+            action: null
+        }
+    }[step];
+
+    if (!content) return null;
+
+    if (isCollapsed) {
+        return (
+            <div className="pointer-events-auto animate-in slide-in-from-left-8 duration-500">
+                <button
+                    onClick={() => { setIsCollapsed(false); playSfx('UI_CLICK'); }}
+                    className="w-10 h-10 bg-slate-900 border-2 border-emerald-600 flex items-center justify-center hover:bg-slate-800 transition-colors shadow-lg group"
+                >
+                    <div className="w-6 h-6 bg-emerald-950 border border-emerald-500 flex items-center justify-center">
+                        <Radio size={12} className="text-emerald-400 animate-pulse" />
+                    </div>
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="pointer-events-auto w-56 sm:w-64 animate-in slide-in-from-left-8 duration-500 font-sans">
+            <div className="bg-slate-900 border-2 border-emerald-600 rounded-[4px] shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] overflow-hidden relative group">
+
+                <div
+                    className="p-2 flex items-center justify-between cursor-pointer bg-slate-800 border-b-2 border-slate-700 hover:bg-slate-750 transition-colors"
+                    onClick={() => {
+                        setIsCollapsed(true);
+                        playSfx('UI_CLICK');
+                    }}
+                >
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 bg-emerald-950 border border-emerald-500 flex items-center justify-center shrink-0">
+                            <Radio size={12} className="text-emerald-400 animate-pulse" />
+                        </div>
+                        <div>
+                            <h2 className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest leading-none mb-0.5">{content.subtitle}</h2>
+                            <h1 className="font-black text-white leading-none font-['Rajdhani'] text-[12px] uppercase">{content.title}</h1>
+                        </div>
+                    </div>
+                    <ChevronUp size={12} className="text-slate-500" />
+                </div>
+
+                <div className="p-3 bg-slate-900">
+                    <p className="text-[10px] text-slate-300 leading-tight border-l-2 border-emerald-500/30 pl-2 mb-3 font-mono">
+                        {content.text}
+                    </p>
+
+                    {content.tasks && (
+                        <div className="space-y-1 bg-slate-950 border border-slate-800 p-2 mb-3">
+                            {content.tasks.map((task, i) => (
+                                <div key={i} className="flex items-center gap-2 text-[9px] text-slate-400 uppercase font-bold tracking-wide">
+                                    <div className="w-1.5 h-1.5 bg-emerald-500 shrink-0" />
+                                    <span>{task}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="flex gap-2">
+                        {content.buttonText && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    playSfx('UI_CLICK');
+                                    if (content.action) content.action();
+                                }}
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black py-2 px-2 rounded-[2px] border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-1 uppercase tracking-wider font-['Rajdhani']"
+                            >
+                                {content.buttonText} <ArrowRight size={10} />
+                            </button>
+                        )}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                playSfx('UI_CLICK');
+                                dispatch({ type: 'SKIP_TUTORIAL' });
+                            }}
+                            className="px-2 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-[2px] border-b-4 border-slate-950 active:border-b-0 active:translate-y-1 transition-all border-2 border-slate-700"
+                        >
+                            <XCircle size={14} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export const GameOverScreen: React.FC<{ step: GameStep; resources: GameState['resources']; dispatch: React.Dispatch<Action> }> = ({ step, resources, dispatch }) => {
+    if (step !== GameStep.GAME_OVER) return null;
+    return (
+        <div className="absolute inset-0 z-50 bg-slate-950/95 flex items-center justify-center p-4 animate-in fade-in duration-1000 backdrop-blur-sm">
+            <div className="bg-slate-900 border-2 border-rose-500 shadow-[8px_8px_0_0_rgba(225,29,72,0.3)] p-8 w-[90vw] max-w-sm text-center relative">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-rose-500"></div>
+                <div className="w-16 h-16 bg-rose-950 border-2 border-rose-500 mx-auto mb-6 flex items-center justify-center">
+                    <AlertTriangle size={32} className="text-rose-500 animate-pulse" />
+                </div>
+
+                <h2 className="text-3xl font-black text-white mb-2 font-['Rajdhani'] tracking-widest text-rose-500 uppercase">System Failure</h2>
+                <p className="text-slate-400 mb-8 text-xs font-mono leading-relaxed border-t border-b border-rose-900/30 py-4">
+                    Environmental toxicity limits exceeded. Colony viability dropped below 0%. Evacuation protocols initiated.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4 mb-8">
+                    <div className="bg-slate-950 p-3 border border-slate-800">
+                        <div className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-1">Final Wealth</div>
+                        <div className="text-xl font-mono text-amber-500">{Math.floor(resources.agt).toLocaleString()}</div>
+                    </div>
+                    <div className="bg-slate-950 p-3 border border-slate-800">
+                        <div className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-1">Trust Score</div>
+                        <div className="text-xl font-mono text-blue-500">{Math.floor(resources.trust)}</div>
+                    </div>
+                </div>
+
+                <button
+                    onClick={() => dispatch({ type: 'RESET_GAME' })}
+                    className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-4 px-4 border-b-[6px] border-rose-900 active:border-b-2 active:translate-y-1 transition-all flex items-center justify-center gap-3 uppercase tracking-widest font-['Rajdhani'] text-lg"
+                >
+                    <RefreshCw size={18} /> REBOOT SYSTEM
+                </button>
+            </div>
+        </div>
+    );
+};
+
+export const ConstructionModal: React.FC<{
+    selectedTile: number | null;
+    grid: GameState['grid'];
+    gems: number;
+    dispatch: React.Dispatch<Action>;
+    onClose: () => void;
+    playSfx: (type: any) => void;
+}> = ({ selectedTile, grid, gems, dispatch, onClose, playSfx }) => {
+    if (selectedTile === null || !grid[selectedTile]) return null;
+    const tile = grid[selectedTile];
+
+    // Position helper
+    const containerClass = "absolute bottom-32 sm:bottom-24 left-1/2 -translate-x-1/2 z-50 animate-in zoom-in-95 duration-200 w-56";
+    const cardClass = "bg-slate-900 text-white p-0 shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] border-2";
+
+    if (tile.foliage === 'MINE_HOLE') {
+        const isAlreadyJob = tile.rehabProgress !== undefined && tile.rehabProgress > 0;
+        return (
+            <div className={containerClass}>
+                <div className={`${cardClass} border-emerald-500 rounded-[4px]`}>
+                    <div className="bg-emerald-900/30 p-2 border-b-2 border-emerald-500/50 flex items-center justify-between">
+                        <h3 className="font-black text-emerald-400 text-[10px] uppercase tracking-widest font-['Rajdhani']">Eco-Damage</h3>
+                        <AlertTriangle size={12} className="text-emerald-500" />
+                    </div>
+
+                    <div className="p-3 text-center">
+                        <p className="text-sm font-bold mb-3 text-white">Mine Shaft Hole</p>
+
+                        {isAlreadyJob ? (
+                            <div className="space-y-2">
+                                <div className="relative h-2 bg-slate-950 w-full border border-slate-700 mb-1">
+                                    <div className="absolute inset-y-0 left-0 bg-emerald-500 transition-all duration-300" style={{ width: `${tile.rehabProgress}%` }}></div>
+                                </div>
+                                <p className="text-[9px] text-slate-400 font-mono uppercase">Rehabilitation in progress...</p>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    dispatch({ type: 'REHABILITATE_TILE', payload: { index: selectedTile } });
+                                    playSfx('UI_CLICK');
+                                    onClose();
+                                }}
+                                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-2 border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 transition-all font-black text-[10px] flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                            >
+                                <Leaf size={12} /> Rehab (100 AGT)
+                            </button>
+                        )}
+                    </div>
+                    <button onClick={onClose} className="w-full py-1 bg-slate-800 text-[9px] text-slate-500 hover:text-white uppercase font-bold tracking-widest hover:bg-slate-700 transition-colors">Dismiss</button>
+                </div>
+            </div>
+        );
+    }
+
+    if (tile.isUnderConstruction) {
+        const bDef = BUILDINGS[tile.buildingType];
+        return (
+            <div className={containerClass}>
+                <div className={`${cardClass} border-amber-500 rounded-[4px]`}>
+                    <div className="bg-amber-900/30 p-2 border-b-2 border-amber-500/50 flex items-center justify-between">
+                        <h3 className="font-black text-amber-500 text-[10px] uppercase tracking-widest font-['Rajdhani']">Under Construction</h3>
+                        <Hammer size={12} className="text-amber-500 animate-pulse" />
+                    </div>
+
+                    <div className="p-3 text-center">
+                        <p className="text-xs font-bold mb-2 text-slate-300 uppercase">{bDef.name}</p>
+
+                        <div className="relative h-3 bg-slate-950 w-full border border-slate-700 mb-2">
+                            <div className="absolute inset-y-0 left-0 bg-amber-500 h-full w-1/2">
+                                {/* Striped pattern via css or simple block */}
+                                <div className="w-full h-full opacity-50 bg-[repeating-linear-gradient(45deg,transparent,transparent_5px,#000_5px,#000_10px)]" />
+                            </div>
+                        </div>
+
+                        <div className="text-xl font-mono text-white mb-3 font-bold">{Math.floor(tile.constructionTimeLeft || 0)}s</div>
+
+                        <button
+                            onClick={() => {
+                                if (gems >= 1) {
+                                    dispatch({ type: 'SPEED_UP_BUILDING', payload: { index: selectedTile } });
+                                    playSfx('CONSTRUCT_SPEEDUP');
+                                    onClose();
+                                } else {
+                                    playSfx('ERROR');
+                                }
+                            }}
+                            disabled={gems < 1}
+                            className="w-full bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 disabled:border-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white py-2 px-2 border-b-4 border-purple-800 active:border-b-0 active:translate-y-1 transition-all font-black text-[10px] flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                        >
+                            <Gem size={12} /> Rush (1 Gem)
+                        </button>
+                    </div>
+                    <button onClick={onClose} className="w-full py-1 bg-slate-800 text-[9px] text-slate-500 hover:text-white uppercase font-bold tracking-widest hover:bg-slate-700 transition-colors">Hide</button>
+                </div>
+            </div>
+        );
+    }
+
+    return null;
+};
+
+export const UndergroundOverlay: React.FC<{
+    viewMode: string;
+    trust: number;
+    dispatch: React.Dispatch<Action>;
+    playSfx: (type: any) => void;
+}> = ({ viewMode, trust, dispatch, playSfx }) => {
+    if (viewMode !== 'UNDERGROUND') return null;
+
+    const isLocked = trust < 50;
+
+    return (
+        <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center transition-all duration-500 ${isLocked ? 'pointer-events-auto bg-slate-950/80 backdrop-blur-sm' : 'pointer-events-none'}`}>
+            <div className="text-center space-y-3 max-w-xs px-6">
+                <h2 className="text-4xl font-bold text-slate-700 tracking-[0.2em] uppercase opacity-30 font-['Rajdhani'] select-none">Sector B1</h2>
+
+                {isLocked ? (
+                    <div className="bg-slate-900 border-2 border-rose-500 p-6 shadow-[8px_8px_0_0_rgba(0,0,0,0.5)] animate-in zoom-in-95">
+                        <div className="w-12 h-12 bg-rose-950 border-2 border-rose-500 mx-auto mb-3 flex items-center justify-center">
+                            <Lock className="w-6 h-6 text-rose-500" />
+                        </div>
+                        <h3 className="text-sm font-black text-rose-500 uppercase tracking-widest mb-2 font-['Rajdhani']">Restricted Area</h3>
+                        <p className="text-slate-400 text-[10px] mb-4 font-mono">
+                            Subterranean expansion requires trust level 50.
+                        </p>
+
+                        <button
+                            onClick={() => {
+                                playSfx('UI_CLICK');
+                                dispatch({ type: 'TOGGLE_VIEW' });
+                            }}
+                            className="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2 px-4 border-b-4 border-slate-950 active:border-b-0 active:translate-y-1 transition-all text-xs flex items-center justify-center gap-2 w-full uppercase tracking-wider"
+                        >
+                            <ArrowUp size={12} /> Return to Surface
+                        </button>
+                    </div>
+                ) : (
+                    <div className="bg-emerald-950/80 border-2 border-emerald-500 p-4 shadow-[4px_4px_0_0_rgba(16,185,129,0.2)] animate-in fade-in slide-in-from-bottom-4">
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                            <CheckCircle2 size={16} className="text-emerald-400" />
+                            <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest font-['Rajdhani']">Access Granted</h3>
+                        </div>
+                        <p className="text-emerald-200/50 text-[10px] font-mono">
+                            Subterranean expansion zone active.
+                        </p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
