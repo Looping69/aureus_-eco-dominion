@@ -7,7 +7,7 @@
 import React, { useEffect, useRef, useReducer, useState, useCallback } from 'react';
 import { VoxelEngine } from './services/VoxelEngine';
 import { AudioEngine, SfxType } from './services/AudioEngine';
-import { BuildingType, GameStep, Agent } from './types';
+import { BuildingType, GameStep, Agent, GameState } from './types';
 import { BUILDINGS } from './utils/voxelConstants';
 import { calculateBuildingCost, GRID_SIZE, getEcoMultiplier } from './utils/gameUtils';
 import { gameReducer, initialState } from './store/gameReducer';
@@ -165,6 +165,7 @@ const App: React.FC = () => {
 
     useEffect(() => {
         stateRef.current = state;
+        // console.log("Current Step:", state.step);
     }, [state]);
 
     const [sidebarOpen, setSidebarOpen] = useState<'NONE' | 'OPS' | 'SHOP' | 'TRADE'>('NONE');
@@ -274,7 +275,7 @@ const App: React.FC = () => {
 
         let tickCount = 0;
         const timer = setInterval(() => {
-            if (!stateRef.current.gameOver && !showHomePageRef.current) {
+            if (stateRef.current.step !== GameStep.GAME_OVER && !showHomePageRef.current) {
                 dispatch({ type: 'TICK' });
 
                 // Auto-save every ~30 seconds (150 ticks at 200ms)
@@ -284,7 +285,7 @@ const App: React.FC = () => {
                     tickCount = 0;
                 }
             }
-        }, 200);
+        }, 300); // 3.3 ticks/sec for performance
 
         return () => {
             clearInterval(timer);

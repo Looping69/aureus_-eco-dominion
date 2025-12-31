@@ -17,11 +17,11 @@ function createNoiseTexture(width: number, height: number, colorHex: number, gra
   ctx.fillRect(0, 0, width, height);
   const imgData = ctx.getImageData(0, 0, width, height);
   const data = imgData.data;
-  for(let i = 0; i < data.length; i += 4) {
-      const grain = (Math.random() - 0.5) * grainScale;
-      data[i] = Math.max(0, Math.min(255, data[i] + grain));
-      data[i+1] = Math.max(0, Math.min(255, data[i+1] + grain));
-      data[i+2] = Math.max(0, Math.min(255, data[i+2] + grain));
+  for (let i = 0; i < data.length; i += 4) {
+    const grain = (Math.random() - 0.5) * grainScale;
+    data[i] = Math.max(0, Math.min(255, data[i] + grain));
+    data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + grain));
+    data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + grain));
   }
   ctx.putImageData(imgData, 0, 0);
   const tex = new THREE.CanvasTexture(canvas);
@@ -36,10 +36,10 @@ const texMaster = createNoiseTexture(64, 64, 0xffffff, 40);
 
 // Updated Shader with Instancing Support
 export const waterFlowMaterial = new THREE.ShaderMaterial({
-  uniforms: { 
-      time: { value: 0 }, 
-      color: { value: new THREE.Color(0x06b6d4) }, // Matches Minimap Cyan
-      foamColor: { value: new THREE.Color(0xa5f3fc) }
+  uniforms: {
+    time: { value: 0 },
+    color: { value: new THREE.Color(0x06b6d4) }, // Matches Minimap Cyan
+    foamColor: { value: new THREE.Color(0xa5f3fc) }
   },
   vertexShader: `
     varying vec3 vWorldPosition;
@@ -86,17 +86,18 @@ export const waterFlowMaterial = new THREE.ShaderMaterial({
 });
 
 // Single Master Material for Terrain Consolidation
-export const matMaster = new THREE.MeshStandardMaterial({ 
-    map: texMaster, 
-    roughness: 1.0,
-    vertexColors: true, // ENABLED for merged geometry
-    side: THREE.DoubleSide // Fixes invisible faces if winding is off
+export const matMaster = new THREE.MeshStandardMaterial({
+  map: texMaster,
+  roughness: 1.0,
+  vertexColors: true, // ENABLED for merged geometry
+  side: THREE.DoubleSide // Fixes invisible faces if winding is off
 });
 
 // Base Materials (Still used for specific Buildings/UI/Particles)
 export const mats = {
   concrete: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x94a3b8), roughness: 0.9 }),
   metal: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x64748b, 40), metalness: 0.6, roughness: 0.3 }),
+  metalLight: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xcbd5e1, 30), metalness: 0.5, roughness: 0.4 }),
   blueMetal: new THREE.MeshStandardMaterial({ color: 0x3b82f6, metalness: 0.4, roughness: 0.5 }),
   greenMetal: new THREE.MeshStandardMaterial({ color: 0x22c55e, metalness: 0.4, roughness: 0.5 }),
   darkPipe: new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.5, roughness: 0.5 }),
@@ -119,8 +120,8 @@ export const mats = {
   emissiveRed: new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 2.0 }),
   emissiveCyan: new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 1.0 }),
   emissiveGreen: new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 2.0 }),
-  pit: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 1.0 }), 
-  
+  pit: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 1.0 }),
+
   // Specific Tree Mats
   birchWood: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xf5f5dc, 20), roughness: 0.9 }),
   birchLeaf: new THREE.MeshStandardMaterial({ color: 0x84cc16, roughness: 0.8 }),
@@ -141,7 +142,7 @@ export const mats = {
   // New Water System Mats
   sandWet: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xe6c288, 15), roughness: 0.6 }),
   waterDeep: new THREE.MeshStandardMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.9, roughness: 0.1 }),
-  waterSurface: waterFlowMaterial, 
+  waterSurface: waterFlowMaterial,
   waterSeaweed: new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 0.8 }),
   waterCoral: new THREE.MeshStandardMaterial({ color: 0xf44336, roughness: 0.8 }),
   waterGold: new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.2 })

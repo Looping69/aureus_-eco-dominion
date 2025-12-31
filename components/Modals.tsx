@@ -35,44 +35,62 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ step, dispatch
             buttonText: "INITIATE",
             action: () => dispatch({ type: 'ADVANCE_TUTORIAL' })
         },
-        [GameStep.TUTORIAL_MINE]: {
+        [GameStep.TUTORIAL_BUY_BASICS]: {
             title: "PHASE 1: SUPPLY",
             subtitle: "Acquisition",
-            text: "Open the Supply Catalog to acquire buildings. They store in your inventory.",
-            tasks: ["Buy a Staff Quarters", "Buy a Wash Plant"],
+            text: "Open Supply Catalog. Procure core infrastructure for the colony.",
+            tasks: ["Buy Staff Quarters", "Buy Wash Plant"],
             buttonText: "OPEN SUPPLY",
             action: () => setSidebarOpen('SHOP')
         },
+        [GameStep.TUTORIAL_PLACE_BASICS]: {
+            title: "PHASE 2: DEPLOY",
+            subtitle: "Construction",
+            text: "Select items from the inventory toolbar below to place them on the grid.",
+            tasks: ["Place Staff Quarters", "Place Wash Plant"],
+            buttonText: null,
+            action: null
+        },
         [GameStep.TUTORIAL_SELL]: {
-            title: "PHASE 2: ECONOMY",
+            title: "PHASE 3: MARKET",
             subtitle: "Logistics",
-            text: "Liquidiate minerals in the Operations Menu to acquire AGT credits.",
+            text: "Mineral shipment received. Liquidate assets in Operations to generate revenue.",
             tasks: ["Open Operations", "Sell Minerals"],
             buttonText: "OPEN OPS",
             action: () => setSidebarOpen('OPS')
         },
-        [GameStep.TUTORIAL_BUY]: {
-            title: "PHASE 3: ECO",
+        [GameStep.TUTORIAL_BUY_SOLAR]: {
+            title: "PHASE 4: ECO_TECH",
             subtitle: "Sustainability",
-            text: "Pollution is high. Deploy Solar Arrays to offset ecological damage.",
-            tasks: ["Buy Solar Arrays"],
+            text: "Pollution levels rising. Acquire renewable energy solutions.",
+            tasks: ["Buy Solar Array"],
             buttonText: "OPEN SUPPLY",
-            action: () => {
-                setSidebarOpen('SHOP');
-                dispatch({ type: 'ADVANCE_TUTORIAL' });
-            }
+            action: () => setSidebarOpen('SHOP')
         },
-        [GameStep.TUTORIAL_PLACE]: {
-            title: "PHASE 4: EXPAND",
-            subtitle: "Construction",
-            text: "Select a building from the inventory below to activate placement mode.",
-            tasks: ["Place from Inventory"],
+        [GameStep.TUTORIAL_PLACE_SOLAR]: {
+            title: "PHASE 5: POWER",
+            subtitle: "Implementation",
+            text: "Deploy Solar Array to offset Wash Plant emissions.",
+            tasks: ["Place Solar Array"],
             buttonText: null,
             action: null
         }
     }[step];
 
-    if (!content) return null;
+    if (!content) {
+        // Fallback for invalid/legacy steps that slipped through
+        return (
+            <div className="bg-red-900/80 border-2 border-red-500 p-4 text-white pointer-events-auto">
+                <p className="font-bold mb-2">Tutorial Synchronization Error</p>
+                <button
+                    onClick={() => dispatch({ type: 'ADVANCE_TUTORIAL' })}
+                    className="bg-red-700 px-4 py-2 hover:bg-red-600 rounded"
+                >
+                    Force Advance
+                </button>
+            </div>
+        );
+    }
 
     if (isCollapsed) {
         return (

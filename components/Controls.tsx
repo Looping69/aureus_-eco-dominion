@@ -41,7 +41,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({ selectedBuilding,
     }
 
     const highlightOps = step === GameStep.TUTORIAL_SELL;
-    const highlightBuild = step === GameStep.TUTORIAL_MINE || step === GameStep.TUTORIAL_BUY;
+    const highlightBuild = step === GameStep.TUTORIAL_BUY_BASICS || step === GameStep.TUTORIAL_BUY_SOLAR;
 
     return (
         <div className="absolute bottom-16 sm:bottom-6 left-3 right-3 sm:left-6 sm:right-6 z-20 flex justify-between pointer-events-none gap-4">

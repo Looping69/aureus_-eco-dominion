@@ -61,9 +61,8 @@ export class SceneManager {
         // Cap pixel ratio to 1 on mobile to prevent massive fill-rate cost
         this.renderer.setPixelRatio(this.isMobile ? 1 : Math.min(window.devicePixelRatio, 1.5));
 
-        this.renderer.shadowMap.enabled = true;
-        // Use faster shadow map type on mobile
-        this.renderer.shadowMap.type = this.isMobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.enabled = !this.isMobile; // Disable shadows on mobile completely
+        this.renderer.shadowMap.type = THREE.PCFShadowMap; // Use fastest shadow type
         container.appendChild(this.renderer.domElement);
 
         // Camera
@@ -109,7 +108,7 @@ export class SceneManager {
 
     private initRainSystem() {
         // Heavily reduced particle count for performance
-        const count = this.isMobile ? 100 : 500;
+        const count = this.isMobile ? 50 : 200;
         const geo = new THREE.BoxGeometry(0.05, 0.8, 0.05);
         const mat = new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
         this.rainSystem = new THREE.InstancedMesh(geo, mat, count);

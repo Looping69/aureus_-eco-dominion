@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import { GameState, GameStep, BuildingType, Action, Goal, GridTile, Job, JobType, SimulationEffect } from '../types';
+import { GameState, GameStep, BuildingType, Action, Goal, GridTile, Job, JobType, SimulationEffect, Contract } from '../types';
 import { BUILDINGS, INITIAL_RESOURCES, TECHNOLOGIES } from '../utils/voxelConstants';
 import { generateInitialGrid, getEcoMultiplier, updateWaterConnectivity, GRID_SIZE } from '../utils/gameUtils';
 import { generateGoal, checkAndGenerateEvent } from '../utils/aiLogic';
 import { updateSimulation, createColonist } from '../utils/simulationLogic';
 
 export const initialState: GameState = {
-    resources: { ...INITIAL_RESOURCES, agt: 1200 }, // Reduced from 2500
+    resources: { ...INITIAL_RESOURCES, agt: 3500 }, // Increased for Tutorial
     grid: generateInitialGrid(),
     agents: [
         createColonist(GRID_SIZE / 2, GRID_SIZE / 2),
@@ -214,7 +214,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
                 finalState.newsFeed.push({
                     id: `news_${Date.now()}`,
                     headline: "NEW CONTRACT AVAILABLE: Check Global Exchange.",
-                    type: 'GOOD',
+                    type: 'POSITIVE',
                     timestamp: Date.now()
                 });
             }
@@ -227,7 +227,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
                 const failed = finalState.contracts.filter(c => c.timeLeft <= 0);
                 if (failed.length > 0) {
                     finalState.resources.trust = Math.max(0, finalState.resources.trust - (failed.length * 5));
-                    finalState.newsFeed.push({ id: `fail_${Date.now()}`, headline: "CONTRACT EXPIRED: Trust Penalty Applied.", type: 'BAD', timestamp: Date.now() });
+                    finalState.newsFeed.push({ id: `fail_${Date.now()}`, headline: "CONTRACT EXPIRED: Trust Penalty Applied.", type: 'NEGATIVE', timestamp: Date.now() });
                 }
                 finalState.contracts = finalState.contracts.filter(c => c.timeLeft > 0);
             }
@@ -252,7 +252,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
                 if (roll < acidChance) {
                     finalState.weather = { current: 'ACID_RAIN', timeLeft: 300, intensity: 1 }; // 60s duration
-                    finalState.newsFeed.push({ id: `w_${Date.now()}`, headline: "WARNING: ACID RAIN DETECTED. Shelter recommended.", type: 'BAD', timestamp: Date.now() });
+                    finalState.newsFeed.push({ id: `w_${Date.now()}`, headline: "WARNING: ACID RAIN DETECTED. Shelter recommended.", type: 'NEGATIVE', timestamp: Date.now() });
                     finalState.pendingEffects.push({ type: 'AUDIO', sfx: 'ALARM' });
                 } else if (roll < acidChance + dustChance) {
                     finalState.weather = { current: 'DUST_STORM', timeLeft: 200, intensity: 0.8 }; // 40s duration
@@ -343,7 +343,20 @@ export function gameReducer(state: GameState, action: Action): GameState {
         }
         case 'BUY_BUILDING': {
             const { type, cost } = action.payload;
-            return { ...baseState, resources: { ...baseState.resources, agt: baseState.resources.agt - cost }, inventory: { ...baseState.inventory, [type]: (baseState.inventory[type] || 0) + 1 } };
+            const nextState = { ...baseState, resources: { ...baseState.resources, agt: baseState.resources.agt - cost }, inventory: { ...baseState.inventory, [type]: (baseState.inventory[type] || 0) + 1 } };
+
+            // Tutorial Checks
+            if (baseState.step === GameStep.TUTORIAL_BUY_BASICS) {
+                const hasStaff = (nextState.inventory[BuildingType.STAFF_QUARTERS] || 0) > 0 || nextState.grid.some(t => t.buildingType === BuildingType.STAFF_QUARTERS);
+                const hasWash = (nextState.inventory[BuildingType.WASH_PLANT] || 0) > 0 || nextState.grid.some(t => t.buildingType === BuildingType.WASH_PLANT);
+                if (hasStaff && hasWash) {
+                    return { ...nextState, step: GameStep.TUTORIAL_PLACE_BASICS, pendingEffects: [...(nextState.pendingEffects || []), { type: 'AUDIO', sfx: 'COMPLETE' } as SimulationEffect] };
+                }
+            } else if (baseState.step === GameStep.TUTORIAL_BUY_SOLAR && type === BuildingType.SOLAR_ARRAY) {
+                return { ...nextState, step: GameStep.TUTORIAL_PLACE_SOLAR, pendingEffects: [...(nextState.pendingEffects || []), { type: 'AUDIO', sfx: 'COMPLETE' } as SimulationEffect] };
+            }
+
+            return nextState;
         }
         case 'SELECT_AGENT': return { ...baseState, selectedAgentId: action.payload };
         case 'COMMAND_AGENT': {
@@ -371,15 +384,22 @@ export function gameReducer(state: GameState, action: Action): GameState {
             const price = baseState.market.minerals.currentPrice;
             const value = Math.floor(baseState.resources.minerals * price * ecoMult * trustMult);
 
-            return {
+            const nextState = {
                 ...baseState,
                 resources: {
                     ...baseState.resources,
                     minerals: 0,
                     agt: baseState.resources.agt + value
                 },
-                pendingEffects: [{ type: 'AUDIO', sfx: 'UI_COIN' }]
+                pendingEffects: [{ type: 'AUDIO', sfx: 'UI_COIN' } as SimulationEffect]
             };
+
+            if (baseState.step === GameStep.TUTORIAL_SELL) {
+                nextState.step = GameStep.TUTORIAL_BUY_SOLAR;
+                nextState.pendingEffects.push({ type: 'AUDIO', sfx: 'COMPLETE' });
+            }
+
+            return nextState;
         }
         case 'SELECT_BUILDING_TO_PLACE': return { ...baseState, selectedBuilding: action.payload, interactionMode: action.payload ? 'BUILD' : 'INSPECT' };
         case 'PLACE_BUILDING': {
@@ -423,14 +443,45 @@ export function gameReducer(state: GameState, action: Action): GameState {
             const nextBuilding = isInstant ? buildingType : null;
             const nextMode = isInstant ? 'BUILD' : 'INSPECT';
 
-            return {
+            const nextState: GameState = {
                 ...baseState,
+                resources: { ...baseState.resources }, // Shallow copy for mutation
                 inventory: newInventory,
                 grid: finalGrid,
                 selectedBuilding: nextBuilding,
                 interactionMode: nextMode,
                 pendingEffects: effects
             };
+
+            if (baseState.step === GameStep.TUTORIAL_PLACE_BASICS) {
+                const hasStaff = nextState.grid.some(t => t.buildingType === BuildingType.STAFF_QUARTERS);
+                const hasWash = nextState.grid.some(t => t.buildingType === BuildingType.WASH_PLANT);
+                if (hasStaff && hasWash) {
+                    nextState.step = GameStep.TUTORIAL_SELL;
+                    nextState.resources.minerals += 100; // GRANT Minerals for selling
+                    nextState.pendingEffects.push({ type: 'AUDIO', sfx: 'COMPLETE' });
+                    nextState.newsFeed = [...baseState.newsFeed, {
+                        id: `tut_minerals_${Date.now()}`,
+                        headline: "LOGISTICS ALERT: Mineral shipment received for market test.",
+                        type: 'POSITIVE',
+                        timestamp: Date.now()
+                    }];
+                }
+            } else if (baseState.step === GameStep.TUTORIAL_PLACE_SOLAR) {
+                const hasSolar = nextState.grid.some(t => t.buildingType === BuildingType.SOLAR_ARRAY);
+                if (hasSolar) {
+                    nextState.step = GameStep.PLAYING;
+                    nextState.pendingEffects.push({ type: 'AUDIO', sfx: 'COMPLETE' });
+                    nextState.newsFeed = [...baseState.newsFeed, {
+                        id: `tut_complete_${Date.now()}`,
+                        headline: "TRAINING COMPLETE: You have full colony control.",
+                        type: 'POSITIVE',
+                        timestamp: Date.now()
+                    }];
+                }
+            }
+
+            return nextState;
         }
         case 'ACTIVATE_BULLDOZER': return { ...baseState, interactionMode: 'BULLDOZE', selectedBuilding: null };
         case 'BULLDOZE_TILE': {
@@ -499,8 +550,8 @@ export function gameReducer(state: GameState, action: Action): GameState {
             }
             return baseState;
         }
-        case 'LOAD_GAME':
-            return {
+        case 'LOAD_GAME': {
+            const nextState = {
                 ...initialState,
                 ...action.payload,
                 // Ensure market exists if missing in save (double safety for undefined payload.market)
@@ -508,6 +559,15 @@ export function gameReducer(state: GameState, action: Action): GameState {
                 contracts: action.payload.contracts || initialState.contracts || [],
                 pendingEffects: [] // Clear effects on load
             };
+
+            // Migration for legacy tutorial steps
+            const s = (nextState.step as unknown) as string;
+            if (s === 'TUTORIAL_MINE' || s === 'TUTORIAL_BUY' || s === 'TUTORIAL_PLACE') {
+                nextState.step = GameStep.INTRO; // Reset tutorial to start
+            }
+
+            return nextState;
+        }
         case 'CLAIM_GOAL': {
             if (!baseState.activeGoal || !baseState.activeGoal.completed) return baseState;
             const reward = baseState.activeGoal.reward;
@@ -520,7 +580,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         }
         case 'UPDATE_LOGISTICS': return { ...baseState, logistics: { ...baseState.logistics, ...action.payload } };
         case 'ADVANCE_TUTORIAL': {
-            const steps = [GameStep.INTRO, GameStep.TUTORIAL_MINE, GameStep.TUTORIAL_SELL, GameStep.TUTORIAL_BUY, GameStep.TUTORIAL_PLACE, GameStep.PLAYING];
+            const steps = [GameStep.INTRO, GameStep.TUTORIAL_BUY_BASICS, GameStep.TUTORIAL_PLACE_BASICS, GameStep.TUTORIAL_SELL, GameStep.TUTORIAL_BUY_SOLAR, GameStep.TUTORIAL_PLACE_SOLAR, GameStep.PLAYING];
             const currentIdx = steps.indexOf(baseState.step);
             if (currentIdx === -1 || currentIdx === steps.length - 1) return baseState;
             return { ...baseState, step: steps[currentIdx + 1] };

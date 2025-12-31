@@ -73,7 +73,7 @@ function findPath(startIdx: number, endIdx: number, grid: GridTile[]): number[] 
     openSetHash.add(startIdx);
 
     let iterations = 0;
-    const MAX_ITERATIONS = 500; // Reduced from 2000 for performance
+    const MAX_ITERATIONS = 200; // Aggressive limit for performance
 
     while (openSet.length > 0) {
         iterations++;
@@ -226,27 +226,67 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
     let mineralsDelta = 0;
     let ecoDelta = 0;
     let trustDelta = 0;
-    const gridUpdates: GridTile[] = [];
+    const gridUpdates: Map<number, GridTile> = new Map(); // Use Map for deduping updates
     const effects: SimulationEffect[] = [];
     const newsQueue: NewsItem[] = [];
 
-    // 1. GENERATE JOBS
+    // 0. MAP AGENT TARGETS (For congestion control)
     // ---------------------------------------------------------
-    grid.forEach(tile => {
-        // Construction Jobs
-        if (tile.isUnderConstruction && (tile.structureHeadIndex === undefined || tile.id === tile.structureHeadIndex)) {
-            const jobId = `build_${tile.id}`;
-            if (!nextJobs.some(j => j.id === jobId)) {
-                nextJobs.push({ id: jobId, type: 'BUILD', targetTileId: tile.id, priority: 80, assignedAgentId: null });
-            }
+    const targetingCounts = new Map<number, number>();
+    nextAgents.forEach(a => {
+        if (a.targetTileId !== null && (a.state === 'MOVING' || a.state === 'WORKING' || a.currentJobId?.startsWith('auto_build_'))) {
+            targetingCounts.set(a.targetTileId, (targetingCounts.get(a.targetTileId) || 0) + 1);
         }
     });
+
+    // 1. PRE-CALCULATE CONSTRUCTION NEEDS & GOLD VEINS
+    // ---------------------------------------------------------
+    const constructionSites: number[] = [];
+    const goldVeins: number[] = [];
+    for (let i = 0; i < grid.length; i++) {
+        const tile = grid[i];
+        if (tile.isUnderConstruction && (tile.structureHeadIndex === undefined || tile.id === tile.structureHeadIndex)) {
+            const currentWorkers = targetingCounts.get(i) || 0;
+            if (currentWorkers < 5) {
+                constructionSites.push(i);
+            }
+        }
+        if (tile.foliage === 'GOLD_VEIN') {
+            goldVeins.push(i);
+        }
+    }
+
+    // Pre-cache key building locations to avoid repeated full scans
+    const cachedBuildings = new Map<BuildingType, number[]>();
+    [BuildingType.STAFF_QUARTERS, BuildingType.CANTEEN, BuildingType.SOCIAL_HUB].forEach(bType => {
+        const locations: number[] = [];
+        for (let i = 0; i < grid.length; i++) {
+            if (grid[i].buildingType === bType && !grid[i].isUnderConstruction) {
+                locations.push(i);
+            }
+        }
+        cachedBuildings.set(bType, locations);
+    });
+
+    // Helper to find nearest from cache
+    const findNearestCached = (agentTileIdx: number, bType: BuildingType): number | null => {
+        const locs = cachedBuildings.get(bType);
+        if (!locs || locs.length === 0) return null;
+        let best = null;
+        let bestD = Infinity;
+        for (const loc of locs) {
+            const d = getDistance(agentTileIdx, loc);
+            if (d < bestD) { bestD = d; best = loc; }
+        }
+        return best;
+    };
 
     // 2. AGENT LOOP
     // ---------------------------------------------------------
     const aliveAgents: Agent[] = [];
 
     nextAgents.forEach(agent => {
+        // ... (Keep existing stats/decay logic) ...
         let { x, z, state: aState, type: role, energy, hunger, mood, currentJobId, targetTileId, path } = agent;
         const isIllegal = role === 'ILLEGAL_MINER';
         const currentTileIdx = Math.floor(z) * GRID_SIZE + Math.floor(x);
@@ -268,7 +308,6 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
         }
 
         // --- STATE EVALUATION (THE BRAIN) ---
-        // If we are performing a sustained action (sleeping, eating), check for completion
         let actionCompleted = false;
 
         if (aState === 'SLEEPING') {
@@ -281,8 +320,17 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
             mood += 1.0;
             if (mood >= 100) { mood = 100; actionCompleted = true; }
         } else if (aState === 'WORKING') {
-            // Working logic handled below, but if job is gone, stop
-            if (!currentJobId || !nextJobs.some(j => j.id === currentJobId)) actionCompleted = true;
+            // Check if job is still valid
+            if (currentJobId) {
+                if (currentJobId.startsWith('auto_build_')) {
+                    // Check if building is done
+                    if (targetTileId !== null && !grid[targetTileId].isUnderConstruction) actionCompleted = true;
+                } else if (!nextJobs.some(j => j.id === currentJobId)) {
+                    actionCompleted = true;
+                }
+            } else {
+                actionCompleted = true;
+            }
         }
 
         // Interrupt logic or Completion logic
@@ -293,7 +341,7 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
             targetTileId = null;
             if (actionCompleted && currentJobId) {
                 // If we finished a survival job (eat/sleep), clear it
-                if (currentJobId.startsWith('sys_')) currentJobId = null;
+                if (currentJobId.startsWith('sys_') || currentJobId.startsWith('auto_build_')) currentJobId = null;
             }
         }
 
@@ -303,101 +351,108 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
             if (!isIllegal && (energy < CONFIG.THRESHOLDS.CRITICAL || hunger < CONFIG.THRESHOLDS.CRITICAL)) {
                 if (energy < hunger) {
                     // Sleep
-                    const bedIdx = findNearestBuilding(agent, BuildingType.STAFF_QUARTERS, grid);
+                    const bedIdx = findNearestCached(currentTileIdx, BuildingType.STAFF_QUARTERS);
                     if (bedIdx) {
                         targetTileId = bedIdx;
                         currentJobId = 'sys_sleep';
                         aState = 'MOVING';
                     } else {
-                        // Sleep on floor if no bed
                         aState = 'SLEEPING';
                     }
                 } else {
                     // Eat
-                    const foodIdx = findNearestBuilding(agent, BuildingType.CANTEEN, grid);
+                    const foodIdx = findNearestCached(currentTileIdx, BuildingType.CANTEEN);
                     if (foodIdx) {
                         targetTileId = foodIdx;
                         currentJobId = 'sys_eat';
                         aState = 'MOVING';
                     } else {
-                        // Can't find food, panic wander
+                        // Panic wander
                         targetTileId = findWanderTarget(agent, grid);
                         aState = 'MOVING';
                     }
                 }
             }
-            // 2. WORK
-            else if (!currentJobId) {
-                // Look for jobs
-                // Filter jobs that are not assigned
-                const candidates = nextJobs.filter(j => !j.assignedAgentId && j.type !== 'MOVE'); // MOVE is manual command
-
+            // 2. EXPLICIT JOBS (Manual commands or events)
+            else if (!currentJobId && nextJobs.some(j => !j.assignedAgentId && j.type !== 'MOVE')) {
+                const candidates = nextJobs.filter(j => !j.assignedAgentId && j.type !== 'MOVE');
                 if (candidates.length > 0) {
-                    // Sort by priority then distance
-                    candidates.sort((a, b) => {
-                        if (a.priority !== b.priority) return b.priority - a.priority;
-                        const distA = getDistance(currentTileIdx, a.targetTileId);
-                        const distB = getDistance(currentTileIdx, b.targetTileId);
-                        return distA - distB;
-                    });
-
-                    // Assign best job
+                    candidates.sort((a, b) => b.priority - a.priority); // Priority only for manual jobs
                     const job = candidates[0];
-                    // Mutate jobs array to assign
                     nextJobs = nextJobs.map(j => j.id === job.id ? { ...j, assignedAgentId: agent.id } : j);
-
                     currentJobId = job.id;
                     targetTileId = job.targetTileId;
                     aState = 'MOVING';
                 }
-                // 3. SECONDARY NEEDS (Mood)
-                else if (!isIllegal && mood < CONFIG.THRESHOLDS.LOW) {
-                    const funIdx = findNearestBuilding(agent, BuildingType.SOCIAL_HUB, grid);
+            }
+            // 3. COLLABORATIVE BUILDING (New Logic: "Always looking to build")
+            else if (!currentJobId && !isIllegal) {
+                let bestSite = null;
+                let minD = Infinity;
+
+                // Use pre-calculated site list
+                for (let i = 0; i < constructionSites.length; i++) {
+                    const siteIdx = constructionSites[i];
+                    const liveCount = targetingCounts.get(siteIdx) || 0;
+                    if (liveCount < 5) {
+                        const d = getDistance(currentTileIdx, siteIdx);
+                        if (d < minD) {
+                            minD = d;
+                            bestSite = siteIdx;
+                        }
+                    }
+                }
+
+                if (bestSite !== null) {
+                    targetTileId = bestSite;
+                    currentJobId = `auto_build_${bestSite}`;
+                    aState = 'MOVING';
+
+                    targetingCounts.set(bestSite, (targetingCounts.get(bestSite) || 0) + 1);
+                }
+
+                // 4. SECONDARY NEEDS (if no building to do)
+                else if (aState === 'IDLE' && mood < CONFIG.THRESHOLDS.LOW) {
+                    const funIdx = findNearestCached(currentTileIdx, BuildingType.SOCIAL_HUB);
                     if (funIdx) {
                         targetTileId = funIdx;
                         currentJobId = 'sys_fun';
                         aState = 'MOVING';
                     } else {
-                        // Seek friend?
-                        const friend = nextAgents.find(a => a.id !== agent.id && a.state === 'IDLE' && getDistance(currentTileIdx, Math.floor(a.z) * GRID_SIZE + Math.floor(a.x)) < 10);
+                        // Seek friend
+                        const friend = nextAgents.find(a => a.id !== agent.id && a.state === 'IDLE');
                         if (friend) {
                             targetTileId = Math.floor(friend.z) * GRID_SIZE + Math.floor(friend.x);
                             currentJobId = `sys_social_${friend.id}`;
                             aState = 'MOVING';
-                        } else {
-                            targetTileId = findWanderTarget(agent, grid);
-                            aState = 'MOVING';
                         }
                     }
                 }
-                // 4. WANDER / PATROL
-                else {
-                    // Illegal miners steal
-                    if (isIllegal) {
-                        const veins = grid.filter(t => t.foliage === 'GOLD_VEIN');
-                        if (veins.length > 0) {
-                            const v = veins[Math.floor(Math.random() * veins.length)];
-                            targetTileId = v.id;
-                            currentJobId = `steal_${v.id}`;
-                            aState = 'MOVING';
-                        } else {
-                            targetTileId = findWanderTarget(agent, grid);
-                            aState = 'MOVING';
-                        }
+
+                // 5. WANDER
+                if (aState === 'IDLE') {
+                    if (isIllegal && goldVeins.length > 0) {
+                        // Use pre-cached veins
+                        const vIdx = goldVeins[Math.floor(Math.random() * goldVeins.length)];
+                        targetTileId = vIdx;
+                        currentJobId = `steal_${vIdx}`;
+                        aState = 'MOVING';
                     } else {
-                        // Civilians wander to roads/amenities
                         targetTileId = findWanderTarget(agent, grid);
                         aState = 'MOVING';
                     }
                 }
-            } else {
-                // Has job, but in IDLE state? Resume.
-                const job = nextJobs.find(j => j.id === currentJobId);
-                if (job) {
-                    targetTileId = job.targetTileId;
+            }
+            else {
+                // Has job, resume
+                if (currentJobId?.startsWith('auto_build_')) {
                     aState = 'MOVING';
-                } else {
-                    currentJobId = null; // Job invalidated
+                } else if (!currentJobId) {
+                    // Fallback check
+                    if (aState === 'IDLE') {
+                        targetTileId = findWanderTarget(agent, grid);
+                        aState = 'MOVING';
+                    }
                 }
             }
         }
@@ -405,17 +460,20 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
         // --- ACTION EXECUTION ---
 
         if (aState === 'MOVING') {
-            // Pathfinding Logic
+            // Pathfinding Logic (Identical to before)
             if (targetTileId !== null) {
-                // If no path or path invalid or finished
                 if (!path || path.length === 0) {
-                    // Only recalc if distant
                     const dist = getDistance(currentTileIdx, targetTileId);
                     if (dist > 0) {
-                        path = findPath(currentTileIdx, targetTileId, grid);
+                        // SHORT DISTANCE: Direct movement (no A*)
+                        if (dist <= 3) {
+                            path = [targetTileId]; // Just go directly
+                        } else {
+                            path = findPath(currentTileIdx, targetTileId, grid);
+                        }
                         if (!path) {
-                            // Can't reach. Abandon.
-                            if (currentJobId && !currentJobId.startsWith('sys_')) {
+                            // Abandon
+                            if (currentJobId && !currentJobId.startsWith('sys_') && !currentJobId.startsWith('auto_build_')) {
                                 nextJobs = nextJobs.map(j => j.id === currentJobId ? { ...j, assignedAgentId: null } : j);
                             }
                             currentJobId = null;
@@ -425,21 +483,20 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                     } else {
                         // Arrived
                         path = [];
-                        aState = 'WORKING'; // Assume work, transition below will fix if it's eating/sleeping
+                        aState = 'WORKING';
 
-                        // Convert ARRIVAL to ACTION
                         if (currentJobId === 'sys_sleep') aState = 'SLEEPING';
                         else if (currentJobId === 'sys_eat') aState = 'EATING';
                         else if (currentJobId === 'sys_fun') aState = 'RELAXING';
                         else if (currentJobId?.startsWith('sys_social')) aState = 'SOCIALIZING';
-                        else if (!currentJobId) aState = 'IDLE'; // Just wandering
+                        else if (!currentJobId) aState = 'IDLE';
                     }
                 }
 
-                // Follow Path
+                // Move along path
                 if (path && path.length > 0) {
+                    // ... (Movement Physics) ...
                     const nextNode = path[0];
-                    // Check if we reached the next node (simple radius check)
                     const nX = nextNode % GRID_SIZE;
                     const nY = Math.floor(nextNode / GRID_SIZE);
                     const dx = nX - x;
@@ -450,12 +507,10 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                     const speed = CONFIG.SPEED.BASE * speedMult;
 
                     if (distSq < (speed * speed * 1.5)) {
-                        // Snap and advance
                         x = nX;
                         z = nY;
                         path.shift();
                     } else {
-                        // Move towards
                         const angle = Math.atan2(dy, dx);
                         x += Math.cos(angle) * speed;
                         z += Math.sin(angle) * speed;
@@ -469,30 +524,15 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
         if (aState === 'WORKING') {
             // Process Job Progress
             if (currentJobId) {
-                const job = nextJobs.find(j => j.id === currentJobId);
-                if (job) {
-                    // Special logic for Illegal Stealing
-                    if (isIllegal && currentJobId.startsWith('steal_')) {
-                        mineralsDelta -= 0.05;
-                        if (Math.random() > 0.9) effects.push({ type: 'FX', fxType: 'THEFT', index: currentTileIdx });
-                        if (Math.random() > 0.95) { // Finished stealing
-                            currentJobId = null;
-                            aState = 'IDLE';
-                        }
-                    }
-                    // Standard Jobs
-                    else if (job.type === 'BUILD') {
-                        const tile = grid[job.targetTileId];
-                        // Find building head if this is part of a larger structure
-                        const headIdx = tile.structureHeadIndex !== undefined ? tile.structureHeadIndex : tile.id;
-                        const headTile = grid[headIdx];
-
-                        // Construct
-                        if (headTile.isUnderConstruction) {
+                if (currentJobId.startsWith('auto_build_')) {
+                    // COLLABORATIVE BUILD LOGIC
+                    if (targetTileId !== null) {
+                        const headTile = grid[targetTileId]; // targetTileId is guaranteed to be head for auto_build
+                        if (headTile && headTile.isUnderConstruction) {
                             const power = 0.2 + (agent.skills.construction * 0.05);
                             const timeLeft = Math.max(0, (headTile.constructionTimeLeft || 0) - power);
 
-                            // We need to update ALL tiles for this building to keep state sync
+                            // Batch updates
                             const def = BUILDINGS[headTile.buildingType];
                             const w = def.width || 1;
                             const d = def.depth || 1;
@@ -503,67 +543,84 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                                 for (let dx = 0; dx < w; dx++) {
                                     const tIdx = (hy + dz) * GRID_SIZE + (hx + dx);
                                     if (grid[tIdx]) {
-                                        grid[tIdx] = { ...grid[tIdx], constructionTimeLeft: timeLeft, isUnderConstruction: timeLeft > 0 };
-                                        gridUpdates.push(grid[tIdx]);
+                                        const newTile = { ...grid[tIdx], constructionTimeLeft: timeLeft, isUnderConstruction: timeLeft > 0 };
+                                        grid[tIdx] = newTile;
+                                        gridUpdates.set(tIdx, newTile);
                                     }
                                 }
                             }
 
                             if (timeLeft <= 0) {
-                                // Job Done
                                 effects.push({ type: 'AUDIO', sfx: 'BUILD' });
-                                nextJobs = nextJobs.filter(j => j.id !== job.id);
                                 currentJobId = null;
                                 aState = 'IDLE';
                             }
                         } else {
-                            // Already done?
-                            nextJobs = nextJobs.filter(j => j.id !== job.id);
+                            // Done or invalid
                             currentJobId = null;
                             aState = 'IDLE';
                         }
                     }
-                    else if (job.type === 'REHABILITATE') {
-                        const tile = grid[job.targetTileId];
-                        const power = 0.5 + (agent.skills.plants * 0.1);
-                        const progress = Math.min(100, (tile.rehabProgress || 0) + power);
-                        grid[tile.id] = { ...tile, rehabProgress: progress };
-                        gridUpdates.push(grid[tile.id]);
-
-                        if (Math.random() > 0.8) effects.push({ type: 'FX', fxType: 'ECO_REHAB', index: tile.id });
-
-                        if (progress >= 100) {
-                            grid[tile.id] = { ...tile, foliage: 'NONE', rehabProgress: undefined };
-                            gridUpdates.push(grid[tile.id]);
-                            ecoDelta += 5;
-                            nextJobs = nextJobs.filter(j => j.id !== job.id);
-                            currentJobId = null;
-                            aState = 'IDLE';
+                }
+                else {
+                    // STANDARD JOB LOGIC (Keep existing manual jobs)
+                    const job = nextJobs.find(j => j.id === currentJobId);
+                    if (job) {
+                        if (isIllegal && currentJobId.startsWith('steal_')) {
+                            // ... (Keep Steal Logic) ...
+                            mineralsDelta -= 0.05;
+                            if (Math.random() > 0.9) effects.push({ type: 'FX', fxType: 'THEFT', index: currentTileIdx });
+                            if (Math.random() > 0.95) {
+                                currentJobId = null;
+                                aState = 'IDLE';
+                            }
                         }
-                    }
-                    else if (job.type === 'MINE') {
-                        // Manual mining command
-                        const tile = grid[job.targetTileId];
-                        const p = (agent.skills.mining / 40) + 0.15;
-                        const integrity = Math.max(0, (tile.integrity ?? 100) - p);
-                        grid[tile.id] = { ...tile, integrity };
-                        gridUpdates.push(grid[tile.id]);
+                        else if (job.type === 'REHABILITATE') {
+                            // ... (Keep Rehab Logic) ...
+                            const tile = grid[job.targetTileId];
+                            const power = 0.5 + (agent.skills.plants * 0.1);
+                            const progress = Math.min(100, (tile.rehabProgress || 0) + power);
+                            const newTile = { ...tile, rehabProgress: progress };
+                            grid[tile.id] = newTile;
+                            gridUpdates.set(tile.id, newTile);
 
-                        mineralsDelta += tile.foliage === 'GOLD_VEIN' ? 0.15 : 0.05;
-                        if (Math.random() > 0.85) effects.push({ type: 'FX', fxType: 'MINING', index: tile.id });
+                            if (Math.random() > 0.8) effects.push({ type: 'FX', fxType: 'ECO_REHAB', index: tile.id });
 
-                        if (integrity <= 0) {
-                            grid[tile.id] = { ...tile, foliage: tile.foliage === 'GOLD_VEIN' ? 'MINE_HOLE' : 'NONE' };
-                            gridUpdates.push(grid[tile.id]);
-                            nextJobs = nextJobs.filter(j => j.id !== job.id);
-                            currentJobId = null;
-                            aState = 'IDLE';
+                            if (progress >= 100) {
+                                const finishedTile: GridTile = { ...newTile, foliage: 'NONE', rehabProgress: undefined };
+                                grid[tile.id] = finishedTile;
+                                gridUpdates.set(tile.id, finishedTile);
+                                ecoDelta += 5;
+                                nextJobs = nextJobs.filter(j => j.id !== job.id);
+                                currentJobId = null;
+                                aState = 'IDLE';
+                            }
                         }
+                        else if (job.type === 'MINE') {
+                            // ... (Keep Manual Mine Logic) ...
+                            const tile = grid[job.targetTileId];
+                            const p = (agent.skills.mining / 40) + 0.15;
+                            const integrity = Math.max(0, (tile.integrity ?? 100) - p);
+                            const newTile = { ...tile, integrity };
+                            grid[tile.id] = newTile;
+                            gridUpdates.set(tile.id, newTile);
+
+                            mineralsDelta += tile.foliage === 'GOLD_VEIN' ? 0.15 : 0.05;
+                            if (Math.random() > 0.85) effects.push({ type: 'FX', fxType: 'MINING', index: tile.id });
+
+                            if (integrity <= 0) {
+                                const finishedTile: GridTile = { ...newTile, foliage: (tile.foliage === 'GOLD_VEIN' ? 'MINE_HOLE' : 'NONE') as any };
+                                grid[tile.id] = finishedTile;
+                                gridUpdates.set(tile.id, finishedTile);
+                                nextJobs = nextJobs.filter(j => j.id !== job.id);
+                                currentJobId = null;
+                                aState = 'IDLE';
+                            }
+                        }
+                    } else {
+                        currentJobId = null;
+                        aState = 'IDLE';
                     }
-                } else {
-                    // Job missing
-                    currentJobId = null;
-                    aState = 'IDLE';
                 }
             } else {
                 aState = 'IDLE';
@@ -592,13 +649,13 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
     }
 
     // 4. BATCH GRID UPDATES
-    if (gridUpdates.length > 0) {
-        effects.push({ type: 'GRID_UPDATE', updates: gridUpdates });
+    if (gridUpdates.size > 0) {
+        effects.push({ type: 'GRID_UPDATE', updates: Array.from(gridUpdates.values()) });
     }
 
     const nextState: GameState = {
         ...state,
-        grid, // Reference update
+        grid, // Reference update (mutated in place for simplicity in this tight loop, but signaled via effects)
         agents: aliveAgents,
         jobs: nextJobs,
         tickCount: state.tickCount + 1,

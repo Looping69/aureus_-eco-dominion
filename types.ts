@@ -214,28 +214,30 @@ export interface ResearchState {
 
 export enum GameStep {
   INTRO = 'INTRO',
-  TUTORIAL_MINE = 'TUTORIAL_MINE',
+  TUTORIAL_BUY_BASICS = 'TUTORIAL_BUY_BASICS',
+  TUTORIAL_PLACE_BASICS = 'TUTORIAL_PLACE_BASICS',
   TUTORIAL_SELL = 'TUTORIAL_SELL',
-  TUTORIAL_BUY = 'TUTORIAL_BUY',
-  TUTORIAL_PLACE = 'TUTORIAL_PLACE',
+  TUTORIAL_BUY_SOLAR = 'TUTORIAL_BUY_SOLAR',
+  TUTORIAL_PLACE_SOLAR = 'TUTORIAL_PLACE_SOLAR',
   PLAYING = 'PLAYING',
   GAME_OVER = 'GAME_OVER',
   VICTORY = 'VICTORY'
 }
 
-export enum SfxType {
-  BUILD = 'BUILD',
-  SELL = 'SELL',
-  COMPLETE = 'COMPLETE',
-  ERROR = 'ERROR',
-  UI_CLICK = 'UI_CLICK',
-  UI_OPEN = 'UI_OPEN',
-  CONSTRUCT_SPEEDUP = 'CONSTRUCT_SPEEDUP',
-  MINING_HIT = 'MINING_HIT',
-  CAMP_BUILD = 'CAMP_BUILD',
-  CAMP_RUSTLE = 'CAMP_RUSTLE',
-  DEATH = 'DEATH'
-}
+export type SfxType =
+  | 'BUILD'
+  | 'SELL'
+  | 'COMPLETE'
+  | 'ERROR'
+  | 'UI_CLICK'
+  | 'UI_OPEN'
+  | 'CONSTRUCT_SPEEDUP'
+  | 'MINING_HIT'
+  | 'CAMP_BUILD'
+  | 'CAMP_RUSTLE'
+  | 'DEATH'
+  | 'ALARM'
+  | 'UI_COIN';
 
 export type GameDiff =
   | { type: 'GRID_UPDATE', updates: GridTile[] }
@@ -332,4 +334,6 @@ export type Action =
   | { type: 'DISMISS_NEWS', payload: string }
   | { type: 'UNLOCK_TECH', payload: TechId }
   | { type: 'MINE_CLICK', payload: { index: number } }
-  | { type: 'LOAD_GAME', payload: GameState };
+  | { type: 'LOAD_GAME', payload: GameState }
+  | { type: 'ACCEPT_CONTRACT', payload: string }
+  | { type: 'COMPLETE_CONTRACT', payload: string };

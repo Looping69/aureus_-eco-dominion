@@ -171,7 +171,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                                         dispatch({ type: 'COMPLETE_CONTRACT', payload: contract.id });
                                                         playSfx('UI_COIN');
                                                     } else {
-                                                        playSfx('UI_ERROR');
+                                                        playSfx('ERROR');
                                                     }
                                                 }}
                                                 disabled={!canAfford}

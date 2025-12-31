@@ -24,30 +24,30 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = React.memo(({ inventory
 
     if (items.length === 0) return null;
 
-    const highlightInventory = step === GameStep.TUTORIAL_PLACE;
+    const highlightInventory = step === GameStep.TUTORIAL_PLACE_BASICS || step === GameStep.TUTORIAL_PLACE_SOLAR;
 
     return (
         <div className={`absolute bottom-36 sm:bottom-28 left-1/2 -translate-x-1/2 z-30 flex flex-wrap justify-center gap-3 max-w-[95vw] pointer-events-none p-3 rounded-xl transition-all ${highlightInventory ? 'bg-emerald-500/10 border-2 border-emerald-500/50 highlight-pulse pointer-events-auto' : ''}`}>
             {items.map(({ type, count }) => {
                 const isSelected = selectedBuilding === type;
                 return (
-                    <div 
-                        key={type} 
+                    <div
+                        key={type}
                         className="relative group pointer-events-auto"
                     >
                         <button
                             onClick={() => {
                                 playSfx('UI_CLICK');
-                                dispatch({ 
-                                    type: 'SELECT_BUILDING_TO_PLACE', 
-                                    payload: isSelected ? null : type 
+                                dispatch({
+                                    type: 'SELECT_BUILDING_TO_PLACE',
+                                    payload: isSelected ? null : type
                                 });
                             }}
                             className={`
                                 w-12 h-12 rounded-[6px] flex items-center justify-center transition-all duration-100 ease-out
                                 border-2 border-b-[5px]
-                                ${isSelected 
-                                    ? 'bg-emerald-600 border-emerald-800 border-b-2 translate-y-[3px] shadow-inner' 
+                                ${isSelected
+                                    ? 'bg-emerald-600 border-emerald-800 border-b-2 translate-y-[3px] shadow-inner'
                                     : 'bg-slate-800 border-slate-950 hover:-translate-y-0.5 hover:border-b-[6px] shadow-xl'
                                 }
                             `}
@@ -56,7 +56,7 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = React.memo(({ inventory
                                 {getBuildingIcon(type)}
                             </div>
                         </button>
-                        
+
                         {/* Count Badge - Voxel Style */}
                         <div className="absolute -top-2 -right-2 bg-rose-500 text-white text-[9px] font-black min-w-[18px] h-[18px] rounded-[4px] flex items-center justify-center border-2 border-rose-800 shadow-md z-10">
                             {count}
