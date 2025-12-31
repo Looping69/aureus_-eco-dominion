@@ -49,6 +49,57 @@ export interface ColonistStats {
   intelligence: number;
 }
 
+// Personality traits affect decision-making
+export interface AgentPersonality {
+  diligence: number;     // 0-1: How likely to work vs slack off
+  sociability: number;   // 0-1: How much they seek social interaction
+  bravery: number;       // 0-1: Willingness to do dangerous tasks
+  patience: number;      // 0-1: How long they stick to a task
+}
+
+// Memory for smarter navigation and decisions
+export interface AgentMemory {
+  knownBuildings: Map<string, number[]>; // BuildingType -> tile IDs (cached locations)
+  favoriteSpots: number[];               // Tiles they like to visit
+  recentlyVisited: number[];             // Last 5 tiles (avoid revisiting)
+  friendIds: string[];                   // Agents they like
+  lastMealTile: number | null;           // Where they last ate
+  lastSleepTile: number | null;          // Where they last slept
+}
+
+// Experience system
+export interface AgentExperience {
+  buildingsConstructed: number;
+  resourcesMined: number;
+  plantsGrown: number;
+  totalWorkTicks: number;
+  // Skill level progress (0-100 for each skill, when reaches 100 skill increases)
+  miningProgress: number;
+  constructionProgress: number;
+  plantsProgress: number;
+}
+
+// Shift system
+export type ShiftType = 'DAY' | 'NIGHT' | 'FLEXIBLE';
+
+// Agent requests - things agents ask for
+export type AgentRequestType =
+  | 'NEED_BREAK'           // Agent is tired, needs rest
+  | 'WANT_FRIEND'          // Agent is lonely, wants social interaction
+  | 'WANT_BETTER_FOOD'     // Agent wants a canteen nearby
+  | 'WANT_BETTER_BED'      // Agent wants quarters nearby
+  | 'LOW_MORALE'           // Agent is unhappy
+  | 'OVERWORKED';          // Agent has been working too long
+
+export interface AgentRequest {
+  id: string;
+  type: AgentRequestType;
+  message: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  timestamp: number;
+  resolved: boolean;
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -57,16 +108,34 @@ export interface Agent {
   z: number;
   targetTileId: number | null;
   path: number[] | null;
-  state: 'MOVING' | 'WORKING' | 'IDLE' | 'SLEEPING' | 'EATING' | 'RELAXING' | 'SOCIALIZING';
+  state: 'MOVING' | 'WORKING' | 'IDLE' | 'SLEEPING' | 'EATING' | 'RELAXING' | 'SOCIALIZING' | 'PATROLLING' | 'OFF_DUTY';
 
-  // Needs
-  energy: number; // 0-100
-  hunger: number; // 0-100
-  mood: number; // 0-100
+  // Needs (0-100)
+  energy: number;
+  hunger: number;
+  mood: number;
 
-  // Colonist specific
+  // Skills & Stats
   skills: ColonistStats;
   currentJobId: string | null;
+
+  // Intelligence features (optional for backward compatibility)
+  personality?: AgentPersonality;
+  memory?: AgentMemory;
+  experience?: AgentExperience;
+
+  // Behavior modifiers
+  workEfficiency?: number;  // Multiplier based on mood/energy (0.5-1.5)
+  moveSpeed?: number;       // Individual speed modifier
+  socialTarget?: string;    // ID of agent they're interacting with
+
+  // Shift system
+  shift?: ShiftType;              // Agent's assigned shift
+  consecutiveWorkTicks?: number;  // How long they've been working
+  lastBreakTick?: number;         // When they last took a break
+
+  // Request system
+  activeRequest?: AgentRequest;   // Current request from this agent
 }
 
 export type BiomeType = 'GRASS' | 'DIRT' | 'SAND' | 'STONE' | 'SNOW';
@@ -230,11 +299,13 @@ export enum SfxType {
   ERROR = 'ERROR',
   UI_CLICK = 'UI_CLICK',
   UI_OPEN = 'UI_OPEN',
+  UI_COIN = 'UI_COIN',
   CONSTRUCT_SPEEDUP = 'CONSTRUCT_SPEEDUP',
   MINING_HIT = 'MINING_HIT',
   CAMP_BUILD = 'CAMP_BUILD',
   CAMP_RUSTLE = 'CAMP_RUSTLE',
-  DEATH = 'DEATH'
+  DEATH = 'DEATH',
+  ALARM = 'ALARM'
 }
 
 export type GameDiff =
@@ -271,6 +342,16 @@ export interface GameState {
 
   // Environmental System
   weather: WeatherState;
+
+  // Day/Night Cycle (1 game day = 24000 ticks = ~80 real minutes at 200ms/tick)
+  dayNightCycle: {
+    timeOfDay: number;      // 0-24000 (0 = midnight, 12000 = noon)
+    dayCount: number;       // How many days have passed
+    isDaytime: boolean;     // true if between 6000-18000 (6 AM - 6 PM)
+  };
+
+  // Agent requests system
+  agentRequests: AgentRequest[];
 }
 
 export type WeatherType = 'CLEAR' | 'DUST_STORM' | 'ACID_RAIN';

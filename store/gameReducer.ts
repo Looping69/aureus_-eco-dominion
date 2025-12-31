@@ -60,7 +60,15 @@ export const initialState: GameState = {
         current: 'CLEAR',
         timeLeft: 0,
         intensity: 0
-    }
+    },
+    // Day/Night Cycle - start at 8 AM (morning)
+    dayNightCycle: {
+        timeOfDay: 8000,    // 8 AM
+        dayCount: 1,
+        isDaytime: true
+    },
+    // Agent requests
+    agentRequests: []
 };
 
 // Helper to diff pipe updates
@@ -155,6 +163,46 @@ export function gameReducer(state: GameState, action: Action): GameState {
                 };
             }
             finalState.market = market;
+
+            // -------------------------------------------------------------
+            // DAY/NIGHT CYCLE UPDATE
+            // -------------------------------------------------------------
+            let dayNightCycle = { ...finalState.dayNightCycle };
+            dayNightCycle.timeOfDay = (dayNightCycle.timeOfDay + 1) % 24000;
+
+            // Check for day/night transitions
+            const wasDay = dayNightCycle.isDaytime;
+            dayNightCycle.isDaytime = dayNightCycle.timeOfDay >= 6000 && dayNightCycle.timeOfDay < 18000;
+
+            // New day started
+            if (dayNightCycle.timeOfDay === 0) {
+                dayNightCycle.dayCount++;
+                finalState.newsFeed.push({
+                    id: `day_${dayNightCycle.dayCount}`,
+                    headline: `Day ${dayNightCycle.dayCount} begins. The colony awakens.`,
+                    type: 'NEUTRAL',
+                    timestamp: Date.now()
+                });
+            }
+
+            // Sunrise (6000) and Sunset (18000) events
+            if (!wasDay && dayNightCycle.isDaytime) {
+                finalState.newsFeed.push({
+                    id: `sunrise_${finalState.tickCount}`,
+                    headline: "☀️ Sunrise - Day shift workers are now active.",
+                    type: 'POSITIVE',
+                    timestamp: Date.now()
+                });
+            } else if (wasDay && !dayNightCycle.isDaytime) {
+                finalState.newsFeed.push({
+                    id: `sunset_${finalState.tickCount}`,
+                    headline: "🌙 Sunset - Night shift workers take over.",
+                    type: 'NEUTRAL',
+                    timestamp: Date.now()
+                });
+            }
+
+            finalState.dayNightCycle = dayNightCycle;
 
             // Exploration Update (Periodic optimization)
             if (finalState.tickCount % 5 === 0) {

@@ -148,37 +148,176 @@ function findPath(startIdx: number, endIdx: number, grid: GridTile[]): number[] 
 
 // --- BEHAVIOR TREE / UTILITY AI ---
 
+// Generate random personality with role-based tendencies
+function generatePersonality(role: AgentRole): { diligence: number; sociability: number; bravery: number; patience: number } {
+    const base = () => 0.3 + Math.random() * 0.4; // 0.3-0.7 base
+
+    let personality = {
+        diligence: base(),
+        sociability: base(),
+        bravery: base(),
+        patience: base()
+    };
+
+    // Role-based personality modifiers
+    switch (role) {
+        case 'ENGINEER':
+            personality.patience += 0.2;
+            personality.diligence += 0.15;
+            break;
+        case 'MINER':
+            personality.bravery += 0.2;
+            personality.patience -= 0.1;
+            break;
+        case 'BOTANIST':
+            personality.patience += 0.25;
+            personality.sociability += 0.1;
+            break;
+        case 'SECURITY':
+            personality.bravery += 0.3;
+            personality.diligence += 0.1;
+            break;
+        case 'ILLEGAL_MINER':
+            personality.bravery += 0.4;
+            personality.diligence = 0.9; // Very driven
+            personality.sociability = 0.1; // Loner
+            break;
+    }
+
+    // Clamp all values
+    return {
+        diligence: Math.max(0, Math.min(1, personality.diligence)),
+        sociability: Math.max(0, Math.min(1, personality.sociability)),
+        bravery: Math.max(0, Math.min(1, personality.bravery)),
+        patience: Math.max(0, Math.min(1, personality.patience))
+    };
+}
+
+// Generate role-appropriate skills
+function generateSkills(role: AgentRole): { mining: number; construction: number; plants: number; intelligence: number } {
+    const base = () => Math.floor(Math.random() * 3) + 1; // 1-3 base
+    const bonus = () => Math.floor(Math.random() * 3) + 2; // 2-4 bonus
+
+    let skills = {
+        mining: base(),
+        construction: base(),
+        plants: base(),
+        intelligence: base()
+    };
+
+    // Role specialization
+    switch (role) {
+        case 'ENGINEER':
+            skills.construction = bonus() + 2;
+            skills.intelligence = bonus();
+            break;
+        case 'MINER':
+            skills.mining = bonus() + 2;
+            break;
+        case 'BOTANIST':
+            skills.plants = bonus() + 2;
+            skills.intelligence = bonus();
+            break;
+        case 'SECURITY':
+            skills.mining = bonus(); // Combat/strength
+            break;
+        case 'WORKER':
+            // Workers are generalists - boost one random skill
+            const skillKey = ['mining', 'construction', 'plants'][Math.floor(Math.random() * 3)] as keyof typeof skills;
+            skills[skillKey] = bonus();
+            break;
+    }
+
+    return skills;
+}
+
 export function createColonist(x: number, z: number, role: AgentRole = 'WORKER'): Agent {
+    const isIllegal = role === 'ILLEGAL_MINER';
+
+    // Assign shift based on role
+    let shift: 'DAY' | 'NIGHT' | 'FLEXIBLE' = 'FLEXIBLE';
+    if (role === 'BOTANIST') {
+        shift = 'DAY'; // Plants need sunlight
+    } else if (role === 'SECURITY') {
+        shift = 'NIGHT'; // Security patrols at night
+    } else if (role === 'MINER' || role === 'ENGINEER') {
+        // Mix of shifts for essential workers
+        shift = Math.random() > 0.5 ? 'DAY' : 'NIGHT';
+    }
+
     return {
         id: `col_${Math.random().toString(36).substr(2, 9)}`,
-        name: role === 'ILLEGAL_MINER' ? "Infiltrator" : NAMES[Math.floor(Math.random() * NAMES.length)],
+        name: isIllegal ? "Infiltrator" : NAMES[Math.floor(Math.random() * NAMES.length)],
         type: role,
         x, z,
         targetTileId: null,
         path: null,
         state: 'IDLE',
-        energy: role === 'ILLEGAL_MINER' ? 800 : 100,
+        energy: isIllegal ? 800 : 100,
         hunger: 100,
-        mood: 100,
-        skills: {
-            mining: Math.floor(Math.random() * 5) + 1,
-            construction: Math.floor(Math.random() * 5) + 1,
-            plants: Math.floor(Math.random() * 5) + 1,
-            intelligence: Math.floor(Math.random() * 5) + 1,
+        mood: 80 + Math.random() * 20, // Start with good mood (80-100)
+        skills: generateSkills(role),
+        currentJobId: null,
+
+        // New intelligence features
+        personality: generatePersonality(role),
+        memory: {
+            knownBuildings: new Map(),
+            favoriteSpots: [],
+            recentlyVisited: [],
+            friendIds: [],
+            lastMealTile: null,
+            lastSleepTile: null
         },
-        currentJobId: null
+        experience: {
+            buildingsConstructed: 0,
+            resourcesMined: 0,
+            plantsGrown: 0,
+            totalWorkTicks: 0,
+            // Skill progress (0-100)
+            miningProgress: 0,
+            constructionProgress: 0,
+            plantsProgress: 0
+        },
+        workEfficiency: 1.0,
+        moveSpeed: 0.9 + Math.random() * 0.2, // 0.9-1.1 individual variation
+
+        // Shift system
+        shift: isIllegal ? 'FLEXIBLE' : shift,
+        consecutiveWorkTicks: 0,
+        lastBreakTick: 0,
+
+        // No active request initially
+        activeRequest: undefined
     };
 }
 
-// Helper: Find nearest tile of a certain building type
+// Helper: Find nearest tile of a certain building type (with memory caching)
 function findNearestBuilding(agent: Agent, type: BuildingType, grid: GridTile[]): number | null {
     let nearestDist = Infinity;
     let nearestIdx = null;
 
-    // Scan grid (Optimization: Maintain a cache of building locations in GameState for O(1) lookup in future)
-    // For now, linear scan is acceptable for 45x45 grid.
+    // Check memory first for known locations
+    const typeKey = type.toString();
+    if (agent.memory?.knownBuildings.has(typeKey)) {
+        const cached = agent.memory.knownBuildings.get(typeKey)!;
+        for (const idx of cached) {
+            if (grid[idx]?.buildingType === type && !grid[idx].isUnderConstruction) {
+                const d = getDistance(Math.floor(agent.z) * GRID_SIZE + Math.floor(agent.x), idx);
+                if (d < nearestDist) {
+                    nearestDist = d;
+                    nearestIdx = idx;
+                }
+            }
+        }
+        if (nearestIdx !== null) return nearestIdx;
+    }
+
+    // Full scan and update memory
+    const foundLocations: number[] = [];
     for (let i = 0; i < grid.length; i++) {
         if (grid[i].buildingType === type && !grid[i].isUnderConstruction) {
+            foundLocations.push(i);
             const d = getDistance(Math.floor(agent.z) * GRID_SIZE + Math.floor(agent.x), i);
             if (d < nearestDist) {
                 nearestDist = d;
@@ -186,18 +325,42 @@ function findNearestBuilding(agent: Agent, type: BuildingType, grid: GridTile[])
             }
         }
     }
+
+    // Update memory
+    if (agent.memory && foundLocations.length > 0) {
+        agent.memory.knownBuildings.set(typeKey, foundLocations);
+    }
+
     return nearestIdx;
 }
 
-// Helper: Smart Wander
+// Helper: Smart Wander (avoids recently visited, prefers interesting spots)
 function findWanderTarget(agent: Agent, grid: GridTile[]): number {
     const cx = Math.floor(agent.x);
     const cz = Math.floor(agent.z);
+    const currentIdx = cz * GRID_SIZE + cx;
+
+    // Sociable agents prefer social hubs and populated areas
+    if (agent.personality && agent.personality.sociability > 0.6) {
+        const socialHub = findNearestBuilding(agent, BuildingType.SOCIAL_HUB, grid);
+        if (socialHub && Math.random() < agent.personality.sociability) {
+            return socialHub;
+        }
+    }
+
+    // Check for favorite spots
+    if (agent.memory?.favoriteSpots.length && Math.random() > 0.7) {
+        const fav = agent.memory.favoriteSpots[Math.floor(Math.random() * agent.memory.favoriteSpots.length)];
+        if (grid[fav] && !grid[fav].locked) return fav;
+    }
 
     let attempts = 0;
-    while (attempts < 10) {
+    let bestTarget = currentIdx;
+    let bestScore = -Infinity;
+
+    while (attempts < 15) {
         attempts++;
-        const rad = 8;
+        const rad = 8 + Math.floor((agent.personality?.bravery || 0.5) * 6); // Brave agents wander further
         const dx = Math.floor(Math.random() * (rad * 2 + 1)) - rad;
         const dy = Math.floor(Math.random() * (rad * 2 + 1)) - rad;
 
@@ -207,14 +370,295 @@ function findWanderTarget(agent: Agent, grid: GridTile[]): number {
         if (tx >= 0 && tx < GRID_SIZE && ty >= 0 && ty < GRID_SIZE) {
             const idx = ty * GRID_SIZE + tx;
             const t = grid[idx];
-            // Prefer roads for wandering
+
             if (!t.locked && t.buildingType !== BuildingType.POND) {
-                return idx;
+                let score = 0;
+
+                // Prefer roads
+                if (t.buildingType === BuildingType.ROAD) score += 2;
+
+                // Avoid recently visited
+                if (agent.memory?.recentlyVisited.includes(idx)) score -= 5;
+
+                // Prefer grass biome
+                if (t.biome === 'GRASS') score += 1;
+
+                // Add some randomness
+                score += Math.random() * 3;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestTarget = idx;
+                }
             }
         }
     }
-    // Fallback: stay put
-    return cz * GRID_SIZE + cx;
+
+    return bestTarget;
+}
+
+// ============================================================================
+// SHIFT SYSTEM HELPERS
+// ============================================================================
+
+// Check if an agent is currently on their active shift
+function isAgentOnShift(agent: Agent, isDaytime: boolean): boolean {
+    const shift = agent.shift || 'FLEXIBLE';
+
+    if (shift === 'FLEXIBLE') return true; // Always available
+    if (shift === 'DAY' && isDaytime) return true;
+    if (shift === 'NIGHT' && !isDaytime) return true;
+
+    return false;
+}
+
+// ============================================================================
+// SKILL LEVELING SYSTEM
+// When an agent gains enough experience in a task, their skill improves
+// ============================================================================
+
+function updateSkillProgress(agent: Agent, skillType: 'mining' | 'construction' | 'plants', amount: number): void {
+    if (!agent.experience) return;
+
+    const progressKey = `${skillType}Progress` as keyof typeof agent.experience;
+    const currentProgress = (agent.experience[progressKey] as number) || 0;
+    const newProgress = currentProgress + amount;
+
+    if (newProgress >= 100) {
+        // Level up!
+        agent.skills[skillType] = Math.min(10, agent.skills[skillType] + 1);
+        (agent.experience[progressKey] as number) = newProgress - 100;
+
+        // Mood boost from learning
+        agent.mood = Math.min(100, agent.mood + 5);
+    } else {
+        (agent.experience[progressKey] as number) = newProgress;
+    }
+}
+
+// ============================================================================
+// AGENT REQUEST SYSTEM
+// Agents can make requests when they're struggling
+// ============================================================================
+
+interface AgentRequestResult {
+    type: 'NEED_BREAK' | 'WANT_FRIEND' | 'WANT_BETTER_FOOD' | 'WANT_BETTER_BED' | 'LOW_MORALE' | 'OVERWORKED';
+    message: string;
+    priority: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+
+function checkForAgentRequest(agent: Agent, grid: GridTile[], tickCount: number): AgentRequestResult | null {
+    // Don't spam requests - only check occasionally
+    if (tickCount % 50 !== 0) return null;
+
+    // Illegal miners don't make requests
+    if (agent.type === 'ILLEGAL_MINER') return null;
+
+    // Already has an active request
+    if (agent.activeRequest && !agent.activeRequest.resolved) return null;
+
+    const personality = agent.personality || { diligence: 0.5, sociability: 0.5, bravery: 0.5, patience: 0.5 };
+
+    // Check for overworked (more than 200 consecutive work ticks without break)
+    const workTicks = agent.consecutiveWorkTicks || 0;
+    if (workTicks > 200 && Math.random() < 0.3) {
+        return {
+            type: 'OVERWORKED',
+            message: `${agent.name} says: "I've been working non-stop. I need a break!"`,
+            priority: 'HIGH'
+        };
+    }
+
+    // Check for needing a break (low energy or patience ran out)
+    if (agent.energy < 25 && Math.random() < 0.4) {
+        const hasBed = findNearestBuilding(agent, BuildingType.STAFF_QUARTERS, grid) !== null;
+        if (!hasBed) {
+            return {
+                type: 'WANT_BETTER_BED',
+                message: `${agent.name} says: "There's nowhere for me to rest properly!"`,
+                priority: 'MEDIUM'
+            };
+        }
+        return {
+            type: 'NEED_BREAK',
+            message: `${agent.name} says: "I'm exhausted. I need some rest."`,
+            priority: 'MEDIUM'
+        };
+    }
+
+    // Check for wanting food
+    if (agent.hunger < 25 && Math.random() < 0.4) {
+        const hasFood = findNearestBuilding(agent, BuildingType.CANTEEN, grid) !== null;
+        if (!hasFood) {
+            return {
+                type: 'WANT_BETTER_FOOD',
+                message: `${agent.name} says: "We need a canteen! I'm starving."`,
+                priority: 'HIGH'
+            };
+        }
+    }
+
+    // Check for loneliness (high sociability + low mood + no nearby friends)
+    if (personality.sociability > 0.6 && agent.mood < 50 && Math.random() < 0.3) {
+        const hasFriends = agent.memory?.friendIds.length && agent.memory.friendIds.length > 0;
+        if (!hasFriends) {
+            return {
+                type: 'WANT_FRIEND',
+                message: `${agent.name} says: "I feel lonely. I wish I had someone to talk to."`,
+                priority: 'LOW'
+            };
+        }
+    }
+
+    // General low morale
+    if (agent.mood < 20 && Math.random() < 0.3) {
+        return {
+            type: 'LOW_MORALE',
+            message: `${agent.name} says: "I'm really unhappy. Something needs to change."`,
+            priority: 'MEDIUM'
+        };
+    }
+
+    return null;
+}
+
+// ============================================================================
+// UTILITY AI SCORING SYSTEM
+// Each possible action gets a score, agent picks the highest scoring action
+// ============================================================================
+
+interface ActionOption {
+    type: 'SLEEP' | 'EAT' | 'WORK' | 'SOCIALIZE' | 'RELAX' | 'WANDER' | 'PATROL';
+    targetTileId: number | null;
+    jobId: string | null;
+    score: number;
+}
+
+function calculateUtilityScores(agent: Agent, grid: GridTile[], jobs: readonly { id: string; type: string; targetTileId: number; priority: number; assignedAgentId: string | null }[], allAgents: Agent[]): ActionOption[] {
+    const options: ActionOption[] = [];
+    const currentTileIdx = Math.floor(agent.z) * GRID_SIZE + Math.floor(agent.x);
+    const personality = agent.personality || { diligence: 0.5, sociability: 0.5, bravery: 0.5, patience: 0.5 };
+
+    // Calculate need urgencies (0-1 scale, higher = more urgent)
+    const energyUrgency = Math.max(0, (100 - agent.energy) / 100);
+    const hungerUrgency = Math.max(0, (100 - agent.hunger) / 100);
+    const moodUrgency = Math.max(0, (100 - agent.mood) / 100);
+
+    // 1. SLEEP option
+    const bedIdx = findNearestBuilding(agent, BuildingType.STAFF_QUARTERS, grid);
+    const sleepScore = energyUrgency * 100 * (1 + (agent.energy < 30 ? 2 : 0)); // Critical boost if very tired
+    options.push({
+        type: 'SLEEP',
+        targetTileId: bedIdx ?? currentTileIdx,
+        jobId: 'sys_sleep',
+        score: sleepScore
+    });
+
+    // 2. EAT option
+    const foodIdx = findNearestBuilding(agent, BuildingType.CANTEEN, grid);
+    const eatScore = hungerUrgency * 100 * (1 + (agent.hunger < 30 ? 2 : 0)); // Critical boost if starving
+    options.push({
+        type: 'EAT',
+        targetTileId: foodIdx,
+        jobId: 'sys_eat',
+        score: eatScore
+    });
+
+    // 3. WORK options (for each available job)
+    const availableJobs = jobs.filter(j => {
+        if (j.type === 'MOVE') return false;
+        if (j.type === 'BUILD') return true; // BUILD jobs are shared
+        return !j.assignedAgentId;
+    });
+
+    for (const job of availableJobs) {
+        let workScore = job.priority;
+
+        // Distance penalty
+        const dist = getDistance(currentTileIdx, job.targetTileId);
+        workScore -= dist * 0.5;
+
+        // Skill bonus
+        if (job.type === 'BUILD') {
+            workScore += agent.skills.construction * 3;
+            if (agent.type === 'ENGINEER') workScore += 20;
+        } else if (job.type === 'MINE') {
+            workScore += agent.skills.mining * 3;
+            if (agent.type === 'MINER') workScore += 20;
+        } else if (job.type === 'REHABILITATE' || job.type === 'FARM') {
+            workScore += agent.skills.plants * 3;
+            if (agent.type === 'BOTANIST') workScore += 20;
+        }
+
+        // Personality: Diligent agents love work
+        workScore *= (0.7 + personality.diligence * 0.6);
+
+        // Reduce work desire when tired/hungry
+        workScore *= Math.max(0.3, Math.min(agent.energy, agent.hunger) / 100);
+
+        options.push({
+            type: 'WORK',
+            targetTileId: job.targetTileId,
+            jobId: job.id,
+            score: workScore
+        });
+    }
+
+    // 4. SOCIALIZE option
+    const nearbyAgents = allAgents.filter(a =>
+        a.id !== agent.id &&
+        a.type !== 'ILLEGAL_MINER' &&
+        a.state !== 'SLEEPING' &&
+        getDistance(currentTileIdx, Math.floor(a.z) * GRID_SIZE + Math.floor(a.x)) < 15
+    );
+
+    if (nearbyAgents.length > 0) {
+        const friend = nearbyAgents.find(a => agent.memory?.friendIds.includes(a.id)) || nearbyAgents[0];
+        const friendIdx = Math.floor(friend.z) * GRID_SIZE + Math.floor(friend.x);
+
+        let socialScore = moodUrgency * 50 * personality.sociability;
+        if (agent.memory?.friendIds.includes(friend.id)) socialScore += 20; // Bonus for friends
+
+        options.push({
+            type: 'SOCIALIZE',
+            targetTileId: friendIdx,
+            jobId: `sys_social_${friend.id}`,
+            score: socialScore
+        });
+    }
+
+    // 5. RELAX option
+    const funIdx = findNearestBuilding(agent, BuildingType.SOCIAL_HUB, grid);
+    const relaxScore = moodUrgency * 40;
+    options.push({
+        type: 'RELAX',
+        targetTileId: funIdx,
+        jobId: 'sys_fun',
+        score: relaxScore
+    });
+
+    // 6. PATROL option (Security only)
+    if (agent.type === 'SECURITY') {
+        const patrolScore = 30 * personality.diligence;
+        options.push({
+            type: 'PATROL',
+            targetTileId: findWanderTarget(agent, grid),
+            jobId: 'sys_patrol',
+            score: patrolScore
+        });
+    }
+
+    // 7. WANDER (fallback, always available)
+    const wanderScore = 5 + (1 - personality.diligence) * 15; // Lazy agents prefer wandering
+    options.push({
+        type: 'WANDER',
+        targetTileId: findWanderTarget(agent, grid),
+        jobId: null,
+        score: wanderScore
+    });
+
+    // Sort by score descending
+    return options.sort((a, b) => b.score - a.score);
 }
 
 // --- MAIN SIMULATION LOOP ---
@@ -237,7 +681,8 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
         if (tile.isUnderConstruction && (tile.structureHeadIndex === undefined || tile.id === tile.structureHeadIndex)) {
             const jobId = `build_${tile.id}`;
             if (!nextJobs.some(j => j.id === jobId)) {
-                nextJobs.push({ id: jobId, type: 'BUILD', targetTileId: tile.id, priority: 80, assignedAgentId: null });
+                // HIGH PRIORITY: Construction jobs should be done ASAP
+                nextJobs.push({ id: jobId, type: 'BUILD', targetTileId: tile.id, priority: 90, assignedAgentId: null });
             }
         }
     });
@@ -273,13 +718,44 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
 
         if (aState === 'SLEEPING') {
             energy += 1.5;
+            // Remember this sleep location
+            if (agent.memory && targetTileId !== null) {
+                agent.memory.lastSleepTile = targetTileId;
+            }
             if (energy >= 100) { energy = 100; actionCompleted = true; }
         } else if (aState === 'EATING') {
             hunger += 2.0;
+            // Remember this eating location
+            if (agent.memory && targetTileId !== null) {
+                agent.memory.lastMealTile = targetTileId;
+            }
             if (hunger >= 100) { hunger = 100; actionCompleted = true; }
-        } else if (aState === 'RELAXING' || aState === 'SOCIALIZING') {
+        } else if (aState === 'RELAXING') {
             mood += 1.0;
             if (mood >= 100) { mood = 100; actionCompleted = true; }
+        } else if (aState === 'SOCIALIZING') {
+            mood += 1.5; // Socializing is more mood-boosting
+
+            // Build friendships - extract friend ID from job
+            if (currentJobId?.startsWith('sys_social_') && agent.memory) {
+                const friendId = currentJobId.replace('sys_social_', '');
+                if (!agent.memory.friendIds.includes(friendId)) {
+                    agent.memory.friendIds.push(friendId);
+                    // Cap at 5 friends
+                    if (agent.memory.friendIds.length > 5) {
+                        agent.memory.friendIds.shift();
+                    }
+                }
+            }
+
+            if (mood >= 100) { mood = 100; actionCompleted = true; }
+        } else if (aState === 'PATROLLING') {
+            // Security patrol - slightly improves mood from sense of purpose
+            mood = Math.min(100, mood + 0.2);
+            // Patrol completes when reaching destination
+            if (!path || path.length === 0) {
+                actionCompleted = true;
+            }
         } else if (aState === 'WORKING') {
             // Working logic handled below, but if job is gone, stop
             if (!currentJobId || !nextJobs.some(j => j.id === currentJobId)) actionCompleted = true;
@@ -297,108 +773,183 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
             }
         }
 
-        // --- DECISION PHASE ---
+        // INTERRUPT: Wandering agents should drop what they're doing for BUILD jobs
+        // If agent is just wandering (no real job) and BUILD jobs exist, interrupt to go build
+        if (!isIllegal && aState === 'MOVING' && !currentJobId) {
+            const hasBuildJobs = nextJobs.some(j => j.type === 'BUILD');
+            if (hasBuildJobs) {
+                // Stop wandering, go to decision phase to pick up BUILD job
+                aState = 'IDLE';
+                path = null;
+                targetTileId = null;
+            }
+        }
+
+        // --- DECISION PHASE (UTILITY AI) ---
         if (aState === 'IDLE') {
-            // 1. CRITICAL NEEDS
-            if (!isIllegal && (energy < CONFIG.THRESHOLDS.CRITICAL || hunger < CONFIG.THRESHOLDS.CRITICAL)) {
-                if (energy < hunger) {
-                    // Sleep
-                    const bedIdx = findNearestBuilding(agent, BuildingType.STAFF_QUARTERS, grid);
-                    if (bedIdx) {
-                        targetTileId = bedIdx;
-                        currentJobId = 'sys_sleep';
-                        aState = 'MOVING';
-                    } else {
-                        // Sleep on floor if no bed
-                        aState = 'SLEEPING';
-                    }
+            // Calculate work efficiency based on needs
+            const efficiency = Math.max(0.5, Math.min(1.5,
+                (agent.energy / 100) * 0.4 +
+                (agent.hunger / 100) * 0.4 +
+                (agent.mood / 100) * 0.2
+            ));
+
+            // Check for agent requests (struggling agents)
+            const maybeRequest = checkForAgentRequest(agent, grid, state.tickCount);
+            if (maybeRequest) {
+                agent.activeRequest = {
+                    id: `req_${agent.id}_${state.tickCount}`,
+                    type: maybeRequest.type,
+                    message: maybeRequest.message,
+                    priority: maybeRequest.priority,
+                    timestamp: Date.now(),
+                    resolved: false
+                };
+                // Add to news feed if high priority
+                if (maybeRequest.priority === 'HIGH') {
+                    newsQueue.push({
+                        id: `request_${agent.id}_${state.tickCount}`,
+                        headline: maybeRequest.message,
+                        type: 'CRITICAL',
+                        timestamp: Date.now()
+                    });
+                }
+            }
+
+            // Check if agent is on their active shift
+            const isDaytime = state.dayNightCycle?.isDaytime ?? true;
+            const onShift = isAgentOnShift(agent, isDaytime);
+
+            // Illegal miners have special behavior
+            if (isIllegal) {
+                const veins = grid.filter(t => t.foliage === 'GOLD_VEIN');
+                if (veins.length > 0) {
+                    const v = veins[Math.floor(Math.random() * veins.length)];
+                    targetTileId = v.id;
+                    currentJobId = `steal_${v.id}`;
+                    aState = 'MOVING';
                 } else {
-                    // Eat
-                    const foodIdx = findNearestBuilding(agent, BuildingType.CANTEEN, grid);
-                    if (foodIdx) {
-                        targetTileId = foodIdx;
-                        currentJobId = 'sys_eat';
+                    targetTileId = findWanderTarget(agent, grid);
+                    aState = 'MOVING';
+                }
+            }
+            // OFF DUTY - agent should rest, eat, or relax instead of work
+            else if (!onShift) {
+                // Off-duty priorities: Sleep if tired, Eat if hungry, Relax/Socialize otherwise
+                if (energy < 70) {
+                    const bedIdx = findNearestBuilding(agent, BuildingType.STAFF_QUARTERS, grid);
+                    if (bedIdx !== null) {
+                        targetTileId = bedIdx;
+                        currentJobId = 'sys_sleep_offduty';
                         aState = 'MOVING';
                     } else {
-                        // Can't find food, panic wander
+                        aState = 'SLEEPING'; // Sleep on floor
+                        currentJobId = null;
+                    }
+                } else if (hunger < 70) {
+                    const foodIdx = findNearestBuilding(agent, BuildingType.CANTEEN, grid);
+                    if (foodIdx !== null) {
+                        targetTileId = foodIdx;
+                        currentJobId = 'sys_eat_offduty';
+                        aState = 'MOVING';
+                    } else {
+                        // Just wander
                         targetTileId = findWanderTarget(agent, grid);
                         aState = 'MOVING';
+                    }
+                } else {
+                    // Socialize or relax
+                    const socialHub = findNearestBuilding(agent, BuildingType.SOCIAL_HUB, grid);
+                    if (socialHub !== null && Math.random() > 0.5) {
+                        targetTileId = socialHub;
+                        currentJobId = 'sys_relax_offduty';
+                        aState = 'MOVING';
+                    } else {
+                        targetTileId = findWanderTarget(agent, grid);
+                        currentJobId = null;
+                        aState = 'MOVING';
+                    }
+                }
+
+                // Reset work counter when off duty
+                agent.consecutiveWorkTicks = 0;
+            }
+            else {
+                // ON SHIFT - Use Utility AI to pick the best action
+                const options = calculateUtilityScores(
+                    { ...agent, energy, hunger, mood },
+                    grid,
+                    nextJobs,
+                    nextAgents
+                );
+
+                // Pick the best option (first in sorted list)
+                const bestOption = options[0];
+
+                if (bestOption) {
+                    targetTileId = bestOption.targetTileId;
+                    currentJobId = bestOption.jobId;
+
+                    switch (bestOption.type) {
+                        case 'SLEEP':
+                            if (targetTileId) {
+                                aState = 'MOVING';
+                            } else {
+                                // No bed, sleep on floor
+                                aState = 'SLEEPING';
+                            }
+                            break;
+                        case 'EAT':
+                            if (targetTileId) {
+                                aState = 'MOVING';
+                            } else {
+                                // No food, panic wander
+                                targetTileId = findWanderTarget(agent, grid);
+                                currentJobId = null;
+                                aState = 'MOVING';
+                            }
+                            break;
+                        case 'WORK':
+                            // Assign job if not BUILD (BUILD jobs are shared)
+                            if (currentJobId && !currentJobId.startsWith('build_')) {
+                                nextJobs = nextJobs.map(j => j.id === currentJobId ? { ...j, assignedAgentId: agent.id } : j);
+                            }
+                            aState = 'MOVING';
+                            break;
+                        case 'SOCIALIZE':
+                            aState = 'MOVING';
+                            break;
+                        case 'RELAX':
+                            if (targetTileId) {
+                                aState = 'MOVING';
+                            } else {
+                                // No social hub, just relax in place
+                                aState = 'RELAXING';
+                            }
+                            break;
+                        case 'PATROL':
+                            aState = 'MOVING';
+                            break;
+                        case 'WANDER':
+                        default:
+                            aState = 'MOVING';
+                            break;
                     }
                 }
             }
-            // 2. WORK
-            else if (!currentJobId) {
-                // Look for jobs
-                // Filter jobs that are not assigned
-                const candidates = nextJobs.filter(j => !j.assignedAgentId && j.type !== 'MOVE'); // MOVE is manual command
 
-                if (candidates.length > 0) {
-                    // Sort by priority then distance
-                    candidates.sort((a, b) => {
-                        if (a.priority !== b.priority) return b.priority - a.priority;
-                        const distA = getDistance(currentTileIdx, a.targetTileId);
-                        const distB = getDistance(currentTileIdx, b.targetTileId);
-                        return distA - distB;
-                    });
-
-                    // Assign best job
-                    const job = candidates[0];
-                    // Mutate jobs array to assign
-                    nextJobs = nextJobs.map(j => j.id === job.id ? { ...j, assignedAgentId: agent.id } : j);
-
-                    currentJobId = job.id;
-                    targetTileId = job.targetTileId;
-                    aState = 'MOVING';
-                }
-                // 3. SECONDARY NEEDS (Mood)
-                else if (!isIllegal && mood < CONFIG.THRESHOLDS.LOW) {
-                    const funIdx = findNearestBuilding(agent, BuildingType.SOCIAL_HUB, grid);
-                    if (funIdx) {
-                        targetTileId = funIdx;
-                        currentJobId = 'sys_fun';
-                        aState = 'MOVING';
-                    } else {
-                        // Seek friend?
-                        const friend = nextAgents.find(a => a.id !== agent.id && a.state === 'IDLE' && getDistance(currentTileIdx, Math.floor(a.z) * GRID_SIZE + Math.floor(a.x)) < 10);
-                        if (friend) {
-                            targetTileId = Math.floor(friend.z) * GRID_SIZE + Math.floor(friend.x);
-                            currentJobId = `sys_social_${friend.id}`;
-                            aState = 'MOVING';
-                        } else {
-                            targetTileId = findWanderTarget(agent, grid);
-                            aState = 'MOVING';
-                        }
-                    }
-                }
-                // 4. WANDER / PATROL
-                else {
-                    // Illegal miners steal
-                    if (isIllegal) {
-                        const veins = grid.filter(t => t.foliage === 'GOLD_VEIN');
-                        if (veins.length > 0) {
-                            const v = veins[Math.floor(Math.random() * veins.length)];
-                            targetTileId = v.id;
-                            currentJobId = `steal_${v.id}`;
-                            aState = 'MOVING';
-                        } else {
-                            targetTileId = findWanderTarget(agent, grid);
-                            aState = 'MOVING';
-                        }
-                    } else {
-                        // Civilians wander to roads/amenities
-                        targetTileId = findWanderTarget(agent, grid);
-                        aState = 'MOVING';
-                    }
-                }
+            // Update memory: track recently visited tiles
+            if (agent.memory) {
+                agent.memory.recentlyVisited = [currentTileIdx, ...agent.memory.recentlyVisited].slice(0, 5);
+            }
+        } else if (aState === 'IDLE' && currentJobId) {
+            // Has job, but in IDLE state? Resume.
+            const job = nextJobs.find(j => j.id === currentJobId);
+            if (job) {
+                targetTileId = job.targetTileId;
+                aState = 'MOVING';
             } else {
-                // Has job, but in IDLE state? Resume.
-                const job = nextJobs.find(j => j.id === currentJobId);
-                if (job) {
-                    targetTileId = job.targetTileId;
-                    aState = 'MOVING';
-                } else {
-                    currentJobId = null; // Job invalidated
-                }
+                currentJobId = null; // Job invalidated
             }
         }
 
@@ -489,8 +1040,14 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
 
                         // Construct
                         if (headTile.isUnderConstruction) {
+                            // Each worker contributes based on their skill
                             const power = 0.2 + (agent.skills.construction * 0.05);
                             const timeLeft = Math.max(0, (headTile.constructionTimeLeft || 0) - power);
+
+                            // Show construction dust particles (more workers = more particles)
+                            if (Math.random() > 0.7) {
+                                effects.push({ type: 'FX', fxType: 'DUST', index: headIdx });
+                            }
 
                             // We need to update ALL tiles for this building to keep state sync
                             const def = BUILDINGS[headTile.buildingType];
@@ -509,34 +1066,80 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                                 }
                             }
 
+                            // Track experience and consecutive work
+                            if (agent.experience) {
+                                agent.experience.totalWorkTicks++;
+                            }
+                            agent.consecutiveWorkTicks = (agent.consecutiveWorkTicks || 0) + 1;
+
+                            // Skill progress - engineers learn faster
+                            const skillGain = agent.type === 'ENGINEER' ? 2 : 1;
+                            updateSkillProgress(agent, 'construction', skillGain);
+
                             if (timeLeft <= 0) {
-                                // Job Done
+                                // Job Done - this will affect all workers on this job
                                 effects.push({ type: 'AUDIO', sfx: 'BUILD' });
                                 nextJobs = nextJobs.filter(j => j.id !== job.id);
+
+                                // Track building completion experience
+                                if (agent.experience) {
+                                    agent.experience.buildingsConstructed++;
+                                }
+
+                                // Big skill boost on completion
+                                updateSkillProgress(agent, 'construction', 10);
+
+                                // Mood boost for completing work
+                                mood = Math.min(100, mood + 5);
+
+                                // Reset work counter after completing a job
+                                agent.consecutiveWorkTicks = 0;
+
                                 currentJobId = null;
                                 aState = 'IDLE';
                             }
                         } else {
-                            // Already done?
-                            nextJobs = nextJobs.filter(j => j.id !== job.id);
+                            // Building already completed (by other workers) - go back to IDLE
                             currentJobId = null;
                             aState = 'IDLE';
                         }
                     }
                     else if (job.type === 'REHABILITATE') {
                         const tile = grid[job.targetTileId];
-                        const power = 0.5 + (agent.skills.plants * 0.1);
+                        // Work efficiency affects rehabilitation speed
+                        const workEff = agent.workEfficiency || 1.0;
+                        const power = (0.5 + (agent.skills.plants * 0.1)) * workEff;
                         const progress = Math.min(100, (tile.rehabProgress || 0) + power);
                         grid[tile.id] = { ...tile, rehabProgress: progress };
                         gridUpdates.push(grid[tile.id]);
 
                         if (Math.random() > 0.8) effects.push({ type: 'FX', fxType: 'ECO_REHAB', index: tile.id });
 
+                        // Track experience
+                        if (agent.experience) {
+                            agent.experience.totalWorkTicks++;
+                        }
+                        agent.consecutiveWorkTicks = (agent.consecutiveWorkTicks || 0) + 1;
+
+                        // Skill progress - botanists learn faster
+                        const plantSkillGain = agent.type === 'BOTANIST' ? 2 : 1;
+                        updateSkillProgress(agent, 'plants', plantSkillGain);
+
                         if (progress >= 100) {
                             grid[tile.id] = { ...tile, foliage: 'NONE', rehabProgress: undefined };
                             gridUpdates.push(grid[tile.id]);
                             ecoDelta += 5;
                             nextJobs = nextJobs.filter(j => j.id !== job.id);
+
+                            // Track plant experience
+                            if (agent.experience) {
+                                agent.experience.plantsGrown++;
+                            }
+
+                            // Big skill boost on completion
+                            updateSkillProgress(agent, 'plants', 15);
+                            agent.consecutiveWorkTicks = 0;
+
                             currentJobId = null;
                             aState = 'IDLE';
                         }
@@ -544,7 +1147,9 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                     else if (job.type === 'MINE') {
                         // Manual mining command
                         const tile = grid[job.targetTileId];
-                        const p = (agent.skills.mining / 40) + 0.15;
+                        // Work efficiency affects mining speed
+                        const workEff = agent.workEfficiency || 1.0;
+                        const p = ((agent.skills.mining / 40) + 0.15) * workEff;
                         const integrity = Math.max(0, (tile.integrity ?? 100) - p);
                         grid[tile.id] = { ...tile, integrity };
                         gridUpdates.push(grid[tile.id]);
@@ -552,10 +1157,30 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                         mineralsDelta += tile.foliage === 'GOLD_VEIN' ? 0.15 : 0.05;
                         if (Math.random() > 0.85) effects.push({ type: 'FX', fxType: 'MINING', index: tile.id });
 
+                        // Track experience and work
+                        if (agent.experience) {
+                            agent.experience.totalWorkTicks++;
+                        }
+                        agent.consecutiveWorkTicks = (agent.consecutiveWorkTicks || 0) + 1;
+
+                        // Skill progress - miners learn faster
+                        const miningSkillGain = agent.type === 'MINER' ? 2 : 1;
+                        updateSkillProgress(agent, 'mining', miningSkillGain);
+
                         if (integrity <= 0) {
                             grid[tile.id] = { ...tile, foliage: tile.foliage === 'GOLD_VEIN' ? 'MINE_HOLE' : 'NONE' };
                             gridUpdates.push(grid[tile.id]);
                             nextJobs = nextJobs.filter(j => j.id !== job.id);
+
+                            // Track mining experience
+                            if (agent.experience) {
+                                agent.experience.resourcesMined++;
+                            }
+
+                            // Big skill boost on completion
+                            updateSkillProgress(agent, 'mining', 15);
+                            agent.consecutiveWorkTicks = 0;
+
                             currentJobId = null;
                             aState = 'IDLE';
                         }
@@ -570,12 +1195,29 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
             }
         }
 
+        // Calculate updated work efficiency based on current stats
+        const updatedWorkEfficiency = Math.max(0.5, Math.min(1.5,
+            (energy / 100) * 0.4 +
+            (hunger / 100) * 0.4 +
+            (mood / 100) * 0.2
+        ));
+
         aliveAgents.push({
             ...agent,
             x, z,
             state: aState,
             energy, hunger, mood,
-            currentJobId, targetTileId, path
+            currentJobId, targetTileId, path,
+            workEfficiency: updatedWorkEfficiency,
+            // Preserve and update memory/experience
+            memory: agent.memory,
+            experience: agent.experience,
+            personality: agent.personality,
+            // Preserve shift system data
+            shift: agent.shift,
+            consecutiveWorkTicks: agent.consecutiveWorkTicks,
+            lastBreakTick: agent.lastBreakTick,
+            activeRequest: agent.activeRequest
         });
     });
 

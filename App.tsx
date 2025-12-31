@@ -7,7 +7,7 @@
 import React, { useEffect, useRef, useReducer, useState, useCallback } from 'react';
 import { VoxelEngine } from './services/VoxelEngine';
 import { AudioEngine, SfxType } from './services/AudioEngine';
-import { BuildingType, GameStep, Agent } from './types';
+import { BuildingType, GameStep, Agent, GameState } from './types';
 import { BUILDINGS } from './utils/voxelConstants';
 import { calculateBuildingCost, GRID_SIZE, getEcoMultiplier } from './utils/gameUtils';
 import { gameReducer, initialState } from './store/gameReducer';
@@ -289,6 +289,7 @@ const App: React.FC = () => {
         return () => {
             clearInterval(timer);
             engine.cleanup();
+            audioRef.current.cleanup();
         };
     }, []);
 

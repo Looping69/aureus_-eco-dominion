@@ -5,15 +5,53 @@
 */
 
 import * as THREE from 'three';
-import { Agent } from '../types';
+import { Agent, AgentRole } from '../types';
 import { createAgentGroup } from '../voxels/Agent';
 import { createEagle } from '../voxels/Eagle';
+
+// Status indicator configuration
+const STATUS_CONFIG = {
+    height: 0.7,           // Height above agent
+    scale: 0.15,           // Base scale of indicators
+    warningThreshold: 30,  // Show warning below this need level
+    criticalThreshold: 15, // Critical warning level
+};
+
+// Emoji/Icon mappings for states and roles
+const STATE_ICONS: Record<string, string> = {
+    'MOVING': '🚶',
+    'WORKING': '🔨',
+    'SLEEPING': '💤',
+    'EATING': '🍔',
+    'RELAXING': '☕',
+    'SOCIALIZING': '💬',
+    'PATROLLING': '👁️',
+    'IDLE': '⏳',
+    'OFF_DUTY': '🌙',
+};
+
+const ROLE_ICONS: Record<AgentRole, { icon: string; color: string }> = {
+    'ENGINEER': { icon: '🔧', color: '#3b82f6' },
+    'MINER': { icon: '⛏️', color: '#ef4444' },
+    'BOTANIST': { icon: '🌿', color: '#22c55e' },
+    'SECURITY': { icon: '🛡️', color: '#e11d48' },
+    'WORKER': { icon: '👷', color: '#f59e0b' },
+    'ILLEGAL_MINER': { icon: '👤', color: '#0f172a' },
+};
+
+const WARNING_ICONS = {
+    energy: '😴',
+    hunger: '🍽️',
+    mood: '😟',
+};
 
 export class AgentManager {
     private scene: THREE.Scene;
     private gridSize: number;
 
     public agentMeshes: Map<string, THREE.Group> = new Map();
+    private statusSprites: Map<string, THREE.Group> = new Map();
+    private spriteTextures: Map<string, THREE.CanvasTexture> = new Map();
     private eagle: THREE.Group | null = null;
 
     private agentSelectionRing: THREE.Mesh;
@@ -44,6 +82,150 @@ export class AgentManager {
         this.scene.add(this.eagle);
     }
 
+    /**
+     * Create a canvas texture with an emoji/icon
+     */
+    private createIconTexture(icon: string, bgColor?: string): THREE.CanvasTexture {
+        const cacheKey = `${icon}_${bgColor || 'none'}`;
+        if (this.spriteTextures.has(cacheKey)) {
+            return this.spriteTextures.get(cacheKey)!;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d')!;
+
+        // Background circle (optional)
+        if (bgColor) {
+            ctx.fillStyle = bgColor;
+            ctx.beginPath();
+            ctx.arc(32, 32, 30, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Border
+            ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // Draw emoji
+        ctx.font = bgColor ? '28px Arial' : '40px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(icon, 32, 32);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        this.spriteTextures.set(cacheKey, texture);
+        return texture;
+    }
+
+    /**
+     * Create a status indicator group for an agent
+     */
+    private createStatusGroup(agent: Agent): THREE.Group {
+        const group = new THREE.Group();
+        group.name = 'statusIndicators';
+
+        // Role badge (always visible, positioned left)
+        const roleConfig = ROLE_ICONS[agent.type] || ROLE_ICONS['WORKER'];
+        const roleMaterial = new THREE.SpriteMaterial({
+            map: this.createIconTexture(roleConfig.icon, roleConfig.color),
+            transparent: true,
+            depthTest: false,
+        });
+        const roleSprite = new THREE.Sprite(roleMaterial);
+        roleSprite.name = 'roleSprite';
+        roleSprite.scale.setScalar(STATUS_CONFIG.scale * 0.8);
+        roleSprite.position.set(-0.12, 0, 0);
+        group.add(roleSprite);
+
+        // State indicator (center)
+        const stateMaterial = new THREE.SpriteMaterial({
+            map: this.createIconTexture(STATE_ICONS['IDLE']),
+            transparent: true,
+            depthTest: false,
+        });
+        const stateSprite = new THREE.Sprite(stateMaterial);
+        stateSprite.name = 'stateSprite';
+        stateSprite.scale.setScalar(STATUS_CONFIG.scale);
+        stateSprite.position.set(0.05, 0, 0);
+        group.add(stateSprite);
+
+        // Warning indicator (right, only visible when needed)
+        const warningMaterial = new THREE.SpriteMaterial({
+            map: this.createIconTexture('⚠️'),
+            transparent: true,
+            depthTest: false,
+            opacity: 0,
+        });
+        const warningSprite = new THREE.Sprite(warningMaterial);
+        warningSprite.name = 'warningSprite';
+        warningSprite.scale.setScalar(STATUS_CONFIG.scale * 0.7);
+        warningSprite.position.set(0.2, 0, 0);
+        warningSprite.visible = false;
+        group.add(warningSprite);
+
+        return group;
+    }
+
+    /**
+     * Update status indicators based on agent state
+     */
+    private updateStatusIndicators(agent: Agent, statusGroup: THREE.Group, time: number): void {
+        const stateSprite = statusGroup.getObjectByName('stateSprite') as THREE.Sprite;
+        const warningSprite = statusGroup.getObjectByName('warningSprite') as THREE.Sprite;
+
+        // Update state icon
+        if (stateSprite) {
+            const stateIcon = STATE_ICONS[agent.state] || STATE_ICONS['IDLE'];
+            (stateSprite.material as THREE.SpriteMaterial).map = this.createIconTexture(stateIcon);
+            (stateSprite.material as THREE.SpriteMaterial).needsUpdate = true;
+        }
+
+        // Check for warnings
+        let warningIcon = '';
+        let showWarning = false;
+
+        if (agent.energy < STATUS_CONFIG.warningThreshold) {
+            warningIcon = WARNING_ICONS.energy;
+            showWarning = true;
+        } else if (agent.hunger < STATUS_CONFIG.warningThreshold) {
+            warningIcon = WARNING_ICONS.hunger;
+            showWarning = true;
+        } else if (agent.mood < STATUS_CONFIG.warningThreshold) {
+            warningIcon = WARNING_ICONS.mood;
+            showWarning = true;
+        }
+
+        if (warningSprite) {
+            if (showWarning) {
+                warningSprite.visible = true;
+                (warningSprite.material as THREE.SpriteMaterial).map = this.createIconTexture(warningIcon);
+                (warningSprite.material as THREE.SpriteMaterial).opacity = 0.6 + Math.sin(time * 8) * 0.4; // Pulsing
+                (warningSprite.material as THREE.SpriteMaterial).needsUpdate = true;
+
+                // Critical warning - faster pulse, brighter
+                const isCritical = agent.energy < STATUS_CONFIG.criticalThreshold ||
+                    agent.hunger < STATUS_CONFIG.criticalThreshold;
+                if (isCritical) {
+                    (warningSprite.material as THREE.SpriteMaterial).opacity = 0.8 + Math.sin(time * 15) * 0.2;
+                    warningSprite.scale.setScalar(STATUS_CONFIG.scale * 0.8);
+                } else {
+                    warningSprite.scale.setScalar(STATUS_CONFIG.scale * 0.7);
+                }
+            } else {
+                warningSprite.visible = false;
+            }
+        }
+
+        // Floating animation
+        statusGroup.position.y = STATUS_CONFIG.height + Math.sin(time * 2) * 0.02;
+    }
+
+
     public updateAgents(agents: Agent[]) {
         const offset = (this.gridSize - 1) / 2;
         const seen = new Set<string>();
@@ -56,6 +238,12 @@ export class AgentManager {
             if (meshGroup && meshGroup.userData.role !== agent.type) {
                 this.scene.remove(meshGroup);
                 this.agentMeshes.delete(agent.id);
+                // Also remove status sprite
+                const statusGroup = this.statusSprites.get(agent.id);
+                if (statusGroup) {
+                    this.scene.remove(statusGroup);
+                    this.statusSprites.delete(agent.id);
+                }
                 meshGroup = undefined;
             }
 
@@ -66,28 +254,79 @@ export class AgentManager {
                 meshGroup.userData.role = agent.type;
                 this.scene.add(meshGroup);
                 this.agentMeshes.set(agent.id, meshGroup);
+
+                // Create status indicator group
+                const statusGroup = this.createStatusGroup(agent);
+                this.scene.add(statusGroup);
+                this.statusSprites.set(agent.id, statusGroup);
             }
 
-            // Determine Target Rotation
-            let targetRot = meshGroup.rotation.y;
-            if (agent.state === 'MOVING' && agent.targetTileId !== null) {
+            // Calculate world position
+            const worldX = agent.x - offset;
+            const worldZ = agent.z - offset;
+
+            // Determine Target Rotation - Face the direction of travel
+            let targetRot = meshGroup.userData.targetRot ?? meshGroup.rotation.y;
+
+            // Store previous position for direction calculation
+            const prevX = meshGroup.userData.prevX ?? worldX;
+            const prevZ = meshGroup.userData.prevZ ?? worldZ;
+
+            if (agent.state === 'MOVING') {
+                // Option 1: Use path's next waypoint if available
+                if (agent.path && agent.path.length > 0) {
+                    const nextWaypoint = agent.path[0];
+                    const nextX = (nextWaypoint % this.gridSize) - offset;
+                    const nextZ = Math.floor(nextWaypoint / this.gridSize) - offset;
+                    targetRot = Math.atan2(nextX - worldX, nextZ - worldZ);
+                }
+                // Option 2: Fall back to using travel direction from position delta
+                else {
+                    const dx = worldX - prevX;
+                    const dz = worldZ - prevZ;
+                    // Only update rotation if we've actually moved
+                    if (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001) {
+                        targetRot = Math.atan2(dx, dz);
+                    }
+                }
+            }
+            // When WORKING, face the target tile (building site, resource, etc.)
+            else if (agent.state === 'WORKING' && agent.targetTileId !== null) {
                 const tx = (agent.targetTileId % this.gridSize) - offset;
                 const tz = Math.floor(agent.targetTileId / this.gridSize) - offset;
-                targetRot = Math.atan2(tx - (agent.x - offset), tz - (agent.z - offset));
+                targetRot = Math.atan2(tx - worldX, tz - worldZ);
+            }
+            // When SOCIALIZING, face towards the center of social area
+            else if (agent.state === 'SOCIALIZING' && agent.targetTileId !== null) {
+                const tx = (agent.targetTileId % this.gridSize) - offset;
+                const tz = Math.floor(agent.targetTileId / this.gridSize) - offset;
+                targetRot = Math.atan2(tx - worldX, tz - worldZ);
             }
 
             meshGroup.userData = {
                 ...meshGroup.userData,
-                targetPos: new THREE.Vector3(agent.x - offset, 0, agent.z - offset),
+                targetPos: new THREE.Vector3(worldX, 0, worldZ),
                 agentState: agent.state,
-                targetRot: targetRot
+                targetRot: targetRot,
+                prevX: worldX,
+                prevZ: worldZ,
+                // Store agent data for status updates
+                agentData: agent
             };
         });
 
+        // Clean up removed agents
         this.agentMeshes.forEach((m, id) => {
             if (!seen.has(id)) {
                 this.scene.remove(m);
                 this.agentMeshes.delete(id);
+
+                // Also remove status sprite
+                const statusGroup = this.statusSprites.get(id);
+                if (statusGroup) {
+                    this.scene.remove(statusGroup);
+                    this.statusSprites.delete(id);
+                }
             }
         });
     }
@@ -122,11 +361,37 @@ export class AgentManager {
             }
 
             // --- ROTATION UPDATE (CRITICAL - ALWAYS RUN) ---
-            const state = meshGroup.userData.agentState;
-            if (state === 'MOVING' || state === 'SOCIALIZING') {
-                const diff = meshGroup.userData.targetRot - meshGroup.rotation.y;
-                if (!isNaN(diff)) meshGroup.rotation.y += THREE.MathUtils.lerp(0, diff, 0.1);
+            // Always smoothly rotate to face the target direction
+            const targetRot = meshGroup.userData.targetRot;
+            if (targetRot !== undefined && !isNaN(targetRot)) {
+                // Normalize the difference to handle wrap-around at ±π
+                let diff = targetRot - meshGroup.rotation.y;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                meshGroup.rotation.y += THREE.MathUtils.lerp(0, diff, 0.12);
             }
+
+            // --- STATUS INDICATOR UPDATE ---
+            const statusGroup = this.statusSprites.get(agentId);
+            if (statusGroup) {
+                // Position the status indicator above the agent
+                statusGroup.position.x = meshGroup.position.x;
+                statusGroup.position.z = meshGroup.position.z;
+
+                // Get agent data and update indicators
+                const agentData = meshGroup.userData.agentData as Agent | undefined;
+                if (agentData) {
+                    this.updateStatusIndicators(agentData, statusGroup, time);
+                    // Base height follows agent
+                    statusGroup.position.y = meshGroup.position.y + STATUS_CONFIG.height;
+                }
+
+                // Hide status indicators when zoomed out for performance
+                statusGroup.visible = zoomLevel <= 50;
+            }
+
+            // Get agent state for animation logic
+            const state = meshGroup.userData.agentState;
 
             // --- LOD 2: LOW DETAIL (Zoom > 110) ---
             if (zoomLevel > LOD_LOW) {
