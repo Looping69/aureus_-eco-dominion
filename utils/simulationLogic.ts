@@ -14,9 +14,9 @@ export const CAPACITY_PER_QUARTERS = 4;
 
 const CONFIG = {
     SPEED: {
-        BASE: 0.04,
-        ROAD: 0.08,  // 2x speed on roads
-        ROUGH: 0.02, // 0.5x speed on sand/snow
+        BASE: 0.10,  // Increased from 0.04
+        ROAD: 0.18,  // 1.8x speed on roads (was 2x of 0.04)
+        ROUGH: 0.05, // Rough terrain (was 0.02)
     },
     DECAY: {
         ENERGY: 0.04,
@@ -567,7 +567,7 @@ function calculateUtilityScores(agent: Agent, grid: GridTile[], jobs: readonly {
     // 3. WORK options (for each available job)
     const availableJobs = jobs.filter(j => {
         if (j.type === 'MOVE') return false;
-        if (j.type === 'BUILD') return true; // BUILD jobs are shared
+        // if (j.type === 'BUILD') return true; // REMOVED: BUILD jobs are now exclusive
         return !j.assignedAgentId;
     });
 
@@ -910,8 +910,8 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                             }
                             break;
                         case 'WORK':
-                            // Assign job if not BUILD (BUILD jobs are shared)
-                            if (currentJobId && !currentJobId.startsWith('build_')) {
+                            // Assign job unconditionally (now including BUILD)
+                            if (currentJobId) {
                                 nextJobs = nextJobs.map(j => j.id === currentJobId ? { ...j, assignedAgentId: agent.id } : j);
                             }
                             aState = 'MOVING';
@@ -962,19 +962,34 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                 if (!path || path.length === 0) {
                     // Only recalc if distant
                     const dist = getDistance(currentTileIdx, targetTileId);
-                    if (dist > 0) {
+
+                    // Check if this is a BUILD job - can work from adjacent tiles
+                    const isBuildJob = currentJobId?.startsWith('build_');
+                    const buildWorkDistance = 2; // Can work on building from 2 tiles away
+
+                    if (isBuildJob && dist <= buildWorkDistance && dist > 0) {
+                        // Close enough to build! Start working without reaching exact tile
+                        path = [];
+                        aState = 'WORKING';
+                    } else if (dist > 0) {
                         path = findPath(currentTileIdx, targetTileId, grid);
                         if (!path) {
-                            // Can't reach. Abandon.
-                            if (currentJobId && !currentJobId.startsWith('sys_')) {
-                                nextJobs = nextJobs.map(j => j.id === currentJobId ? { ...j, assignedAgentId: null } : j);
+                            // Can't reach. For BUILD jobs, try working from current position if close
+                            if (isBuildJob && dist <= buildWorkDistance + 1) {
+                                path = [];
+                                aState = 'WORKING';
+                            } else {
+                                // Abandon other jobs
+                                if (currentJobId && !currentJobId.startsWith('sys_')) {
+                                    nextJobs = nextJobs.map(j => j.id === currentJobId ? { ...j, assignedAgentId: null } : j);
+                                }
+                                currentJobId = null;
+                                targetTileId = null;
+                                aState = 'IDLE';
                             }
-                            currentJobId = null;
-                            targetTileId = null;
-                            aState = 'IDLE';
                         }
                     } else {
-                        // Arrived
+                        // Arrived at exact tile
                         path = [];
                         aState = 'WORKING'; // Assume work, transition below will fix if it's eating/sleeping
 
@@ -984,6 +999,16 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                         else if (currentJobId === 'sys_fun') aState = 'RELAXING';
                         else if (currentJobId?.startsWith('sys_social')) aState = 'SOCIALIZING';
                         else if (!currentJobId) aState = 'IDLE'; // Just wandering
+                    }
+                }
+
+                // Check mid-path if close enough for BUILD jobs
+                if (path && path.length > 0 && currentJobId?.startsWith('build_')) {
+                    const distToBuild = getDistance(currentTileIdx, targetTileId);
+                    if (distToBuild <= 2) {
+                        // Close enough! Stop walking and start building
+                        path = [];
+                        aState = 'WORKING';
                     }
                 }
 
@@ -1020,26 +1045,20 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
         if (aState === 'WORKING') {
             // Process Job Progress
             if (currentJobId) {
-                const job = nextJobs.find(j => j.id === currentJobId);
-                if (job) {
-                    // Special logic for Illegal Stealing
-                    if (isIllegal && currentJobId.startsWith('steal_')) {
-                        mineralsDelta -= 0.05;
-                        if (Math.random() > 0.9) effects.push({ type: 'FX', fxType: 'THEFT', index: currentTileIdx });
-                        if (Math.random() > 0.95) { // Finished stealing
-                            currentJobId = null;
-                            aState = 'IDLE';
-                        }
-                    }
-                    // Standard Jobs
-                    else if (job.type === 'BUILD') {
-                        const tile = grid[job.targetTileId];
+                // For BUILD jobs, check directly if the building exists instead of relying on job list
+                // This fixes the bug where multiple agents stop working when one agent's tick removes the job
+                if (currentJobId.startsWith('build_')) {
+                    // Extract tile ID from job ID
+                    const buildTileId = parseInt(currentJobId.replace('build_', ''));
+                    const tile = grid[buildTileId];
+
+                    if (tile) {
                         // Find building head if this is part of a larger structure
                         const headIdx = tile.structureHeadIndex !== undefined ? tile.structureHeadIndex : tile.id;
                         const headTile = grid[headIdx];
 
-                        // Construct
-                        if (headTile.isUnderConstruction) {
+                        // Construct if still under construction
+                        if (headTile && headTile.isUnderConstruction) {
                             // Each worker contributes based on their skill
                             const power = 0.2 + (agent.skills.construction * 0.05);
                             const timeLeft = Math.max(0, (headTile.constructionTimeLeft || 0) - power);
@@ -1077,9 +1096,9 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                             updateSkillProgress(agent, 'construction', skillGain);
 
                             if (timeLeft <= 0) {
-                                // Job Done - this will affect all workers on this job
+                                // Job Done - remove the job from the list
                                 effects.push({ type: 'AUDIO', sfx: 'BUILD' });
-                                nextJobs = nextJobs.filter(j => j.id !== job.id);
+                                nextJobs = nextJobs.filter(j => j.id !== currentJobId);
 
                                 // Track building completion experience
                                 if (agent.experience) {
@@ -1103,92 +1122,111 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                             currentJobId = null;
                             aState = 'IDLE';
                         }
+                    } else {
+                        // Tile doesn't exist - abandon
+                        currentJobId = null;
+                        aState = 'IDLE';
                     }
-                    else if (job.type === 'REHABILITATE') {
-                        const tile = grid[job.targetTileId];
-                        // Work efficiency affects rehabilitation speed
-                        const workEff = agent.workEfficiency || 1.0;
-                        const power = (0.5 + (agent.skills.plants * 0.1)) * workEff;
-                        const progress = Math.min(100, (tile.rehabProgress || 0) + power);
-                        grid[tile.id] = { ...tile, rehabProgress: progress };
-                        gridUpdates.push(grid[tile.id]);
-
-                        if (Math.random() > 0.8) effects.push({ type: 'FX', fxType: 'ECO_REHAB', index: tile.id });
-
-                        // Track experience
-                        if (agent.experience) {
-                            agent.experience.totalWorkTicks++;
-                        }
-                        agent.consecutiveWorkTicks = (agent.consecutiveWorkTicks || 0) + 1;
-
-                        // Skill progress - botanists learn faster
-                        const plantSkillGain = agent.type === 'BOTANIST' ? 2 : 1;
-                        updateSkillProgress(agent, 'plants', plantSkillGain);
-
-                        if (progress >= 100) {
-                            grid[tile.id] = { ...tile, foliage: 'NONE', rehabProgress: undefined };
-                            gridUpdates.push(grid[tile.id]);
-                            ecoDelta += 5;
-                            nextJobs = nextJobs.filter(j => j.id !== job.id);
-
-                            // Track plant experience
-                            if (agent.experience) {
-                                agent.experience.plantsGrown++;
+                }
+                // Non-BUILD jobs use the standard job lookup
+                else {
+                    const job = nextJobs.find(j => j.id === currentJobId);
+                    if (job) {
+                        // Special logic for Illegal Stealing
+                        if (isIllegal && currentJobId.startsWith('steal_')) {
+                            mineralsDelta -= 0.05;
+                            if (Math.random() > 0.9) effects.push({ type: 'FX', fxType: 'THEFT', index: currentTileIdx });
+                            if (Math.random() > 0.95) { // Finished stealing
+                                currentJobId = null;
+                                aState = 'IDLE';
                             }
-
-                            // Big skill boost on completion
-                            updateSkillProgress(agent, 'plants', 15);
-                            agent.consecutiveWorkTicks = 0;
-
-                            currentJobId = null;
-                            aState = 'IDLE';
                         }
-                    }
-                    else if (job.type === 'MINE') {
-                        // Manual mining command
-                        const tile = grid[job.targetTileId];
-                        // Work efficiency affects mining speed
-                        const workEff = agent.workEfficiency || 1.0;
-                        const p = ((agent.skills.mining / 40) + 0.15) * workEff;
-                        const integrity = Math.max(0, (tile.integrity ?? 100) - p);
-                        grid[tile.id] = { ...tile, integrity };
-                        gridUpdates.push(grid[tile.id]);
-
-                        mineralsDelta += tile.foliage === 'GOLD_VEIN' ? 0.15 : 0.05;
-                        if (Math.random() > 0.85) effects.push({ type: 'FX', fxType: 'MINING', index: tile.id });
-
-                        // Track experience and work
-                        if (agent.experience) {
-                            agent.experience.totalWorkTicks++;
-                        }
-                        agent.consecutiveWorkTicks = (agent.consecutiveWorkTicks || 0) + 1;
-
-                        // Skill progress - miners learn faster
-                        const miningSkillGain = agent.type === 'MINER' ? 2 : 1;
-                        updateSkillProgress(agent, 'mining', miningSkillGain);
-
-                        if (integrity <= 0) {
-                            grid[tile.id] = { ...tile, foliage: tile.foliage === 'GOLD_VEIN' ? 'MINE_HOLE' : 'NONE' };
+                        else if (job.type === 'REHABILITATE') {
+                            const tile = grid[job.targetTileId];
+                            // Work efficiency affects rehabilitation speed
+                            const workEff = agent.workEfficiency || 1.0;
+                            const power = (0.5 + (agent.skills.plants * 0.1)) * workEff;
+                            const progress = Math.min(100, (tile.rehabProgress || 0) + power);
+                            grid[tile.id] = { ...tile, rehabProgress: progress };
                             gridUpdates.push(grid[tile.id]);
-                            nextJobs = nextJobs.filter(j => j.id !== job.id);
 
-                            // Track mining experience
+                            if (Math.random() > 0.8) effects.push({ type: 'FX', fxType: 'ECO_REHAB', index: tile.id });
+
+                            // Track experience
                             if (agent.experience) {
-                                agent.experience.resourcesMined++;
+                                agent.experience.totalWorkTicks++;
                             }
+                            agent.consecutiveWorkTicks = (agent.consecutiveWorkTicks || 0) + 1;
 
-                            // Big skill boost on completion
-                            updateSkillProgress(agent, 'mining', 15);
-                            agent.consecutiveWorkTicks = 0;
+                            // Skill progress - botanists learn faster
+                            const plantSkillGain = agent.type === 'BOTANIST' ? 2 : 1;
+                            updateSkillProgress(agent, 'plants', plantSkillGain);
 
-                            currentJobId = null;
-                            aState = 'IDLE';
+                            if (progress >= 100) {
+                                grid[tile.id] = { ...tile, foliage: 'NONE', rehabProgress: undefined };
+                                gridUpdates.push(grid[tile.id]);
+                                ecoDelta += 5;
+                                nextJobs = nextJobs.filter(j => j.id !== job.id);
+
+                                // Track plant experience
+                                if (agent.experience) {
+                                    agent.experience.plantsGrown++;
+                                }
+
+                                // Big skill boost on completion
+                                updateSkillProgress(agent, 'plants', 15);
+                                agent.consecutiveWorkTicks = 0;
+
+                                currentJobId = null;
+                                aState = 'IDLE';
+                            }
                         }
+                        else if (job.type === 'MINE') {
+                            // Manual mining command
+                            const tile = grid[job.targetTileId];
+                            // Work efficiency affects mining speed
+                            const workEff = agent.workEfficiency || 1.0;
+                            const p = ((agent.skills.mining / 40) + 0.15) * workEff;
+                            const integrity = Math.max(0, (tile.integrity ?? 100) - p);
+                            grid[tile.id] = { ...tile, integrity };
+                            gridUpdates.push(grid[tile.id]);
+
+                            mineralsDelta += tile.foliage === 'GOLD_VEIN' ? 0.15 : 0.05;
+                            if (Math.random() > 0.85) effects.push({ type: 'FX', fxType: 'MINING', index: tile.id });
+
+                            // Track experience and work
+                            if (agent.experience) {
+                                agent.experience.totalWorkTicks++;
+                            }
+                            agent.consecutiveWorkTicks = (agent.consecutiveWorkTicks || 0) + 1;
+
+                            // Skill progress - miners learn faster
+                            const miningSkillGain = agent.type === 'MINER' ? 2 : 1;
+                            updateSkillProgress(agent, 'mining', miningSkillGain);
+
+                            if (integrity <= 0) {
+                                grid[tile.id] = { ...tile, foliage: tile.foliage === 'GOLD_VEIN' ? 'MINE_HOLE' : 'NONE' };
+                                gridUpdates.push(grid[tile.id]);
+                                nextJobs = nextJobs.filter(j => j.id !== job.id);
+
+                                // Track mining experience
+                                if (agent.experience) {
+                                    agent.experience.resourcesMined++;
+                                }
+
+                                // Big skill boost on completion
+                                updateSkillProgress(agent, 'mining', 15);
+                                agent.consecutiveWorkTicks = 0;
+
+                                currentJobId = null;
+                                aState = 'IDLE';
+                            }
+                        }
+                    } else {
+                        // Job missing
+                        currentJobId = null;
+                        aState = 'IDLE';
                     }
-                } else {
-                    // Job missing
-                    currentJobId = null;
-                    aState = 'IDLE';
                 }
             } else {
                 aState = 'IDLE';
@@ -1201,6 +1239,15 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
             (hunger / 100) * 0.4 +
             (mood / 100) * 0.2
         ));
+
+        // JOB RECONCILIATION: Ensure we release any jobs we are no longer working on
+        // This fixes the issue where agents going off-duty would leave buildings locked
+        nextJobs = nextJobs.map(j => {
+            if (j.assignedAgentId === agent.id && j.id !== currentJobId) {
+                return { ...j, assignedAgentId: null };
+            }
+            return j;
+        });
 
         aliveAgents.push({
             ...agent,

@@ -11,7 +11,7 @@ import { generateGoal, checkAndGenerateEvent } from '../utils/aiLogic';
 import { updateSimulation, createColonist } from '../utils/simulationLogic';
 
 export const initialState: GameState = {
-    resources: { ...INITIAL_RESOURCES, agt: 1200 }, // Reduced from 2500
+    resources: { ...INITIAL_RESOURCES, agt: 5000 }, // Starting capital
     grid: generateInitialGrid(),
     agents: [
         createColonist(GRID_SIZE / 2, GRID_SIZE / 2),
