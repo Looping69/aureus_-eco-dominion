@@ -136,6 +136,9 @@ export interface Agent {
 
   // Request system
   activeRequest?: AgentRequest;   // Current request from this agent
+
+  // Pathfinding failsafe
+  lastAbandonedJobId?: string | null;
 }
 
 export type BiomeType = 'GRASS' | 'DIRT' | 'SAND' | 'STONE' | 'SNOW';

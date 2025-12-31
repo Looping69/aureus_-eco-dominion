@@ -578,6 +578,11 @@ function calculateUtilityScores(agent: Agent, grid: GridTile[], jobs: readonly {
         const dist = getDistance(currentTileIdx, job.targetTileId);
         workScore -= dist * 0.5;
 
+        // Penalty for recently abandoned jobs (Anti-Stuck)
+        if (agent.lastAbandonedJobId === job.id) {
+            workScore -= 100; // Heavy penalty to prevent loops
+        }
+
         // Skill bonus
         if (job.type === 'BUILD') {
             workScore += agent.skills.construction * 3;
@@ -983,9 +988,14 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                                 if (currentJobId && !currentJobId.startsWith('sys_')) {
                                     nextJobs = nextJobs.map(j => j.id === currentJobId ? { ...j, assignedAgentId: null } : j);
                                 }
-                                currentJobId = null;
-                                targetTileId = null;
-                                aState = 'IDLE';
+
+                                // ANTI-STUCK: Mark this job as failed and Wander instead of IDLE
+                                agent.lastAbandonedJobId = currentJobId;
+
+                                // Force wander to change position
+                                targetTileId = findWanderTarget(agent, grid);
+                                currentJobId = 'sys_recovery_wander';
+                                aState = 'MOVING';
                             }
                         }
                     } else {
@@ -993,8 +1003,12 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                         path = [];
                         aState = 'WORKING'; // Assume work, transition below will fix if it's eating/sleeping
 
+                        // Clear abandoned history on success
+                        agent.lastAbandonedJobId = null;
+
                         // Convert ARRIVAL to ACTION
-                        if (currentJobId === 'sys_sleep') aState = 'SLEEPING';
+                        if (currentJobId === 'sys_recovery_wander') aState = 'IDLE'; // Finished recovery
+                        else if (currentJobId === 'sys_sleep') aState = 'SLEEPING';
                         else if (currentJobId === 'sys_eat') aState = 'EATING';
                         else if (currentJobId === 'sys_fun') aState = 'RELAXING';
                         else if (currentJobId?.startsWith('sys_social')) aState = 'SOCIALIZING';
