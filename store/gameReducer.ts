@@ -344,32 +344,32 @@ export function gameReducer(state: GameState, action: Action): GameState {
             let totalMaintenance = 0;
 
             finalState.grid.forEach((tile) => {
-                if (tile.foliage === 'MINE_HOLE') ecoChange += 0.05;
+                if (tile.foliage === 'MINE_HOLE') ecoChange += 0.01; // Reduced from 0.05
                 if (tile.foliage === 'ILLEGAL_CAMP') {
-                    totalMaintenance += 2; // Siphoning AGT
-                    ecoChange += 1.0; // Heavy pollution from unrefined methods
+                    totalMaintenance += 0.5; // Reduced from 2 (Siphoning AGT)
+                    ecoChange += 0.05; // Reduced from 1.0 (Heavy pollution)
                 }
 
                 if (tile.buildingType === BuildingType.EMPTY || tile.isUnderConstruction) return;
                 const def = BUILDINGS[tile.buildingType];
                 if (tile.structureHeadIndex !== undefined && tile.id !== tile.structureHeadIndex) return;
 
-                totalMaintenance += (def.maintenance / 5) * modifiers.upkeep;
-                ecoChange += (def.pollution > 0 ? (def.pollution * 0.1 / 10) : (def.pollution / 10));
+                totalMaintenance += (def.maintenance / 15) * modifiers.upkeep; // Reduced from /5
+                ecoChange += (def.pollution > 0 ? (def.pollution * 0.05 / 10) : (def.pollution / 10)); // Halved pollution impact
 
                 if (def.productionType === 'MINERALS' && !tile.isUnderConstruction) {
-                    mineralProd += (def.production || 0) * modifiers.production * 0.005;
+                    mineralProd += (def.production || 0) * modifiers.production * 0.015; // Increased from 0.005
                 }
             });
 
             let newAGT = finalState.resources.agt - totalMaintenance;
-            let newEco = Math.max(0, Math.min(100, finalState.resources.eco - (ecoChange / 3))); // Faster decay (was /5)
+            let newEco = Math.max(0, Math.min(100, finalState.resources.eco - (ecoChange / 8))); // Slower decay (was /3)
             let nextMinerals = finalState.resources.minerals + mineralProd;
 
             if (state.logistics.autoSell && nextMinerals >= state.logistics.sellThreshold) {
                 const ecoMult = getEcoMultiplier(newEco);
                 const trustMult = 1 + (finalState.resources.trust / 200);
-                const value = Math.floor(nextMinerals * 8 * modifiers.sellPrice * ecoMult * trustMult); // Reduced from 15
+                const value = Math.floor(nextMinerals * 12 * modifiers.sellPrice * ecoMult * trustMult); // Increased from 8
                 newAGT += value;
                 nextMinerals = 0;
                 finalState.pendingEffects.push({ type: 'AUDIO', sfx: 'SELL' });

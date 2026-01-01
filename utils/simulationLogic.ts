@@ -14,20 +14,20 @@ export const CAPACITY_PER_QUARTERS = 4;
 
 const CONFIG = {
     SPEED: {
-        BASE: 0.10,  // Increased from 0.04
-        ROAD: 0.18,  // 1.8x speed on roads (was 2x of 0.04)
-        ROUGH: 0.05, // Rough terrain (was 0.02)
+        BASE: 0.10,
+        ROAD: 0.18,
+        ROUGH: 0.05,
     },
     DECAY: {
-        ENERGY: 0.04,
-        HUNGER: 0.03,
-        MOOD: 0.02,
-        ILLEGAL_MODIFIER: 0.5, // Illegals are tougher
+        ENERGY: 0.015, // Slower decay (approx 1 day of energy)
+        HUNGER: 0.012, // Slower decay
+        MOOD: 0.01,
+        ILLEGAL_MODIFIER: 0.5,
     },
     THRESHOLDS: {
-        CRITICAL: 20, // Health risk
-        LOW: 40,      // Seek fix
-        HIGH: 90      // Stop fixing
+        CRITICAL: 15, // Real emergency
+        LOW: 35,      // Seek fix
+        HIGH: 95      // Stop fixing
     }
 };
 
@@ -54,7 +54,8 @@ const getTileCost = (tile: GridTile): number => {
 const getDistance = (a: number, b: number) => {
     const ax = a % GRID_SIZE, ay = Math.floor(a / GRID_SIZE);
     const bx = b % GRID_SIZE, by = Math.floor(b / GRID_SIZE);
-    return Math.abs(ax - bx) + Math.abs(ay - by);
+    // Chebyshev distance for 8-way movement (allows diagonals)
+    return Math.max(Math.abs(ax - bx), Math.abs(ay - by));
 };
 
 function findPath(startIdx: number, endIdx: number, grid: GridTile[]): number[] | null {
@@ -288,7 +289,8 @@ export function createColonist(x: number, z: number, role: AgentRole = 'WORKER')
         lastBreakTick: 0,
 
         // No active request initially
-        activeRequest: undefined
+        activeRequest: undefined,
+        lastAbandonedJobId: null
     };
 }
 
@@ -567,8 +569,9 @@ function calculateUtilityScores(agent: Agent, grid: GridTile[], jobs: readonly {
     // 3. WORK options (for each available job)
     const availableJobs = jobs.filter(j => {
         if (j.type === 'MOVE') return false;
-        // if (j.type === 'BUILD') return true; // REMOVED: BUILD jobs are now exclusive
-        return !j.assignedAgentId;
+        // Shared building: Multiple agents can help build, but only one can MINE/FARM/REHAB
+        if (j.type === 'BUILD') return true;
+        return !j.assignedAgentId || j.assignedAgentId === agent.id;
     });
 
     for (const job of availableJobs) {
@@ -838,45 +841,47 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                     aState = 'MOVING';
                 }
             }
-            // OFF DUTY - agent should rest, eat, or relax instead of work
-            else if (!onShift) {
-                // Off-duty priorities: Sleep if tired, Eat if hungry, Relax/Socialize otherwise
-                if (energy < 70) {
+            // OFF DUTY - agents should rest but they have "Work Focus"
+            // If they are almost done with a building, they continue working
+            const headIdx = currentJobId?.startsWith('build_') ? parseInt(currentJobId.replace('build_', '')) : null;
+            const focusTile = headIdx !== null ? grid[headIdx] : null;
+            const isAlmostDone = focusTile?.isUnderConstruction && (focusTile.constructionTimeLeft || 0) < 5;
+
+            if (!onShift && !isAlmostDone) {
+                // Standardized system IDs: sys_sleep, sys_eat, sys_social
+                if (energy < 80) {
                     const bedIdx = findNearestBuilding(agent, BuildingType.STAFF_QUARTERS, grid);
                     if (bedIdx !== null) {
                         targetTileId = bedIdx;
-                        currentJobId = 'sys_sleep_offduty';
+                        currentJobId = 'sys_sleep';
                         aState = 'MOVING';
                     } else {
-                        aState = 'SLEEPING'; // Sleep on floor
-                        currentJobId = null;
+                        aState = 'SLEEPING';
+                        currentJobId = 'sys_sleep';
                     }
-                } else if (hunger < 70) {
+                } else if (hunger < 80) {
                     const foodIdx = findNearestBuilding(agent, BuildingType.CANTEEN, grid);
                     if (foodIdx !== null) {
                         targetTileId = foodIdx;
-                        currentJobId = 'sys_eat_offduty';
+                        currentJobId = 'sys_eat';
                         aState = 'MOVING';
                     } else {
-                        // Just wander
                         targetTileId = findWanderTarget(agent, grid);
+                        currentJobId = 'sys_wander';
                         aState = 'MOVING';
                     }
                 } else {
-                    // Socialize or relax
                     const socialHub = findNearestBuilding(agent, BuildingType.SOCIAL_HUB, grid);
                     if (socialHub !== null && Math.random() > 0.5) {
                         targetTileId = socialHub;
-                        currentJobId = 'sys_relax_offduty';
+                        currentJobId = 'sys_social';
                         aState = 'MOVING';
                     } else {
                         targetTileId = findWanderTarget(agent, grid);
-                        currentJobId = null;
+                        currentJobId = 'sys_wander';
                         aState = 'MOVING';
                     }
                 }
-
-                // Reset work counter when off duty
                 agent.consecutiveWorkTicks = 0;
             }
             else {
@@ -963,17 +968,13 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
         if (aState === 'MOVING') {
             // Pathfinding Logic
             if (targetTileId !== null) {
-                // If no path or path invalid or finished
+                const dist = getDistance(currentTileIdx, targetTileId);
+                const isBuildJob = currentJobId?.startsWith('build_');
+                const buildWorkDistance = 2;
+
+                // Path recal/init
                 if (!path || path.length === 0) {
-                    // Only recalc if distant
-                    const dist = getDistance(currentTileIdx, targetTileId);
-
-                    // Check if this is a BUILD job - can work from adjacent tiles
-                    const isBuildJob = currentJobId?.startsWith('build_');
-                    const buildWorkDistance = 2; // Can work on building from 2 tiles away
-
                     if (isBuildJob && dist <= buildWorkDistance && dist > 0) {
-                        // Close enough to build! Start working without reaching exact tile
                         path = [];
                         aState = 'WORKING';
                     } else if (dist > 0) {
@@ -999,37 +1000,28 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                             }
                         }
                     } else {
-                        // Arrived at exact tile
+                        // Arrived
                         path = [];
-                        aState = 'WORKING'; // Assume work, transition below will fix if it's eating/sleeping
-
-                        // Clear abandoned history on success
+                        aState = 'WORKING';
                         agent.lastAbandonedJobId = null;
 
-                        // Convert ARRIVAL to ACTION
-                        if (currentJobId === 'sys_recovery_wander') aState = 'IDLE'; // Finished recovery
-                        else if (currentJobId === 'sys_sleep') aState = 'SLEEPING';
+                        if (currentJobId === 'sys_sleep') aState = 'SLEEPING';
                         else if (currentJobId === 'sys_eat') aState = 'EATING';
-                        else if (currentJobId === 'sys_fun') aState = 'RELAXING';
-                        else if (currentJobId?.startsWith('sys_social')) aState = 'SOCIALIZING';
-                        else if (!currentJobId) aState = 'IDLE'; // Just wandering
+                        else if (currentJobId === 'sys_social') aState = 'SOCIALIZING';
+                        else if (currentJobId === 'sys_wander' || currentJobId === 'sys_recovery_wander') aState = 'IDLE';
+                        else if (!currentJobId) aState = 'IDLE';
                     }
                 }
 
                 // Check mid-path if close enough for BUILD jobs
-                if (path && path.length > 0 && currentJobId?.startsWith('build_')) {
-                    const distToBuild = getDistance(currentTileIdx, targetTileId);
-                    if (distToBuild <= 2) {
-                        // Close enough! Stop walking and start building
-                        path = [];
-                        aState = 'WORKING';
-                    }
+                if (path && path.length > 0 && isBuildJob && dist <= buildWorkDistance) {
+                    path = [];
+                    aState = 'WORKING';
                 }
 
                 // Follow Path
-                if (path && path.length > 0) {
+                if (path && path.length > 0 && aState === 'MOVING') {
                     const nextNode = path[0];
-                    // Check if we reached the next node (simple radius check)
                     const nX = nextNode % GRID_SIZE;
                     const nY = Math.floor(nextNode / GRID_SIZE);
                     const dx = nX - x;
@@ -1069,13 +1061,20 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                     if (tile) {
                         // Find building head if this is part of a larger structure
                         const headIdx = tile.structureHeadIndex !== undefined ? tile.structureHeadIndex : tile.id;
+
+                        // CRITICAL: Always read the LATEST grid state, not a cached snapshot
+                        // Multiple agents may work on the same building in one tick, so we need
+                        // to read the current constructionTimeLeft after other agents may have updated it
                         const headTile = grid[headIdx];
 
                         // Construct if still under construction
                         if (headTile && headTile.isUnderConstruction) {
+                            // Re-read the current time left from the grid (may have been updated by other agents this tick)
+                            const currentTimeLeft = grid[headIdx].constructionTimeLeft || 0;
+
                             // Each worker contributes based on their skill
                             const power = 0.2 + (agent.skills.construction * 0.05);
-                            const timeLeft = Math.max(0, (headTile.constructionTimeLeft || 0) - power);
+                            const timeLeft = Math.max(0, currentTimeLeft - power);
 
                             // Show construction dust particles (more workers = more particles)
                             if (Math.random() > 0.7) {
@@ -1114,6 +1113,15 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                                 effects.push({ type: 'AUDIO', sfx: 'BUILD' });
                                 nextJobs = nextJobs.filter(j => j.id !== currentJobId);
 
+                                // Completion Announcement
+                                const bType = headTile.buildingType;
+                                newsQueue.push({
+                                    id: `finish_${headIdx}_${state.tickCount}`,
+                                    headline: `${bType.replace(/_/g, ' ')} Construction Complete!`,
+                                    type: 'POSITIVE',
+                                    timestamp: Date.now()
+                                });
+
                                 // Track building completion experience
                                 if (agent.experience) {
                                     agent.experience.buildingsConstructed++;
@@ -1123,7 +1131,8 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
                                 updateSkillProgress(agent, 'construction', 10);
 
                                 // Mood boost for completing work
-                                mood = Math.min(100, mood + 5);
+                                mood = Math.min(100, mood + 10);
+                                trustDelta += 5;
 
                                 // Reset work counter after completing a job
                                 agent.consecutiveWorkTicks = 0;
