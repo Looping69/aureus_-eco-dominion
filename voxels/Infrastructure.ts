@@ -9,60 +9,165 @@ import { mats } from '../utils/voxelMaterials';
 import { voxel, FactoryOptions } from '../utils/voxelBuilder';
 import { BuildingType } from '../types';
 
+// Connection flags for auto-connect infrastructure
+export interface ConnectionFlags {
+    north?: boolean;
+    south?: boolean;
+    east?: boolean;
+    west?: boolean;
+}
+
 export const InfrastructureFactory = {
-    // ROAD - Detailed asphalt road with markings
-    [BuildingType.ROAD]: () => {
+    // ROAD - Intelligent auto-connecting road
+    [BuildingType.ROAD]: (opts?: FactoryOptions) => {
         const g = new THREE.Group();
-        // Asphalt base
+        const conn = opts?.connections || { north: false, south: false, east: false, west: false };
+
+        // Count connections to determine road type
+        const connCount = [conn.north, conn.south, conn.east, conn.west].filter(Boolean).length;
+
+        // Asphalt base - always present
         g.add(voxel(1.0, 0.08, 1.0, mats.asphalt, 0, 0, 0));
-        // Center line marking
-        g.add(voxel(0.08, 0.02, 0.3, mats.white, 0, 0.08, -0.3));
-        g.add(voxel(0.08, 0.02, 0.3, mats.white, 0, 0.08, 0.3));
+
+        if (connCount === 0) {
+            // Isolated road - show all directions as potential
+            g.add(voxel(0.08, 0.02, 0.3, mats.white, 0, 0.08, -0.3));
+            g.add(voxel(0.08, 0.02, 0.3, mats.white, 0, 0.08, 0.3));
+        } else if (connCount === 1) {
+            // Dead end - single direction
+            if (conn.north || conn.south) {
+                // Vertical road
+                g.add(voxel(0.08, 0.02, 0.8, mats.white, 0, 0.08, 0));
+            } else {
+                // Horizontal road
+                g.add(voxel(0.8, 0.02, 0.08, mats.white, 0, 0.08, 0));
+            }
+        } else if (connCount === 2) {
+            // Straight or corner
+            if ((conn.north && conn.south) || (conn.east && conn.west)) {
+                // Straight road
+                if (conn.north && conn.south) {
+                    // North-South straight
+                    g.add(voxel(0.08, 0.02, 0.9, mats.white, 0, 0.08, 0));
+                } else {
+                    // East-West straight
+                    g.add(voxel(0.9, 0.02, 0.08, mats.white, 0, 0.08, 0));
+                }
+            } else {
+                // Corner - no center line, just edge markings
+                const cornerMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.7, metalness: 0.1 });
+
+                // Add corner accent
+                if (conn.north && conn.east) {
+                    g.add(voxel(0.15, 0.03, 0.15, cornerMat, 0.35, 0.08, -0.35));
+                } else if (conn.north && conn.west) {
+                    g.add(voxel(0.15, 0.03, 0.15, cornerMat, -0.35, 0.08, -0.35));
+                } else if (conn.south && conn.east) {
+                    g.add(voxel(0.15, 0.03, 0.15, cornerMat, 0.35, 0.08, 0.35));
+                } else if (conn.south && conn.west) {
+                    g.add(voxel(0.15, 0.03, 0.15, cornerMat, -0.35, 0.08, 0.35));
+                }
+            }
+        } else if (connCount === 3) {
+            // T-junction
+            const junctionMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.7, metalness: 0.1 });
+            g.add(voxel(0.3, 0.03, 0.3, junctionMat, 0, 0.08, 0));
+        } else {
+            // 4-way intersection
+            const crossMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.7, metalness: 0.1 });
+            g.add(voxel(0.4, 0.03, 0.4, crossMat, 0, 0.08, 0));
+        }
+
         return g;
     },
 
-    // PIPE - Water pipe with junction details
+    // PIPE - Auto-connecting water pipe
     [BuildingType.PIPE]: (opts?: FactoryOptions) => {
         const g = new THREE.Group();
         const isConnected = opts?.waterStatus === 'CONNECTED';
+        const conn = opts?.connections || { north: false, south: false, east: false, west: false };
 
-        // Main pipe junction
-        g.add(voxel(0.5, 0.5, 0.5, mats.darkPipe, 0, 0, 0));
+        const connCount = [conn.north, conn.south, conn.east, conn.west].filter(Boolean).length;
+        const pipeMat = isConnected ? mats.darkPipe : mats.metal;
 
-        // Pipe extensions
-        g.add(voxel(0.3, 0.3, 0.55, mats.darkPipe, 0, 0.1, 0));
-        g.add(voxel(0.55, 0.3, 0.3, mats.darkPipe, 0, 0.1, 0));
+        // Central junction box - always present
+        g.add(voxel(0.4, 0.4, 0.4, pipeMat, 0, 0.2, 0));
 
-        // Valve wheel
-        g.add(voxel(0.2, 0.3, 0.08, mats.metal, 0, 0.4, 0));
+        // Pipe extensions based on connections
+        if (conn.north || connCount === 0) {
+            g.add(voxel(0.25, 0.25, 0.5, pipeMat, 0, 0.2, -0.25));
+            // Small connector ring
+            g.add(voxel(0.3, 0.3, 0.08, mats.metal, 0, 0.2, -0.46));
+        }
+        if (conn.south || connCount === 0) {
+            g.add(voxel(0.25, 0.25, 0.5, pipeMat, 0, 0.2, 0.25));
+            g.add(voxel(0.3, 0.3, 0.08, mats.metal, 0, 0.2, 0.46));
+        }
+        if (conn.east || connCount === 0) {
+            g.add(voxel(0.5, 0.25, 0.25, pipeMat, 0.25, 0.2, 0));
+            g.add(voxel(0.08, 0.3, 0.3, mats.metal, 0.46, 0.2, 0));
+        }
+        if (conn.west || connCount === 0) {
+            g.add(voxel(0.5, 0.25, 0.25, pipeMat, -0.25, 0.2, 0));
+            g.add(voxel(0.08, 0.3, 0.3, mats.metal, -0.46, 0.2, 0));
+        }
 
-        // Status indicator
+        // Valve wheel on top
+        g.add(voxel(0.2, 0.25, 0.08, mats.metal, 0, 0.5, 0));
+
+        // Status indicator light
         const statusMat = isConnected ? mats.emissiveGreen : mats.emissiveRed;
-        g.add(voxel(0.18, 0.12, 0.18, statusMat, 0, 0.55, 0));
-
-        // Pipe clamps
-        g.add(voxel(0.35, 0.08, 0.35, mats.metal, 0, 0.3, 0));
+        g.add(voxel(0.12, 0.08, 0.12, statusMat, 0, 0.6, 0));
 
         return g;
     },
 
-    // FENCE - Reinforced security fencing
-    [BuildingType.FENCE]: () => {
+    // FENCE - Auto-connecting security fence
+    [BuildingType.FENCE]: (opts?: FactoryOptions) => {
         const g = new THREE.Group();
-        // Main post
-        g.add(voxel(0.12, 1.4, 0.12, mats.metal, 0, 0, 0));
+        const conn = opts?.connections || { north: false, south: false, east: false, west: false };
 
-        // Cross bars
-        g.add(voxel(0.6, 0.08, 0.06, mats.metal, 0, 0.4, 0));
-        g.add(voxel(0.6, 0.08, 0.06, mats.metal, 0, 0.8, 0));
-        g.add(voxel(0.6, 0.08, 0.06, mats.metal, 0, 1.2, 0));
+        const connCount = [conn.north, conn.south, conn.east, conn.west].filter(Boolean).length;
 
-        // Mesh pattern (simplified)
-        g.add(voxel(0.5, 0.04, 0.04, mats.metal, 0, 0.6, 0));
-        g.add(voxel(0.5, 0.04, 0.04, mats.metal, 0, 1.0, 0));
+        // Center post - always present
+        g.add(voxel(0.1, 1.4, 0.1, mats.metal, 0, 0, 0));
 
         // Post cap
-        g.add(voxel(0.16, 0.1, 0.16, mats.metal, 0, 1.4, 0));
+        g.add(voxel(0.14, 0.08, 0.14, mats.metal, 0, 1.4, 0));
+
+        // Fence segments based on connections
+        if (conn.north || connCount === 0) {
+            // Fence extending north
+            g.add(voxel(0.06, 0.04, 0.5, mats.metal, 0, 0.4, -0.25));
+            g.add(voxel(0.06, 0.04, 0.5, mats.metal, 0, 0.8, -0.25));
+            g.add(voxel(0.06, 0.04, 0.5, mats.metal, 0, 1.2, -0.25));
+            // Mesh fill
+            g.add(voxel(0.04, 0.7, 0.45, mats.glass, 0, 0.5, -0.25)); // Use glass for mesh effect
+        }
+        if (conn.south || connCount === 0) {
+            g.add(voxel(0.06, 0.04, 0.5, mats.metal, 0, 0.4, 0.25));
+            g.add(voxel(0.06, 0.04, 0.5, mats.metal, 0, 0.8, 0.25));
+            g.add(voxel(0.06, 0.04, 0.5, mats.metal, 0, 1.2, 0.25));
+            g.add(voxel(0.04, 0.7, 0.45, mats.glass, 0, 0.5, 0.25));
+        }
+        if (conn.east || connCount === 0) {
+            g.add(voxel(0.5, 0.04, 0.06, mats.metal, 0.25, 0.4, 0));
+            g.add(voxel(0.5, 0.04, 0.06, mats.metal, 0.25, 0.8, 0));
+            g.add(voxel(0.5, 0.04, 0.06, mats.metal, 0.25, 1.2, 0));
+            g.add(voxel(0.45, 0.7, 0.04, mats.glass, 0.25, 0.5, 0));
+        }
+        if (conn.west || connCount === 0) {
+            g.add(voxel(0.5, 0.04, 0.06, mats.metal, -0.25, 0.4, 0));
+            g.add(voxel(0.5, 0.04, 0.06, mats.metal, -0.25, 0.8, 0));
+            g.add(voxel(0.5, 0.04, 0.06, mats.metal, -0.25, 1.2, 0));
+            g.add(voxel(0.45, 0.7, 0.04, mats.glass, -0.25, 0.5, 0));
+        }
+
+        // Add corner posts for connected corners
+        if (connCount >= 2) {
+            // Extra visual stability at junctions
+            g.add(voxel(0.12, 0.1, 0.12, mats.concrete, 0, 0, 0));
+        }
 
         return g;
     },

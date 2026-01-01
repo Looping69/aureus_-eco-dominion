@@ -42,6 +42,10 @@ export class WorldManager {
 
     // State Maps
     public tileHeightMap: Map<number, number> = new Map();
+    private gridCache: GridTile[] = [];
+
+    // Infrastructure types that need neighbor connections
+    private readonly CONNECTABLE_TYPES = new Set([BuildingType.ROAD, BuildingType.PIPE, BuildingType.FENCE]);
 
     // Visuals
     private selectionCursor: THREE.Mesh;
@@ -93,6 +97,7 @@ export class WorldManager {
 
     public initialSync(grid: GridTile[]) {
         this.tileHeightMap.clear();
+        this.gridCache = grid; // Cache grid reference for neighbor lookups
         grid.forEach(tile => {
             this.tileHeightMap.set(tile.id, tile.terrainHeight * 0.5);
         });
@@ -104,6 +109,51 @@ export class WorldManager {
         this.applyGridUpdates(grid);
     }
 
+    /**
+     * Calculate connection flags for infrastructure (road/pipe/fence)
+     * based on neighboring tiles of the same type
+     */
+    private getConnectionFlags(tile: GridTile): { north: boolean; south: boolean; east: boolean; west: boolean } {
+        const x = tile.x;
+        const z = tile.y;
+        const type = tile.buildingType;
+
+        const getNeighbor = (dx: number, dz: number): GridTile | null => {
+            const nx = x + dx;
+            const nz = z + dz;
+            if (nx < 0 || nx >= this.gridSize || nz < 0 || nz >= this.gridSize) return null;
+            return this.gridCache[nz * this.gridSize + nx] || null;
+        };
+
+        const northTile = getNeighbor(0, -1);
+        const southTile = getNeighbor(0, 1);
+        const eastTile = getNeighbor(1, 0);
+        const westTile = getNeighbor(-1, 0);
+
+        return {
+            north: northTile?.buildingType === type,
+            south: southTile?.buildingType === type,
+            east: eastTile?.buildingType === type,
+            west: westTile?.buildingType === type
+        };
+    }
+
+    /**
+     * Get all neighbor tile IDs that might need to be updated when infrastructure changes
+     */
+    private getNeighborIds(tileId: number): number[] {
+        const x = tileId % this.gridSize;
+        const z = Math.floor(tileId / this.gridSize);
+        const neighbors: number[] = [];
+
+        if (z > 0) neighbors.push(tileId - this.gridSize); // North
+        if (z < this.gridSize - 1) neighbors.push(tileId + this.gridSize); // South
+        if (x > 0) neighbors.push(tileId - 1); // West
+        if (x < this.gridSize - 1) neighbors.push(tileId + 1); // East
+
+        return neighbors;
+    }
+
     public updateChunks(cameraX: number, cameraZ: number) {
         this.terrainManager.update(cameraX, cameraZ);
     }
@@ -111,8 +161,39 @@ export class WorldManager {
     public applyGridUpdates(updates: GridTile[]) {
         const offset = (this.gridSize - 1) / 2;
 
+        // Update grid cache
+        updates.forEach(tile => {
+            this.gridCache[tile.id] = tile;
+        });
+
         // 1. Terrain Updates (via Worker)
         this.terrainManager.updateTiles(updates);
+
+        // Collect infrastructure neighbors that need visual refresh
+        const infrastructureUpdates = new Set<number>();
+        updates.forEach(tile => {
+            if (this.CONNECTABLE_TYPES.has(tile.buildingType)) {
+                // This tile changed - needs update
+                infrastructureUpdates.add(tile.id);
+                // All neighbors of this connectable type also need update
+                this.getNeighborIds(tile.id).forEach(nId => {
+                    const neighbor = this.gridCache[nId];
+                    if (neighbor && this.CONNECTABLE_TYPES.has(neighbor.buildingType)) {
+                        infrastructureUpdates.add(nId);
+                    }
+                });
+            }
+        });
+
+        // Force refresh infrastructure connections
+        infrastructureUpdates.forEach(tileId => {
+            if (this.buildingMeshes.has(tileId)) {
+                const existing = this.buildingMeshes.get(tileId)!;
+                this.scene.remove(existing);
+                this.buildingMeshes.delete(tileId);
+                this.animatedElements.delete(tileId);
+            }
+        });
 
         // 2. Building Logic
         updates.forEach(tile => {
@@ -171,11 +252,18 @@ export class WorldManager {
 
                 if (type !== BuildingType.EMPTY && !this.buildingMeshes.has(tile.id)) {
                     const progress = 1 - ((tile.constructionTimeLeft || 0) / (BUILDINGS[tile.buildingType]?.buildTime || 1));
+
+                    // Calculate connections for infrastructure
+                    const connections = this.CONNECTABLE_TYPES.has(tile.buildingType as BuildingType)
+                        ? this.getConnectionFlags(tile)
+                        : undefined;
+
                     this.createBuildingAt(tile.id, type, tile.x, tile.y, this.tileHeightMap.get(tile.id) || 0, offset, {
                         isUnderConstruction: tile.isUnderConstruction,
                         progress,
                         integrity: tile.integrity,
-                        waterStatus: tile.waterStatus
+                        waterStatus: tile.waterStatus,
+                        connections
                     });
                 }
             }

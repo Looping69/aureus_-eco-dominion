@@ -111,14 +111,22 @@ function findPath(startIdx: number, endIdx: number, grid: GridTile[]): number[] 
         const cx = current % GRID_SIZE;
         const cy = Math.floor(current / GRID_SIZE);
 
-        // Get Neighbors (4-way)
-        const neighbors = [];
-        if (cy > 0) neighbors.push(current - GRID_SIZE); // N
-        if (cy < GRID_SIZE - 1) neighbors.push(current + GRID_SIZE); // S
-        if (cx > 0) neighbors.push(current - 1); // W
-        if (cx < GRID_SIZE - 1) neighbors.push(current + 1); // E
+        // Get Neighbors (8-way including diagonals for smoother movement)
+        const neighbors: { idx: number; diagonal: boolean }[] = [];
 
-        for (const neighbor of neighbors) {
+        // Cardinal directions
+        if (cy > 0) neighbors.push({ idx: current - GRID_SIZE, diagonal: false }); // N
+        if (cy < GRID_SIZE - 1) neighbors.push({ idx: current + GRID_SIZE, diagonal: false }); // S
+        if (cx > 0) neighbors.push({ idx: current - 1, diagonal: false }); // W
+        if (cx < GRID_SIZE - 1) neighbors.push({ idx: current + 1, diagonal: false }); // E
+
+        // Diagonal directions
+        if (cy > 0 && cx > 0) neighbors.push({ idx: current - GRID_SIZE - 1, diagonal: true }); // NW
+        if (cy > 0 && cx < GRID_SIZE - 1) neighbors.push({ idx: current - GRID_SIZE + 1, diagonal: true }); // NE
+        if (cy < GRID_SIZE - 1 && cx > 0) neighbors.push({ idx: current + GRID_SIZE - 1, diagonal: true }); // SW
+        if (cy < GRID_SIZE - 1 && cx < GRID_SIZE - 1) neighbors.push({ idx: current + GRID_SIZE + 1, diagonal: true }); // SE
+
+        for (const { idx: neighbor, diagonal } of neighbors) {
             const tile = grid[neighbor];
             // Walkable check
             if (tile.locked) continue;
@@ -128,7 +136,9 @@ function findPath(startIdx: number, endIdx: number, grid: GridTile[]): number[] 
             // Allow walking through construction sites, roads, empty tiles, and finished buildings (entering them)
             // Implicitly allowed.
 
-            const moveCost = getTileCost(tile);
+            // Diagonal moves cost more (√2 ≈ 1.41)
+            const diagonalMultiplier = diagonal ? 1.41 : 1.0;
+            const moveCost = getTileCost(tile) * diagonalMultiplier;
             const tentativeG = (gScore.get(current) ?? Infinity) + moveCost;
 
             if (tentativeG < (gScore.get(neighbor) ?? Infinity)) {
@@ -766,7 +776,10 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
             }
         } else if (aState === 'WORKING') {
             // Working logic handled below, but if job is gone, stop
-            if (!currentJobId || !nextJobs.some(j => j.id === currentJobId)) actionCompleted = true;
+            // IMPORTANT: BUILD jobs are handled separately and check tile state, not job list
+            // This prevents agents from freezing when another agent removes the job from the list
+            const isBuildJob = currentJobId?.startsWith('build_');
+            if (!isBuildJob && (!currentJobId || !nextJobs.some(j => j.id === currentJobId))) actionCompleted = true;
         }
 
         // Interrupt logic or Completion logic
@@ -1083,8 +1096,14 @@ export function updateSimulation(state: GameState): { state: GameState, effects:
 
                             // We need to update ALL tiles for this building to keep state sync
                             const def = BUILDINGS[headTile.buildingType];
-                            const w = def.width || 1;
-                            const d = def.depth || 1;
+
+                            // Defensive check: if building def is missing, treat it as 1x1
+                            if (!def) {
+                                console.warn(`Missing building definition for type: ${headTile.buildingType}`);
+                            }
+
+                            const w = def?.width || 1;
+                            const d = def?.depth || 1;
                             const hx = headTile.x;
                             const hy = headTile.y;
 

@@ -28,6 +28,7 @@ import { NewsTicker } from './components/NewsTicker';
 import { GoalWidget } from './components/GoalWidget';
 import { InventoryHUD } from './components/InventoryHUD';
 import { DebugMenu } from './components/DebugMenu';
+import { AgentDebugOverlay } from './components/AgentDebugOverlay';
 import { Minimap } from './components/Minimap';
 import { WorldMap } from './components/WorldMap';
 import { HomePage } from './components/HomePage';
@@ -554,12 +555,19 @@ const App: React.FC = () => {
                     />
 
                     {state.debugMode && (
-                        <DebugMenu
-                            engine={engineRef.current}
-                            state={state}
-                            onClose={() => dispatch({ type: 'TOGGLE_DEBUG' })}
-                            dispatch={dispatch}
-                        />
+                        <>
+                            <DebugMenu
+                                engine={engineRef.current}
+                                state={state}
+                                onClose={() => dispatch({ type: 'TOGGLE_DEBUG' })}
+                                dispatch={dispatch}
+                            />
+                            <AgentDebugOverlay
+                                agents={state.agents}
+                                jobs={state.jobs}
+                                tickCount={state.tickCount}
+                            />
+                        </>
                     )}
                 </>
             )}
