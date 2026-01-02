@@ -31,7 +31,8 @@ export class WorkerPool {
     constructor(config: Partial<WorkerPoolConfig> = {}) {
         this.config = {
             workerCount: Math.max(1, (navigator.hardwareConcurrency || 4) - 1),
-            workerScript: '/worker.js',
+            // Use Vite/Webpack compatible worker import
+            workerScript: '', // Handled in init
             maxJobsPerFrame: 8,
             ...config,
         };
@@ -45,7 +46,8 @@ export class WorkerPool {
 
         for (let i = 0; i < this.config.workerCount; i++) {
             try {
-                const worker = new Worker(this.config.workerScript, { type: 'module' });
+                // Ensure this path is correct relative to WorkerPool.ts
+                const worker = new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' });
                 this.workers.push({
                     worker,
                     busy: false,
@@ -58,6 +60,15 @@ export class WorkerPool {
 
         this.initialized = true;
         console.log(`[WorkerPool] Initialized with ${this.workers.length} workers`);
+    }
+
+    /**
+     * Send a message to all workers (e.g. state sync)
+     */
+    public broadcast(message: any): void {
+        for (const w of this.workers) {
+            w.worker.postMessage(message);
+        }
     }
 
     /**
@@ -131,44 +142,4 @@ export class WorkerPool {
     }
 }
 
-/**
- * Placeholder worker pool for when workers aren't available/needed
- * Processes jobs synchronously on main thread
- */
-export class SyncJobProcessor {
-    private handlers = new Map<string, (job: Job) => JobResult>();
 
-    /**
-     * Register a handler for a job type
-     */
-    registerHandler<T extends Job>(kind: T['kind'], handler: (job: T) => JobResult): void {
-        this.handlers.set(kind, handler as (job: Job) => JobResult);
-    }
-
-    /**
-     * Process jobs synchronously (fallback when workers unavailable)
-     */
-    process(jobSystem: JobSystem, maxJobs: number): void {
-        const jobs = jobSystem.getJobsToDispatch(maxJobs);
-
-        for (const job of jobs) {
-            const handler = this.handlers.get(job.kind);
-            if (handler) {
-                try {
-                    const result = handler(job);
-                    jobSystem.pushResult(result);
-                } catch (e) {
-                    jobSystem.pushResult({
-                        jobId: job.id,
-                        kind: job.kind,
-                        success: false,
-                        error: String(e),
-                        completedAt: Date.now(),
-                    });
-                }
-            } else {
-                console.warn(`[SyncJobProcessor] No handler for job kind: ${job.kind}`);
-            }
-        }
-    }
-}

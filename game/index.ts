@@ -1,7 +1,7 @@
-/**
- * Game Module - Barrel Export
- */
+export { AureusWorld } from './AureusWorld';
+export type { AureusWorldConfig } from './AureusWorld';
+export { bootstrap, cleanup } from './bootstrap';
+export type { BootstrapResult } from './bootstrap';
+export { useAureusEngine } from './useAureusEngine';
+export type { UseAureusEngineOptions, AureusEngineHandle } from './useAureusEngine';
 
-export { AureusWorld, AureusWorldConfig } from './AureusWorld';
-export { bootstrap, cleanup, BootstrapResult } from './bootstrap';
-export { useAureusEngine, UseAureusEngineOptions, AureusEngineHandle } from './useAureusEngine';

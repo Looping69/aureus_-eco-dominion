@@ -262,8 +262,10 @@ export class AgentManager {
             }
 
             // Calculate world position
-            const worldX = agent.x - offset;
-            const worldZ = agent.z - offset;
+            const x = agent.visualX ?? agent.x;
+            const z = agent.visualZ ?? agent.z;
+            const worldX = x - offset;
+            const worldZ = z - offset;
 
             // Determine Target Rotation - Face the direction of travel
             let targetRot = meshGroup.userData.targetRot ?? meshGroup.rotation.y;

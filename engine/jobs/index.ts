@@ -1,7 +1,6 @@
-/**
- * Engine Jobs - Barrel Export
- */
-
 export * from './jobs.types';
-export { JobSystem, JobStats } from './JobSystem';
-export { WorkerPool, WorkerPoolConfig, SyncJobProcessor } from './WorkerPool';
+export { JobSystem } from './JobSystem';
+export type { JobStats } from './JobSystem';
+export { WorkerPool } from './WorkerPool';
+export type { WorkerPoolConfig } from './WorkerPool';
+

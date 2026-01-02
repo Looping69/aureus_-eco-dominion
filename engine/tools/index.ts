@@ -1,5 +1,3 @@
-/**
- * Engine Tools - Barrel Export
- */
+export { DebugHud } from './DebugHud';
+export type { DebugHudConfig } from './DebugHud';
 
-export { DebugHud, DebugHudConfig } from './DebugHud';

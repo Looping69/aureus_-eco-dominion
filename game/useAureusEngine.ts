@@ -6,7 +6,8 @@
  * and the engine's fixed-step simulation loop.
  */
 
-import { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
+
 import { WorldHost, Runtime } from '../engine';
 import { ThreeRenderAdapter } from '../engine/render';
 import { DebugHud } from '../engine/tools';
@@ -56,17 +57,6 @@ export interface AureusEngineHandle {
 
 /**
  * Hook for integrating Aureus engine with React
- * 
- * Usage:
- * ```tsx
- * const { engine, world, ready } = useAureusEngine({
- *   container: containerRef.current,
- *   state,
- *   dispatch,
- *   onTileClick: handleTileClick,
- *   // ...
- * });
- * ```
  */
 export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHandle {
     const {
@@ -81,16 +71,14 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
         useNewLoop = false,
     } = options;
 
-    // Refs for persistent instances
-    const worldRef = useRef<AureusWorld | null>(null);
-    const engineRef = useRef<VoxelEngine | null>(null);
-    const runtimeRef = useRef<Runtime | null>(null);
-    const renderRef = useRef<ThreeRenderAdapter | null>(null);
-    const debugHudRef = useRef<DebugHud | null>(null);
-    const worldHostRef = useRef<WorldHost | null>(null);
-    const readyRef = useRef(false);
+    // Instance state
+    const [world, setWorldInstance] = useState<AureusWorld | null>(null);
+    const [engine, setEngineInstance] = useState<VoxelEngine | null>(null);
+    const [runtime, setRuntimeInstance] = useState<Runtime | null>(null);
+    const [debugHud, setDebugHudInstance] = useState<DebugHud | null>(null);
+    const [ready, setReady] = useState(false);
 
-    // State ref for the simulation to read current state
+    // State ref for the simulation to read current state without triggering effects
     const stateRef = useRef(state);
     stateRef.current = state;
 
@@ -106,11 +94,10 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
             shadowMap: true,
             fogEnabled: true,
         });
-        renderRef.current = render;
+        render.init(container);
 
         // Create world
-        const world = new AureusWorld(render);
-        worldRef.current = world;
+        const worldInstance = new AureusWorld(render);
 
         // Configure world
         const config: AureusWorldConfig = {
@@ -120,49 +107,53 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
             onAgentClick,
             onTileHover,
         };
-        world.configure(config);
+        worldInstance.configure(config);
 
         // Create the legacy VoxelEngine through the world
-        const engine = world.createLegacyEngine();
-        engineRef.current = engine;
+        const engineInstance = worldInstance.createLegacyEngine();
 
         // Connect React state management
-        world.connectLegacy(dispatch, () => stateRef.current);
+        worldInstance.connectLegacy(dispatch, () => stateRef.current);
+
+        // Set instances to state
+        setWorldInstance(worldInstance);
+        setEngineInstance(engineInstance);
+
+        let activeRuntime: Runtime | null = null;
+        let activeDebugHud: DebugHud | null = null;
 
         if (useNewLoop) {
             // New engine loop - world handles simulation
             const worldHost = new WorldHost();
-            worldHostRef.current = worldHost;
 
-            const runtime = new Runtime(worldHost, {
+            activeRuntime = new Runtime(worldHost, {
                 fixedTickRate: 60,
                 maxSimStepsPerFrame: 5,
                 profilerEnabled: true,
             });
-            runtimeRef.current = runtime;
+            setRuntimeInstance(activeRuntime);
 
             // Create debug HUD
-            const debugHud = new DebugHud({ position: 'top-right' });
-            debugHud.init(container, runtime, () => render.getStats());
-            debugHudRef.current = debugHud;
+            activeDebugHud = new DebugHud({ position: 'top-right' });
+            activeDebugHud.init(container, activeRuntime, () => render.getStats());
+            setDebugHudInstance(activeDebugHud);
 
             // Load world and start
-            worldHost.setWorld(world).then(() => {
-                runtime.start();
-                readyRef.current = true;
+            worldHost.setWorld(worldInstance).then(() => {
+                // Initial sync
+                worldInstance.initialSync(stateRef.current.grid);
+
+                activeRuntime?.start();
+                setReady(true);
                 console.log('[useAureusEngine] New engine loop started');
             });
         } else {
             // Legacy mode - VoxelEngine has its own loop
-            // Initial sync
-            if (engine) {
-                engine.initialSync(stateRef.current.grid);
-                engine.playIntroAnimation(() => {
-                    console.log('[useAureusEngine] Intro animation complete');
-                });
+            if (engineInstance) {
+                engineInstance.initialSync(stateRef.current.grid);
             }
 
-            readyRef.current = true;
+            setReady(true);
             console.log('[useAureusEngine] Legacy mode ready');
         }
 
@@ -170,64 +161,66 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
         return () => {
             console.log('[useAureusEngine] Cleaning up...');
 
-            runtimeRef.current?.stop();
-            debugHudRef.current?.dispose();
+            setReady(false);
 
-            if (worldRef.current) {
-                worldRef.current.teardown();
+            if (activeRuntime) {
+                activeRuntime.stop();
             }
 
-            renderRef.current?.dispose();
+            if (activeDebugHud) {
+                activeDebugHud.dispose();
+            }
 
-            // Clear refs
-            worldRef.current = null;
-            engineRef.current = null;
-            runtimeRef.current = null;
-            renderRef.current = null;
-            debugHudRef.current = null;
-            worldHostRef.current = null;
-            readyRef.current = false;
+            worldInstance.teardown();
+            render.dispose();
+
+            setWorldInstance(null);
+            setEngineInstance(null);
+            setRuntimeInstance(null);
+            setDebugHudInstance(null);
         };
-    }, [container]); // Only reinitialize when container changes
+    }, [container, useNewLoop]);
 
     // Sync pause state
     useEffect(() => {
-        if (worldRef.current) {
-            worldRef.current.setGamePaused(paused);
+        if (world) {
+            world.setGamePaused(paused);
         }
-    }, [paused]);
+    }, [world, paused]);
 
     // Sync selected agent
     useEffect(() => {
-        engineRef.current?.setSelectedAgent(state.selectedAgentId);
-    }, [state.selectedAgentId]);
+        engine?.setSelectedAgent(state.selectedAgentId);
+    }, [engine, state.selectedAgentId]);
 
     // Sync interaction mode
     useEffect(() => {
-        engineRef.current?.setInteractionMode(state.interactionMode as 'BUILD' | 'BULLDOZE' | 'INSPECT');
-    }, [state.interactionMode]);
+        if (engine) {
+            engine.setInteractionMode(state.interactionMode as 'BUILD' | 'BULLDOZE' | 'INSPECT');
+        }
+    }, [engine, state.interactionMode]);
 
     // Sync ghost building
     useEffect(() => {
-        engineRef.current?.setGhostBuilding(state.selectedBuilding);
-    }, [state.selectedBuilding]);
+        engine?.setGhostBuilding(state.selectedBuilding);
+    }, [engine, state.selectedBuilding]);
 
     // Sync agents
     useEffect(() => {
-        engineRef.current?.updateAgents(state.agents);
-    }, [state.agents]);
+        engine?.updateAgents(state.agents);
+    }, [engine, state.agents]);
 
     // Sync events
     useEffect(() => {
-        engineRef.current?.syncEvents(state.activeEvents);
-    }, [state.activeEvents]);
+        engine?.syncEvents(state.activeEvents);
+    }, [engine, state.activeEvents]);
 
     return {
-        world: worldRef.current,
-        engine: engineRef.current,
-        runtime: runtimeRef.current,
-        debugHud: debugHudRef.current,
-        ready: readyRef.current,
+        world,
+        engine,
+        runtime,
+        debugHud,
+        ready,
     };
 }
 

@@ -23,11 +23,12 @@ export interface SimSystem {
     init(): void;
 
     /** Run one fixed-step tick */
-    tick(ctx: FixedContext): void;
+    tick(ctx: FixedContext, state: any): void;
 
     /** Cleanup system */
     dispose(): void;
 }
+
 
 /**
  * Simulation manager - runs systems in priority order
@@ -82,13 +83,14 @@ export class Simulation {
     /**
      * Run one simulation tick
      */
-    tick(ctx: FixedContext): void {
+    tick(ctx: FixedContext, state: any): void {
         for (const system of this.systems) {
             if (system.enabled) {
-                system.tick(ctx);
+                system.tick(ctx, state);
             }
         }
     }
+
 
     /**
      * Enable/disable a system
@@ -135,6 +137,7 @@ export abstract class BaseSimSystem implements SimSystem {
     enabled = true;
 
     init(): void { }
-    abstract tick(ctx: FixedContext): void;
+    abstract tick(ctx: FixedContext, state: any): void;
     dispose(): void { }
 }
+

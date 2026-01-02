@@ -74,9 +74,7 @@ export class VoxelEngine {
         // 4. Events
         this.unsubscribeBus = DiffBus.subscribe(this.onDiff.bind(this));
 
-        // 5. Loop
-        this.animate = this.animate.bind(this);
-        this.animate();
+        // 5. Loop (Handled by Engine Runtime now)
     }
 
     // --- API ---
@@ -131,6 +129,10 @@ export class VoxelEngine {
         this.sceneMgr.playIntroAnimation(onComplete);
     }
 
+    public getCamera(): THREE.Camera {
+        return this.sceneMgr.camera;
+    }
+
     public getDebugStats() {
         const renderInfo = this.sceneMgr.renderer.info;
         const interactables = this.worldMgr.getInteractables();
@@ -171,13 +173,13 @@ export class VoxelEngine {
         }
     }
 
-    private animate() {
-        this.animationId = requestAnimationFrame(this.animate);
-
-        const start = performance.now();
-        const time = Date.now() * 0.001;
-
-        this.sceneMgr.updateEnvironment(0.016);
+    /**
+     * Render a single frame (driven by Engine Runtime)
+     * @param dt Delta time in seconds
+     * @param totalTime Total running time in seconds
+     */
+    public render(dt: number, totalTime: number) {
+        this.sceneMgr.updateEnvironment(dt);
         this.worldMgr.updateChunks(this.sceneMgr.cameraFocus.x, this.sceneMgr.cameraFocus.z);
 
         // Disable shadows earlier for performance
@@ -187,12 +189,12 @@ export class VoxelEngine {
             this.sceneMgr.setShadowsEnabled(true);
         }
 
-        this.worldMgr.animate(time, this.sceneMgr.cameraZoom);
-        this.agentMgr.animate(time, this.sceneMgr.cameraZoom);
+        this.worldMgr.animate(totalTime, this.sceneMgr.cameraZoom);
+        this.agentMgr.animate(totalTime, this.sceneMgr.cameraZoom);
 
         this.sceneMgr.render();
 
-        this.lastCpuTime = performance.now() - start;
+        // this.lastCpuTime = ... // Performance tracking moved to engine profiler
     }
 
     private getSurfaceHeight(worldX: number, worldZ: number): number {

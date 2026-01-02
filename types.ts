@@ -108,7 +108,11 @@ export interface Agent {
   z: number;
   targetTileId: number | null;
   path: number[] | null;
-  state: 'MOVING' | 'WORKING' | 'IDLE' | 'SLEEPING' | 'EATING' | 'RELAXING' | 'SOCIALIZING' | 'PATROLLING' | 'OFF_DUTY';
+  // Visual position for smooth rendering
+  visualX?: number;
+  visualZ?: number;
+
+  state: 'MOVING' | 'WORKING' | 'IDLE' | 'SLEEPING' | 'EATING' | 'RELAXING' | 'SOCIALIZING' | 'PATROLLING' | 'OFF_DUTY' | 'PLANNING';
 
   // Needs (0-100)
   energy: number;
@@ -416,4 +420,5 @@ export type Action =
   | { type: 'DISMISS_NEWS', payload: string }
   | { type: 'UNLOCK_TECH', payload: TechId }
   | { type: 'MINE_CLICK', payload: { index: number } }
+  | { type: 'CLEAR_EFFECTS' }
   | { type: 'LOAD_GAME', payload: GameState };

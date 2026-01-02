@@ -1,5 +1,3 @@
-/**
- * Engine Sim - Barrel Export
- */
+export { Simulation, BaseSimSystem } from './Simulation';
+export type { SimSystem } from './Simulation';
 
-export { Simulation, SimSystem, BaseSimSystem } from './Simulation';

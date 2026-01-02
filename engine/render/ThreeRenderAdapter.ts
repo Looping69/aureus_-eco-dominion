@@ -56,16 +56,26 @@ export class ThreeRenderAdapter implements RenderAdapter {
         this.renderer = new THREE.WebGLRenderer({
             antialias: this.config.antialias,
             powerPreference: 'high-performance',
+            alpha: true, // Enable transparency
         });
 
         this.renderer.setPixelRatio(this.config.pixelRatio);
-        this.renderer.setClearColor(this.config.clearColor);
+        this.renderer.setClearColor(this.config.clearColor, 0); // Transparent clear
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
         if (this.config.shadowMap) {
             this.renderer.shadowMap.enabled = true;
             this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         }
+
+        // Style for overlay
+        this.renderer.domElement.style.position = 'absolute';
+        this.renderer.domElement.style.top = '0';
+        this.renderer.domElement.style.left = '0';
+        this.renderer.domElement.style.width = '100%';
+        this.renderer.domElement.style.height = '100%';
+        this.renderer.domElement.style.pointerEvents = 'none'; // Let clicks pass through for now
+        this.renderer.domElement.style.zIndex = '10'; // On top of legacy
 
         container.appendChild(this.renderer.domElement);
 

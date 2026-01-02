@@ -118,8 +118,14 @@ function updateExploration(grid: GridTile[], agents: any[], radius: number = 3):
 }
 
 export function gameReducer(state: GameState, action: Action): GameState {
-    // Clear effects from previous tick/action to avoid duplication if consumer has processed them
-    const baseState = { ...state, pendingEffects: [] };
+    // IMPORTANT: Do NOT clear pendingEffects here. Let them accumulate until consumed.
+    // The consumer (App.tsx useEffect) will dispatch CLEAR_EFFECTS after processing.
+    const baseState = state;
+
+    // Handle effect clearing as a special case
+    if (action.type === 'CLEAR_EFFECTS') {
+        return { ...state, pendingEffects: [] };
+    }
 
     switch (action.type) {
         case 'TICK': {
@@ -127,7 +133,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
             const { state: nextState, effects, news } = updateSimulation(baseState);
 
-            let finalState = { ...nextState, pendingEffects: [...effects] };
+            let finalState = { ...nextState, pendingEffects: [...baseState.pendingEffects, ...effects] };
 
             finalState.newsFeed = [...finalState.newsFeed, ...news];
 
@@ -408,7 +414,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
             // Add FX effect directly
             const effects: SimulationEffect[] = [{ type: 'FX', fxType: 'DUST', index: tileId }];
-            return { ...baseState, agents: nextAgents, jobs: nextJobs, pendingEffects: effects };
+            return { ...baseState, agents: nextAgents, jobs: nextJobs, pendingEffects: [...baseState.pendingEffects, ...effects] };
         }
         case 'SELL_MINERALS': {
             if (baseState.resources.minerals <= 0) return baseState;
@@ -426,7 +432,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
                     minerals: 0,
                     agt: baseState.resources.agt + value
                 },
-                pendingEffects: [{ type: 'AUDIO', sfx: 'UI_COIN' }]
+                pendingEffects: [...baseState.pendingEffects, { type: 'AUDIO', sfx: 'UI_COIN' }]
             };
         }
         case 'SELECT_BUILDING_TO_PLACE': return { ...baseState, selectedBuilding: action.payload, interactionMode: action.payload ? 'BUILD' : 'INSPECT' };
@@ -477,7 +483,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
                 grid: finalGrid,
                 selectedBuilding: nextBuilding,
                 interactionMode: nextMode,
-                pendingEffects: effects
+                pendingEffects: [...baseState.pendingEffects, ...effects]
             };
         }
         case 'ACTIVATE_BULLDOZER': return { ...baseState, interactionMode: 'BULLDOZE', selectedBuilding: null };
@@ -507,7 +513,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
             const effects: SimulationEffect[] = [{ type: 'GRID_UPDATE', updates }];
             if (waterDiff) effects.push(waterDiff);
 
-            return { ...baseState, grid: finalGrid, pendingEffects: effects };
+            return { ...baseState, grid: finalGrid, pendingEffects: [...baseState.pendingEffects, ...effects] };
         }
         case 'SPEED_UP_BUILDING': {
             const { index } = action.payload, newGrid = [...baseState.grid], tile = newGrid[index];
@@ -534,7 +540,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
             const effects: SimulationEffect[] = [{ type: 'GRID_UPDATE', updates }];
             if (waterDiff) effects.push(waterDiff);
 
-            return { ...baseState, resources: { ...baseState.resources, gems: baseState.resources.gems - 1 }, grid: finalGrid, pendingEffects: effects };
+            return { ...baseState, resources: { ...baseState.resources, gems: baseState.resources.gems - 1 }, grid: finalGrid, pendingEffects: [...baseState.pendingEffects, ...effects] };
         }
         case 'REHABILITATE_TILE': {
             const { index } = action.payload; if (baseState.resources.agt < 100) return baseState;
@@ -543,7 +549,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
                 newJobs.push({ id: `rehab_${index}_${Date.now()}`, type: 'REHABILITATE', targetTileId: index, priority: 25, assignedAgentId: null });
                 const newGrid = [...baseState.grid];
                 newGrid[index] = { ...newGrid[index], rehabProgress: 0.1 };
-                return { ...baseState, resources: { ...baseState.resources, agt: baseState.resources.agt - 100 }, jobs: newJobs, grid: newGrid, pendingEffects: [{ type: 'GRID_UPDATE', updates: [newGrid[index]] }] };
+                return { ...baseState, resources: { ...baseState.resources, agt: baseState.resources.agt - 100 }, jobs: newJobs, grid: newGrid, pendingEffects: [...baseState.pendingEffects, { type: 'GRID_UPDATE', updates: [newGrid[index]] }] };
             }
             return baseState;
         }
@@ -602,7 +608,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
                     trust: Math.min(100, baseState.resources.trust + 5)
                 },
                 contracts: baseState.contracts.filter(c => c.id !== contractId),
-                pendingEffects: [{ type: 'AUDIO', sfx: 'UI_COIN' }]
+                pendingEffects: [...baseState.pendingEffects, { type: 'AUDIO', sfx: 'UI_COIN' }]
             };
         }
         default: return baseState;

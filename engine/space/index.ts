@@ -4,4 +4,6 @@
 
 export * from './ChunkCoord';
 export { ActiveSet } from './ActiveSet';
-export { StreamingManager, StreamingPolicy, DEFAULT_STREAMING_POLICY } from './StreamingManager';
+export { StreamingManager, DEFAULT_STREAMING_POLICY } from './StreamingManager';
+export type { StreamingPolicy } from './StreamingManager';
+

@@ -1,7 +1,5 @@
-/**
- * Engine Render - Barrel Export
- */
-
-export { RenderAdapter, RenderStats } from './RenderAdapter';
-export { ThreeRenderAdapter, ThreeRenderConfig } from './ThreeRenderAdapter';
+export type { RenderAdapter, RenderStats } from './RenderAdapter';
+export { ThreeRenderAdapter } from './ThreeRenderAdapter';
+export type { ThreeRenderConfig } from './ThreeRenderAdapter';
 export { MeshPool } from './MeshPool';
+

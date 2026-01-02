@@ -5,8 +5,11 @@
 */
 
 import React, { useEffect, useRef, useReducer, useState, useCallback } from 'react';
-import { VoxelEngine } from './services/VoxelEngine';
 import { AudioEngine, SfxType } from './services/AudioEngine';
+import { useAureusEngine } from './game';
+import { VoxelEngine } from './services/VoxelEngine';
+
+
 import { BuildingType, GameStep, Agent, GameState } from './types';
 import { BUILDINGS } from './utils/voxelConstants';
 import { calculateBuildingCost, GRID_SIZE, getEcoMultiplier } from './utils/gameUtils';
@@ -217,82 +220,73 @@ const App: React.FC = () => {
                     DiffBus.publish(effect);
                 }
             });
+            // Clear effects after processing to prevent duplicates
+            dispatch({ type: 'CLEAR_EFFECTS' });
         }
-    }, [state.pendingEffects]);
+    }, [state.pendingEffects, dispatch]);
 
     const closeSidebars = useCallback(() => {
         setSidebarOpen(prev => prev !== 'NONE' ? 'NONE' : prev);
     }, []);
 
-    useEffect(() => {
-        if (!containerRef.current) return;
-        const engine = new VoxelEngine(
-            containerRef.current,
-            (index) => {
-                const currentState = stateRef.current;
-                audioRef.current.init();
-                closeSidebars();
-
-                if (currentState.selectedBuilding) {
-                    setPendingPlacementIndex(index);
-                    audioRef.current.play('UI_CLICK');
-                    return;
-                }
-
-                if (currentState.interactionMode === 'BULLDOZE') {
-                    dispatch({ type: 'BULLDOZE_TILE', payload: { index } });
-                    audioRef.current.play('CAMP_RUSTLE');
-                    return;
-                }
-
-                setSelectedTileForAction(index);
-            },
-            (index) => {
-                const currentState = stateRef.current;
-                closeSidebars();
-                if (currentState.selectedAgentId) {
-                    dispatch({ type: 'COMMAND_AGENT', payload: { agentId: currentState.selectedAgentId, tileId: index } });
-                    playSfx('UI_CLICK');
-                }
-            },
-            (agentId) => {
-                closeSidebars();
-                dispatch({ type: 'SELECT_AGENT', payload: agentId });
-                if (agentId) playSfx('UI_CLICK');
-            },
-            (index) => {
-                setHoverTile(index);
-            },
-            GRID_SIZE
-        );
-        engineRef.current = engine;
-
-        // Use initialSync instead of updateTerrain for the first load
-        engine.initialSync(state.grid);
-        engine.playIntroAnimation(() => {
-            setIsIntroAnim(false);
-        });
-
-        let tickCount = 0;
-        const timer = setInterval(() => {
-            if (!stateRef.current.gameOver && !showHomePageRef.current) {
-                dispatch({ type: 'TICK' });
-
-                // Auto-save every ~30 seconds (150 ticks at 200ms)
-                tickCount++;
-                if (tickCount >= 150) {
-                    saveGame(stateRef.current);
-                    tickCount = 0;
-                }
+    // --- New Engine Integration ---
+    const { engine, world, ready } = useAureusEngine({
+        container: containerRef.current,
+        state,
+        dispatch,
+        onTileClick: (index) => {
+            const currentMode = stateRef.current.interactionMode;
+            if (currentMode === 'BUILD' && stateRef.current.selectedBuilding) {
+                dispatch({ type: 'PLACE_BUILDING', payload: { index } });
+                playSfx('BUILD_START');
+            } else if (currentMode === 'BULLDOZE') {
+                dispatch({ type: 'BULLDOZE_TILE', payload: { index } });
+                playSfx('BULLDOZE');
+            } else {
+                dispatch({ type: 'SELECT_BUILDING_TO_PLACE', payload: null });
             }
-        }, 200);
+        },
+        onTileRightClick: (index) => {
+            if (stateRef.current.selectedAgentId) {
+                dispatch({ type: 'COMMAND_AGENT', payload: { agentId: stateRef.current.selectedAgentId, tileId: index } });
+                playSfx('UI_CLICK');
+            }
+        },
+        onAgentClick: (agentId) => {
+            dispatch({ type: 'SELECT_AGENT', payload: agentId });
+            if (agentId) playSfx('UI_CLICK');
+        },
+        onTileHover: (index) => {
+            setHoverTile(index);
+        },
+        paused: showHomePage,
+        useNewLoop: true // Set to true to activate the spine
+    });
 
-        return () => {
-            clearInterval(timer);
-            engine.cleanup();
-            audioRef.current.cleanup();
-        };
-    }, []);
+    // Update refs for legacy compatibility where still needed
+    useEffect(() => {
+        if (engine) engineRef.current = engine;
+    }, [engine]);
+
+    // Handle initial intro animation
+    useEffect(() => {
+        if (ready && world) {
+            world.playIntroAnimation(() => {
+                setIsIntroAnim(false);
+            });
+        }
+    }, [ready, world]);
+
+    // Auto-save logic (now decoupled from the main tick loop for stability)
+    useEffect(() => {
+        const autoSaveTimer = setInterval(() => {
+            if (!state.gameOver && !showHomePage) {
+                saveGame(state);
+            }
+        }, 30000); // Stable 30s auto-save
+        return () => clearInterval(autoSaveTimer);
+    }, [state.gameOver, showHomePage]);
+
 
     useEffect(() => {
         engineRef.current?.setSelectedAgent(state.selectedAgentId);
