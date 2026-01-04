@@ -15,6 +15,8 @@
  * 5. Render Sync (update meshes from state)
  * 6. Draw (GPU submit)
  * 7. Frame End (cleanup, telemetry)
+ * 
+ * (|/) Klaasvaakie
  */
 
 // Kernel

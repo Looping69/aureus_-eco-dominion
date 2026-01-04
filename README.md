@@ -1,10 +1,10 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+
 
 # Aureus: Eco Dominion
 
 A voxel-based economic simulation game built on a custom modular game engine. Balance resource extraction, ecological sustainability, and public trust while managing autonomous agents in a dynamic world.
+
+**`(|/)` Klaasvaakie**
 
 ---
 
@@ -286,6 +286,3 @@ See the [LICENSE](LICENSE) file for complete terms and conditions.
 
 ---
 
-**Built with ❤️ using AI Studio**  
-**Owner**: Klaasvaakie  
-View in AI Studio: https://ai.studio/apps/drive/1Ro5P5y6Lo0v5feqqFf1_vz3i4_kd2LW6

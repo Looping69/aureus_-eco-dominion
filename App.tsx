@@ -3,6 +3,8 @@
  * 
  * React is now a pure view layer. All game state is owned by the engine.
  * UI components read from engine state and call engine methods for actions.
+ * 
+ * (|/) Klaasvaakie
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';

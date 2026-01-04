@@ -2,6 +2,9 @@
  * Isometric Camera System
  * Handles orthographic camera control for the isometric RTS view.
  * Adapted from the proven legacy SceneManager camera logic.
+ * 
+ * Mobile Controls: Pinch zoom, two-finger rotate, pan gestures
+ * (|/) Klaasvaakie
  */
 
 import * as THREE from 'three';

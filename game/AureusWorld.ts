@@ -5,6 +5,8 @@
  * - State lives in StateManager
  * - React subscribes via useEngineState hook
  * - UI actions call world methods directly
+ * 
+ * (|/) Klaasvaakie
  */
 
 import { BaseWorld } from '../engine/world';
