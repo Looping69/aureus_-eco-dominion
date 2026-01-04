@@ -13,7 +13,8 @@ export class IsoCameraSystem {
     private enabled = true;
 
     // Camera State - Public for read access
-    public cameraZoom = 40;
+    public cameraZoom: number;
+    public zoomLevel = 7; // Max zoom out (7 steps)
     public cameraFocus = new THREE.Vector3(0, 0, 0);
     public cameraAngle = Math.PI / 4;  // 45 degrees - isometric view
     public cameraElevation = Math.PI / 3.5;  // ~51 degrees
@@ -35,6 +36,7 @@ export class IsoCameraSystem {
 
     constructor(adapter: ThreeRenderAdapter) {
         this.camera = adapter.getCamera() as THREE.OrthographicCamera;
+        this.cameraZoom = 15 + (this.zoomLevel * 10);
         this.domElement = adapter.getCanvas();
 
         // Bind handlers
@@ -170,8 +172,16 @@ export class IsoCameraSystem {
         this.updateCameraTransform();
     }
 
+    private zoomLevel = 7; // Start at max zoom out (7 scrolls from 15)
+
     public zoom(delta: number): void {
-        this.cameraZoom = Math.max(15, Math.min(120, this.cameraZoom + delta));
+        // Step-based zoom: each tick is roughly 1 step
+        const direction = delta > 0 ? 1 : -1;
+        this.zoomLevel = Math.max(0, Math.min(7, this.zoomLevel + direction));
+
+        // Calculate cameraZoom based on steps: 15 (min) to 85 (max)
+        // This ensures the world corners stay completely off-screen.
+        this.cameraZoom = 15 + (this.zoomLevel * 10);
         this.updateCameraTransform();
     }
 
@@ -205,7 +215,7 @@ export class IsoCameraSystem {
 
     public playIntroAnimation(onComplete: () => void): void {
         let progress = 0;
-        const startZoom = 120;
+        const startZoom = 250;
         const targetZoom = this.cameraZoom;
 
         const animate = () => {

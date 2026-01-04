@@ -8,11 +8,11 @@ import { BuildingType, BiomeType, GridTile, FoliageType } from '../../types';
 import { BUILDINGS } from '../data/VoxelConstants';
 
 // Map Size: 45x45 total.
-// Playable area: 15x15 in the center.
-// Padding: 15 tiles on each side.
+// Playable area: 35x35 in the center (much larger buildable area).
+// Padding: 5 tiles on each side (reduced from 15).
 export const GRID_SIZE = 45;
-const PLAYABLE_SIZE = 15;
-const PADDING = 15; // (45 - 15) / 2 = 15
+const PLAYABLE_SIZE = 35; // Increased from 15
+const PADDING = 5; // Reduced from 15 - (45 - 35) / 2 = 5
 
 // --- NOISE LOGIC (Exported as string for Worker Injection) ---
 export const NOISE_SOURCE = `

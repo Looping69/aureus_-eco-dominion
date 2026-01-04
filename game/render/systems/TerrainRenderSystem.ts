@@ -26,7 +26,7 @@ export class TerrainRenderSystem {
     private tileCache: Map<string, GridTile[]> = new Map();
 
     // View radius in chunks
-    private viewRadius = 4;
+    private viewRadius = 6;
 
     // Track last camera chunk to avoid redundant updates
     private lastCameraCx = -999;

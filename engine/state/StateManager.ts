@@ -33,7 +33,7 @@ export class StateManager {
             commandQueue: [],
 
             resources: {
-                agt: 1000,
+                agt: 5000,
                 minerals: 0,
                 gems: INITIAL_RESOURCES.gems,
                 eco: INITIAL_RESOURCES.eco,
@@ -162,6 +162,8 @@ export class StateManager {
 
     getMutableState(): GameState {
         this.dirtyFlag = true;
+        // Mark grid as dirty since most mutations affect the grid
+        this.dirtyKeys.add('grid');
         return this.state;
     }
 

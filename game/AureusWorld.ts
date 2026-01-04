@@ -77,7 +77,7 @@ export class AureusWorld extends BaseWorld {
 
         // Initialize engine subsystems
         this.streamMgr = new StreamingManager({
-            viewRadiusH: 4,
+            viewRadiusH: 6,
             viewRadiusV: 1,
             maxLoadsPerFrame: 4,
             maxUnloadsPerFrame: 8,
@@ -181,12 +181,21 @@ export class AureusWorld extends BaseWorld {
         if (!tile || tile.locked) return;
         if (tile.buildingType !== BuildingType.EMPTY && tile.buildingType !== BuildingType.POND) return;
 
-        // Check cost
-        const cost = def.cost;
-        if (state.resources.agt < cost) return;
+        // Check if building is in inventory
+        if (!state.inventory[buildingType] || state.inventory[buildingType] <= 0) {
+            console.warn(`Cannot place ${buildingType}: not in inventory`);
+            return;
+        }
 
-        // Deduct cost
-        state.resources.agt -= cost;
+        // Consume from inventory
+        state.inventory[buildingType]--;
+
+        // Clear selection if inventory is empty
+        if (state.inventory[buildingType] === 0) {
+            state.selectedBuilding = null;
+            // Clear ghost building projection
+            this.buildingRenderSystem.setGhostBuilding(null);
+        }
 
         // Place via ConstructionSystem
         this.stateManager.pushCommand('PLACE_BUILDING', { index, buildingType });
@@ -336,8 +345,19 @@ export class AureusWorld extends BaseWorld {
         this.inputSystem = new InputSystem(this.render);
         this.inputSystem.onTileClick = (index) => {
             const state = this.stateManager.getState();
+
+            // Detect if user is on mobile
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
             if (state.interactionMode === 'BUILD' && state.selectedBuilding) {
-                this.placeBuilding(index);
+                if (isMobile) {
+                    // Mobile: First tap pins the ghost for confirmation
+                    config.onTileClick?.(index);
+                } else {
+                    // Desktop: Place immediately
+                    this.placeBuilding(index);
+                }
             } else if (state.interactionMode === 'BULLDOZE') {
                 this.bulldozeTile(index);
             }

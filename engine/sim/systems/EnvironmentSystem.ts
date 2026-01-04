@@ -13,6 +13,8 @@ export class EnvironmentSystem extends BaseSimSystem {
 
     // Cycle duration: 120 seconds for a full day (adjustable)
     private readonly DAY_DURATION = 120;
+    private readonly WEATHER_CHECK_INTERVAL = 60; // Check weather every 60 seconds
+    private lastWeatherCheck = 0;
 
     tick(ctx: FixedContext, state: GameState): void {
         const totalTime = ctx.time;
@@ -30,19 +32,24 @@ export class EnvironmentSystem extends BaseSimSystem {
             isDaytime: normalizedTime > 0.25 && normalizedTime < 0.75 // Roughly 6 AM to 6 PM
         };
 
-        // Weather Logic (Random shifts)
-        if (Math.floor(totalTime) % 60 === 0 && Math.random() < 0.05) {
-            const weathers: ('CLEAR' | 'CLOUDY' | 'RAINY' | 'STORM')[] = ['CLEAR', 'CLOUDY', 'RAINY', 'STORM'];
-            const nextWeather = weathers[Math.floor(Math.random() * weathers.length)];
+        // Weather Logic (Random shifts every 60 seconds)
+        if (totalTime - this.lastWeatherCheck >= this.WEATHER_CHECK_INTERVAL) {
+            this.lastWeatherCheck = totalTime;
 
-            if (state.weather.current !== nextWeather) {
-                state.weather.current = nextWeather;
-                state.newsFeed.push({
-                    id: `weather_${Date.now()}`,
-                    headline: `Weather update: Skies are now ${nextWeather.toLowerCase()}.`,
-                    type: 'NEUTRAL',
-                    timestamp: Date.now()
-                });
+            // 5% chance of weather change
+            if (Math.random() < 0.05) {
+                const weathers: ('CLEAR' | 'CLOUDY' | 'RAINY' | 'STORM')[] = ['CLEAR', 'CLOUDY', 'RAINY', 'STORM'];
+                const nextWeather = weathers[Math.floor(Math.random() * weathers.length)];
+
+                if (state.weather.current !== nextWeather) {
+                    state.weather.current = nextWeather;
+                    state.newsFeed.push({
+                        id: `weather_${Date.now()}`,
+                        headline: `Weather update: Skies are now ${nextWeather.toLowerCase()}.`,
+                        type: 'NEUTRAL',
+                        timestamp: Date.now()
+                    });
+                }
             }
         }
     }

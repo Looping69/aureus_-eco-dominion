@@ -345,8 +345,22 @@ const App: React.FC = () => {
                 playSfx(SfxType.BUILD_START);
                 break;
             case 'BUY_BUILDING':
-                world.placeBuilding(action.payload.index, action.payload.type);
-                playSfx(SfxType.BUILD_START);
+                // Add building to inventory and deduct cost
+                if (world) {
+                    const buildingType = action.payload.type;
+                    const cost = action.payload.cost;
+
+                    const state = world.stateManager.getMutableState();
+
+                    // Deduct cost
+                    state.resources.agt -= cost;
+
+                    // Add to inventory
+                    if (!state.inventory[buildingType]) {
+                        state.inventory[buildingType] = 0;
+                    }
+                    state.inventory[buildingType]++;
+                }
                 break;
             case 'BULLDOZE_TILE':
                 world.bulldozeTile(action.payload.index);

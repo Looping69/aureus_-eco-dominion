@@ -222,7 +222,7 @@ export class AgentRenderSystem {
     }
 
     private animate(dt: number, time: number, zoomLevel: number) {
-        const LOD_LOW = 70;
+        const LOD_LOW = 160;
 
         // Eagle
         if (this.eagle) {
@@ -262,7 +262,7 @@ export class AgentRenderSystem {
                 if (meshGroup.userData.agentData) {
                     this.updateStatusIndicators(meshGroup.userData.agentData, statusGroup, time);
                 }
-                statusGroup.visible = zoomLevel <= 50;
+                statusGroup.visible = zoomLevel <= 130;
             }
 
             // Selection Ring
@@ -289,7 +289,7 @@ export class AgentRenderSystem {
         const idSeed = agentId.charCodeAt(0) * 0.1;
         const localTime = time + idSeed; // Offset for variety
 
-        if (zoomLevel > 80) return; // Static when far
+        if (zoomLevel > 140) return; // Static when far
 
         if (state === 'MOVING') {
             const speed = 12;

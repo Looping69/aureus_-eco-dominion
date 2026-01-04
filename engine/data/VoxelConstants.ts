@@ -95,9 +95,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     width: 2,
     depth: 2,
     buildTime: 15,
-    maintenance: 5, // Increased from 0
-    pollution: 0.6, // Increased from 0.4
-    production: 10, // Reduced from 30
+    maintenance: 2, // Reduced for balance
+    pollution: 0.6,
+    production: 20, // Increased for better income
     productionType: 'AGT'
   },
   [BuildingType.CANTEEN]: {
@@ -110,7 +110,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     width: 2,
     depth: 2,
     buildTime: 20,
-    maintenance: 10,
+    maintenance: 3,
     pollution: -0.5,
   },
   [BuildingType.SOCIAL_HUB]: {
@@ -123,7 +123,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     width: 2,
     depth: 2,
     buildTime: 30,
-    maintenance: 20,
+    maintenance: 5,
     pollution: 0,
   },
   [BuildingType.SECURITY_POST]: {
@@ -135,7 +135,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     stats: 'Stops Theft',
     buildTime: 25,
     dependency: BuildingType.STAFF_QUARTERS,
-    maintenance: 15,
+    maintenance: 5,
     pollution: 0,
     production: 1,
     productionType: 'TRUST'
@@ -151,9 +151,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     depth: 2,
     buildTime: 45,
     dependency: BuildingType.STAFF_QUARTERS,
-    maintenance: 35, // Increased from 25
-    pollution: 12.0, // Increased from 8.0
-    production: 25, // Reduced from 40
+    maintenance: 10, // Reduced for balance
+    pollution: 12.0,
+    production: 35, // Increased for better income
     productionType: 'MINERALS'
   },
   [BuildingType.RECYCLING_PLANT]: {
@@ -167,7 +167,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     depth: 2,
     buildTime: 60,
     dependency: BuildingType.STAFF_QUARTERS,
-    maintenance: 15,
+    maintenance: 5,
     pollution: 1.0,
     production: 20,
     productionType: 'MINERALS'
@@ -182,7 +182,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     width: 2,
     depth: 1,
     buildTime: 20,
-    maintenance: 5,
+    maintenance: 2,
     pollution: -2.0 // Reduced from -3.0 for balance
   },
   [BuildingType.COMMUNITY_GARDEN]: {
@@ -195,7 +195,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     width: 2,
     depth: 2,
     buildTime: 50,
-    maintenance: 8,
+    maintenance: 3,
     pollution: -1.5,
     production: 4,
     productionType: 'TRUST'
@@ -221,7 +221,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     ecoReq: 10,
     stats: 'Massive Eco Regen',
     buildTime: 90,
-    maintenance: 10,
+    maintenance: 3,
     pollution: -6.0
   },
   [BuildingType.LOCAL_SCHOOL]: {
@@ -234,7 +234,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     width: 3,
     depth: 3,
     buildTime: 300, // Longer build time
-    maintenance: 80,
+    maintenance: 25,
     pollution: 0.3,
     production: 25, // Increased production
     productionType: 'TRUST'
@@ -249,7 +249,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     width: 3,
     depth: 3,
     buildTime: 500, // Longer build time
-    maintenance: 100,
+    maintenance: 30,
     pollution: 1.5, // Less pollution for eco building
     production: 150, // Better production for cost
     productionType: 'AGT'
@@ -264,7 +264,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     width: 3,
     depth: 3,
     buildTime: 1000, // Very long build time
-    maintenance: 200,
+    maintenance: 50,
     pollution: -40.0 // Massive eco benefit
   },
   [BuildingType.MINING_HEADFRAME]: {
@@ -278,7 +278,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     depth: 4,
     buildTime: 600,
     dependency: BuildingType.WASH_PLANT,
-    maintenance: 120,
+    maintenance: 35,
     pollution: 25.0,
     production: 60,
     productionType: 'MINERALS'
@@ -294,7 +294,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     depth: 3,
     buildTime: 400,
     dependency: BuildingType.WASH_PLANT,
-    maintenance: 80,
+    maintenance: 25,
     pollution: 18.0,
     production: 40,
     productionType: 'MINERALS'
