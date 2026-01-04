@@ -28,7 +28,11 @@ A voxel-based economic simulation game built on a custom modular game engine. Ba
 ### Game Features
 
 - **Isometric voxel rendering** with smooth camera controls
-- **Mobile-optimized** touch controls with building confirmation
+- **Full mobile support** with touch gestures:
+  - Single-finger drag to pan
+  - Pinch to zoom in/out
+  - Two-finger rotate to change camera angle
+  - Two-finger pan for precise positioning
 - **Real-time simulation** with deterministic fixed-step updates
 - **Save/Load system** for persistent progress
 - **Debug tools** for development and testing
@@ -220,12 +224,23 @@ Press **`** (backtick) in-game to toggle debug overlay:
 - Grid and pathfinding overlays
 
 ### Key Bindings
+
+**Desktop:**
+- **Left Click + Drag** - Pan camera
+- **Right Click + Drag** - Rotate camera
+- **Mouse Wheel** - Zoom in/out
 - **SPACE** - Start game / Pause
 - **ESC** - Cancel building placement
 - **1-9** - Quick select buildings from inventory
 - **M** - Toggle minimap
 - **U** - Toggle underground view
 - **`** - Toggle debug mode
+
+**Mobile:**
+- **Single Finger Drag** - Pan camera
+- **Pinch** - Zoom in/out
+- **Two Finger Rotate** - Rotate camera angle
+- **Two Finger Drag** - Pan camera (precise)
 
 ### Extending the Engine
 
@@ -257,15 +272,20 @@ The engine is optimized for:
 
 ## 🤝 Contributing
 
-This is an AI Studio project. For contributions or issues, please refer to the original repository.
+This is proprietary software owned by **Klaasvaakie**. Contributions, modifications, or any use of this software requires explicit written permission from the owner.
 
 ---
 
 ## 📄 License
 
-See LICENSE file for details.
+**Copyright © 2026 Klaasvaakie. All Rights Reserved.**
+
+This software is proprietary and confidential. Unauthorized copying, distribution, modification, or use of this software, via any medium, is strictly prohibited without explicit written permission from Klaasvaakie.
+
+See the [LICENSE](LICENSE) file for complete terms and conditions.
 
 ---
 
 **Built with ❤️ using AI Studio**  
+**Owner**: Klaasvaakie  
 View in AI Studio: https://ai.studio/apps/drive/1Ro5P5y6Lo0v5feqqFf1_vz3i4_kd2LW6
