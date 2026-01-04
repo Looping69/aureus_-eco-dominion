@@ -7,7 +7,7 @@
 import React from 'react';
 import { BuildingType, Action, GameStep } from '../types';
 import { getBuildingIcon } from './SupplySidebar';
-import { BUILDINGS } from '../utils/voxelConstants';
+import { BUILDINGS } from '../engine/data/VoxelConstants';
 
 interface InventoryHUDProps {
     inventory: Partial<Record<BuildingType, number>>;
@@ -31,23 +31,23 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = React.memo(({ inventory
             {items.map(({ type, count }) => {
                 const isSelected = selectedBuilding === type;
                 return (
-                    <div 
-                        key={type} 
+                    <div
+                        key={type}
                         className="relative group pointer-events-auto"
                     >
                         <button
                             onClick={() => {
                                 playSfx('UI_CLICK');
-                                dispatch({ 
-                                    type: 'SELECT_BUILDING_TO_PLACE', 
-                                    payload: isSelected ? null : type 
+                                dispatch({
+                                    type: 'SELECT_BUILDING_TO_PLACE',
+                                    payload: isSelected ? null : type
                                 });
                             }}
                             className={`
                                 w-12 h-12 rounded-[6px] flex items-center justify-center transition-all duration-100 ease-out
                                 border-2 border-b-[5px]
-                                ${isSelected 
-                                    ? 'bg-emerald-600 border-emerald-800 border-b-2 translate-y-[3px] shadow-inner' 
+                                ${isSelected
+                                    ? 'bg-emerald-600 border-emerald-800 border-b-2 translate-y-[3px] shadow-inner'
                                     : 'bg-slate-800 border-slate-950 hover:-translate-y-0.5 hover:border-b-[6px] shadow-xl'
                                 }
                             `}
@@ -56,7 +56,7 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = React.memo(({ inventory
                                 {getBuildingIcon(type)}
                             </div>
                         </button>
-                        
+
                         {/* Count Badge - Voxel Style */}
                         <div className="absolute -top-2 -right-2 bg-rose-500 text-white text-[9px] font-black min-w-[18px] h-[18px] rounded-[4px] flex items-center justify-center border-2 border-rose-800 shadow-md z-10">
                             {count}

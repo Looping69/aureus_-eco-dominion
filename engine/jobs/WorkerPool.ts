@@ -27,6 +27,7 @@ export class WorkerPool {
     private workers: WorkerEntry[] = [];
     private config: WorkerPoolConfig;
     private initialized = false;
+    private jobCallbackMap = new Map<string, { entry: WorkerEntry, jobSystem: JobSystem }>();
 
     constructor(config: Partial<WorkerPoolConfig> = {}) {
         this.config = {
@@ -48,11 +49,27 @@ export class WorkerPool {
             try {
                 // Ensure this path is correct relative to WorkerPool.ts
                 const worker = new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' });
-                this.workers.push({
+
+                const entry: WorkerEntry = {
                     worker,
                     busy: false,
                     currentJobId: null,
-                });
+                };
+
+                // Persistent message handler
+                worker.onmessage = (e: MessageEvent) => {
+                    const result = e.data as JobResult;
+                    const pending = this.jobCallbackMap.get(result.jobId);
+
+                    if (pending) {
+                        this.jobCallbackMap.delete(result.jobId);
+                        pending.entry.busy = false;
+                        pending.entry.currentJobId = null;
+                        pending.jobSystem.pushResult(result);
+                    }
+                };
+
+                this.workers.push(entry);
             } catch (e) {
                 console.warn(`[WorkerPool] Failed to create worker ${i}:`, e);
             }
@@ -91,18 +108,8 @@ export class WorkerPool {
             entry.busy = true;
             entry.currentJobId = job.id;
 
-            // Set up one-time message handler for this job
-            const handler = (e: MessageEvent) => {
-                const result = e.data as JobResult;
-                if (result.jobId === job.id) {
-                    entry.worker.removeEventListener('message', handler);
-                    entry.busy = false;
-                    entry.currentJobId = null;
-                    jobSystem.pushResult(result);
-                }
-            };
-
-            entry.worker.addEventListener('message', handler);
+            // Register job for persistent callback
+            this.jobCallbackMap.set(job.id, { entry, jobSystem });
 
             // Send job to worker
             entry.worker.postMessage(job);
@@ -138,6 +145,7 @@ export class WorkerPool {
             entry.worker.terminate();
         }
         this.workers = [];
+        this.jobCallbackMap.clear();
         this.initialized = false;
     }
 }

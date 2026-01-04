@@ -1,0 +1,259 @@
+/**
+ * Construction System
+ * Handles building placement, bulldozing, and construction site management.
+ * Manages consistency for multi-tile structures.
+ */
+
+import { BaseSimSystem } from '../Simulation';
+import { FixedContext } from '../../kernel';
+import { GameState, GridTile, BuildingType, SfxType } from '../../../types';
+import { BUILDINGS } from '../../data/VoxelConstants';
+import { GRID_SIZE, updateWaterConnectivity } from '../../utils/GameUtils';
+
+export class ConstructionSystem extends BaseSimSystem {
+    readonly id = 'construction';
+    readonly priority = 60; // Run high to handle placement/removal before sim systems
+
+    tick(ctx: FixedContext, state: GameState): void {
+        // 1. Process Command Queue
+        this.processCommandQueue(state);
+
+        // 2. Periodic consistency check for multi-tile buildings
+        if (state.tickCount % 60 === 0) {
+            this.enforceMultiTileConsistency(state);
+        }
+    }
+
+    private processCommandQueue(state: GameState) {
+        if (!state.commandQueue || state.commandQueue.length === 0) return;
+
+        // Process all commands
+        // We use a while loop or just iterate and clear.
+        // Since we are synchronous here, we can iterate and clear.
+        const queue = state.commandQueue;
+        for (const cmd of queue) {
+            // Check if already processed (though clearing prevents this)
+            // Execute
+            switch (cmd.type) {
+                case 'PLACE_BUILDING':
+                    this.placeBuilding(cmd.payload.index, cmd.payload.buildingType, state, cmd.payload.isInstant);
+                    break;
+                case 'BULLDOZE':
+                    this.bulldozeBuilding(cmd.payload.index, state);
+                    break;
+                case 'SPEED_UP':
+                    this.speedUpConstruction(cmd.payload.index, state);
+                    break;
+                case 'REHABILITATE':
+                    this.rehabilitateTile(cmd.payload.index, state);
+                    break;
+            }
+        }
+
+        // Clear Queue
+        state.commandQueue = [];
+    }
+
+    /**
+     * Advances construction progress on a tile.
+     * Handles multi-tile synchronization.
+     */
+    public progressConstruction(tileId: number, amount: number, state: GameState): boolean {
+        const grid = state.grid;
+        const tile = grid[tileId];
+        if (!tile || !tile.isUnderConstruction) return false;
+
+        // Multi-tile buildings share progress via the head tile
+        const headIdx = tile.structureHeadIndex !== undefined ? tile.structureHeadIndex : tileId;
+        const headTile = grid[headIdx];
+
+        if (!headTile) return false;
+
+        headTile.constructionTimeLeft = Math.max(0, (headTile.constructionTimeLeft || 0) - amount);
+
+        if (headTile.constructionTimeLeft <= 0) {
+            this.completeConstruction(headIdx, state);
+            return true; // Finished
+        }
+
+        return false; // Still ongoing
+    }
+
+    /**
+     * Immediately completes construction for a building.
+     */
+    private completeConstruction(headIdx: number, state: GameState): void {
+        const grid = state.grid;
+        const headTile = grid[headIdx];
+        if (!headTile) return;
+
+        const def = BUILDINGS[headTile.buildingType];
+        if (!def) return;
+
+        const w = def.width || 1;
+        const d = def.depth || 1;
+
+        for (let dz = 0; dz < d; dz++) {
+            for (let dx = 0; dx < w; dx++) {
+                const tx = (headIdx % GRID_SIZE) + dx;
+                const tz = Math.floor(headIdx / GRID_SIZE) + dz;
+                const idx = tz * GRID_SIZE + tx;
+
+                if (grid[idx] && grid[idx].structureHeadIndex === headIdx) {
+                    grid[idx].isUnderConstruction = false;
+                    grid[idx].constructionTimeLeft = 0;
+                }
+            }
+        }
+
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.COMPLETE });
+        // Trigger water update in case this building connects pipes
+        state.grid = updateWaterConnectivity(grid);
+    }
+
+    /**
+     * Places a building on the grid.
+     * Handles multi-tile footprint and initial construction state.
+     */
+    public placeBuilding(index: number, buildingType: BuildingType, state: GameState, isInstant: boolean = false): void {
+        const def = BUILDINGS[buildingType];
+        if (!def) return;
+
+        const grid = state.grid;
+        const w = def.width || 1;
+        const d = def.depth || 1;
+
+        const updates: GridTile[] = [];
+        for (let dz = 0; dz < d; dz++) {
+            for (let dx = 0; dx < w; dx++) {
+                const x = (index % GRID_SIZE) + dx;
+                const z = Math.floor(index / GRID_SIZE) + dz;
+                if (x < GRID_SIZE && z < GRID_SIZE) {
+                    const idx = z * GRID_SIZE + x;
+                    grid[idx] = {
+                        ...grid[idx],
+                        buildingType,
+                        isUnderConstruction: !isInstant,
+                        constructionTimeLeft: isInstant ? 0 : def.buildTime,
+                        structureHeadIndex: index,
+                        explored: true
+                    };
+                    updates.push(grid[idx]);
+                }
+            }
+        }
+
+        state.grid = updateWaterConnectivity(grid);
+        state.pendingEffects.push({ type: 'GRID_UPDATE', updates });
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.BUILD_START });
+    }
+
+    /**
+     * Removes a building or foliage from a tile.
+     * Handles multi-tile cleanup.
+     */
+    public bulldozeBuilding(index: number, state: GameState): void {
+        const grid = state.grid;
+        const tile = grid[index];
+        if (!tile) return;
+
+        const updates: GridTile[] = [];
+
+        if (tile.foliage === 'ILLEGAL_CAMP') {
+            tile.foliage = 'NONE';
+            updates.push(tile);
+        } else if (tile.structureHeadIndex !== undefined) {
+            const headIdx = tile.structureHeadIndex;
+            const headTile = grid[headIdx];
+            if (headTile) {
+                const def = BUILDINGS[headTile.buildingType];
+                const w = def?.width || 1;
+                const d = def?.depth || 1;
+
+                for (let dz = 0; dz < d; dz++) {
+                    for (let dx = 0; dx < w; dx++) {
+                        const idx = (Math.floor(headIdx / GRID_SIZE) + dz) * GRID_SIZE + ((headIdx % GRID_SIZE) + dx);
+                        if (grid[idx] && grid[idx].structureHeadIndex === headIdx) {
+                            grid[idx] = {
+                                ...grid[idx],
+                                buildingType: BuildingType.EMPTY,
+                                isUnderConstruction: false,
+                                structureHeadIndex: undefined,
+                                constructionTimeLeft: 0
+                            };
+                            updates.push(grid[idx]);
+                        }
+                    }
+                }
+            }
+        } else {
+            tile.buildingType = BuildingType.EMPTY;
+            tile.isUnderConstruction = false;
+            tile.structureHeadIndex = undefined;
+            updates.push(tile);
+        }
+
+        state.grid = updateWaterConnectivity(grid);
+        state.pendingEffects.push({ type: 'GRID_UPDATE', updates });
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.BULLDOZE });
+    }
+
+    /**
+     * Instantly completes construction for a gem cost.
+     */
+    public speedUpConstruction(index: number, state: GameState): void {
+        const grid = state.grid;
+        const tile = grid[index];
+        if (!tile) return;
+
+        const headIdx = tile.structureHeadIndex !== undefined ? tile.structureHeadIndex : index;
+        this.completeConstruction(headIdx, state);
+
+        state.resources.gems = Math.max(0, state.resources.gems - 1);
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.UI_CLICK });
+    }
+
+    /**
+     * Initiates rehabilitation of a polluted tile.
+     */
+    public rehabilitateTile(index: number, state: GameState): void {
+        if (state.resources.agt < 100) return;
+
+        const exists = state.jobs.some(j => j.targetTileId === index && j.type === 'REHABILITATE');
+        if (!exists) {
+            state.jobs.push({
+                id: `rehab_${index}_${Date.now()}`,
+                type: 'REHABILITATE',
+                targetTileId: index,
+                priority: 25,
+                assignedAgentId: null
+            });
+            state.grid[index].rehabProgress = 0.1;
+            state.resources.agt -= 100;
+            state.pendingEffects.push({ type: 'GRID_UPDATE', updates: [state.grid[index]] });
+        }
+    }
+
+    /**
+     * Ensures all tiles of a multi-tile building are in the same state.
+     */
+    private enforceMultiTileConsistency(state: GameState): void {
+        const grid = state.grid;
+        for (let i = 0; i < grid.length; i++) {
+            const tile = grid[i];
+            if (tile.structureHeadIndex !== undefined && tile.structureHeadIndex !== i) {
+                const head = grid[tile.structureHeadIndex];
+                if (!head || head.buildingType === BuildingType.EMPTY) {
+                    // Head is gone, orphan tile cleanup
+                    tile.buildingType = BuildingType.EMPTY;
+                    tile.structureHeadIndex = undefined;
+                    tile.isUnderConstruction = false;
+                } else {
+                    // Sync state from head
+                    tile.buildingType = head.buildingType;
+                    tile.isUnderConstruction = head.isUnderConstruction;
+                }
+            }
+        }
+    }
+}

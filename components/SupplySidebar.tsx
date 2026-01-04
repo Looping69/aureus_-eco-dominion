@@ -9,8 +9,8 @@ import {
     Search, LayoutGrid, Zap, Sprout, Hammer
 } from 'lucide-react';
 import { GameState, BuildingType, Action } from '../types';
-import { BUILDINGS } from '../utils/voxelConstants';
-import { calculateBuildingCost } from '../utils/gameUtils';
+import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { calculateBuildingCost } from '../engine/utils/GameUtils';
 
 interface SupplySidebarProps {
     isOpen: boolean;

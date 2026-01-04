@@ -5,6 +5,7 @@
  */
 
 import { Job, JobResult, JobKind } from './jobs.types';
+import { BinaryHeap } from '../utils/BinaryHeap';
 
 /** Job system statistics */
 export interface JobStats {
@@ -15,8 +16,8 @@ export interface JobStats {
 }
 
 export class JobSystem {
-    /** Jobs waiting to be dispatched */
-    private queue: Job[] = [];
+    /** Jobs waiting to be dispatched (Priority Queue) */
+    private queue = new BinaryHeap<Job>((a, b) => b.priority - a.priority);
 
     /** Jobs currently being processed by workers */
     private pending = new Map<string, Job>();
@@ -38,9 +39,6 @@ export class JobSystem {
     enqueue(job: Job): void {
         this.queue.push(job);
         this.stats.queued++;
-
-        // Maintain priority order (higher priority = front)
-        this.queue.sort((a, b) => b.priority - a.priority);
     }
 
     /**
@@ -57,9 +55,11 @@ export class JobSystem {
      * Moves jobs from queue to pending
      */
     getJobsToDispatch(maxJobs: number): Job[] {
-        const toDispatch = this.queue.splice(0, maxJobs);
+        const toDispatch: Job[] = [];
 
-        for (const job of toDispatch) {
+        while (toDispatch.length < maxJobs && this.queue.size > 0) {
+            const job = this.queue.pop()!;
+            toDispatch.push(job);
             this.pending.set(job.id, job);
             this.stats.pending++;
         }
@@ -126,28 +126,25 @@ export class JobSystem {
      * Cancel all jobs of a specific type
      */
     cancelJobsOfKind(kind: JobKind): number {
-        const before = this.queue.length;
-        this.queue = this.queue.filter(j => j.kind !== kind);
-        return before - this.queue.length;
+        const before = this.queue.size;
+        this.queue.filter(j => j.kind !== kind);
+        return before - this.queue.size;
     }
 
     /**
      * Cancel a specific job by ID
      */
     cancelJob(jobId: string): boolean {
-        const idx = this.queue.findIndex(j => j.id === jobId);
-        if (idx !== -1) {
-            this.queue.splice(idx, 1);
-            return true;
-        }
-        return false;
+        const before = this.queue.size;
+        this.queue.filter(j => j.id !== jobId);
+        return before !== this.queue.size;
     }
 
     /**
      * Get current queue length
      */
     get queueLength(): number {
-        return this.queue.length;
+        return this.queue.size;
     }
 
     /**
@@ -175,7 +172,7 @@ export class JobSystem {
      * Clear all queues (on world unload)
      */
     clear(): void {
-        this.queue.length = 0;
+        this.queue.clear();
         this.pending.clear();
         this.results.length = 0;
     }

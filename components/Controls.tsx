@@ -7,7 +7,7 @@
 import React from 'react';
 import { Menu, Layers, Hammer, X, Activity, TrendingUp } from 'lucide-react';
 import { BuildingType, Action, GameStep } from '../types';
-import { BUILDINGS } from '../utils/voxelConstants';
+import { BUILDINGS } from '../engine/data/VoxelConstants';
 
 interface ControlsProps {
     selectedBuilding: BuildingType | null;

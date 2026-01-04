@@ -5,22 +5,21 @@
 */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { VoxelEngine } from '../services/VoxelEngine';
 import { Activity, Cpu, Database, Box, Users, Layers, Zap, X, Monitor, ToggleLeft, ToggleRight, Unlock, Eye, Image, FileCode, Hash } from 'lucide-react';
 import { GameState, Action } from '../types';
 
 interface DebugMenuProps {
-  engine: VoxelEngine | null;
+  getDebugStats: () => any;
   state: GameState;
   onClose: () => void;
   dispatch: React.Dispatch<Action>;
 }
 
-export const DebugMenu: React.FC<DebugMenuProps> = ({ engine, state, onClose, dispatch }) => {
+export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onClose, dispatch }) => {
   const [stats, setStats] = useState<any>(null);
   const [fps, setFps] = useState(0);
   const [frameTime, setFrameTime] = useState(0);
-  
+
   const frameCountRef = useRef(0);
   const lastTimeRef = useRef(performance.now());
   const requestRef = useRef<number>(0);
@@ -38,35 +37,33 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ engine, state, onClose, di
         frameCountRef.current = 0;
         lastTimeRef.current = now;
 
-        if (engine) {
-          const engStats = engine.getDebugStats();
-          const mem = (performance as any).memory;
-          setStats({
-              ...engStats,
-              memUsed: mem ? Math.round(mem.usedJSHeapSize / 1048576) : 0,
-              memTotal: mem ? Math.round(mem.totalJSHeapSize / 1048576) : 0,
-              memLimit: mem ? Math.round(mem.jsHeapSizeLimit / 1048576) : 0
-          });
-        }
+        const engStats = getDebugStats ? getDebugStats() : {};
+        const mem = (performance as any).memory;
+        setStats({
+          ...engStats,
+          memUsed: mem ? Math.round(mem.usedJSHeapSize / 1048576) : 0,
+          memTotal: mem ? Math.round(mem.totalJSHeapSize / 1048576) : 0,
+          memLimit: mem ? Math.round(mem.jsHeapSizeLimit / 1048576) : 0
+        });
       }
       requestRef.current = requestAnimationFrame(update);
     };
 
     requestRef.current = requestAnimationFrame(update);
     return () => cancelAnimationFrame(requestRef.current);
-  }, [engine]);
+  }, []);
 
   const LoadBar = ({ value, max = 16.66 }: { value: number, max?: number }) => {
-      const pct = Math.min(100, (value / max) * 100);
-      let color = 'bg-emerald-500';
-      if (pct > 50) color = 'bg-amber-500';
-      if (pct > 85) color = 'bg-rose-500';
-      
-      return (
-          <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden mt-1">
-              <div className={`h-full ${color} transition-all duration-300`} style={{ width: `${pct}%` }} />
-          </div>
-      );
+    const pct = Math.min(100, (value / max) * 100);
+    let color = 'bg-emerald-500';
+    if (pct > 50) color = 'bg-amber-500';
+    if (pct > 85) color = 'bg-rose-500';
+
+    return (
+      <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden mt-1">
+        <div className={`h-full ${color} transition-all duration-300`} style={{ width: `${pct}%` }} />
+      </div>
+    );
   };
 
   const StatRow = ({ label, value, icon: Icon, color = "text-emerald-400" }: any) => (
@@ -86,7 +83,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ engine, state, onClose, di
         <div className="bg-slate-800 p-2 border-b-2 border-slate-700 flex justify-between items-center select-none shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 bg-slate-950 border border-emerald-500 flex items-center justify-center shadow-inner rounded-[2px]">
-                <Activity size={12} className="text-emerald-400 animate-pulse" />
+              <Activity size={12} className="text-emerald-400 animate-pulse" />
             </div>
             <h2 className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.15em] font-['Rajdhani']">System Monitor</h2>
           </div>
@@ -94,38 +91,38 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ engine, state, onClose, di
             <div className={`px-1.5 py-0.5 rounded-[2px] text-[8px] font-mono font-bold border ${fps > 55 ? 'bg-emerald-950/50 text-emerald-400 border-emerald-500/30' : 'bg-amber-950/50 text-amber-400 border-amber-500/30'}`}>
               {fps} FPS
             </div>
-            <button 
-                onClick={onClose} 
-                className="w-5 h-5 flex items-center justify-center bg-slate-700 hover:bg-rose-500 hover:text-white text-slate-300 rounded-[2px] border border-slate-600 transition-colors"
+            <button
+              onClick={onClose}
+              className="w-5 h-5 flex items-center justify-center bg-slate-700 hover:bg-rose-500 hover:text-white text-slate-300 rounded-[2px] border border-slate-600 transition-colors"
             >
-                <X size={12} />
+              <X size={12} />
             </button>
           </div>
         </div>
 
         {/* Content */}
         <div className="p-3 space-y-4 overflow-y-auto custom-scrollbar bg-slate-900/95">
-          
+
           {/* Workload */}
           <div>
             <h3 className="text-[9px] text-slate-500 font-black uppercase mb-1.5 flex items-center gap-1.5 font-['Rajdhani'] tracking-widest border-b border-slate-800 pb-0.5">
               <Monitor size={10} /> Real-Time Workload
             </h3>
             <div className="space-y-2 px-1">
-                <div>
-                    <div className="flex justify-between text-[9px] font-mono mb-0.5">
-                        <span className="text-slate-400">Main Thread (CPU)</span>
-                        <span className="text-white font-bold">{stats?.cpuTime.toFixed(1)}ms</span>
-                    </div>
-                    <LoadBar value={stats?.cpuTime || 0} />
+              <div>
+                <div className="flex justify-between text-[9px] font-mono mb-0.5">
+                  <span className="text-slate-400">Main Thread (CPU)</span>
+                  <span className="text-white font-bold">{stats?.cpuTime.toFixed(1)}ms</span>
                 </div>
-                <div>
-                    <div className="flex justify-between text-[9px] font-mono mb-0.5">
-                        <span className="text-slate-400">Total Frame (GPU+Wait)</span>
-                        <span className="text-white font-bold">{frameTime.toFixed(1)}ms</span>
-                    </div>
-                    <LoadBar value={frameTime} />
+                <LoadBar value={stats?.cpuTime || 0} />
+              </div>
+              <div>
+                <div className="flex justify-between text-[9px] font-mono mb-0.5">
+                  <span className="text-slate-400">Total Frame (GPU+Wait)</span>
+                  <span className="text-white font-bold">{frameTime.toFixed(1)}ms</span>
                 </div>
+                <LoadBar value={frameTime} />
+              </div>
             </div>
           </div>
 
@@ -149,14 +146,14 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ engine, state, onClose, di
               <StatRow label="Draw Calls" value={stats?.drawCalls || 0} icon={Layers} color={stats?.drawCalls > 200 ? 'text-amber-400' : 'text-emerald-400'} />
               <StatRow label="Triangles" value={(stats?.triangles || 0).toLocaleString()} icon={Activity} />
               {(stats?.lines > 0 || stats?.points > 0) && (
-                  <div className="flex justify-between gap-1 pl-1">
-                      <div className="flex-1">
-                        <StatRow label="Lines" value={stats?.lines} icon={Hash} color="text-slate-400" />
-                      </div>
-                      <div className="flex-1">
-                        <StatRow label="Points" value={stats?.points} icon={Hash} color="text-slate-400" />
-                      </div>
+                <div className="flex justify-between gap-1 pl-1">
+                  <div className="flex-1">
+                    <StatRow label="Lines" value={stats?.lines} icon={Hash} color="text-slate-400" />
                   </div>
+                  <div className="flex-1">
+                    <StatRow label="Points" value={stats?.points} icon={Hash} color="text-slate-400" />
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -191,23 +188,23 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ engine, state, onClose, di
             <h3 className="text-[9px] text-slate-500 font-black uppercase mb-1.5 flex items-center gap-1.5 font-['Rajdhani'] tracking-widest border-b border-slate-800 pb-0.5">
               <Unlock size={10} /> Developer Tools
             </h3>
-            <button 
-                onClick={() => dispatch({ type: 'TOGGLE_CHEATS' })}
-                className={`w-full py-2 px-2 rounded-[2px] font-bold text-[10px] flex items-center justify-between transition-all border border-slate-700 ${state.cheatsEnabled ? 'bg-amber-900/30 text-amber-400 border-amber-600/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-750'}`}
+            <button
+              onClick={() => dispatch({ type: 'TOGGLE_CHEATS' })}
+              className={`w-full py-2 px-2 rounded-[2px] font-bold text-[10px] flex items-center justify-between transition-all border border-slate-700 ${state.cheatsEnabled ? 'bg-amber-900/30 text-amber-400 border-amber-600/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-750'}`}
             >
-                <span className="font-['Rajdhani'] uppercase tracking-wider">Creative Mode</span>
-                {state.cheatsEnabled ? <ToggleRight size={16} className="text-amber-400"/> : <ToggleLeft size={16} className="text-slate-500"/>}
+              <span className="font-['Rajdhani'] uppercase tracking-wider">Creative Mode</span>
+              {state.cheatsEnabled ? <ToggleRight size={16} className="text-amber-400" /> : <ToggleLeft size={16} className="text-slate-500" />}
             </button>
             <p className="text-[8px] text-slate-500 mt-1 italic leading-tight">
-                Bypasses all building costs, eco requirements, and tech locks.
+              Bypasses all building costs, eco requirements, and tech locks.
             </p>
           </div>
 
           <div className="pt-2 border-t-2 border-slate-800 shrink-0">
-             <div className="flex items-center gap-2 px-2 py-1.5 bg-black/40 rounded-[2px] border border-white/5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,1)] animate-pulse" />
-                <span className="text-[7px] text-slate-500 uppercase font-black tracking-widest font-mono">Aureus Engine v3.14</span>
-             </div>
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-black/40 rounded-[2px] border border-white/5">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,1)] animate-pulse" />
+              <span className="text-[7px] text-slate-500 uppercase font-black tracking-widest font-mono">Aureus Engine v3.14</span>
+            </div>
           </div>
         </div>
       </div>

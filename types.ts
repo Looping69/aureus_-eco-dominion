@@ -210,6 +210,8 @@ export interface GameResources {
   gems: number;
   eco: number;
   trust: number;
+  income: number;      // New: Pre-calculated income/s
+  maintenance: number; // New: Pre-calculated maintenance/s
 }
 
 export interface BuildingDef {
@@ -301,6 +303,8 @@ export enum GameStep {
 
 export enum SfxType {
   BUILD = 'BUILD',
+  BUILD_START = 'BUILD_START',
+  BULLDOZE = 'BULLDOZE',
   SELL = 'SELL',
   COMPLETE = 'COMPLETE',
   ERROR = 'ERROR',
@@ -359,9 +363,18 @@ export interface GameState {
 
   // Agent requests system
   agentRequests: AgentRequest[];
+
+  // Engine Command Queue (Bridge from UI/Redux to Engine)
+  commandQueue: GameCommand[];
 }
 
-export type WeatherType = 'CLEAR' | 'DUST_STORM' | 'ACID_RAIN';
+export interface GameCommand {
+  id: string; // Unique ID to prevent double execution
+  type: 'PLACE_BUILDING' | 'BULLDOZE' | 'SPEED_UP' | 'REHABILITATE';
+  payload: any;
+}
+
+export type WeatherType = 'CLEAR' | 'CLOUDY' | 'RAINY' | 'STORM' | 'DUST_STORM' | 'ACID_RAIN';
 
 export interface WeatherState {
   current: WeatherType;
@@ -421,4 +434,6 @@ export type Action =
   | { type: 'UNLOCK_TECH', payload: TechId }
   | { type: 'MINE_CLICK', payload: { index: number } }
   | { type: 'CLEAR_EFFECTS' }
+  | { type: 'ACCEPT_CONTRACT', payload: string }
+  | { type: 'COMPLETE_CONTRACT', payload: string }
   | { type: 'LOAD_GAME', payload: GameState };

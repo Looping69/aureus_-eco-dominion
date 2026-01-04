@@ -1,54 +1,84 @@
 /**
- * Aureus Game World
- * Bridge between the engine spine and the current Aureus game code
+ * Aureus Game World (v2 - Engine Owned State)
  * 
- * This wraps the existing game logic to run inside the new engine architecture,
- * allowing incremental migration of systems.
+ * The engine now owns ALL game state. React is a pure view layer.
+ * - State lives in StateManager
+ * - React subscribes via useEngineState hook
+ * - UI actions call world methods directly
  */
 
-import React from 'react';
 import { BaseWorld } from '../engine/world';
 import { FrameContext, FixedContext } from '../engine/kernel';
 
 import { StreamingManager } from '../engine/space';
-import { JobSystem, MeshChunkResult, PathfindResult, WorkerPool, PathfindJob } from '../engine/jobs';
+import { JobSystem, MeshChunkResult, PathfindResult, WorkerPool } from '../engine/jobs';
 import { ThreeRenderAdapter } from '../engine/render';
 import { Simulation } from '../engine/sim';
-import { AgentSystem, JobGenerationSystem } from '../engine/sim/systems';
+import {
+    AgentSystem, JobGenerationSystem, EnvironmentSystem, EconomySystem,
+    ColonySystem, LogisticsSystem, EventSystem, MissionSystem,
+    ProductionSystem, ConstructionSystem
+} from '../engine/sim/systems';
 
-import { VoxelEngine } from '../services/VoxelEngine';
-import { GameState, Action, GameStep, Agent, GridTile, BuildingType } from '../types';
-import { DiffBus } from '../services/DiffBus';
-import { GRID_SIZE } from '../utils/gameUtils';
-import { findPath } from '../engine/sim/algorithms/Pathfinding';
+import { GameState, GameStep, Agent, GridTile, BuildingType, SfxType } from '../types';
+import { GRID_SIZE, getEcoMultiplier } from '../engine/utils/GameUtils';
+import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { TerrainRenderSystem } from './render/systems/TerrainRenderSystem';
+import { FoliageRenderSystem } from './render/systems/FoliageRenderSystem';
+import { BuildingRenderSystem } from './render/systems/BuildingRenderSystem';
 import { AgentRenderSystem } from './render/systems/AgentRenderSystem';
-import { GRID_SIZE } from '../utils/gameUtils';
+import { EnvironmentRenderSystem } from './render/systems/EnvironmentRenderSystem';
+import { IsoCameraSystem } from './render/IsoCameraSystem';
+import { InputSystem } from '../engine/input/InputSystem';
+import { StateManager, StateListener } from '../engine/state/StateManager';
 
 export interface AureusWorldConfig {
     container: HTMLElement;
-    onTileClick: (index: number) => void;
-    onTileRightClick: (index: number) => void;
-    onAgentClick: (id: string | null) => void;
-    onTileHover: (index: number | null) => void;
+    onTileClick?: (index: number) => void;
+    onTileRightClick?: (index: number) => void;
+    onAgentClick?: (agentId: string | null) => void;
+    onTileHover?: (index: number | null) => void;
 }
 
 export class AureusWorld extends BaseWorld {
     readonly id = 'aureus-main';
 
-    // Engine subsystems
-    // Engine subsystems
+    // Core Engine Systems
+    private render: ThreeRenderAdapter;
+    private inputSystem: InputSystem | null = null;
     private streamMgr: StreamingManager;
+    private jobs: JobSystem;
+    private workerPool: WorkerPool;
+    private sim: Simulation;
+    private stateManager: StateManager;
 
+    // Simulation Systems
+    private agentSystem: AgentSystem;
+    private constructionSystem: ConstructionSystem;
+
+    // Render Systems
     private agentRenderSystem: AgentRenderSystem;
+    private terrainRenderSystem: TerrainRenderSystem;
+    private foliageRenderSystem: FoliageRenderSystem;
+    private buildingRenderSystem: BuildingRenderSystem;
+    private environmentRenderSystem: EnvironmentRenderSystem;
+    private cameraSystem: IsoCameraSystem;
+
+    // Game State
+    private gamePaused = false;
+    private config: AureusWorldConfig | null = null;
 
     constructor(render: ThreeRenderAdapter) {
         super();
         this.render = render;
 
-        // Initialize engine subsystems with game-specific config
+        // Initialize State Manager (Engine owns state)
+        this.stateManager = new StateManager();
+
+        // Initialize engine subsystems
         this.streamMgr = new StreamingManager({
-            viewRadiusH: 12,   // Aureus uses larger flat chunks
-            viewRadiusV: 1,    // Mostly 2D terrain
+            viewRadiusH: 4,
+            viewRadiusV: 1,
             maxLoadsPerFrame: 4,
             maxUnloadsPerFrame: 8,
         });
@@ -57,18 +87,40 @@ export class AureusWorld extends BaseWorld {
         this.workerPool = new WorkerPool();
         this.sim = new Simulation();
 
-        // Register systems
-        // this.jobGenerationSystem = new JobGenerationSystem();
-        this.agentSystem = new AgentSystem(this.jobs);
+        // Simulation Systems
+        this.constructionSystem = new ConstructionSystem();
+        this.sim.addSystem(this.constructionSystem);
+        this.sim.addSystem(new JobGenerationSystem());
+        this.sim.addSystem(new EnvironmentSystem());
+        this.sim.addSystem(new EconomySystem());
+        this.sim.addSystem(new ColonySystem());
+        this.sim.addSystem(new LogisticsSystem());
+        this.sim.addSystem(new EventSystem());
+        this.sim.addSystem(new MissionSystem());
+        this.sim.addSystem(new ProductionSystem());
 
-        // this.sim.addSystem(this.jobGenerationSystem);
+        this.agentSystem = new AgentSystem(this.jobs, this.constructionSystem);
         this.sim.addSystem(this.agentSystem);
 
         // Render Systems
-        // Height callback uses legacy engine if available, or flat 0
-        const getHeight = (x: number, z: number) => {
-            // @ts-ignore
-            return this.legacyEngine?.getSurfaceHeight(x, z) || 0;
+        const getHeight = (worldX: number, worldZ: number) => {
+            const offset = (GRID_SIZE - 1) / 2;
+            const gridX = Math.floor(worldX + offset);
+            const gridZ = Math.floor(worldZ + offset);
+
+            if (gridX < 0 || gridX >= GRID_SIZE || gridZ < 0 || gridZ >= GRID_SIZE) {
+                return 0;
+            }
+
+            const state = this.stateManager.getState();
+            if (state.grid) {
+                const tileId = gridZ * GRID_SIZE + gridX;
+                const tile = state.grid[tileId];
+                if (tile) {
+                    return tile.terrainHeight * 0.5;
+                }
+            }
+            return 0;
         };
 
         this.agentRenderSystem = new AgentRenderSystem(
@@ -76,343 +128,369 @@ export class AureusWorld extends BaseWorld {
             GRID_SIZE,
             getHeight
         );
-    }
 
-    // ...
-
-    draw(ctx: FrameContext): void {
-        const state = this.getState ? this.getState() : null;
-
-        // 1. Legacy Engine Render Phase (Updates Camera & Renders Terrain)
-        if (this.legacyEngine) {
-            this.legacyEngine.render(ctx.dt, ctx.time);
-        }
-
-        // 2. Sync Camera from Legacy to New Engine
-        if (this.legacyEngine) {
-            const legacyCam = this.legacyEngine.getCamera();
-            const newCam = this.render.getCamera();
-
-            newCam.position.copy(legacyCam.position);
-            newCam.quaternion.copy(legacyCam.quaternion);
-            if ((legacyCam as any).isPerspectiveCamera && (newCam as any).isPerspectiveCamera) {
-                newCam.zoom = (legacyCam as any).zoom;
-                newCam.fov = (legacyCam as any).fov;
-                newCam.updateProjectionMatrix();
-            }
-        }
-
-        // 3. New Engine Update & Render (Agents Overlay)
-        if (state) {
-            this.agentRenderSystem.setSelectedAgent(state.selectedAgentId);
-            // Estimate zoom level from height for LOD
-            const zoomLevel = this.render.getCamera().position.y;
-            this.agentRenderSystem.update(ctx.dt, ctx.time, state.agents, zoomLevel);
-        }
-
-        this.render.draw(ctx);
-    }
-
-
-    /**
-     * Configure the world before initialization
-     */
-    configure(config: AureusWorldConfig): void {
-        this.config = config;
-    }
-
-    /**
-     * Connect to legacy game systems (React state + VoxelEngine)
-     * Call this after React has set up its state management
-     */
-    connectLegacy(
-        dispatch: React.Dispatch<Action>,
-        getState: () => GameState,
-        legacyEngine?: VoxelEngine
-    ): void {
-        this.dispatch = dispatch;
-        this.getState = getState;
-
-        if (legacyEngine) {
-            this.legacyEngine = legacyEngine;
-        }
-
-        console.log('[AureusWorld] Legacy systems connected');
-    }
-
-    /**
-     * Create and connect the legacy VoxelEngine
-     * Use this when the engine should be created by AureusWorld
-     */
-    createLegacyEngine(): VoxelEngine | null {
-        if (!this.config) {
-            console.error('[AureusWorld] Cannot create engine - config not set');
-            return null;
-        }
-
-        this.legacyEngine = new VoxelEngine(
-            this.config.container,
-            this.config.onTileClick,
-            this.config.onTileRightClick,
-            this.config.onAgentClick,
-            this.config.onTileHover,
-            GRID_SIZE
+        this.terrainRenderSystem = new TerrainRenderSystem(
+            this.render.getScene(),
+            GRID_SIZE,
+            this.jobs
         );
 
-        return this.legacyEngine;
+        this.foliageRenderSystem = new FoliageRenderSystem(this.render.getScene());
+        this.buildingRenderSystem = new BuildingRenderSystem(this.render.getScene(), GRID_SIZE);
+        this.environmentRenderSystem = new EnvironmentRenderSystem(this.render);
+        this.cameraSystem = new IsoCameraSystem(this.render);
+
+        // Wire Terrain -> Foliage
+        this.terrainRenderSystem.onFoliageUpdate = (key: string, items: any[]) => {
+            this.foliageRenderSystem.updateChunk(key, items);
+        };
+        this.terrainRenderSystem.onChunkDispose = (key: string) => {
+            this.foliageRenderSystem.removeChunk(key);
+        };
+
+        // Enable camera by default (no legacy mode)
+        this.cameraSystem.setEnabled(true);
     }
 
-    /**
-     * Get the legacy VoxelEngine for external use
-     */
-    getEngine(): VoxelEngine | null {
-        return this.legacyEngine;
+    // ═══════════════════════════════════════════════════════════════
+    // STATE ACCESS (React subscribes here)
+    // ═══════════════════════════════════════════════════════════════
+
+    getState(): GameState {
+        return this.stateManager.getState();
     }
 
-    /**
-     * Pause/resume the game simulation
-     */
-    setGamePaused(paused: boolean): void {
-        this.gamePaused = paused;
+    subscribeToState(listener: StateListener): () => void {
+        return this.stateManager.subscribe(listener);
     }
 
-    // ...
+    // ═══════════════════════════════════════════════════════════════
+    // GAME ACTIONS (UI calls these)
+    // ═══════════════════════════════════════════════════════════════
+
+    placeBuilding(index: number, type?: string): void {
+        const state = this.stateManager.getMutableState();
+        const buildingType = (type || state.selectedBuilding) as BuildingType;
+        if (!buildingType) return;
+
+        const def = BUILDINGS[buildingType];
+        if (!def) return;
+
+        // Validate placement
+        const tile = state.grid[index];
+        if (!tile || tile.locked) return;
+        if (tile.buildingType !== BuildingType.EMPTY && tile.buildingType !== BuildingType.POND) return;
+
+        // Check cost
+        const cost = def.cost;
+        if (state.resources.agt < cost) return;
+
+        // Deduct cost
+        state.resources.agt -= cost;
+
+        // Place via ConstructionSystem
+        this.stateManager.pushCommand('PLACE_BUILDING', { index, buildingType });
+
+        // Audio effect
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.BUILD });
+    }
+
+    bulldozeTile(index: number): void {
+        const state = this.stateManager.getMutableState();
+        const tile = state.grid[index];
+        if (!tile || tile.locked) return;
+
+        this.stateManager.pushCommand('BULLDOZE', { index });
+
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.BUILD });
+    }
+
+    selectBuilding(type: string | null): void {
+        const state = this.stateManager.getMutableState();
+        state.selectedBuilding = type as BuildingType | null;
+        this.buildingRenderSystem.setGhostBuilding(type as BuildingType | null);
+    }
+
+    selectAgent(id: string | null): void {
+        const state = this.stateManager.getMutableState();
+        state.selectedAgentId = id;
+    }
+
+    commandAgent(agentId: string, tileId: number): void {
+        const state = this.stateManager.getMutableState();
+        const agent = state.agents.find(a => a.id === agentId);
+        if (!agent) return;
+
+        // Manual command - create a manual job
+        agent.currentJobId = `manual_${tileId}_${Date.now()}`;
+        agent.targetTileId = tileId;
+        agent.state = 'IDLE'; // Will trigger pathfinding on next think
+    }
+
+    setInteractionMode(mode: 'BUILD' | 'BULLDOZE' | 'INSPECT'): void {
+        const state = this.stateManager.getMutableState();
+        state.interactionMode = mode;
+        this.buildingRenderSystem.setCursorMode(mode);
+    }
+
+    sellMinerals(): void {
+        const state = this.stateManager.getMutableState();
+        if (state.resources.minerals <= 0) return;
+
+        const ecoMult = getEcoMultiplier(state.resources.eco);
+        const trustMult = 1 + (state.resources.trust / 200);
+        const price = state.market.minerals.currentPrice;
+
+        const value = Math.floor(state.resources.minerals * price * ecoMult * trustMult);
+        state.resources.agt += value;
+        state.resources.minerals = 0;
+
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.SELL });
+        state.newsFeed.push({
+            id: `sell_${Date.now()}`,
+            headline: `Sold minerals for ${value} AGT`,
+            type: 'POSITIVE',
+            timestamp: Date.now()
+        });
+    }
+
+    setAutoSell(enabled: boolean, threshold: number): void {
+        const state = this.stateManager.getMutableState();
+        state.logistics.autoSell = enabled;
+        state.logistics.sellThreshold = threshold;
+    }
+
+    researchTech(techId: string): void {
+        // TODO: Implement research logic when ResearchState is updated
+        console.log(`[AureusWorld] Research requested: ${techId}`);
+    }
+
+    toggleDebug(): void {
+        const state = this.stateManager.getMutableState();
+        state.debugMode = !state.debugMode;
+    }
+
+    speedUpConstruction(index: number): void {
+        this.stateManager.pushCommand('SPEED_UP', { index });
+    }
+
+    acceptContract(contractId: string): void {
+        // Contracts use amount field, not status
+        console.log(`[AureusWorld] Accept contract: ${contractId}`);
+    }
+
+    advanceTutorial(): void {
+        const state = this.stateManager.getMutableState();
+        const steps = [
+            GameStep.INTRO,
+            GameStep.TUTORIAL_MINE,
+            GameStep.TUTORIAL_SELL,
+            GameStep.TUTORIAL_BUY,
+            GameStep.TUTORIAL_PLACE,
+            GameStep.PLAYING
+        ];
+
+        const idx = steps.indexOf(state.step);
+        if (idx !== -1 && idx < steps.length - 1) {
+            state.step = steps[idx + 1];
+            state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.UI_COIN });
+        }
+    }
+
+    deliverContract(contractId: string): void {
+        const state = this.stateManager.getMutableState();
+        const contract = state.contracts.find(c => c.id === contractId);
+        if (contract && contract.amount > 0) {
+            // Check if we have the resources
+            const resource = contract.resource === 'MINERALS' ? 'minerals' : 'gems';
+            if (state.resources[resource] >= contract.amount) {
+                state.resources[resource] -= contract.amount;
+                state.resources.agt += contract.reward;
+                state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.COMPLETE });
+            }
+        }
+    }
+
+    saveGame(): void {
+        const data = this.stateManager.serializeState();
+        localStorage.setItem('aureus_save_v2', data);
+    }
+
+    loadGame(data: string): void {
+        try {
+            const parsed = JSON.parse(data);
+            this.stateManager.loadState(parsed);
+            this.workerPool.broadcast({ type: 'SYNC_GRID', payload: parsed.grid });
+        } catch (e) {
+            console.error('Failed to load game:', e);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENGINE LIFECYCLE
+    // ═══════════════════════════════════════════════════════════════
+
+    configure(config: AureusWorldConfig): void {
+        this.config = config;
+
+        this.inputSystem = new InputSystem(this.render);
+        this.inputSystem.onTileClick = (index) => {
+            const state = this.stateManager.getState();
+            if (state.interactionMode === 'BUILD' && state.selectedBuilding) {
+                this.placeBuilding(index);
+            } else if (state.interactionMode === 'BULLDOZE') {
+                this.bulldozeTile(index);
+            }
+            config.onTileClick?.(index);
+        };
+        this.inputSystem.onTileRightClick = (index) => {
+            const state = this.stateManager.getState();
+            if (state.selectedAgentId) {
+                this.commandAgent(state.selectedAgentId, index);
+            }
+            config.onTileRightClick?.(index);
+        };
+        this.inputSystem.onTileHover = config.onTileHover;
+        this.inputSystem.init();
+    }
 
     protected async onInit(): Promise<void> {
         console.log('[AureusWorld] Initializing...');
 
-        // Init workers
         this.workerPool.init();
-
-        // Initialize simulation systems
         this.sim.init();
+
+        // Sync initial grid to worker
+        const state = this.stateManager.getState();
+        this.workerPool.broadcast({ type: 'SYNC_GRID', payload: state.grid });
+        this.terrainRenderSystem.syncGrid(state.grid);
 
         console.log('[AureusWorld] Ready');
     }
 
     protected async onTeardown(): Promise<void> {
         console.log('[AureusWorld] Tearing down...');
-
-        // Cleanup legacy engine
-        if (this.legacyEngine) {
-            this.legacyEngine.cleanup();
-            this.legacyEngine = null;
-        }
-
-        // Cleanup engine subsystems
         this.sim.dispose();
         this.workerPool.dispose();
         this.jobs.clear();
+        this.inputSystem?.dispose();
     }
 
-
     // ═══════════════════════════════════════════════════════════════
-    // FRAME PHASES - Engine Spine Integration
+    // FRAME PHASES
     // ═══════════════════════════════════════════════════════════════
 
     frameBegin(_ctx: FrameContext): void {
-        // Input is handled by React in the current architecture
-        // This is a future migration point for moving input to engine
+        // Input handled by InputSystem
     }
 
     streaming(_ctx: FrameContext): void {
-        // The current VoxelEngine handles streaming via TerrainChunkManager
-        // This phase can be used to coordinate chunk loading with jobs
-
-        if (!this.legacyEngine) return;
-
-        // Get camera position from scene
         const camera = this.render.getCamera();
         const cameraChunk = {
             x: Math.floor(camera.position.x / 16),
-            y: 0, // Aureus is flat
+            y: 0,
             z: Math.floor(camera.position.z / 16),
         };
-
-        // Update streaming manager for future job-based streaming
         this.streamMgr.update(cameraChunk);
     }
 
     jobsFlush(_ctx: FrameContext): void {
-        // Dispatch new jobs to workers
         this.workerPool.dispatch(this.jobs);
-
-        // Process completed results
         const results = this.jobs.drainResults();
-
-        // Get current state to resolve agent references
-        const state = this.getState ? this.getState() : null;
+        const state = this.stateManager.getMutableState();
 
         for (const result of results) {
             if (result.kind === 'MESH_CHUNK' && result.success) {
-                const meshResult = result as MeshChunkResult;
-                // Future: Apply mesh geometry to render
-                console.log(`[AureusWorld] Mesh ready: ${meshResult.chunkKey}`);
+                this.terrainRenderSystem.processResults([result as MeshChunkResult]);
             } else if (result.kind === 'PATHFIND') {
-                if (state) {
-                    this.agentSystem.receiveJobResult(result as PathfindResult, state);
-                }
+                this.agentSystem.receiveJobResult(result as PathfindResult, state);
             }
-            ```
         }
     }
 
     simulation(ctx: FixedContext): void {
-        // Skip if paused or no dispatch
-        if(this.gamePaused || !this.dispatch || !this.getState) return;
+        if (this.gamePaused) return;
 
-        const state = this.getState();
-        // IMPORTANT: Updates from AgentSystem (x, z, state) are in 'state.agents'.
-        // We MUST dispatch these changes back to React, otherwise the Reducer will
-        // reset them to the old values on the next TICK!
-        // Actually, we don't have a specific dispatch for "SYNC_AGENTS".
-        // Using "TICK" causes Reducer to process simulationLogic.ts
-        // simulationLogic.ts uses [...state.agents].
-        // So we need to ensure the `state` object WE have is the one Reducer uses?
-        // No, Reducer runs in its own context.
-        // We need an action 'UPDATE_AGENTS_POSITIONS'
-        // OR rely on Mutable References if Reducer allows it?
-        // React State is immutable.
-        
-        // TEMPORARY FIX: Mutable hack usually works if Reducer refs are shared.
-        // But if Reducer does shallow copy, it might preserve the objects.
-        
-        // If agents are wiggling, the Render sees the updates.
-        // If they reset position, it's because Reducer overwrote them.
-
-
-        // Skip if game over
+        const state = this.stateManager.getMutableState();
         if (state.step === GameStep.GAME_OVER) return;
 
-        // Accumulate time for 200ms game ticks
-        // Game ticks are 200ms, so we need ~12 steps per tick
-        this.tickAccumulator += ctx.fixedDt * 1000;
+        // Increment tick counter
+        state.tickCount++;
 
-        if (this.tickAccumulator >= this.TICK_INTERVAL_MS) {
-            this.tickAccumulator -= this.TICK_INTERVAL_MS;
-
-            // Dispatch the game TICK
-            this.dispatch({ type: 'TICK' });
-
-            // Auto-save check
-            this.ticksSinceAutoSave++;
-            if (this.ticksSinceAutoSave >= this.AUTO_SAVE_TICKS) {
-                this.ticksSinceAutoSave = 0;
-                // Auto-save is handled by App.tsx currently
-                // Future: Move save logic here
-            }
-        }
-
-        // Run additional simulation systems (future migration)
+        // Run simulation systems
         this.sim.tick(ctx, state);
     }
 
+    draw(ctx: FrameContext): void {
+        const state = this.stateManager.getState();
 
-    renderSync(ctx: FrameContext): void {
-        // The VoxelEngine handles its own render loop currently
-        // This syncs the state to the renderer
+        // Update render systems
+        this.agentRenderSystem.setSelectedAgent(state.selectedAgentId);
+        const zoomLevel = this.cameraSystem.cameraZoom;
+        this.agentRenderSystem.update(ctx.dt, ctx.time, state.agents, zoomLevel);
 
-        if (!this.legacyEngine || !this.getState) return;
+        this.terrainRenderSystem.update(this.cameraSystem.cameraFocus);
+        this.buildingRenderSystem.update(ctx.dt, ctx.time, state.grid, this.stateManager.getDirtyKeys());
+        this.buildingRenderSystem.updateCursor(this.inputSystem?.getCurrentCursor() || null);
 
-        const state = this.getState();
+        this.environmentRenderSystem.update(
+            ctx.dt,
+            state.dayNightCycle?.timeOfDay || 12000,
+            state.weather?.current || 'CLEAR',
+            this.cameraSystem.cameraFocus
+        );
 
-        // Sync agents to renderer
-        // Sync agents to renderer
-        // this.legacyEngine.updateAgents(state.agents);
+        this.render.draw(ctx);
 
-        // Sync global events (affects environment)
-        this.legacyEngine.syncEvents(state.activeEvents);
-
-        // Process pending effects
-        if (state.pendingEffects && state.pendingEffects.length > 0) {
-            let gridUpdated = false;
-            for (const effect of state.pendingEffects) {
-                DiffBus.publish(effect);
-                if (effect.type === 'GRID_UPDATE') gridUpdated = true;
-            }
-
-            if (gridUpdated) {
-                this.workerPool.broadcast({ type: 'SYNC_GRID', payload: state.grid });
-            }
-        }
+        // Notify React of any state changes
+        this.stateManager.notifyIfDirty();
     }
 
-
-
     frameEnd(_ctx: FrameContext): void {
-        // Cleanup, telemetry
+        // Cleanup
     }
 
     // ═══════════════════════════════════════════════════════════════
     // PUBLIC API
     // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * Perform initial sync of game state to the engine
-     */
-    initialSync(grid: GridTile[]): void {
-        this.workerPool.broadcast({ type: 'SYNC_GRID', payload: grid });
-        if (this.legacyEngine) {
-            this.legacyEngine.initialSync(grid);
-        }
+    setGamePaused(paused: boolean): void {
+        this.gamePaused = paused;
     }
 
-    /**
-     * Update agents (called from React when agents change)
-     */
-    updateAgents(agents: Agent[]): void {
-        if (this.legacyEngine) {
-            this.legacyEngine.updateAgents(agents);
-        }
-    }
-
-    /**
-     * Set ghost building for placement preview
-     */
-    setGhostBuilding(type: BuildingType | null): void {
-        if (this.legacyEngine) {
-            this.legacyEngine.setGhostBuilding(type);
-        }
-    }
-
-    /**
-     * Set interaction mode
-     */
-    setInteractionMode(mode: 'BUILD' | 'BULLDOZE' | 'INSPECT'): void {
-        if (this.legacyEngine) {
-            this.legacyEngine.setInteractionMode(mode);
-        }
-    }
-
-    /**
-     * Set selected agent
-     */
-    setSelectedAgent(id: string | null): void {
-        if (this.legacyEngine) {
-            this.legacyEngine.setSelectedAgent(id);
-        }
-    }
-
-    /**
-     * Play intro animation
-     */
     playIntroAnimation(onComplete: () => void): void {
-        if (this.legacyEngine) {
-            this.legacyEngine.playIntroAnimation(onComplete);
-        }
+        this.cameraSystem.playIntroAnimation(onComplete);
     }
 
-    /**
-     * Get debug stats from the engine
-     */
+    setGhostBuilding(type: BuildingType | null): void {
+        this.buildingRenderSystem.setGhostBuilding(type);
+    }
+
     getDebugStats() {
+        const renderStats = this.render.getStats();
+        const state = this.stateManager.getState();
+
         return {
-            engineStats: this.legacyEngine?.getDebugStats() ?? null,
-            streamingStats: {
-                activeChunks: this.streamMgr.activeCount,
-                queuedJobs: this.jobs.queueLength,
-                pendingJobs: this.jobs.pendingCount,
-            },
+            // Render Stats
+            drawCalls: renderStats.drawCalls,
+            triangles: renderStats.triangles,
+            points: renderStats.points,
+            lines: renderStats.lines,
+            geometries: renderStats.geometries,
+            textures: renderStats.textures,
+            programs: renderStats.programs,
+
+            // Game Stats
+            buildings: state.grid.filter(t => t.buildingType !== 'EMPTY').length,
+            agents: state.agents.length,
+            particles: 0, // Particle system not yet implemented
+
+            // Streaming Stats
+            instancedMeshes: this.streamMgr.activeCount, // Using this for chunks count
+
+            // Queue Stats
+            queuedJobs: this.jobs.queueLength,
+            pendingJobs: this.jobs.pendingCount,
         };
     }
 }

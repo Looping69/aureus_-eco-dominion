@@ -3,7 +3,7 @@
  */
 
 import { GridTile, BuildingType } from '../../../types';
-import { GRID_SIZE } from '../../../utils/gameUtils';
+import { GRID_SIZE } from '../../utils/GameUtils';
 export { GRID_SIZE };
 
 // Costs for different terrains

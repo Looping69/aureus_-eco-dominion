@@ -30,6 +30,8 @@ export class AudioEngine {
     private lastPlayTime: Map<SfxType, number> = new Map();
     private static DEBOUNCE_MS: Record<SfxType, number> = {
         [SfxType.BUILD]: 100,
+        [SfxType.BUILD_START]: 100,
+        [SfxType.BULLDOZE]: 100,
         [SfxType.SELL]: 200,
         [SfxType.COMPLETE]: 200,
         [SfxType.ERROR]: 150,
@@ -200,6 +202,8 @@ export class AudioEngine {
                     this.playDeath(t);
                     break;
                 case SfxType.BUILD:
+                case SfxType.BUILD_START:
+                case SfxType.BULLDOZE:
                     this.playBuild(t);
                     break;
                 case SfxType.SELL:

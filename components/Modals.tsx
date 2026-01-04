@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { Gem, AlertTriangle, RefreshCw, Lock, ArrowRight, Radio, XCircle, CheckCircle2, ArrowUp, ChevronDown, ChevronUp, Leaf, Hammer, X } from 'lucide-react';
 import { GameStep, Action, GameState, BuildingType } from '../types';
-import { BUILDINGS } from '../utils/voxelConstants';
+import { BUILDINGS } from '../engine/data/VoxelConstants';
 
 interface TutorialOverlayProps {
     step: GameStep;

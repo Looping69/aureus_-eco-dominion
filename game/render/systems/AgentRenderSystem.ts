@@ -1,8 +1,8 @@
 
 import * as THREE from 'three';
 import { Agent, AgentRole } from '../../../types';
-import { createAgentGroup } from '../../../voxels/Agent';
-import { createEagle } from '../../../voxels/Eagle';
+import { createAgentGroup } from '../../../engine/data/voxels/Agent';
+import { createEagle } from '../../../engine/data/voxels/Eagle';
 
 // Status indicator configuration
 const STATUS_CONFIG = {
@@ -92,6 +92,35 @@ export class AgentRenderSystem {
 
     public setSelectedAgent(id: string | null) {
         this.selectedAgentId = id;
+    }
+
+    public getMeshes(): THREE.Object3D[] {
+        return Array.from(this.agentMeshes.values());
+    }
+
+    /**
+     * Swap the scene agents are rendered into.
+     * Useful for migration when switching from an overlay to the main scene.
+     */
+    public setScene(scene: THREE.Scene) {
+        if (this.scene === scene) return;
+
+        this.agentMeshes.forEach(mesh => {
+            this.scene.remove(mesh);
+            scene.add(mesh);
+        });
+        this.statusSprites.forEach(sprite => {
+            this.scene.remove(sprite);
+            scene.add(sprite);
+        });
+        if (this.eagle) {
+            this.scene.remove(this.eagle);
+            scene.add(this.eagle);
+        }
+        this.scene.remove(this.agentSelectionRing);
+        scene.add(this.agentSelectionRing);
+
+        this.scene = scene;
     }
 
     public dispose() {
@@ -253,22 +282,54 @@ export class AgentRenderSystem {
     }
 
     private updateAgentAnimation(mesh: THREE.Group, time: number, zoomLevel: number, agentId: string) {
-        // Reuse logic from AgentManager (Simplified for brevity)
-        // ... (We can copy exact logic if needed, but for now simple checks)
         const state = mesh.userData.agentState;
         const parts = mesh.userData.parts;
-        const idSeed = agentId.charCodeAt(0) * 0.1;
+        if (!parts) return;
 
-        if (zoomLevel > 70) return; // Static
+        const idSeed = agentId.charCodeAt(0) * 0.1;
+        const localTime = time + idSeed; // Offset for variety
+
+        if (zoomLevel > 80) return; // Static when far
 
         if (state === 'MOVING') {
             const speed = 12;
-            const walk = Math.sin(time * speed);
+            const walk = Math.sin(localTime * speed);
+
+            // Legs
             if (parts.legL) parts.legL.rotation.x = -walk * 0.6;
             if (parts.legR) parts.legR.rotation.x = walk * 0.6;
-        } else {
+
+            // Arms (opposite to legs)
+            if (parts.armL) parts.armL.rotation.x = walk * 0.4;
+            if (parts.armR) parts.armR.rotation.x = -walk * 0.4;
+
+            // Subtle body bobbing
+            mesh.position.y += Math.abs(walk) * 0.02;
+        } else if (state === 'WORKING') {
+            const speed = 15;
+            const work = Math.sin(localTime * speed);
+
+            // Hammering/working motion with right arm
+            if (parts.armR) parts.armR.rotation.x = -0.5 + work * 0.8;
+            if (parts.armL) parts.armL.rotation.x = 0.2;
+
+            // Reset legs
             if (parts.legL) parts.legL.rotation.x = 0;
             if (parts.legR) parts.legR.rotation.x = 0;
+        } else {
+            // Idle breathing / bobbing
+            const breathe = Math.sin(localTime * 2);
+
+            // Very subtle arm movement
+            if (parts.armL) parts.armL.rotation.x = breathe * 0.05;
+            if (parts.armR) parts.armR.rotation.x = breathe * 0.05;
+
+            // Reset legs
+            if (parts.legL) parts.legL.rotation.x = 0;
+            if (parts.legR) parts.legR.rotation.x = 0;
+
+            // Head tilt
+            if (parts.head) parts.head.rotation.z = Math.sin(localTime * 0.5) * 0.1;
         }
     }
 

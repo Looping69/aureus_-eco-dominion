@@ -2,41 +2,47 @@
  * Engine Worker
  * Handles heavy computations in a background thread:
  * - Pathfinding
- * - Physics (future)
- * - PCG (future)
+ * - Terrain Meshing (Surface Shell Optimized)
  */
 
-import { Job, PathfindJob, PathfindResult } from './jobs.types';
-import { findPath, GRID_SIZE } from '../sim/algorithms/Pathfinding';
 import { GridTile } from '../../types';
+import { getBiomeAt as getBiomeAtImpl, getFoliageAt as getFoliageAtImpl } from '../sim/logic/Procedural';
+import { Job, PathfindJob, PathfindResult, MeshChunkJob, MeshChunkResult } from './jobs.types';
+import { findPath, GRID_SIZE } from '../sim/algorithms/Pathfinding';
 
-// State cache (workers might need a copy of the grid)
-// For now, we will assume the grid is passed in the job OR we need a way to sync it.
-// Passing the *entire* grid (64x64xObjects) every pathfinding job is expensive (structured clone).
-// Better approach: Sync grid updates to worker. 
-// For MVP: Pass only necessary data or accept the overhead for 4096 tiles (it's not THAT big, ~1MB maybe).
-// Actually, 4096 tiles * object size. JSON stringify/parse might be slow.
-// SharedArrayBuffer is best but requires headers.
+let localGrid: GridTile[] | null = null;
 
-// For this implementation, we'll try passing the grid in the job for simplicity, 
-// BUT AureusWorld.ts passes `state.grid` to findPath locally.
-// Accessing `state` in the worker is impossible.
-// We must either:
-// 1. Send the grid with every job (Simplest, bandwidth heavy)
-// 2. Cache the grid in the worker and send "GridUpdates" (Better)
-
-let localGrid: GridTile[] = [];
+const PALETTE: Record<string, number[]> = {
+    'grass': [0.36, 0.62, 0.27],
+    'grassLight': [0.52, 0.80, 0.09],
+    'dirt': [0.47, 0.21, 0.06],
+    'sand': [0.92, 0.70, 0.03],
+    'stone': [0.39, 0.45, 0.54],
+    'snow': [1.0, 1.0, 1.0],
+    'water': [0.02, 0.71, 0.83],
+    'concrete': [0.58, 0.64, 0.72],
+    'wood': [0.55, 0.27, 0.07],
+    'leaf': [0.13, 0.55, 0.13],
+    'pine': [0.07, 0.35, 0.07],
+    'birch': [0.9, 0.85, 0.7],
+    'birchLeaf': [0.5, 0.7, 0.2],
+    'cactus': [0.2, 0.6, 0.2],
+    'rock': [0.5, 0.5, 0.5],
+    'flower': [0.8, 0.3, 0.8],
+    'flowerYellow': [1.0, 0.8, 0.0],
+    'dead': [0.4, 0.3, 0.2],
+    'crystal': [0.4, 1.0, 1.0],
+    'gold': [1.0, 0.84, 0.0]
+};
 
 self.onmessage = (e: MessageEvent) => {
     const msg = e.data;
 
     if (msg.type === 'SYNC_GRID') {
         localGrid = msg.payload;
-        console.log('[Worker] Received SYNC_GRID, grid size:', localGrid?.length);
         return;
     }
 
-    // Check if it's a job
     const job = msg as Job;
     if (!job.id || !job.kind) return;
 
@@ -45,10 +51,19 @@ self.onmessage = (e: MessageEvent) => {
 
         if (job.kind === 'PATHFIND') {
             result = processPathfind(job as PathfindJob);
+        } else if (job.kind === 'MESH_CHUNK') {
+            result = processMeshChunk(job as MeshChunkJob);
         }
 
         if (result) {
-            self.postMessage(result);
+            if (job.kind === 'MESH_CHUNK' && result.solid) {
+                const transfer: Transferable[] = [];
+                if (result.solid) transfer.push(result.solid.p.buffer, result.solid.n.buffer, result.solid.c.buffer, result.solid.u.buffer);
+                if (result.water) transfer.push(result.water.p.buffer, result.water.n.buffer, result.water.c.buffer, result.water.u.buffer);
+                (self as unknown as Worker).postMessage(result, transfer);
+            } else {
+                self.postMessage(result);
+            }
         }
     } catch (err) {
         self.postMessage({
@@ -61,23 +76,146 @@ self.onmessage = (e: MessageEvent) => {
     }
 };
 
-function processPathfind(job: PathfindJob): PathfindResult {
-    // We need the grid!
-    if (!localGrid || localGrid.length === 0) {
-        console.log('[Worker] Pathfind failed - no grid data!');
-        throw new Error("Worker has no grid data");
+function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
+    const { cx, cz, tiles, gridSize, lod = 1 } = job.payload;
+    const CHUNK_SIZE = 16;
+
+    const offsetX = (gridSize - 1) / 2;
+    const offsetZ = (gridSize - 1) / 2;
+    const startX = cx * CHUNK_SIZE;
+    const startZ = cz * CHUNK_SIZE;
+
+    const foliageItems: any[] = [];
+    const solid = { p: [] as number[], n: [] as number[], c: [] as number[], u: [] as number[] };
+    const water = { p: [] as number[], n: [] as number[], c: [] as number[], u: [] as number[] };
+
+    const tileMap = new Map<string, GridTile>();
+    if (tiles) tiles.forEach(t => tileMap.set(`${t.x},${t.y}`, t));
+
+    function pRand(x: number, z: number) {
+        return Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
     }
 
+    const h = 0.5;
+
+    const addFace = (dest: any, sx: number, sy: number, sz: number, type: number, color: number[]) => {
+        let v1, v2, v3, v4, nx, ny, nz;
+        // 0: +X, 1: -X, 2: +Y (Top), 3: -Y (Bottom), 4: +Z, 5: -Z
+        if (type === 0) { v1 = [h, -h, h]; v2 = [h, -h, -h]; v3 = [h, h, -h]; v4 = [h, h, h]; nx = 1; ny = 0; nz = 0; }
+        else if (type === 1) { v1 = [-h, -h, -h]; v2 = [-h, -h, h]; v3 = [-h, h, h]; v4 = [-h, h, -h]; nx = -1; ny = 0; nz = 0; }
+        else if (type === 2) { v1 = [-h, h, h]; v2 = [h, h, h]; v3 = [h, h, -h]; v4 = [-h, h, -h]; nx = 0; ny = 1; nz = 0; }
+        else if (type === 3) { v1 = [-h, -h, -h]; v2 = [h, -h, -h]; v3 = [h, -h, h]; v4 = [-h, -h, h]; nx = 0; ny = -1; nz = 0; }
+        else if (type === 4) { v1 = [-h, -h, h]; v2 = [h, -h, h]; v3 = [h, h, h]; v4 = [-h, h, h]; nx = 0; ny = 0; nz = 1; }
+        else { v1 = [h, -h, -h]; v2 = [-h, -h, -h]; v3 = [-h, h, -h]; v4 = [h, h, -h]; nx = 0; ny = 0; nz = -1; }
+
+        dest.p.push(sx + v1[0], sy + v1[1], sz + v1[2]);
+        dest.p.push(sx + v2[0], sy + v2[1], sz + v2[2]);
+        dest.p.push(sx + v3[0], sy + v3[1], sz + v3[2]);
+        dest.p.push(sx + v1[0], sy + v1[1], sz + v1[2]);
+        dest.p.push(sx + v3[0], sy + v3[1], sz + v3[2]);
+        dest.p.push(sx + v4[0], sy + v4[1], sz + v4[2]);
+
+        for (let k = 0; k < 6; k++) {
+            dest.n.push(nx, ny, nz);
+            dest.c.push(color[0], color[1], color[2]);
+        }
+        dest.u.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
+    };
+
+    const getData = (wx: number, wz: number) => {
+        const key = `${wx},${wz}`;
+        if (tileMap.has(key)) {
+            const t = tileMap.get(key)!;
+            return { h: t.terrainHeight, b: t.biome, bt: t.buildingType, f: t.foliage, in: true };
+        }
+        const nx = wx - offsetX;
+        const nz = wz - offsetZ;
+        const data = getBiomeAtImpl(nx, nz);
+        return { h: data.height, b: data.biome, bt: 'EMPTY', f: null, in: false };
+    };
+
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+        for (let x = 0; x < CHUNK_SIZE; x++) {
+            const worldX = startX + x;
+            const worldZ = startZ + z;
+            const data = getData(worldX, worldZ);
+
+            if (data.in) {
+                if (data.bt === 'EMPTY' && data.h > 0 && (!data.f || data.f === 'NONE')) {
+                    const nx = worldX - offsetX;
+                    const nz = worldZ - offsetZ;
+                    const bd = getBiomeAtImpl(nx, nz);
+                    const dist = Math.sqrt(nx * nx + nz * nz);
+                    const genFoliage = getFoliageAtImpl(data.b, data.h, bd.detail, dist, pRand(worldX, worldZ));
+                    if (genFoliage !== 'NONE' && genFoliage !== 'GOLD_VEIN') foliageItems.push({ x: worldX, y: data.h * 0.5, z: worldZ, type: genFoliage });
+                } else if (data.f && data.f !== 'NONE') {
+                    foliageItems.push({ x: worldX, y: data.h * 0.5, z: worldZ, type: data.f });
+                }
+            }
+
+            let matKey = data.b.toLowerCase();
+            if (data.b === 'GRASS' && data.h > 2) matKey = 'grassLight';
+            const color = PALETTE[matKey] || [1, 1, 1];
+
+            const surfaceY = Math.floor(data.h * 0.5);
+            let topY = surfaceY;
+            const isWater = data.bt === 'POND' || data.bt === 'RESERVOIR' || (!data.in && data.h === 0);
+
+            if (data.bt === 'POND') topY -= 1;
+            else if (data.bt === 'RESERVOIR') topY -= 1;
+            else if (!data.in && data.h === 0) topY = -2;
+
+            // Surface
+            addFace(solid, x, topY, z, 2, color);
+
+            // Sides (cliff edges)
+            [[1, 0, 0], [-1, 0, 1], [0, 1, 4], [0, -1, 5]].forEach(([dx, dz, type]) => {
+                const neighbor = getData(worldX + dx, worldZ + dz);
+                let nTop = Math.floor(neighbor.h * 0.5);
+                if (neighbor.bt === 'POND' || neighbor.bt === 'RESERVOIR') nTop -= 1;
+                else if (!neighbor.in && neighbor.h === 0) nTop = -2;
+
+                for (let y = topY; y > nTop; y--) {
+                    addFace(solid, x, y, z, type, color);
+                }
+            });
+
+            // Water
+            if (isWater) {
+                const waterY = data.h === 0 ? 0 : surfaceY;
+                addFace(water, x, waterY, z, 2, PALETTE['water']);
+            }
+        }
+    }
+
+    const serialize = (geo: any) => {
+        if (geo.p.length === 0) return null;
+        return {
+            p: new Float32Array(geo.p),
+            n: new Float32Array(geo.n),
+            c: new Float32Array(geo.c),
+            u: new Float32Array(geo.u)
+        };
+    };
+
+    return {
+        jobId: job.id,
+        kind: 'MESH_CHUNK',
+        success: true,
+        completedAt: Date.now(),
+        chunkId: job.payload.chunkId,
+        solid: serialize(solid),
+        water: serialize(water),
+        foliage: foliageItems,
+        cx, cz, lod
+    };
+}
+
+function processPathfind(job: PathfindJob): PathfindResult {
+    if (!localGrid || localGrid.length === 0) throw new Error("Worker has no grid data");
     const startIdx = job.startZ * GRID_SIZE + job.startX;
     const endIdx = job.endZ * GRID_SIZE + job.endX;
-
-    // Run A*
     const path = findPath(startIdx, endIdx, localGrid);
-
-    if (!path) {
-        console.log(`[Worker] Pathfind failed: ${startIdx} -> ${endIdx}, grid has ${localGrid.length} tiles`);
-    }
-
     return {
         jobId: job.id,
         kind: 'PATHFIND',

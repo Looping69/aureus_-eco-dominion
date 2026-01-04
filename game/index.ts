@@ -3,5 +3,5 @@ export type { AureusWorldConfig } from './AureusWorld';
 export { bootstrap, cleanup } from './bootstrap';
 export type { BootstrapResult } from './bootstrap';
 export { useAureusEngine } from './useAureusEngine';
-export type { UseAureusEngineOptions, AureusEngineHandle } from './useAureusEngine';
+export type { UseAureusEngineOptions, AureusEngineHandle, LoadingProgress } from './useAureusEngine';
 

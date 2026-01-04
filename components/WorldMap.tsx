@@ -6,7 +6,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { GameState, BuildingType } from '../types';
-import { GRID_SIZE } from '../utils/gameUtils';
+import { GRID_SIZE } from '../engine/utils/GameUtils';
 import { X, Map as MapIcon, Crosshair, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface WorldMapProps {
@@ -80,7 +80,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({ isOpen, onClose, grid, agent
                 return;
             }
 
-            let color = '#334155'; 
+            let color = '#334155';
 
             // Terrain Base
             if (tile.biome === 'GRASS') color = '#15803d'; // distinct green
@@ -100,8 +100,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({ isOpen, onClose, grid, agent
             if (tile.buildingType !== BuildingType.EMPTY && !isWater) {
                 if (tile.buildingType === BuildingType.ROAD) color = '#334155';
                 else if (tile.buildingType === BuildingType.PIPE) color = '#0f172a';
-                else if (tile.isUnderConstruction) color = '#d97706'; 
-                else color = '#f8fafc'; 
+                else if (tile.isUnderConstruction) color = '#d97706';
+                else color = '#f8fafc';
             }
 
             // Hazards
@@ -112,7 +112,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({ isOpen, onClose, grid, agent
             // Draw slightly larger for water to remove grid gaps (seamless)
             const drawSize = isWater ? TILE_SIZE + 0.5 : TILE_SIZE;
             ctx.fillRect(x, y, drawSize, drawSize);
-            
+
             // Grid lines overlay for visible tiles
             // SKIP WATER to create seamless look
             if (!isWater) {
@@ -129,10 +129,10 @@ export const WorldMap: React.FC<WorldMapProps> = ({ isOpen, onClose, grid, agent
 
             // Only draw agent if explored area? Yes, usually logic implies vision
             // Assuming agent itself provides vision, so always visible if tracking exploration
-            
+
             ctx.fillStyle = agent.type === 'ILLEGAL_MINER' ? '#ef4444' : '#fbbf24';
             ctx.beginPath();
-            ctx.arc(ax + TILE_SIZE/2, ay + TILE_SIZE/2, TILE_SIZE/2, 0, Math.PI * 2);
+            ctx.arc(ax + TILE_SIZE / 2, ay + TILE_SIZE / 2, TILE_SIZE / 2, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 1;
@@ -186,13 +186,13 @@ export const WorldMap: React.FC<WorldMapProps> = ({ isOpen, onClose, grid, agent
             </div>
 
             <div className="absolute top-4 right-4 z-10 flex gap-2">
-                <button onClick={() => setZoom(z => Math.min(4, z + 0.5))} className="bg-slate-800 p-2 border border-slate-600 text-white hover:bg-slate-700 rounded"><ZoomIn size={20}/></button>
-                <button onClick={() => setZoom(z => Math.max(0.5, z - 0.5))} className="bg-slate-800 p-2 border border-slate-600 text-white hover:bg-slate-700 rounded"><ZoomOut size={20}/></button>
-                <button onClick={() => { setOffset({ x: (window.innerWidth - MAP_SIZE*zoom)/2, y: (window.innerHeight - MAP_SIZE*zoom)/2 }); }} className="bg-slate-800 p-2 border border-slate-600 text-white hover:bg-slate-700 rounded"><Crosshair size={20}/></button>
-                <button onClick={() => { onClose(); playSfx('UI_CLICK'); }} className="bg-rose-600 p-2 border border-rose-800 text-white hover:bg-rose-500 rounded shadow-lg"><X size={20}/></button>
+                <button onClick={() => setZoom(z => Math.min(4, z + 0.5))} className="bg-slate-800 p-2 border border-slate-600 text-white hover:bg-slate-700 rounded"><ZoomIn size={20} /></button>
+                <button onClick={() => setZoom(z => Math.max(0.5, z - 0.5))} className="bg-slate-800 p-2 border border-slate-600 text-white hover:bg-slate-700 rounded"><ZoomOut size={20} /></button>
+                <button onClick={() => { setOffset({ x: (window.innerWidth - MAP_SIZE * zoom) / 2, y: (window.innerHeight - MAP_SIZE * zoom) / 2 }); }} className="bg-slate-800 p-2 border border-slate-600 text-white hover:bg-slate-700 rounded"><Crosshair size={20} /></button>
+                <button onClick={() => { onClose(); playSfx('UI_CLICK'); }} className="bg-rose-600 p-2 border border-rose-800 text-white hover:bg-rose-500 rounded shadow-lg"><X size={20} /></button>
             </div>
 
-            <canvas 
+            <canvas
                 ref={canvasRef}
                 width={window.innerWidth}
                 height={window.innerHeight}
@@ -203,7 +203,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({ isOpen, onClose, grid, agent
                 onPointerUp={handlePointerUp}
                 onPointerLeave={handlePointerUp}
             />
-            
+
             {/* Legend */}
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md border border-slate-700 p-2 rounded flex gap-4 pointer-events-none">
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-emerald-600 border border-black"></div><span className="text-[10px] text-slate-300 font-bold uppercase">Flora</span></div>

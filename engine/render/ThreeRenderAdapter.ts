@@ -22,9 +22,9 @@ export interface ThreeRenderConfig {
 const DEFAULT_CONFIG: ThreeRenderConfig = {
     antialias: true,
     shadowMap: true,
-    pixelRatio: Math.min(window.devicePixelRatio, 2),
-    clearColor: 0x1a1a2e,
-    fogEnabled: true,
+    pixelRatio: window.devicePixelRatio || 1,
+    clearColor: 0x0f172a,
+    fogEnabled: false,
     fogColor: 0x1a1a2e,
     fogNear: 40,
     fogFar: 120,
@@ -33,15 +33,17 @@ const DEFAULT_CONFIG: ThreeRenderConfig = {
 export class ThreeRenderAdapter implements RenderAdapter {
     private renderer!: THREE.WebGLRenderer;
     private scene: THREE.Scene;
-    private camera: THREE.PerspectiveCamera;
+    private camera: THREE.OrthographicCamera;
     private container: HTMLElement | null = null;
     private resizeObserver: ResizeObserver | null = null;
     private config: ThreeRenderConfig;
 
     constructor(config: Partial<ThreeRenderConfig> = {}) {
-        this.config = { ...DEFAULT_CONFIG, ...config };
+        this.config = { ...DEFAULT_CONFIG, ...config, fogEnabled: false };
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+
+        // Orthographic to match legacy engine
+        this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 2000);
         this.camera.position.set(0, 40, 50);
         this.camera.lookAt(0, 0, 0);
     }
@@ -75,7 +77,7 @@ export class ThreeRenderAdapter implements RenderAdapter {
         this.renderer.domElement.style.width = '100%';
         this.renderer.domElement.style.height = '100%';
         this.renderer.domElement.style.pointerEvents = 'none'; // Let clicks pass through for now
-        this.renderer.domElement.style.zIndex = '10'; // On top of legacy
+        this.renderer.domElement.style.zIndex = '50'; // Higher z-index to ensure it is on top
 
         container.appendChild(this.renderer.domElement);
 
@@ -99,33 +101,57 @@ export class ThreeRenderAdapter implements RenderAdapter {
         this.resizeObserver.observe(container);
 
         // Initial size
-        this.resize(container.clientWidth, container.clientHeight);
+        this.resize(window.innerWidth, window.innerHeight);
 
         // Add default lighting
         this.setupDefaultLighting();
     }
 
+    public directionalLight: THREE.DirectionalLight | null = null;
+    public ambientLight: THREE.AmbientLight | null = null;
+
     /**
      * Setup default scene lighting
      */
     private setupDefaultLighting(): void {
-        // Ambient light
-        const ambient = new THREE.AmbientLight(0x404050, 0.6);
-        this.scene.add(ambient);
+        const cores = navigator.hardwareConcurrency || 4;
+        let shadowSize = 1024;
+        let shadowType = THREE.PCFShadowMap;
+
+        if (cores >= 8) {
+            shadowSize = 2048;
+            shadowType = THREE.PCFSoftShadowMap;
+        } else if (cores < 4) {
+            shadowSize = 512;
+            shadowType = THREE.BasicShadowMap;
+        }
+
+        if (this.renderer) {
+            this.renderer.shadowMap.type = shadowType;
+        }
+
+        // Boosted ambient light for visibility
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+        this.scene.add(this.ambientLight);
 
         // Main directional light (sun)
-        const sun = new THREE.DirectionalLight(0xfff5e0, 1.0);
-        sun.position.set(50, 80, 30);
-        sun.castShadow = true;
-        sun.shadow.mapSize.width = 2048;
-        sun.shadow.mapSize.height = 2048;
-        sun.shadow.camera.near = 10;
-        sun.shadow.camera.far = 200;
-        sun.shadow.camera.left = -60;
-        sun.shadow.camera.right = 60;
-        sun.shadow.camera.top = 60;
-        sun.shadow.camera.bottom = -60;
-        this.scene.add(sun);
+        this.directionalLight = new THREE.DirectionalLight(0xfff5e0, 1.0);
+        this.directionalLight.position.set(50, 80, 30);
+        this.directionalLight.castShadow = true;
+        this.directionalLight.shadow.mapSize.width = shadowSize;
+        this.directionalLight.shadow.mapSize.height = shadowSize;
+        this.directionalLight.shadow.camera.near = 10;
+        this.directionalLight.shadow.camera.far = 200;
+        this.directionalLight.shadow.camera.left = -60;
+        this.directionalLight.shadow.camera.right = 60;
+        this.directionalLight.shadow.camera.top = 60;
+        this.directionalLight.shadow.camera.bottom = -60;
+
+        // Bias helps prevent shadow acne on voxel surfaces
+        this.directionalLight.shadow.bias = -0.0005;
+        this.directionalLight.shadow.normalBias = 0.02;
+
+        this.scene.add(this.directionalLight);
 
         // Hemisphere light for ambient variation
         const hemi = new THREE.HemisphereLight(0x87CEEB, 0x3d2817, 0.4);
@@ -153,8 +179,8 @@ export class ThreeRenderAdapter implements RenderAdapter {
     resize(width: number, height: number): void {
         if (width <= 0 || height <= 0) return;
 
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
+        // For orthographic, we will sync the bounds from legacy in draw()
+        // but we can set a base ratio here if needed.
         this.renderer.setSize(width, height, false);
     }
 
@@ -205,8 +231,13 @@ export class ThreeRenderAdapter implements RenderAdapter {
         return this.scene;
     }
 
+    public directionalLight: THREE.DirectionalLight | null = null;
+    public ambientLight: THREE.AmbientLight | null = null;
+
+    // ...
+
     /** Get the camera */
-    getCamera(): THREE.PerspectiveCamera {
+    getCamera(): THREE.Camera {
         return this.camera;
     }
 

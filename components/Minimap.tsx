@@ -6,7 +6,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { GameState, BuildingType } from '../types';
-import { GRID_SIZE } from '../utils/gameUtils';
+import { GRID_SIZE } from '../engine/utils/GameUtils';
 import { Map, Maximize, ChevronUp } from 'lucide-react';
 
 interface MinimapProps {
@@ -97,7 +97,7 @@ export const Minimap: React.FC<MinimapProps> = React.memo(({ grid, agents, viewM
 
                 ctx.fillStyle = agent.type === 'ILLEGAL_MINER' ? '#ef4444' : '#fbbf24';
                 ctx.beginPath();
-                ctx.arc(ax + TILE_SIZE/2, ay + TILE_SIZE/2, 2, 0, Math.PI * 2);
+                ctx.arc(ax + TILE_SIZE / 2, ay + TILE_SIZE / 2, 2, 0, Math.PI * 2);
                 ctx.fill();
             });
 
@@ -112,7 +112,7 @@ export const Minimap: React.FC<MinimapProps> = React.memo(({ grid, agents, viewM
     if (isCollapsed) {
         return (
             <div className="absolute z-30 top-20 right-2 sm:top-4 sm:right-4 pointer-events-auto animate-in slide-in-from-right-4">
-                <button 
+                <button
                     onClick={() => setIsCollapsed(false)}
                     className="w-10 h-10 bg-slate-900 border-2 border-slate-600 flex items-center justify-center hover:bg-slate-800 transition-colors shadow-lg group"
                     title="Open Minimap"
@@ -126,9 +126,9 @@ export const Minimap: React.FC<MinimapProps> = React.memo(({ grid, agents, viewM
     return (
         <div className="absolute z-30 top-20 right-2 sm:top-4 sm:right-4 pointer-events-auto group animate-in slide-in-from-right-4">
             <div className="bg-slate-900 border-2 border-slate-700 shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] rounded-sm overflow-hidden transition-all">
-                
+
                 {/* Header */}
-                <div 
+                <div
                     className="flex items-center justify-between p-1.5 bg-slate-800 border-b border-slate-700 cursor-pointer hover:bg-slate-750"
                     onClick={() => setIsCollapsed(true)}
                 >
@@ -140,19 +140,19 @@ export const Minimap: React.FC<MinimapProps> = React.memo(({ grid, agents, viewM
                 </div>
 
                 {/* Canvas Container */}
-                <div 
+                <div
                     className="relative cursor-pointer group/canvas p-1"
                     onClick={onOpenMap}
                     title="Click to Open World Map"
                 >
-                    <canvas 
-                        ref={canvasRef} 
-                        width={MAP_SIZE} 
-                        height={MAP_SIZE} 
+                    <canvas
+                        ref={canvasRef}
+                        width={MAP_SIZE}
+                        height={MAP_SIZE}
                         className="bg-slate-950 image-pixelated display-block border border-slate-800"
-                        style={{ width: '135px', height: '135px' }} 
+                        style={{ width: '135px', height: '135px' }}
                     />
-                    
+
                     {/* Overlay Hint */}
                     <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover/canvas:opacity-100 transition-opacity flex items-center justify-center pointer-events-none backdrop-blur-[1px]">
                         <div className="bg-slate-900/90 px-2 py-1 rounded border border-emerald-500/50 flex items-center gap-1 shadow-xl">

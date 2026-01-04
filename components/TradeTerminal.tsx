@@ -12,6 +12,7 @@ interface TradeTerminalProps {
 }
 
 const PriceSparkline: React.FC<{ history: number[]; color: string }> = ({ history, color }) => {
+    if (!history || history.length < 2) return null;
     const min = Math.min(...history);
     const max = Math.max(...history);
     const range = max - min || 1;

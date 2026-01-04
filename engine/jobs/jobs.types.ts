@@ -26,10 +26,17 @@ export interface BaseJob {
 /** Mesh generation job */
 export interface MeshChunkJob extends BaseJob {
     kind: 'MESH_CHUNK';
-    chunkKey: string;
-    // Voxel data would go here or be referenced by key
+    payload: {
+        chunkId: string;
+        cx: number;
+        cz: number;
+        tiles: any[]; // GridTile[] but can be loose for transfer
+        gridSize: number;
+        lod?: number;
+    }
 }
 
+// ... 
 /** Pathfinding job */
 export interface PathfindJob extends BaseJob {
     kind: 'PATHFIND';
@@ -79,16 +86,15 @@ export interface BaseJobResult {
     error?: string;
     completedAt: number;
 }
-
-/** Mesh generation result */
 export interface MeshChunkResult extends BaseJobResult {
     kind: 'MESH_CHUNK';
-    chunkKey: string;
-    /** Transferable geometry data */
-    positions?: Float32Array;
-    normals?: Float32Array;
-    colors?: Float32Array;
-    indices?: Uint32Array;
+    chunkId: string;
+    cx: number;
+    cz: number;
+    solid: { p: Float32Array; n: Float32Array; c: Float32Array; u: Float32Array } | null;
+    water: { p: Float32Array; n: Float32Array; c: Float32Array; u: Float32Array } | null;
+    foliage: any[];
+    lod?: number;
 }
 
 /** Pathfinding result */
