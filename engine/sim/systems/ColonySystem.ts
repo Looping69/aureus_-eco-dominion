@@ -14,8 +14,10 @@ export class ColonySystem extends BaseSimSystem {
     readonly priority = 30;
 
     private lastRecruitmentCheck = 0;
-    private readonly RECRUITMENT_INTERVAL = 30.0; // Increased from 10 to 30 seconds (much slower)
-    private readonly RECRUITMENT_COST = 100; // AGT cost to recruit new agent
+    private readonly RECRUITMENT_INTERVAL = 60.0; // Increased from 30 to 60 seconds (very slow)
+    private readonly RECRUITMENT_COST = 200; // Increased from 100 to 200 AGT
+    private readonly MIN_TRUST_FOR_RECRUITMENT = 10; // Need trust to attract colonists
+    private readonly MIN_CAPACITY_GAP = 2; // Must have at least 2 empty slots
 
     tick(ctx: FixedContext, state: GameState): void {
         if (ctx.time - this.lastRecruitmentCheck < this.RECRUITMENT_INTERVAL) return;
@@ -30,9 +32,17 @@ export class ColonySystem extends BaseSimSystem {
         if (aliveColonists.length < MAX_AGENTS) {
             const quarters = grid.filter(t => t.buildingType === BuildingType.STAFF_QUARTERS && !t.isUnderConstruction).length;
             const capacity = (quarters * CAPACITY_PER_QUARTERS) + 4;
+            const availableSlots = capacity - aliveColonists.length;
 
-            // Check if we have capacity AND resources
-            if (aliveColonists.length < capacity && state.resources.agt >= this.RECRUITMENT_COST) {
+            // Check all requirements:
+            // 1. Must have enough capacity with buffer
+            // 2. Must have sufficient AGT
+            // 3. Must have minimum trust level
+            if (
+                availableSlots >= this.MIN_CAPACITY_GAP &&
+                state.resources.agt >= this.RECRUITMENT_COST &&
+                state.resources.trust >= this.MIN_TRUST_FOR_RECRUITMENT
+            ) {
                 // Deduct recruitment cost
                 state.resources.agt -= this.RECRUITMENT_COST;
 
@@ -62,6 +72,27 @@ export class ColonySystem extends BaseSimSystem {
 
                 // Audio cue
                 state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.UI_CLICK });
+            } else {
+                // Provide feedback on why recruitment failed (only occasionally to avoid spam)
+                if (Math.random() < 0.1) { // 10% chance to show message
+                    let reason = '';
+                    if (state.resources.agt < this.RECRUITMENT_COST) {
+                        reason = `Recruitment blocked: Need ${this.RECRUITMENT_COST} AGT`;
+                    } else if (state.resources.trust < this.MIN_TRUST_FOR_RECRUITMENT) {
+                        reason = `Recruitment blocked: Need ${this.MIN_TRUST_FOR_RECRUITMENT} Trust`;
+                    } else if (availableSlots < this.MIN_CAPACITY_GAP) {
+                        reason = `Recruitment blocked: Build more Staff Quarters`;
+                    }
+
+                    if (reason) {
+                        state.newsFeed.push({
+                            id: `recruit_fail_${Date.now()}`,
+                            headline: reason,
+                            type: 'NEGATIVE',
+                            timestamp: Date.now()
+                        });
+                    }
+                }
             }
         }
     }
