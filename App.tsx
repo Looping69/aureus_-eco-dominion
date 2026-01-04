@@ -34,6 +34,7 @@ import { WorldMap } from './components/WorldMap';
 import { HomePage } from './components/HomePage';
 import { TradeTerminal } from './components/TradeTerminal';
 import { WeatherOverlay } from './components/WeatherOverlay';
+import { MobileBuildingConfirmation } from './components/MobileBuildingConfirmation';
 
 // Colonist Inspector Component
 const ColonistInspector: React.FC<{ agent: Agent; onClose: () => void; playSfx: (t: any) => void }> = ({ agent, onClose, playSfx }) => {
@@ -167,6 +168,12 @@ const App: React.FC = () => {
     // Engine integration - state is owned by engine
     const { world, ready, state, loading, getDebugStats } = useAureusEngine({
         container,
+        onTileClick: (index) => {
+            // On mobile, this will be called to show confirmation
+            if (state?.interactionMode === 'BUILD' && state?.selectedBuilding) {
+                setPendingPlacementIndex(index);
+            }
+        },
         onTileHover: (index) => setHoverTile(index),
         paused: showHomePage,
     });
@@ -565,6 +572,25 @@ const App: React.FC = () => {
                         gems={state.resources.gems}
                         dispatch={dispatch}
                         onClose={() => setSelectedTileForAction(null)}
+                        playSfx={playSfx}
+                    />
+
+                    <MobileBuildingConfirmation
+                        buildingType={state.selectedBuilding}
+                        tileIndex={pendingPlacementIndex}
+                        onConfirm={() => {
+                            if (world && pendingPlacementIndex !== null) {
+                                world.placeBuilding(pendingPlacementIndex);
+                                world.clearPinnedBuilding();
+                                setPendingPlacementIndex(null);
+                            }
+                        }}
+                        onCancel={() => {
+                            if (world) {
+                                world.clearPinnedBuilding();
+                            }
+                            setPendingPlacementIndex(null);
+                        }}
                         playSfx={playSfx}
                     />
 

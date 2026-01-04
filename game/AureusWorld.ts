@@ -220,6 +220,16 @@ export class AureusWorld extends BaseWorld {
         this.buildingRenderSystem.setGhostBuilding(type as BuildingType | null);
     }
 
+    pinBuildingForConfirmation(index: number): void {
+        // Pin the ghost building at this location for mobile confirmation
+        this.buildingRenderSystem.setPinnedGhost(index);
+    }
+
+    clearPinnedBuilding(): void {
+        // Clear the pinned ghost (user cancelled)
+        this.buildingRenderSystem.setPinnedGhost(null);
+    }
+
     selectAgent(id: string | null): void {
         const state = this.stateManager.getMutableState();
         state.selectedAgentId = id;
@@ -352,7 +362,8 @@ export class AureusWorld extends BaseWorld {
 
             if (state.interactionMode === 'BUILD' && state.selectedBuilding) {
                 if (isMobile) {
-                    // Mobile: First tap pins the ghost for confirmation
+                    // Mobile: Pin the ghost at this location and trigger confirmation UI
+                    this.pinBuildingForConfirmation(index);
                     config.onTileClick?.(index);
                 } else {
                     // Desktop: Place immediately
@@ -360,8 +371,10 @@ export class AureusWorld extends BaseWorld {
                 }
             } else if (state.interactionMode === 'BULLDOZE') {
                 this.bulldozeTile(index);
+                config.onTileClick?.(index);
+            } else {
+                config.onTileClick?.(index);
             }
-            config.onTileClick?.(index);
         };
         this.inputSystem.onTileRightClick = (index) => {
             const state = this.stateManager.getState();
