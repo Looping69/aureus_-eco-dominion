@@ -2,3 +2,5 @@
 2026-04-20: Added `game/render/mobileGestureMath.ts` and `game/mobilePlacement.ts`, updated `game/render/IsoCameraSystem.ts` and `engine/input/InputSystem.ts` to stabilize mobile zoom/rotation and stop multi-touch taps from triggering bogus placement clicks.
 2026-04-20: Updated `game/AureusWorld.ts` and `App.tsx` so mobile build confirmation uses one world-owned placement path and only clears the pinned ghost after a successful placement.
 2026-04-20: Added `tests/mobile-gestures.test.ts` and `tests/mobile-placement.test.ts`; verified with `node --test tests/mobile-gestures.test.ts tests/mobile-placement.test.ts` and `npm run build`.
+2026-04-30: Added `npm test` and a PowerShell-safe `npm run verify` script via `scripts/verify.mjs`, documented the verification commands in `README.md`, and kept the existing mobile regression tests as the starter quality gate.
+2026-04-30: Added a Factorio-style `FactoryDashboard` HUD with live net AGT, power, water, jobs, ore, and auto-sell threshold controls; added pure metrics helper coverage in `tests/factory-dashboard.test.ts`.

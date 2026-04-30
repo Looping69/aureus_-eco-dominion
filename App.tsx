@@ -36,6 +36,7 @@ import { HomePage } from './components/HomePage';
 import { TradeTerminal } from './components/TradeTerminal';
 import { WeatherOverlay } from './components/WeatherOverlay';
 import { MobileBuildingConfirmation } from './components/MobileBuildingConfirmation';
+import { FactoryDashboard } from './components/FactoryDashboard';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 // Colonist Inspector Component
@@ -381,6 +382,12 @@ const App: React.FC = () => {
             case 'SET_AUTO_SELL':
                 world.setAutoSell(action.payload.enabled, action.payload.threshold);
                 break;
+            case 'UPDATE_LOGISTICS':
+                world.setAutoSell(
+                    action.payload.autoSell ?? state.logistics.autoSell,
+                    action.payload.sellThreshold ?? state.logistics.sellThreshold
+                );
+                break;
             case 'RESEARCH_TECH':
                 world.researchTech(action.payload);
                 break;
@@ -436,6 +443,11 @@ const App: React.FC = () => {
                         agents={state.agents}
                         viewMode={state.viewMode}
                         onOpenMap={() => { setShowWorldMap(true); playSfx(SfxType.UI_OPEN); }}
+                    />
+                    <FactoryDashboard
+                        state={state}
+                        dispatch={dispatch}
+                        playSfx={playSfx}
                     />
 
                     <WorldMap

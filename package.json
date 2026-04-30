@@ -7,6 +7,8 @@
   "license": "PROPRIETARY",
   "scripts": {
     "dev": "vite",
+    "test": "node --test \"tests/*.test.ts\"",
+    "verify": "node scripts/verify.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

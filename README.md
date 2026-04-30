@@ -216,6 +216,20 @@ aureus-eco-dominion/
 
 ## 🔧 Development
 
+### Verification
+
+Run the focused regression suite:
+
+```bash
+npm test
+```
+
+Run the full local confidence gate before handing off a change:
+
+```bash
+npm run verify
+```
+
 ### Debug Mode
 Press **`** (backtick) in-game to toggle debug overlay:
 - FPS and performance metrics
