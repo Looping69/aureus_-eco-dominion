@@ -8,6 +8,7 @@ import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
 import { GameState, BuildingType } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
+import { resolveBuildingDefinition } from '../../utils/buildingLevels';
 
 export class WaterNetworkSystem extends BaseSimSystem {
     readonly id = 'waterNetwork';
@@ -40,7 +41,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
             // Skip multi-tile tails (only process head)
             if (tile.structureHeadIndex !== undefined && tile.id !== tile.structureHeadIndex) continue;
 
-            const def = BUILDINGS[tile.buildingType];
+            const def = resolveBuildingDefinition(BUILDINGS[tile.buildingType], tile.level || 1);
             if (!def) continue;
 
             // Water Production

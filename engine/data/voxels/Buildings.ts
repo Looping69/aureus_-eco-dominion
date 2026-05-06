@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { mats } from '../../render/materials/VoxelMaterials';
-import { voxel, FactoryOptions } from '../../render/utils/VoxelBuilder';
+import { cylinder, taperedCylinder, voxel, FactoryOptions } from '../../render/utils/VoxelBuilder';
 import { BuildingType } from '../../../types';
 
 export const BuildingsFactory = {
@@ -25,11 +25,11 @@ export const BuildingsFactory = {
         g.add(voxel(1.3, 0.2, 1.3, mats.hazard, -0.3, 2.6, -0.3));
 
         // Ore hoppers
-        g.add(voxel(0.6, 1.0, 0.6, mats.blueMetal, 0.5, 0.3, 0.5));
-        g.add(voxel(0.65, 0.1, 0.65, mats.metal, 0.5, 1.2, 0.5));
+        g.add(taperedCylinder(0.26, 0.36, 1.0, mats.blueMetal, 0.5, 0.3, 0.5));
+        g.add(cylinder(0.34, 0.1, mats.metal, 0.5, 1.2, 0.5));
 
         // Secondary processing unit
-        g.add(voxel(0.8, 1.5, 0.8, mats.blueMetal, 0.5, 0.3, -0.5));
+        g.add(cylinder(0.4, 1.5, mats.blueMetal, 0.5, 0.3, -0.5));
         g.add(voxel(0.3, 0.15, 0.05, mats.emissiveCyan, 0.5, 0.8, -0.09));
         g.add(voxel(0.3, 0.15, 0.05, mats.emissiveCyan, 0.5, 1.2, -0.09));
 
@@ -44,9 +44,9 @@ export const BuildingsFactory = {
         }
 
         // Smokestack
-        g.add(voxel(0.25, 3.5, 0.25, mats.metal, -0.7, 0.3, 0.7));
-        g.add(voxel(0.3, 0.3, 0.3, mats.concrete, -0.7, 0, 0.7));
-        g.add(voxel(0.2, 0.2, 0.2, mats.emissiveRed, -0.7, 3.8, 0.7));
+        g.add(cylinder(0.14, 3.5, mats.metal, -0.7, 0.3, 0.7));
+        g.add(cylinder(0.22, 0.3, mats.concrete, -0.7, 0, 0.7));
+        g.add(cylinder(0.12, 0.2, mats.emissiveRed, -0.7, 3.8, 0.7));
 
         // Pipes and details
         g.add(voxel(0.1, 0.6, 0.1, mats.darkPipe, 0.1, 0.3, 0.9));
@@ -73,20 +73,20 @@ export const BuildingsFactory = {
         g.add(voxel(0.5, 0.5, 0.5, mats.emissiveCyan, -0.2, 1.5, -0.2));
 
         // Processing cylinders
-        g.add(voxel(0.7, 2.2, 0.7, mats.greenMetal, 0.55, 0.35, 0.55));
-        g.add(voxel(0.75, 0.1, 0.75, mats.metal, 0.55, 1.2, 0.55));
-        g.add(voxel(0.75, 0.1, 0.75, mats.metal, 0.55, 1.8, 0.55));
+        g.add(cylinder(0.36, 2.2, mats.greenMetal, 0.55, 0.35, 0.55));
+        g.add(cylinder(0.4, 0.1, mats.metal, 0.55, 1.2, 0.55));
+        g.add(cylinder(0.4, 0.1, mats.metal, 0.55, 1.8, 0.55));
         g.add(voxel(0.25, 0.25, 0.08, mats.emissiveGreen, 0.55, 1.5, 0.92));
 
         // Secondary cylinder
-        g.add(voxel(0.6, 1.6, 0.6, mats.greenMetal, 0.55, 0.35, -0.55));
+        g.add(cylinder(0.32, 1.6, mats.greenMetal, 0.55, 0.35, -0.55));
         g.add(voxel(0.2, 0.2, 0.05, mats.emissiveCyan, 0.55, 1.0, -0.24));
 
         // Exhaust tower (clean steam)
-        g.add(voxel(0.35, 3.5, 0.35, mats.white, -0.75, 0.35, 0.75));
-        g.add(voxel(0.45, 0.08, 0.45, mats.metal, -0.75, 2.2, 0.75));
-        g.add(voxel(0.45, 0.08, 0.45, mats.metal, -0.75, 2.8, 0.75));
-        g.add(voxel(0.5, 0.15, 0.5, mats.glass, -0.75, 3.5, 0.75));
+        g.add(cylinder(0.18, 3.5, mats.white, -0.75, 0.35, 0.75));
+        g.add(cylinder(0.24, 0.08, mats.metal, -0.75, 2.2, 0.75));
+        g.add(cylinder(0.24, 0.08, mats.metal, -0.75, 2.8, 0.75));
+        g.add(cylinder(0.28, 0.15, mats.glass, -0.75, 3.5, 0.75));
 
         // Solar panels on roof
         g.add(voxel(0.6, 0.08, 0.4, mats.solar, -0.2, 2.45, -0.2));
@@ -124,8 +124,8 @@ export const BuildingsFactory = {
 
         // Roof details
         g.add(voxel(1.4, 0.3, 1.4, mats.metal, 0, 2.65, 0));
-        g.add(voxel(0.3, 0.5, 0.3, mats.concrete, 0.5, 2.65, 0.5));
-        g.add(voxel(0.15, 0.15, 0.15, mats.emissiveCyan, 0.5, 3.15, 0.5));
+        g.add(cylinder(0.18, 0.5, mats.concrete, 0.5, 2.65, 0.5));
+        g.add(cylinder(0.1, 0.15, mats.emissiveCyan, 0.5, 3.15, 0.5));
 
         // AC units
         g.add(voxel(0.4, 0.3, 0.4, mats.metal, -0.5, 2.65, -0.5));
@@ -140,10 +140,10 @@ export const BuildingsFactory = {
         g.add(voxel(2.0, 0.25, 2.0, mats.concrete, 0, 0, 0));
 
         // Support pillars
-        g.add(voxel(0.15, 2.2, 0.15, mats.metal, -0.85, 0.25, -0.85));
-        g.add(voxel(0.15, 2.2, 0.15, mats.metal, 0.85, 0.25, -0.85));
-        g.add(voxel(0.15, 2.2, 0.15, mats.metal, -0.85, 0.25, 0.85));
-        g.add(voxel(0.15, 2.2, 0.15, mats.metal, 0.85, 0.25, 0.85));
+        g.add(cylinder(0.08, 2.2, mats.metal, -0.85, 0.25, -0.85));
+        g.add(cylinder(0.08, 2.2, mats.metal, 0.85, 0.25, -0.85));
+        g.add(cylinder(0.08, 2.2, mats.metal, -0.85, 0.25, 0.85));
+        g.add(cylinder(0.08, 2.2, mats.metal, 0.85, 0.25, 0.85));
 
         // Glass roof (greenhouse)
         g.add(voxel(2.1, 0.12, 2.1, mats.glass, 0, 2.45, 0));

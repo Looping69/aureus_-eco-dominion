@@ -23,7 +23,7 @@ import {
 import { HUD } from './components/HUD';
 import { OpsDrawer } from './components/OpsDrawer';
 import { SupplySidebar } from './components/SupplySidebar';
-import { TutorialOverlay, GameOverScreen, ConstructionModal, UndergroundOverlay } from './components/Modals';
+import { TutorialOverlay, GameOverScreen, ConstructionModal, UndergroundOverlay, BuildingInspectorModal } from './components/Modals';
 import { Controls } from './components/Controls';
 import { NewsTicker } from './components/NewsTicker';
 import { GoalWidget } from './components/GoalWidget';
@@ -385,7 +385,11 @@ const App: React.FC = () => {
                 world.researchTech(action.payload);
                 break;
             case 'SPEED_UP_CONSTRUCTION':
+            case 'SPEED_UP_BUILDING':
                 world.speedUpConstruction(action.payload.index);
+                break;
+            case 'UPGRADE_BUILDING':
+                world.upgradeBuilding(action.payload.index);
                 break;
             case 'ACCEPT_CONTRACT':
                 world.acceptContract(action.payload);
@@ -531,6 +535,17 @@ const App: React.FC = () => {
                         selectedTile={selectedTileForAction}
                         grid={state.grid}
                         gems={state.resources.gems}
+                        dispatch={dispatch}
+                        onClose={() => setSelectedTileForAction(null)}
+                        playSfx={playSfx}
+                    />
+
+                    <BuildingInspectorModal
+                        selectedTile={selectedTileForAction}
+                        grid={state.grid}
+                        unlockedEras={state.unlockedEras}
+                        resources={state.resources}
+                        cheatsEnabled={state.cheatsEnabled}
                         dispatch={dispatch}
                         onClose={() => setSelectedTileForAction(null)}
                         playSfx={playSfx}

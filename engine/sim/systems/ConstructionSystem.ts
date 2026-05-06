@@ -47,6 +47,9 @@ export class ConstructionSystem extends BaseSimSystem {
                 case 'REHABILITATE':
                     this.rehabilitateTile(cmd.payload.index, state);
                     break;
+                case 'UPGRADE_BUILDING':
+                    this.upgradeBuilding(cmd.payload.index, state);
+                    break;
             }
         }
 
@@ -133,6 +136,7 @@ export class ConstructionSystem extends BaseSimSystem {
                     grid[idx] = {
                         ...grid[idx],
                         buildingType,
+                        level: 1,
                         isUnderConstruction: !isInstant,
                         constructionTimeLeft: isInstant ? 0 : def.buildTime,
                         structureHeadIndex: index,
@@ -234,6 +238,63 @@ export class ConstructionSystem extends BaseSimSystem {
         }
     }
 
+    public upgradeBuilding(index: number, state: GameState): void {
+        const tile = state.grid[index];
+        if (!tile || tile.buildingType === BuildingType.EMPTY || tile.isUnderConstruction) return;
+
+        const headIdx = tile.structureHeadIndex !== undefined ? tile.structureHeadIndex : index;
+        const headTile = state.grid[headIdx];
+        if (!headTile) return;
+
+        const def = BUILDINGS[headTile.buildingType];
+        if (!def?.upgrades?.length) return;
+
+        const currentLevel = headTile.level || 1;
+        const nextLevel = currentLevel + 1;
+        const upgrade = def.upgrades.find(candidate => candidate.level === nextLevel);
+        if (!upgrade) return;
+
+        if (!state.cheatsEnabled && !state.unlockedEras.includes(upgrade.era)) {
+            state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ERROR });
+            return;
+        }
+
+        const costs = upgrade.costs || {};
+        if (!state.cheatsEnabled) {
+            if ((state.resources.agt || 0) < (costs.agt || 0) ||
+                (state.resources.minerals || 0) < (costs.minerals || 0) ||
+                (state.resources.gems || 0) < (costs.gems || 0)) {
+                state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ERROR });
+                return;
+            }
+
+            state.resources.agt -= costs.agt || 0;
+            state.resources.minerals -= costs.minerals || 0;
+            state.resources.gems -= costs.gems || 0;
+        }
+
+        headTile.level = nextLevel;
+
+        const buildingWidth = def.width || 1;
+        const buildingDepth = def.depth || 1;
+        const updates: GridTile[] = [];
+
+        for (let dz = 0; dz < buildingDepth; dz++) {
+            for (let dx = 0; dx < buildingWidth; dx++) {
+                const tx = (headIdx % GRID_SIZE) + dx;
+                const tz = Math.floor(headIdx / GRID_SIZE) + dz;
+                const idx = tz * GRID_SIZE + tx;
+                if (state.grid[idx] && state.grid[idx].structureHeadIndex === headIdx) {
+                    state.grid[idx].level = nextLevel;
+                    updates.push(state.grid[idx]);
+                }
+            }
+        }
+
+        state.pendingEffects.push({ type: 'GRID_UPDATE', updates: updates.length > 0 ? updates : [headTile] });
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.COMPLETE });
+    }
+
     /**
      * Ensures all tiles of a multi-tile building are in the same state.
      */
@@ -252,6 +313,7 @@ export class ConstructionSystem extends BaseSimSystem {
                     // Sync state from head
                     tile.buildingType = head.buildingType;
                     tile.isUnderConstruction = head.isUnderConstruction;
+                    tile.level = head.level;
                 }
             }
         }

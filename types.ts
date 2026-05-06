@@ -265,6 +265,26 @@ export interface WaterConfig {
   consumes?: number;  // Water units required
 }
 
+export interface UpgradeCost {
+  agt?: number;
+  minerals?: number;
+  gems?: number;
+}
+
+export interface BuildingUpgradeDef {
+  level: number;
+  name: string;
+  description: string;
+  statsDiff: string;
+  costs?: UpgradeCost;
+  era: Era;
+  maintenance?: number;
+  pollution?: number;
+  production?: number;
+  power?: PowerConfig;
+  water?: WaterConfig;
+}
+
 export interface BuildingDef {
   type: BuildingType;
   name: string;
@@ -283,6 +303,7 @@ export interface BuildingDef {
   era: Era;
   power?: PowerConfig;
   water?: WaterConfig;
+  upgrades?: BuildingUpgradeDef[];
 }
 
 export interface LogisticsState {
@@ -442,7 +463,7 @@ export interface GameState {
 
 export interface GameCommand {
   id: string; // Unique ID to prevent double execution
-  type: 'PLACE_BUILDING' | 'BULLDOZE' | 'SPEED_UP' | 'REHABILITATE';
+  type: 'PLACE_BUILDING' | 'BULLDOZE' | 'SPEED_UP' | 'REHABILITATE' | 'UPGRADE_BUILDING';
   payload: any;
 }
 
@@ -493,6 +514,7 @@ export type Action =
   | { type: 'BULLDOZE_TILE', payload: { index: number } }
   | { type: 'SPEED_UP_BUILDING', payload: { index: number } }
   | { type: 'REHABILITATE_TILE', payload: { index: number } }
+  | { type: 'UPGRADE_BUILDING', payload: { index: number } }
   | { type: 'ADVANCE_TUTORIAL' }
   | { type: 'SKIP_TUTORIAL' }
   | { type: 'RESET_GAME' }

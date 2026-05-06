@@ -5,9 +5,10 @@
 */
 
 import React, { useState, useEffect } from 'react';
-import { Gem, AlertTriangle, RefreshCw, Lock, ArrowRight, Radio, XCircle, CheckCircle2, ArrowUp, ChevronDown, ChevronUp, Leaf, Hammer, X } from 'lucide-react';
+import { Gem, AlertTriangle, RefreshCw, Lock, ArrowRight, Radio, XCircle, CheckCircle2, ArrowUp, ChevronDown, ChevronUp, Leaf, Hammer, X, Trash2, Zap, Droplets } from 'lucide-react';
 import { GameStep, Action, GameState, BuildingType } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { resolveBuildingDefinition } from '../engine/utils/buildingLevels';
 
 interface TutorialOverlayProps {
     step: GameStep;
@@ -294,6 +295,164 @@ export const ConstructionModal: React.FC<{
     }
 
     return null;
+};
+
+export const BuildingInspectorModal: React.FC<{
+    selectedTile: number | null;
+    grid: GameState['grid'];
+    unlockedEras: GameState['unlockedEras'];
+    resources: GameState['resources'];
+    cheatsEnabled: boolean;
+    dispatch: React.Dispatch<Action>;
+    onClose: () => void;
+    playSfx: (type: any) => void;
+}> = ({ selectedTile, grid, unlockedEras, resources, cheatsEnabled, dispatch, onClose, playSfx }) => {
+    if (selectedTile === null || !grid[selectedTile]) return null;
+    const tile = grid[selectedTile];
+
+    if (tile.buildingType === BuildingType.EMPTY || tile.isUnderConstruction) return null;
+
+    const def = BUILDINGS[tile.buildingType];
+    if (!def) return null;
+
+    const currentDef = resolveBuildingDefinition(def, tile.level || 1);
+    const nextLevel = (tile.level || 1) + 1;
+    const nextUpgrade = def.upgrades?.find(upgrade => upgrade.level === nextLevel);
+
+    let canUpgrade = false;
+    let statusText = 'Max Level Reached';
+
+    if (nextUpgrade) {
+        const eraUnlocked = cheatsEnabled || unlockedEras.includes(nextUpgrade.era);
+        const costs = nextUpgrade.costs || {};
+        const hasCosts = cheatsEnabled ||
+            (resources.agt >= (costs.agt || 0) &&
+                resources.minerals >= (costs.minerals || 0) &&
+                resources.gems >= (costs.gems || 0));
+
+        canUpgrade = eraUnlocked && hasCosts;
+
+        if (!eraUnlocked) {
+            statusText = `Requires ${nextUpgrade.era}`;
+        } else if (!hasCosts) {
+            const missing: string[] = [];
+            if (resources.agt < (costs.agt || 0)) missing.push(`${costs.agt} AGT`);
+            if (resources.minerals < (costs.minerals || 0)) missing.push(`${costs.minerals} MIN`);
+            if (resources.gems < (costs.gems || 0)) missing.push(`${costs.gems} GEMS`);
+            statusText = `Missing ${missing.join(', ')}`;
+        } else {
+            statusText = nextUpgrade.statsDiff;
+        }
+    }
+
+    const containerClass = "absolute bottom-32 sm:bottom-24 left-1/2 -translate-x-1/2 z-50 animate-in zoom-in-95 duration-200 w-64";
+    const cardClass = "bg-slate-900 border-2 border-blue-500 rounded-[4px] shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] overflow-hidden";
+
+    return (
+        <div className={containerClass}>
+            <div className={cardClass}>
+                <div className="bg-blue-900/30 p-2 border-b-2 border-blue-500/50 flex items-center justify-between">
+                    <h3 className="font-black text-blue-400 text-[10px] uppercase tracking-widest font-['Rajdhani']">Building Inspector</h3>
+                    <div className="flex items-center gap-1 bg-blue-950 border border-blue-700 px-1.5 rounded-[2px]">
+                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></div>
+                        <span className="text-[9px] font-mono text-blue-200 font-bold">LVL {tile.level || 1}</span>
+                    </div>
+                </div>
+
+                <div className="p-3">
+                    <div className="mb-3">
+                        <h2 className="text-sm font-black text-white uppercase leading-none mb-1 font-['Rajdhani']">{currentDef.name}</h2>
+                        <p className="text-[9px] text-slate-400 leading-tight font-mono">{currentDef.desc}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="bg-slate-950 p-1.5 border border-slate-800">
+                            <div className="flex items-center gap-1 text-[8px] text-slate-500 uppercase font-bold mb-1">
+                                <Zap size={8} /> Power
+                            </div>
+                            <div className="text-[10px] text-white font-mono">
+                                {currentDef.power?.consumes ? `-${currentDef.power.consumes}` : currentDef.power?.produces ? `+${currentDef.power.produces}` : '0'}
+                            </div>
+                        </div>
+                        <div className="bg-slate-950 p-1.5 border border-slate-800">
+                            <div className="flex items-center gap-1 text-[8px] text-slate-500 uppercase font-bold mb-1">
+                                <Droplets size={8} /> Water
+                            </div>
+                            <div className="text-[10px] text-white font-mono">
+                                {currentDef.water?.consumes ? `-${currentDef.water.consumes}` : currentDef.water?.produces ? `+${currentDef.water.produces}` : '0'}
+                            </div>
+                        </div>
+                        <div className="bg-slate-950 p-1.5 border border-slate-800">
+                            <div className="flex items-center gap-1 text-[8px] text-slate-500 uppercase font-bold mb-1">
+                                <Leaf size={8} /> Eco
+                            </div>
+                            <div className="text-[10px] text-white font-mono">
+                                {(currentDef.pollution || 0) > 0 ? `-${currentDef.pollution}` : `+${Math.abs(currentDef.pollution || 0)}`}
+                            </div>
+                        </div>
+                        <div className="bg-slate-950 p-1.5 border border-slate-800">
+                            <div className="flex items-center gap-1 text-[8px] text-slate-500 uppercase font-bold mb-1">
+                                <RefreshCw size={8} /> Maint.
+                            </div>
+                            <div className="text-[10px] text-white font-mono">{currentDef.maintenance || 0} AGT</div>
+                        </div>
+                    </div>
+
+                    {currentDef.production && (
+                        <div className="bg-emerald-950/20 border border-emerald-900/50 p-2 mb-3 rounded-sm">
+                            <div className="flex justify-between items-center text-[10px]">
+                                <span className="text-emerald-500 font-bold uppercase tracking-widest">Yield</span>
+                                <span className="text-white font-mono font-bold">+{currentDef.production} {currentDef.productionType}/s</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {nextUpgrade ? (
+                        <button
+                            onClick={() => {
+                                if (canUpgrade) {
+                                    dispatch({ type: 'UPGRADE_BUILDING', payload: { index: selectedTile } });
+                                    playSfx('UI_CLICK');
+                                } else {
+                                    playSfx('ERROR');
+                                }
+                            }}
+                            disabled={!canUpgrade}
+                            className={`w-full mb-3 py-2 px-2 border-b-4 active:border-b-0 active:translate-y-1 transition-all font-black text-[10px] flex flex-col items-center justify-center gap-0.5 uppercase tracking-wider ${canUpgrade ? 'bg-amber-600 hover:bg-amber-500 text-white border-amber-800' : 'bg-slate-800 text-slate-500 border-slate-900 cursor-not-allowed'}`}
+                        >
+                            <div className="flex items-center gap-1">
+                                <ArrowUp size={10} />
+                                <span>Upgrade to LVL {nextLevel}</span>
+                            </div>
+                            <span className="text-[8px] opacity-70 font-mono mt-1">{statusText}</span>
+                        </button>
+                    ) : (
+                        <div className="w-full mb-3 py-1.5 bg-slate-950 border border-slate-800 text-center">
+                            <span className="text-[9px] text-slate-600 uppercase font-bold tracking-widest">Max Level Reached</span>
+                        </div>
+                    )}
+
+                    <button
+                        onClick={() => {
+                            dispatch({ type: 'BULLDOZE_TILE', payload: { index: selectedTile } });
+                            playSfx('BULLDOZE');
+                            onClose();
+                        }}
+                        className="w-full bg-rose-900/50 hover:bg-rose-600 text-rose-500 hover:text-white py-2 px-2 border-2 border-rose-900/50 hover:border-rose-400 transition-all font-black text-[10px] flex items-center justify-center gap-1.5 uppercase tracking-wider mb-2"
+                    >
+                        <Trash2 size={12} /> Decommission
+                    </button>
+
+                    <button
+                        onClick={onClose}
+                        className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-[9px] text-slate-400 hover:text-white uppercase font-bold tracking-widest transition-colors border border-slate-700"
+                    >
+                        Dismiss
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export const UndergroundOverlay: React.FC<{

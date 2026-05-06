@@ -10,6 +10,8 @@ import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
 import { BUILDINGS, COLORS } from '../../../engine/data/VoxelConstants'; // Ensure these are exported or available
 import { sharedBoxGeo } from '../../../engine/render/utils/VoxelBuilder';
 import { mats } from '../../../engine/render/materials/VoxelMaterials';
+import { createStagedBuilding } from '../../../engine/data/voxels/BuildingStages';
+import { getVisualBuildingLevel, resolveBuildingDefinition } from '../../../engine/utils/buildingLevels';
 
 interface AnimationDef {
     mesh: THREE.Object3D;
@@ -183,10 +185,14 @@ export class BuildingRenderSystem {
             connections = this.getInfrastructureConnections(tile, grid);
         }
 
-        const buildingGroup = BuildingFactory[type]({ ...config, connections });
+        const resolvedDef = resolveBuildingDefinition(BUILDINGS[type as BuildingType], tile.level || 1);
+        const visualLevel = getVisualBuildingLevel(resolvedDef, tile.level || 1, !!tile.isUnderConstruction, progress);
+        const buildingGroup =
+            createStagedBuilding(type, { ...config, connections, level: visualLevel }) ??
+            BuildingFactory[type]({ ...config, connections, level: visualLevel });
         const root = new THREE.Group();
 
-        const def = BUILDINGS[type as BuildingType];
+        const def = resolvedDef;
         const w = def?.width || 1;
         const d = def?.depth || 1;
         const dx = (w - 1) / 2;
@@ -316,7 +322,7 @@ export class BuildingRenderSystem {
         this.ghostType = type;
 
         if (type && BuildingFactory[type]) {
-            const group = BuildingFactory[type]();
+            const group = createStagedBuilding(type, { level: 1 }) ?? BuildingFactory[type]({ level: 1 });
             this.ghostBuilding = new THREE.Group();
             this.ghostBuilding.add(group);
 

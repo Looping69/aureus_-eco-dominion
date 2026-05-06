@@ -372,6 +372,27 @@ export class AureusWorld extends BaseWorld {
         this.stateManager.pushCommand('SPEED_UP', { index });
     }
 
+    upgradeBuilding(index: number): void {
+        const state = this.stateManager.getMutableState();
+        const tile = state.grid[index];
+        if (!tile || tile.buildingType === BuildingType.EMPTY || tile.isUnderConstruction) return;
+
+        const def = BUILDINGS[tile.buildingType];
+        if (!def?.upgrades?.length) {
+            state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ERROR });
+            return;
+        }
+
+        const nextLevel = (tile.level || 1) + 1;
+        const upgrade = def.upgrades.find(candidate => candidate.level === nextLevel);
+        if (!upgrade) {
+            state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ERROR });
+            return;
+        }
+
+        this.stateManager.pushCommand('UPGRADE_BUILDING', { index });
+    }
+
     acceptContract(contractId: string): void {
         // Contracts use amount field, not status
         console.log(`[AureusWorld] Accept contract: ${contractId}`);

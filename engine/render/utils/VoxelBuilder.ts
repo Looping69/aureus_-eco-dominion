@@ -6,12 +6,15 @@
 */
 
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { BiomeType } from '../../../types';
 import { mats } from '../materials/VoxelMaterials';
 import { greedyMesh } from './GreedyMesher';
 
 // --- GEOMETRY CACHE (For standard primitives) ---
 const boxGeoCache: Record<string, THREE.BoxGeometry> = {};
+const roundedBoxGeoCache: Record<string, RoundedBoxGeometry> = {};
+const cylinderGeoCache: Record<string, THREE.CylinderGeometry> = {};
 
 function getBoxGeo(w: number, h: number, d: number) {
     const key = `${w.toFixed(2)},${h.toFixed(2)},${d.toFixed(2)} `;
@@ -19,13 +22,54 @@ function getBoxGeo(w: number, h: number, d: number) {
     return boxGeoCache[key];
 }
 
+function getRoundedBoxGeo(w: number, h: number, d: number, radius: number, segments: number) {
+    const clampedRadius = Math.min(radius, w * 0.45, h * 0.45, d * 0.45);
+    const key = `${w.toFixed(2)},${h.toFixed(2)},${d.toFixed(2)},${clampedRadius.toFixed(3)},${segments}`;
+    if (!roundedBoxGeoCache[key]) {
+        roundedBoxGeoCache[key] = new RoundedBoxGeometry(w, h, d, segments, clampedRadius);
+    }
+    return roundedBoxGeoCache[key];
+}
+
+function getCylinderGeo(radiusTop: number, radiusBottom: number, height: number, radialSegments: number) {
+    const key = `${radiusTop.toFixed(2)},${radiusBottom.toFixed(2)},${height.toFixed(2)},${radialSegments}`;
+    if (!cylinderGeoCache[key]) {
+        cylinderGeoCache[key] = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegments, 1);
+    }
+    return cylinderGeoCache[key];
+}
+
 export const sharedBoxGeo = new THREE.BoxGeometry(1, 1, 1);
 export const nuggetGeo = new THREE.DodecahedronGeometry(0.5, 0);
 
 // --- LEGACY BUILDER (Kept for fallback/particles) ---
-export function voxel(w: number, h: number, d: number, mat: THREE.Material, x = 0, y = 0, z = 0) {
+export function voxel(w: number, h: number, d: number, mat: THREE.Material, x = 0, y = 0, z = 0, radius = 0.045) {
+    const mesh = new THREE.Mesh(getRoundedBoxGeo(w, h, d, radius, 3), mat);
+    mesh.position.set(x, y + h / 2, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+}
+
+export function blockVoxel(w: number, h: number, d: number, mat: THREE.Material, x = 0, y = 0, z = 0) {
     const mesh = new THREE.Mesh(getBoxGeo(w, h, d), mat);
     mesh.position.set(x, y + h / 2, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+}
+
+export function cylinder(radius: number, height: number, mat: THREE.Material, x = 0, y = 0, z = 0, radialSegments = 24) {
+    const mesh = new THREE.Mesh(getCylinderGeo(radius, radius, height, radialSegments), mat);
+    mesh.position.set(x, y + height / 2, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+}
+
+export function taperedCylinder(radiusTop: number, radiusBottom: number, height: number, mat: THREE.Material, x = 0, y = 0, z = 0, radialSegments = 24) {
+    const mesh = new THREE.Mesh(getCylinderGeo(radiusTop, radiusBottom, height, radialSegments), mat);
+    mesh.position.set(x, y + height / 2, z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     return mesh;
@@ -347,6 +391,7 @@ export interface FactoryOptions {
     neighbors?: number;
     integrity?: number;
     progress?: number;
+    level?: number;
     seed?: number;
     width?: number;
     depth?: number;

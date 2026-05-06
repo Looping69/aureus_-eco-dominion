@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { ThreeRenderAdapter } from '../render/ThreeRenderAdapter';
 import { GRID_SIZE } from '../utils/GameUtils';
+import { shouldHandlePointerUp } from './pointerSequence';
 
 export class InputSystem {
     private raycaster: THREE.Raycaster;
@@ -141,9 +142,16 @@ export class InputSystem {
     }
 
     private handlePointerUp(e: PointerEvent) {
+        const shouldHandleClick = shouldHandlePointerUp({
+            pointerId: e.pointerId,
+            activePointerIds: this.activePointers,
+            isDragging: this.isDragging,
+            hadMultiTouchGesture: this.hadMultiTouchGesture,
+        });
+
         this.activePointers.delete(e.pointerId);
 
-        if (!this.isDragging && !this.hadMultiTouchGesture) {
+        if (shouldHandleClick) {
             // Click confirmed
             if (this.isRightClick) {
                 this.handleClick(e.clientX, e.clientY, true);
