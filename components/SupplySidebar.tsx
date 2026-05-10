@@ -67,6 +67,7 @@ export const getBuildingIcon = (type: BuildingType) => {
         case BuildingType.MONUMENT: return <Trophy size={18} />;
         case BuildingType.SPACEPORT: return <Rocket size={18} />;
         case BuildingType.MINE_SHAFT: return <Pickaxe size={18} />;
+        case BuildingType.SURVEY_DRILL: return <Search size={18} />;
         case BuildingType.SAWMILL: return <TreeDeciduous size={18} />;
         case BuildingType.STONE_QUARRY: return <Pickaxe size={18} />;
         case BuildingType.POWER_LINE: return <Zap size={18} />;
@@ -142,6 +143,7 @@ const ITEM_CATEGORIES: Record<BuildingType, CategoryType> = {
     [BuildingType.SAWMILL]: 'PRODUCTION',
     [BuildingType.STONE_QUARRY]: 'PRODUCTION',
     [BuildingType.MINE_SHAFT]: 'PRODUCTION',
+    [BuildingType.SURVEY_DRILL]: 'PRODUCTION',
     [BuildingType.STOCKPILE]: 'UTILITIES',
     [BuildingType.D_MINE]: 'UNDERGROUND',
     [BuildingType.D_SUPPORT]: 'UNDERGROUND',
@@ -173,7 +175,7 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
             BuildingType.STAFF_QUARTERS, BuildingType.CANTEEN, BuildingType.WORKSHOP,
             BuildingType.SAWMILL, BuildingType.STONE_QUARRY,
             BuildingType.WASH_PLANT, BuildingType.SOLAR_ARRAY, BuildingType.WATER_WELL, BuildingType.STORAGE_DEPOT,
-            BuildingType.MINING_HEADFRAME, BuildingType.MINE_SHAFT,
+            BuildingType.MINING_HEADFRAME, BuildingType.MINE_SHAFT, BuildingType.SURVEY_DRILL,
             // Era 2: Growth
             BuildingType.MEDICAL_BAY, BuildingType.TRAINING_CENTER, BuildingType.GENERATOR,
             BuildingType.SOCIAL_HUB, BuildingType.SECURITY_POST, BuildingType.COMMUNITY_GARDEN, BuildingType.WIND_TURBINE,

@@ -32,6 +32,7 @@ export enum BuildingType {
     STOCKPILE = 'STOCKPILE',
     WORKSHOP = 'WORKSHOP',
     GENERATOR = 'GENERATOR',
+    SURVEY_DRILL = 'SURVEY_DRILL',
     MINE_SHAFT = 'MINE_SHAFT',
     // Era 2: Growth
     MEDICAL_BAY = 'MEDICAL_BAY',

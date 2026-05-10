@@ -6,6 +6,7 @@
 
 import { GameState, Agent, GridTile, BuildingType } from '../../types';
 import { DEFAULT_VIEW_RADIUS } from '../utils/GameUtils';
+import { createUndergroundState } from '../underground/generator';
 
 export class PersistenceManager {
     private readonly STORAGE_KEY = 'aureus_save_v2';
@@ -110,6 +111,10 @@ export class PersistenceManager {
                 console.log('[PersistenceManager] Revived and migrated chunk tiles.');
             }
 
+            if (!state.underground) {
+                state.underground = createUndergroundState(state.seed || 0, state.chunks || {});
+            }
+
             // Revive Grid: JSON.parse makes generic objects, but GridTile is an interface so it's fine.
             // If we had class instances, we'd need to re-instantiate them.
 
@@ -156,6 +161,10 @@ export class PersistenceManager {
                         tile.explored = true;
                     }
                 }
+            }
+
+            if (!state.underground) {
+                state.underground = createUndergroundState(state.seed || 0, state.chunks || {});
             }
 
             return state;

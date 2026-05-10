@@ -16,6 +16,7 @@ import { worldToChunk } from '../utils/coords';
 import { Random } from '../kernel/Random';
 import { INITIAL_NPCS, INITIAL_PERMITS } from '../data/bureaucracy';
 import { DAY_NIGHT } from '../sim/dayNightCycle';
+import { createUndergroundState } from '../underground/generator';
 
 export type StateListener = (state: GameState) => void;
 
@@ -91,6 +92,7 @@ export class StateManager {
                 revealedData: null,
                 gridSize: { x: 32, y: 8, z: 32 }
             },
+            underground: createUndergroundState(seed, chunks),
 
             gameOver: false,
             debugMode: false,
@@ -364,6 +366,9 @@ export class StateManager {
 
     loadState(saved: Partial<GameState>): void {
         this.state = { ...this.createInitialState(), ...saved };
+        if (!this.state.underground) {
+            this.state.underground = createUndergroundState(this.state.seed || 0, this.state.chunks || {});
+        }
         this.forceNotify();
     }
 

@@ -969,6 +969,19 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         costs: { agt: 2500, wood: 300, stone: 500 },
         era: Era.SETTLEMENT
     },
+    [BuildingType.SURVEY_DRILL]: {
+        type: BuildingType.SURVEY_DRILL,
+        name: 'Survey Drill',
+        cost: 1600,
+        desc: 'Scans and reveals Below Sector tiles in a radius of 4 when construction is complete.',
+        ecoReq: 0,
+        stats: 'Deep Ledger Survey',
+        buildTime: 35,
+        maintenance: 2,
+        pollution: 0.4,
+        costs: { agt: 1600, stone: 180, minerals: 60 },
+        era: Era.SETTLEMENT
+    },
     [BuildingType.MEDICAL_BAY]: {
         type: BuildingType.MEDICAL_BAY,
         name: 'Medical Bay',

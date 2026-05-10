@@ -334,6 +334,8 @@ const App: React.FC = () => {
                                                 dispatch={dispatch}
                                                 playSfx={playSfx}
                                             />
+
+                                            <DungeonHUD state={state} />
                                         </>
                                     ) : (
                                         <div className="absolute top-10 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto">

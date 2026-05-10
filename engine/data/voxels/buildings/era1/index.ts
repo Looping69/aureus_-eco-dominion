@@ -29,5 +29,6 @@ export const Era1Buildings = {
     [BuildingType.STONE_QUARRY]: StoneQuarryFactory,
     [BuildingType.STORAGE_DEPOT]: StorageDepotFactory,
     [BuildingType.WORKSHOP]: WorkshopFactory,
-    [BuildingType.MINE_SHAFT]: MineShaftFactory
+    [BuildingType.MINE_SHAFT]: MineShaftFactory,
+    [BuildingType.SURVEY_DRILL]: MineShaftFactory
 };
