@@ -24,6 +24,7 @@ import { WorldMap } from './components/WorldMap';
 import { Minimap } from './components/Minimap';
 import { WeatherOverlay } from './components/WeatherOverlay';
 import { DungeonHUD } from './components/DungeonHUD';
+import { UndergroundHUD } from './components/UndergroundHUD';
 import { DialogueOverlay } from './components/DialogueOverlay';
 import { MobileBuildingConfirmation } from './components/MobileBuildingConfirmation';
 import { DebugMenu } from './components/DebugMenu';
@@ -223,6 +224,7 @@ const App: React.FC = () => {
                                                 activeBlock={activeHUDBlock}
                                                 onToggleBlock={handleHUDToggle}
                                             />
+                                            <UndergroundHUD state={state} />
                                             <Minimap
                                                 chunks={state.chunks}
                                                 agents={state.agents}

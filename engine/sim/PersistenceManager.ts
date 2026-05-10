@@ -6,6 +6,7 @@
 
 import { GameState, Agent, GridTile, BuildingType } from '../../types';
 import { DEFAULT_VIEW_RADIUS } from '../utils/GameUtils';
+import { createInitialUndergroundState } from '../underground/UndergroundGen';
 
 export class PersistenceManager {
     private readonly STORAGE_KEY = 'aureus_save_v2';
@@ -90,6 +91,7 @@ export class PersistenceManager {
             if (!state.jobs) state.jobs = [];
             if (!state.pendingEffects) state.pendingEffects = [];
             if (!state.commandQueue) state.commandQueue = [];
+            if (!(state as any).underground) (state as any).underground = createInitialUndergroundState(state.seed);
 
             // MIGRATION & REVIVAL: Ensure all tiles have required properties
             if (state.chunks) {
@@ -139,6 +141,7 @@ export class PersistenceManager {
             if (!state.jobs) state.jobs = [];
             if (!state.pendingEffects) state.pendingEffects = [];
             if (!state.commandQueue) state.commandQueue = [];
+            if (!(state as any).underground) (state as any).underground = createInitialUndergroundState(state.seed);
 
             // MIGRATION & REVIVAL: Ensure all tiles have required properties
             if (state.chunks) {

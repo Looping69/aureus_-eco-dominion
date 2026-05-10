@@ -19,3 +19,4 @@ export * from './TutorialDemoSystem';
 
 export * from './CommandDispatcher';
 export * from './ResearchSystem';
+export * from './UndergroundSurveySystem';

@@ -22,7 +22,8 @@ import {
     ProductionSystem, ConstructionSystem, EraSystem,
     PowerGridSystem, WaterNetworkSystem,
     TutorialDemoSystem, CommandDispatcher,
-    ResearchSystem, EmploymentSystem, BureaucracySystem, AmbientNPCSystem
+    ResearchSystem, EmploymentSystem, BureaucracySystem, AmbientNPCSystem,
+    UndergroundSurveySystem
 } from '../engine/sim/systems';
 import { DungeonMinerSystem } from '../engine/sim/systems/DungeonMinerSystem';
 import { DungeonStabilitySystem } from '../engine/sim/systems/DungeonStabilitySystem';
@@ -139,6 +140,7 @@ export class AureusWorld extends BaseWorld {
 
         this.constructionSystem = new ConstructionSystem();
         this.sim.addSystem(this.constructionSystem);
+        this.sim.addSystem(new UndergroundSurveySystem());
         this.sim.addSystem(new JobGenerationSystem());
         this.sim.addSystem(new EnvironmentSystem());
 

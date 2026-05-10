@@ -16,6 +16,7 @@ import { worldToChunk } from '../utils/coords';
 import { Random } from '../kernel/Random';
 import { INITIAL_NPCS, INITIAL_PERMITS } from '../data/bureaucracy';
 import { DAY_NIGHT } from '../sim/dayNightCycle';
+import { createInitialUndergroundState } from '../underground/UndergroundGen';
 
 export type StateListener = (state: GameState) => void;
 
@@ -91,13 +92,14 @@ export class StateManager {
                 revealedData: null,
                 gridSize: { x: 32, y: 8, z: 32 }
             },
+            underground: createInitialUndergroundState(seed),
 
             gameOver: false,
             debugMode: false,
             cheatsEnabled: false, // DEV: Creative mode disabled
             tickCount: 0,
             idCounter: 0,
-            seed: overrides?.seed || Math.floor(Math.random() * 1000000),
+            seed,
             spawnX,
             spawnZ,
 
@@ -363,7 +365,8 @@ export class StateManager {
     // --- Save/Load ---
 
     loadState(saved: Partial<GameState>): void {
-        this.state = { ...this.createInitialState(), ...saved };
+        // Seed-dependent defaults (spawn offsets, underground, etc.) should use the loaded seed when present.
+        this.state = { ...this.createInitialState(saved), ...saved };
         this.forceNotify();
     }
 
