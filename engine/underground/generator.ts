@@ -1,5 +1,21 @@
 import { Chunk } from '../types/world';
-import { UndergroundState, UndergroundTile, UndergroundHazardType, UndergroundResourceType } from '../types/underground';
+import {
+    UndergroundState,
+    UndergroundTile,
+    UndergroundHazardType,
+    UndergroundResourceType,
+    DEFAULT_UNDERGROUND_SECTOR_ID
+} from '../types/underground';
+
+const MIN_DEPTH = 20;
+const DEPTH_RANGE = 80;
+const MIN_STABILITY = 15;
+const BASE_STABILITY = 40;
+const STABILITY_RANGE = 60;
+const MIN_OXYGEN = 10;
+const BASE_OXYGEN = 35;
+const OXYGEN_RANGE = 65;
+const MAX_EXPOSURE = 30;
 
 function hash(seed: number, x: number, z: number, salt: number = 0): number {
     const n = Math.sin((x + 11.73) * 12.9898 + (z - 9.31) * 78.233 + (seed + salt) * 0.0174533) * 43758.5453;
@@ -33,11 +49,11 @@ export function generateUndergroundTile(seed: number, x: number, z: number): Und
     return {
         x,
         z,
-        depth: 20 + Math.floor(depthNoise * 80),
+        depth: MIN_DEPTH + Math.floor(depthNoise * DEPTH_RANGE),
         surveyed: false,
-        stability: Math.max(15, Math.round(40 + stabilityNoise * 60)),
-        oxygen: Math.max(10, Math.round(35 + oxygenNoise * 65)),
-        exposure: Math.round(exposureNoise * 30),
+        stability: Math.min(100, Math.max(MIN_STABILITY, Math.round(BASE_STABILITY + stabilityNoise * STABILITY_RANGE))),
+        oxygen: Math.min(100, Math.max(MIN_OXYGEN, Math.round(BASE_OXYGEN + oxygenNoise * OXYGEN_RANGE))),
+        exposure: Math.round(exposureNoise * MAX_EXPOSURE),
         resource: pickResource(seed, x, z),
         hazard: pickHazard(seed, x, z),
     };
@@ -53,8 +69,7 @@ export function createUndergroundState(seed: number, chunks: Record<string, Chun
     }
 
     return {
-        sectorId: 'Sector B1',
+        sectorId: DEFAULT_UNDERGROUND_SECTOR_ID,
         tiles,
     };
 }
-

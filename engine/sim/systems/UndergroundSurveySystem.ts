@@ -4,6 +4,8 @@ import { BuildingType } from '../../types/buildings';
 import { GameState } from '../../types/game';
 import { generateUndergroundTile } from '../../underground/generator';
 
+const SURVEY_DRILL_RADIUS = 4;
+
 export class UndergroundSurveySystem extends BaseSimSystem {
     readonly id = 'underground_survey';
     readonly priority = 35;
@@ -18,7 +20,7 @@ export class UndergroundSurveySystem extends BaseSimSystem {
                     continue;
                 }
 
-                this.revealRadius(state, tile.x, tile.z, 4);
+                this.revealRadius(state, tile.x, tile.z, SURVEY_DRILL_RADIUS);
             }
         }
     }
@@ -40,4 +42,3 @@ export class UndergroundSurveySystem extends BaseSimSystem {
         }
     }
 }
-

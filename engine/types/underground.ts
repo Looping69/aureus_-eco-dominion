@@ -17,3 +17,5 @@ export interface UndergroundState {
     sectorId: string;
     tiles: Record<string, UndergroundTile>;
 }
+
+export const DEFAULT_UNDERGROUND_SECTOR_ID = 'Sector B1';
