@@ -5,7 +5,7 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
-import { BuildingType, FactoryNodeState, FactoryResourceType, FactoryState, GameState, SfxType } from '../../../types';
+import { BuildingType, FactoryNodeState, FactoryResourceType, FactoryState, GameState, IndustryState, SfxType } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { getEcoMultiplier, HARVESTABLE_TREES, HARVESTABLE_ROCKS } from '../../utils/GameUtils';
 import { BASE_STORAGE_CAPACITY, DEPOT_CAPACITY_BONUS, STOCKPILE_CAPACITY_BONUS } from '../logic/SimulationLogic';
@@ -228,8 +228,10 @@ export class ProductionSystem extends BaseSimSystem {
         state.resources.income = totalIncome;
         state.resources.maintenance = totalMaintenance;
         state.resources.maxCapacity = totalCapacity;
-        state.industry.automatedChains = automatedChains;
-        state.industry.gridLoad = state.powerGrid?.totalConsumed || 0;
+
+        const industry = this.getIndustryState(state);
+        industry.automatedChains = automatedChains;
+        industry.gridLoad = state.powerGrid?.totalConsumed || 0;
 
         if (state.logistics.autoSell && state.resources.minerals >= state.logistics.sellThreshold) {
             this.executeAutoSell(ctx, state, modifiers);
@@ -249,6 +251,20 @@ export class ProductionSystem extends BaseSimSystem {
         }
 
         return state.factory;
+    }
+
+    private getIndustryState(state: GameState): IndustryState {
+        if (!state.industry) {
+            state.industry = {
+                refinedMaterials: 0,
+                alloys: 0,
+                machineParts: 0,
+                automatedChains: 0,
+                gridLoad: 0,
+            };
+        }
+
+        return state.industry;
     }
 
     private getFactoryNode(
