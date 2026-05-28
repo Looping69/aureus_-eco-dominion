@@ -37,14 +37,9 @@ export class StateManager {
     private createInitialState(overrides?: Partial<GameState>): GameState {
         const chunks: Record<string, Chunk> = {};
         const seed = overrides?.seed || Math.floor(Math.random() * 1000000);
-
-        // Derive a random spawn offset from the seed
-        // This gives each new game a unique starting position in the world
         const spawnX = overrides?.spawnX ?? Math.floor(Math.sin(seed * 0.7123) * 200);
         const spawnZ = overrides?.spawnZ ?? Math.floor(Math.cos(seed * 0.3456) * 200);
 
-        // Generate initial chunks around the spawn location (3x3 area)
-        // This ensures agents have enough space to wander without hitting unloaded boundary immediately
         const { cx: spawnCX, cz: spawnCZ } = worldToChunk(spawnX, spawnZ, CHUNK_SIZE);
         for (let dz = -1; dz <= 1; dz++) {
             for (let dx = -1; dx <= 1; dx++) {
@@ -75,9 +70,7 @@ export class StateManager {
             selectedBuilding: null,
             selectedAgentId: null,
             interactionMode: 'INSPECT',
-
             step: GameStep.INTRO,
-
             activeView: 'SURFACE',
             isFPS: false,
             dungeon: {
@@ -96,7 +89,7 @@ export class StateManager {
 
             gameOver: false,
             debugMode: false,
-            cheatsEnabled: false, // DEV: Creative mode disabled
+            cheatsEnabled: false,
             tickCount: 0,
             idCounter: 0,
             seed: overrides?.seed || Math.floor(Math.random() * 1000000),
@@ -104,57 +97,26 @@ export class StateManager {
             spawnZ,
 
             market: {
-                minerals: {
-                    basePrice: 10,
-                    currentPrice: 10,
-                    trend: 'STABLE',
-                    history: [10],
-                    volatility: 0.1
-                },
-                gems: {
-                    basePrice: 50,
-                    currentPrice: 50,
-                    trend: 'STABLE',
-                    history: [50],
-                    volatility: 0.05
-                },
-                wood: {
-                    basePrice: 5,
-                    currentPrice: 5,
-                    trend: 'STABLE',
-                    history: [5],
-                    volatility: 0.08
-                },
-                stone: {
-                    basePrice: 8,
-                    currentPrice: 8,
-                    trend: 'STABLE',
-                    history: [8],
-                    volatility: 0.06
-                },
+                minerals: { basePrice: 10, currentPrice: 10, trend: 'STABLE', history: [10], volatility: 0.1 },
+                gems: { basePrice: 50, currentPrice: 50, trend: 'STABLE', history: [50], volatility: 0.05 },
+                wood: { basePrice: 5, currentPrice: 5, trend: 'STABLE', history: [5], volatility: 0.08 },
+                stone: { basePrice: 8, currentPrice: 8, trend: 'STABLE', history: [8], volatility: 0.06 },
                 eventDuration: 0,
             },
 
             logistics: {
                 autoSell: false,
                 sellThreshold: 100,
+                overlayMode: 'FLOW',
             },
 
             weather: createWeatherState('CLEAR', 0.2, 180),
-
             activeEvents: [],
-
             newsFeed: [],
             activeGoal: null,
-
             inventory: {},
-
-            research: {
-                unlocked: [],
-            },
-
+            research: { unlocked: [] },
             contracts: [],
-
             pendingEffects: [],
 
             experiments: {
@@ -171,22 +133,12 @@ export class StateManager {
             },
 
             agentRequests: [],
-
             currentEra: Era.SETTLEMENT,
             unlockedEras: [Era.SETTLEMENT],
             eraUnlockedPopup: null,
 
-            powerGrid: {
-                totalProduced: 0,
-                totalConsumed: 0,
-                deficit: 0,
-            },
-
-            waterNetwork: {
-                totalProduced: 0,
-                totalConsumed: 0,
-                deficit: 0,
-            },
+            powerGrid: { totalProduced: 0, totalConsumed: 0, deficit: 0 },
+            waterNetwork: { totalProduced: 0, totalConsumed: 0, deficit: 0 },
 
             bureaucracy: {
                 permits: { ...INITIAL_PERMITS },
@@ -202,19 +154,17 @@ export class StateManager {
                 dialogueTree: null
             },
 
-            // View Transition Loading
             isLoading: false,
             loadingMessage: '',
-
-            // Command Pipeline
-            debug: {
-                commandTrace: []
-            },
-            ui: {
-                lastCommandResult: null
-            },
+            debug: { commandTrace: [] },
+            ui: { lastCommandResult: null },
 
             ...overrides,
+            logistics: {
+                autoSell: overrides?.logistics?.autoSell ?? false,
+                sellThreshold: overrides?.logistics?.sellThreshold ?? 100,
+                overlayMode: overrides?.logistics?.overlayMode ?? 'FLOW',
+            },
             underground: normalizeUndergroundState(overrides?.underground),
         } as GameState;
     }
@@ -245,12 +195,9 @@ export class StateManager {
             targetX: null,
             targetZ: null,
             path: null,
-
             inventory: { type: null, amount: 0, capacity: 10 }
         }));
     }
-
-    // --- Determinism Helpers ---
 
     getNextId(prefix: string): string {
         const id = `${prefix}_${this.state.idCounter++}`;
@@ -263,7 +210,6 @@ export class StateManager {
         return this.random;
     }
 
-    // --- State Access ---
     getDirtyKeys(): Set<keyof GameState> {
         return this.dirtyKeys;
     }
@@ -271,8 +217,6 @@ export class StateManager {
     getState(): GameState {
         return this.state;
     }
-
-    // --- State Mutation (Engine Systems use these) ---
 
     mutate<K extends keyof GameState>(key: K, value: GameState[K]): void {
         this.state[key] = value;
@@ -295,8 +239,6 @@ export class StateManager {
         }
     }
 
-
-
     setMutableContext(context: "simTick" | "none"): void {
         this.mutableContext = context;
     }
@@ -314,8 +256,6 @@ export class StateManager {
         return this.state;
     }
 
-    // --- Subscription ---
-
     subscribe(listener: StateListener): () => void {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
@@ -324,11 +264,7 @@ export class StateManager {
     notifyIfDirty(): void {
         if (this.dirtyFlag) {
             this.dirtyFlag = false;
-
-            // Shallow clone for React notification. 
-            // Deep freezing 10k items per frame (in dev) is too expensive (1 FPS).
             const snapshot = { ...this.state };
-
             this.listeners.forEach(listener => listener(snapshot));
             this.dirtyKeys.clear();
         }
@@ -336,20 +272,13 @@ export class StateManager {
 
     private deepFreeze(obj: any): any {
         if (obj === null || typeof obj !== 'object') return obj;
-
-        // Don't freeze Three.js objects or other complex types if we encounter them
-        // For game state, we mostly have grids, agents, resources which are plain objects/arrays
         Object.freeze(obj);
-
         Object.getOwnPropertyNames(obj).forEach(prop => {
             const value = obj[prop];
-            if (value !== null &&
-                (typeof value === 'object' || typeof value === 'function') &&
-                !Object.isFrozen(value)) {
+            if (value !== null && (typeof value === 'object' || typeof value === 'function') && !Object.isFrozen(value)) {
                 this.deepFreeze(value);
             }
         });
-
         return obj;
     }
 
@@ -359,8 +288,6 @@ export class StateManager {
         this.dirtyKeys.clear();
     }
 
-    // --- Save/Load ---
-
     loadState(saved: Partial<GameState>): void {
         this.state = this.createInitialState(saved);
         this.forceNotify();
@@ -369,8 +296,6 @@ export class StateManager {
     serializeState(): string {
         return JSON.stringify(this.state);
     }
-
-    // --- Helpers ---
 
     pushCommand(type: GameCommand['type'], payload: any): void {
         this.state.commandQueue.push({
