@@ -69,6 +69,25 @@ export class PersistenceManager {
         }
     }
 
+    private ensureIndustryState(state: GameState): void {
+        if (!state.industry) {
+            state.industry = {
+                refinedMaterials: 0,
+                alloys: 0,
+                machineParts: 0,
+                automatedChains: 0,
+                gridLoad: 0,
+            };
+            return;
+        }
+
+        state.industry.refinedMaterials ??= 0;
+        state.industry.alloys ??= 0;
+        state.industry.machineParts ??= 0;
+        state.industry.automatedChains ??= 0;
+        state.industry.gridLoad ??= 0;
+    }
+
     /**
      * Loads and deserializes the game state
      */
@@ -91,6 +110,7 @@ export class PersistenceManager {
             if (!state.jobs) state.jobs = [];
             if (!state.pendingEffects) state.pendingEffects = [];
             if (!state.commandQueue) state.commandQueue = [];
+            this.ensureIndustryState(state);
 
             // MIGRATION & REVIVAL: Ensure all tiles have required properties
             if (state.chunks) {
@@ -142,6 +162,7 @@ export class PersistenceManager {
             if (!state.jobs) state.jobs = [];
             if (!state.pendingEffects) state.pendingEffects = [];
             if (!state.commandQueue) state.commandQueue = [];
+            this.ensureIndustryState(state);
 
             // MIGRATION & REVIVAL: Ensure all tiles have required properties
             if (state.chunks) {
