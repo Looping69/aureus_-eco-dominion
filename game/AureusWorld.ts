@@ -585,7 +585,17 @@ export class AureusWorld extends BaseWorld {
         // Initial sync of all currently loaded chunks
         this.workerPool.broadcast({ type: 'SYNC_CHUNKS', payload: state.chunks });
         this.terrainRenderSystem.syncGrid(Object.values(state.chunks).flatMap(c => (c as any).tiles));
-        this.buildingRenderSystem.update(0, 0, state.chunks, new Set(), 'SURFACE', this.cameraSystem.cameraZoom);
+        this.buildingRenderSystem.update(
+            0,
+            0,
+            state.chunks,
+            state.factory,
+            state.logistics.overlayMode,
+            new Set(),
+            'SURFACE',
+            this.cameraSystem.cameraZoom,
+            this.render.getRuntimeQuality().smoothDetail
+        );
         if (state.agents.length > 0) {
             const firstAgent = state.agents[0];
             this.cameraSystem.zoomToPosition(firstAgent.x, firstAgent.z, 2);
@@ -813,6 +823,8 @@ export class AureusWorld extends BaseWorld {
                 ctx.dt,
                 ctx.time,
                 state.chunks,
+                state.factory,
+                state.logistics.overlayMode,
                 this.stateManager.getDirtyKeys(),
                 'FIRST_PERSON',
                 0.1,
@@ -838,6 +850,8 @@ export class AureusWorld extends BaseWorld {
                 ctx.dt,
                 ctx.time,
                 state.chunks,
+                state.factory,
+                state.logistics.overlayMode,
                 this.stateManager.getDirtyKeys(),
                 'SURFACE',
                 zoomLevel,
@@ -1075,11 +1089,19 @@ export class AureusWorld extends BaseWorld {
                 this.buyBuilding(action.payload.type, action.payload.cost);
                 this.selectBuilding(action.payload.type);
                 break;
-            case 'UPDATE_LOGISTICS':
+            case 'UPDATE_LOGISTICS': {
+                const state = this.stateManager.getState();
                 if (action.payload.autoSell !== undefined) {
-                    this.setAutoSell(action.payload.autoSell, action.payload.sellThreshold || 100);
+                    this.setAutoSell(action.payload.autoSell, action.payload.sellThreshold ?? state.logistics.sellThreshold);
+                }
+                if (action.payload.overlayMode !== undefined && state.logistics.overlayMode !== action.payload.overlayMode) {
+                    this.stateManager.mutate('logistics', {
+                        ...state.logistics,
+                        overlayMode: action.payload.overlayMode,
+                    });
                 }
                 break;
+            }
             case 'UNLOCK_TECH':
                 this.researchTech(action.payload);
                 break;
