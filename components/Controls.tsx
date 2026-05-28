@@ -4,8 +4,8 @@
 */
 
 import React from 'react';
-import { Menu, Layers, Hammer, X, Activity, TrendingUp, Pickaxe, ArrowUp, ArrowDown, Eye } from 'lucide-react';
-import { BuildingType, Action, GameStep, SidebarMode } from '../types';
+import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye } from 'lucide-react';
+import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import '../components/ViewSwitchButton.css';
 
@@ -19,23 +19,25 @@ interface ControlsProps {
     interactionMode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT';
     undergroundUnlocked: boolean;
     activeView: 'SURFACE' | 'DUNGEON';
+    overlayMode: LogisticsOverlayMode;
     onToggleView: () => void;
     selectedAgentId: string | null;
 }
 
+const OVERLAY_SEQUENCE: LogisticsOverlayMode[] = ['OFF', 'FLOW', 'CONGESTION', 'JUNCTIONS'];
+
 export const Controls: React.FC<ControlsProps> = React.memo(({
     selectedBuilding, dispatch, setSidebarOpen, playSfx, step,
-    debugMode, interactionMode, undergroundUnlocked, activeView, onToggleView,
+    debugMode, interactionMode, undergroundUnlocked, activeView, overlayMode, onToggleView,
     selectedAgentId
 }) => {
-    // ... (keep existing render logic for selectedBuilding)
     if (selectedBuilding) {
         return (
             <div className="absolute bottom-20 sm:bottom-12 left-4 right-4 z-50 animate-in slide-in-from-bottom-4 pointer-events-auto flex flex-col gap-2 max-w-sm mx-auto items-center">
                 <div className="px-4 py-2.5 rounded-[4px] border-2 shadow-[4px_4px_0_0_rgba(0,0,0,0.4)] font-bold flex items-center justify-center gap-2 text-xs bg-amber-500 text-amber-950 border-amber-800">
                     <Hammer size={16} className="animate-pulse" />
                     <span className="font-['Rajdhani'] uppercase tracking-wider">
-                        {`Deploy: ${BUILDINGS[selectedBuilding!].name}`}
+                        {`Deploy: ${BUILDINGS[selectedBuilding].name}`}
                     </span>
                 </div>
                 <button
@@ -53,10 +55,10 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
 
     const highlightOps = step === GameStep.TUTORIAL_SELL;
     const highlightBuild = step === GameStep.TUTORIAL_MINE || step === GameStep.TUTORIAL_BUY;
+    const nextOverlayMode = OVERLAY_SEQUENCE[(OVERLAY_SEQUENCE.indexOf(overlayMode) + 1) % OVERLAY_SEQUENCE.length];
 
     return (
         <div className="absolute bottom-16 sm:bottom-6 left-3 right-3 sm:left-6 sm:right-6 z-20 flex justify-between pointer-events-none gap-4">
-            {/* Operations Button (Left) */}
             <button
                 onClick={() => setSidebarOpen('OPS')}
                 className={`
@@ -75,7 +77,6 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                 <span className="hidden sm:inline font-black text-sm uppercase tracking-widest font-['Rajdhani']">Ops</span>
             </button>
 
-            {/* Center Group */}
             <div className="flex gap-3 pointer-events-auto items-end pb-1">
                 <button
                     onClick={() => {
@@ -96,13 +97,21 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
 
                 <button
                     onClick={() => {
+                        dispatch({ type: 'UPDATE_LOGISTICS', payload: { overlayMode: nextOverlayMode } });
+                        playSfx('UI_CLICK');
+                    }}
+                    className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-slate-800 border-slate-950 hover:-translate-y-0.5 border-2 border-b-[4px]"
+                    title={`Logistics Overlay: ${overlayMode}`}
+                >
+                    <Layers size={20} className={overlayMode === 'OFF' ? 'text-slate-500' : 'text-cyan-400'} />
+                </button>
+
+                <button
+                    onClick={() => {
                         setSidebarOpen('TRADE');
                         playSfx('UI_CLICK');
                     }}
-                    className={`
-                    w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-slate-800 border-slate-950 hover:-translate-y-0.5
-                    border-2 border-b-[4px]
-                    `}
+                    className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-slate-800 border-slate-950 hover:-translate-y-0.5 border-2 border-b-[4px]"
                 >
                     <TrendingUp size={20} className="text-blue-400" />
                 </button>
@@ -113,10 +122,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                             dispatch({ type: 'ENTER_FPS', payload: selectedAgentId });
                             playSfx('UI_CLICK');
                         }}
-                        className={`
-                        w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-indigo-600 border-indigo-900 hover:-translate-y-0.5
-                        border-2 border-b-[4px]
-                        `}
+                        className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-indigo-600 border-indigo-900 hover:-translate-y-0.5 border-2 border-b-[4px]"
                         title="First Person View"
                     >
                         <Eye size={20} className="text-white" />
@@ -134,7 +140,6 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                 )}
             </div>
 
-            {/* Build Button (Right) */}
             <button
                 onClick={() => setSidebarOpen('SHOP')}
                 className={`
