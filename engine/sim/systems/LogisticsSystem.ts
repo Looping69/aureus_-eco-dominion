@@ -84,6 +84,7 @@ export class LogisticsSystem extends BaseSimSystem {
             BuildingType.GEM_REFINERY,
             BuildingType.SAWMILL,
             BuildingType.STONE_QUARRY,
+            BuildingType.WORKSHOP,
             BuildingType.RAIL_LINE,
             BuildingType.STORAGE_DEPOT,
             BuildingType.STOCKPILE,
@@ -95,7 +96,7 @@ export class LogisticsSystem extends BaseSimSystem {
     private getNodeMode(type: BuildingType): FactoryNodeState['mode'] | null {
         if (type === BuildingType.RAIL_LINE || type === BuildingType.DISTRIBUTION_HUB) return 'TRANSPORT';
         if ([BuildingType.STORAGE_DEPOT, BuildingType.STOCKPILE, BuildingType.TRAIN_STATION].includes(type)) return 'SINK';
-        if ([BuildingType.WASH_PLANT, BuildingType.RECYCLING_PLANT, BuildingType.ORE_FOUNDRY, BuildingType.GEM_REFINERY].includes(type)) return 'PROCESSOR';
+        if ([BuildingType.WASH_PLANT, BuildingType.RECYCLING_PLANT, BuildingType.ORE_FOUNDRY, BuildingType.GEM_REFINERY, BuildingType.WORKSHOP].includes(type)) return 'PROCESSOR';
         if ([BuildingType.MINING_HEADFRAME, BuildingType.SAWMILL, BuildingType.STONE_QUARRY].includes(type)) return 'SOURCE';
         return null;
     }
@@ -249,7 +250,9 @@ export class LogisticsSystem extends BaseSimSystem {
         }
 
         if (node.mode === 'SINK') {
-            return ['MINERALS', 'WOOD', 'STONE', 'GEMS'].includes(resource) ? 'buffer' : null;
+            return ['MINERALS', 'WOOD', 'STONE', 'GEMS', 'REFINED_MATERIALS', 'ALLOYS', 'MACHINE_PARTS'].includes(resource)
+                ? 'buffer'
+                : null;
         }
 
         if (node.mode !== 'PROCESSOR') return null;
@@ -264,6 +267,12 @@ export class LogisticsSystem extends BaseSimSystem {
 
         if (node.buildingType === BuildingType.GEM_REFINERY) {
             return resource === 'CONCENTRATE' && this.getCapacityLeft(node, 'input') > 0 ? 'input' : null;
+        }
+
+        if (node.buildingType === BuildingType.WORKSHOP) {
+            return (resource === 'REFINED_MATERIALS' || resource === 'WOOD' || resource === 'ALLOYS') && this.getCapacityLeft(node, 'input') > 0
+                ? 'input'
+                : null;
         }
 
         return null;
@@ -283,10 +292,23 @@ export class LogisticsSystem extends BaseSimSystem {
     }
 
     private depositResource(state: GameState, resource: FactoryResourceType, amount: number): void {
+        if (!state.industry) {
+            state.industry = {
+                refinedMaterials: 0,
+                alloys: 0,
+                machineParts: 0,
+                automatedChains: 0,
+                gridLoad: 0,
+            };
+        }
+
         if (resource === 'MINERALS') state.resources.minerals = Math.min(state.resources.maxCapacity, state.resources.minerals + amount);
         if (resource === 'WOOD') state.resources.wood = Math.min(state.resources.maxCapacity, state.resources.wood + amount);
         if (resource === 'STONE') state.resources.stone = Math.min(state.resources.maxCapacity, state.resources.stone + amount);
         if (resource === 'GEMS') state.resources.gems += amount;
+        if (resource === 'REFINED_MATERIALS') state.industry.refinedMaterials += amount;
+        if (resource === 'ALLOYS') state.industry.alloys += amount;
+        if (resource === 'MACHINE_PARTS') state.industry.machineParts += amount;
     }
 
     private updateExploration(state: GameState) {
