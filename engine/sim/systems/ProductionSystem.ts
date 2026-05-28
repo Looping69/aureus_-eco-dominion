@@ -33,6 +33,7 @@ export class ProductionSystem extends BaseSimSystem {
         let trustProd = 0;
         let ecoChange = 0;
         let totalMaintenance = 0;
+        let automatedChains = 0;
 
         const ecoMult = getEcoMultiplier(state.resources.eco);
         const trustMult = 1 + (state.resources.trust / 200);
@@ -116,6 +117,7 @@ export class ProductionSystem extends BaseSimSystem {
                     const ore = this.pullInput(node, 'ORE', Math.max(0.5, (currentDef.production || 0) * 0.03 * utilityEfficiency));
                     if (ore > 0) {
                         this.pushOutput(node, 'CONCENTRATE', ore * 0.85);
+                        automatedChains += 1;
                     } else {
                         node.stalledTicks += 1;
                     }
@@ -127,8 +129,31 @@ export class ProductionSystem extends BaseSimSystem {
                     if (batch > 0) {
                         this.pullInput(node, 'CONCENTRATE', batch);
                         this.pullInput(node, 'STONE', batch / 3);
-                        this.pushOutput(node, 'MINERALS', batch * 1.1);
+                        this.pushOutput(node, 'MINERALS', batch * 0.7);
+                        this.pushOutput(node, 'REFINED_MATERIALS', batch * 0.45);
+                        this.pushOutput(node, 'ALLOYS', batch * 0.2);
+                        automatedChains += 1;
                     } else {
+                        node.stalledTicks += 1;
+                    }
+                } else if (tile.buildingType === BuildingType.WORKSHOP) {
+                    const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'PROCESSOR', state.tickCount);
+                    const refinedAvailable = node.inputBuffer.REFINED_MATERIALS || 0;
+                    const woodAvailable = node.inputBuffer.WOOD || 0;
+                    const alloyAvailable = node.inputBuffer.ALLOYS || 0;
+                    const batch = Math.min(
+                        refinedAvailable,
+                        woodAvailable,
+                        alloyAvailable * 2,
+                        Math.max(0.35, ((currentDef.production || 18) * 0.02) * utilityEfficiency)
+                    );
+                    if (batch > 0) {
+                        this.pullInput(node, 'REFINED_MATERIALS', batch);
+                        this.pullInput(node, 'WOOD', batch);
+                        this.pullInput(node, 'ALLOYS', batch / 2);
+                        this.pushOutput(node, 'MACHINE_PARTS', batch * 0.75);
+                        automatedChains += 1;
+                    } else if (refinedAvailable > 0 || woodAvailable > 0 || alloyAvailable > 0) {
                         node.stalledTicks += 1;
                     }
                 } else if (tile.buildingType === BuildingType.GEM_REFINERY) {
@@ -136,6 +161,7 @@ export class ProductionSystem extends BaseSimSystem {
                     const concentrate = this.pullInput(node, 'CONCENTRATE', Math.max(0.2, (currentDef.production || 0) * 0.02 * utilityEfficiency));
                     if (concentrate > 0) {
                         this.pushOutput(node, 'GEMS', concentrate * 0.25);
+                        automatedChains += 1;
                     } else {
                         node.stalledTicks += 1;
                     }
@@ -202,6 +228,8 @@ export class ProductionSystem extends BaseSimSystem {
         state.resources.income = totalIncome;
         state.resources.maintenance = totalMaintenance;
         state.resources.maxCapacity = totalCapacity;
+        state.industry.automatedChains = automatedChains;
+        state.industry.gridLoad = state.powerGrid?.totalConsumed || 0;
 
         if (state.logistics.autoSell && state.resources.minerals >= state.logistics.sellThreshold) {
             this.executeAutoSell(ctx, state, modifiers);
