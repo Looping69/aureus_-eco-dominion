@@ -5,7 +5,7 @@
 */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Coins, Pickaxe, Leaf, Heart, Gem, Users, Target, Trees, Database, Truck } from 'lucide-react';
+import { Coins, Pickaxe, Leaf, Heart, Gem, Users, Target, Trees, Database, Truck, Hammer } from 'lucide-react';
 import { GameState, Era } from '../types';
 import { ERAS } from '../engine/data/VoxelConstants';
 
@@ -241,6 +241,9 @@ export const HUD: React.FC<HUDProps> = React.memo(({ resources, financials, popu
       <ResourceBlock icon={Trees} val={resources.wood} label="Wood" borderClass="border-amber-700/80" iconBgClass="bg-amber-900" isExpanded={activeBlock === 'wood'} onToggle={(open: boolean) => toggleBlock('wood', open)} />
       <ResourceBlock icon={Database} val={resources.stone} label="Stone" borderClass="border-slate-400/80" iconBgClass="bg-slate-600" isExpanded={activeBlock === 'stone'} onToggle={(open: boolean) => toggleBlock('stone', open)} />
       <ResourceBlock icon={Gem} val={resources.gems} label="Thundergems" borderClass="border-purple-600/80" iconBgClass="bg-purple-500" textColor="text-purple-300" isExpanded={activeBlock === 'gems'} onToggle={(open: boolean) => toggleBlock('gems', open)} />
+      <ResourceBlock icon={Database} val={state.industry.refinedMaterials} label="Refined" borderClass="border-sky-600/80" iconBgClass="bg-sky-400" textColor="text-sky-100" isExpanded={activeBlock === 'refined'} onToggle={(open: boolean) => toggleBlock('refined', open)} />
+      <ResourceBlock icon={Gem} val={state.industry.alloys} label="Alloys" borderClass="border-violet-600/80" iconBgClass="bg-violet-400" textColor="text-violet-100" isExpanded={activeBlock === 'alloys'} onToggle={(open: boolean) => toggleBlock('alloys', open)} />
+      <ResourceBlock icon={Hammer} val={state.industry.machineParts} label="Parts" borderClass="border-orange-600/80" iconBgClass="bg-orange-400" textColor="text-orange-100" isExpanded={activeBlock === 'parts'} onToggle={(open: boolean) => toggleBlock('parts', open)} />
       <ResourceBlock icon={Truck} val={state.factory?.throughput || 0} label="Flow" borderClass="border-cyan-600/80" iconBgClass="bg-cyan-500" textColor="text-cyan-200" isExpanded={activeBlock === 'flow'} onToggle={(open: boolean) => toggleBlock('flow', open)} />
     </div>
   );
