@@ -192,7 +192,7 @@ export interface IndustryState {
 
 export interface GameState {
     resources: GameResources;
-    industry: IndustryState;
+    industry?: IndustryState;
     chunks: Record<string, Chunk>;
     agents: Agent[];
     ambientNpcs: Agent[];
