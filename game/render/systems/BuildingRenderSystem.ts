@@ -1,25 +1,34 @@
 /**
  * Building Render System
- * Handles rendering of buildings, construction sites, and associated animations/particles.
- * Replaces functionality of legacy WorldManager (building component).
+ * Handles rendering of buildings, construction sites, logistics overlays, and associated animations.
  */
 
 import * as THREE from 'three';
-import { BuildingType, GridTile, Chunk } from '../../../types';
+import {
+    BuildingType,
+    Chunk,
+    FactoryNodeState,
+    FactoryState,
+    GridTile,
+    LogisticsOverlayMode,
+} from '../../../types';
 import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
-import { BUILDINGS, COLORS } from '../../../engine/data/VoxelConstants';
-import { sharedBoxGeo } from '../../../engine/render/utils/VoxelBuilder';
-import { mats } from '../../../engine/render/materials/VoxelMaterials';
+import { BUILDINGS } from '../../../engine/data/VoxelConstants';
 import { ChunkStore } from '../../../engine/space/ChunkStore';
 import { SmoothDetailLevel } from '../../../engine/render';
 
 interface AnimationDef {
     mesh: THREE.Object3D;
-    type: 'ROTOR' | 'SOLAR' | 'SMOKE_EMITTER' | 'NUGGET_POP';
+    type: 'ROTOR' | 'SOLAR' | 'SMOKE_EMITTER' | 'NUGGET_POP' | 'CONVEYOR';
     lastEmit?: number;
     baseRotX?: number;
     velocity?: number;
     groundY?: number;
+    axis?: 'x' | 'z' | 'orbit';
+    range?: number;
+    phase?: number;
+    baseY?: number;
+    orbitRadius?: number;
 }
 
 interface Particle {
@@ -32,22 +41,28 @@ interface Particle {
 export class BuildingRenderSystem {
     private scene: THREE.Scene;
     private currentDetailLevel: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
+    private currentViewMode: 'SURFACE' | 'FIRST_PERSON' = 'SURFACE';
 
-    // State
     private buildingMeshes: Map<number, THREE.Object3D> = new Map();
     private animatedElements: Map<number, AnimationDef[]> = new Map();
     private particles: Particle[] = [];
 
-    // Cursors (Moved from WorldManager)
     private selectionCursor: THREE.Mesh;
     private ghostBuilding: THREE.Group | null = null;
     private ghostType: BuildingType | null = null;
     private pinnedGhostPos: { x: number, z: number } | null = null;
-    private currentViewMode: 'SURFACE' | 'FIRST_PERSON' = 'SURFACE';
 
-    // Materials / Geometry Reuse
+    private packetGroup = new THREE.Group();
+    private overlayGroup = new THREE.Group();
+
     private particleGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-    private particleMats: Record<string, THREE.Material> = {
+    private packetGeo = new THREE.SphereGeometry(0.09, 10, 10);
+    private overlayPlateGeo = new THREE.BoxGeometry(0.84, 0.035, 0.84);
+    private beaconGeo = new THREE.CylinderGeometry(0.045, 0.06, 0.72, 8);
+    private ringGeo = new THREE.TorusGeometry(0.28, 0.035, 8, 20);
+    private junctionArrowGeo = new THREE.BoxGeometry(0.12, 0.08, 0.3);
+
+    private particleMats: Record<string, THREE.MeshBasicMaterial> = {
         MINERAL: new THREE.MeshBasicMaterial({ color: 0xcbd5e1 }),
         ECO: new THREE.MeshBasicMaterial({ color: 0x10b981 }),
         TRUST: new THREE.MeshBasicMaterial({ color: 0xf43f5e }),
@@ -57,26 +72,48 @@ export class BuildingRenderSystem {
         ROCK: new THREE.MeshBasicMaterial({ color: 0x475569 }),
     };
 
-    // Cache to detect changes
+    private packetMats: Record<string, THREE.MeshBasicMaterial> = {
+        ORE: new THREE.MeshBasicMaterial({ color: 0xd1d5db }),
+        CONCENTRATE: new THREE.MeshBasicMaterial({ color: 0x38bdf8 }),
+        MINERALS: new THREE.MeshBasicMaterial({ color: 0xf59e0b }),
+        WOOD: new THREE.MeshBasicMaterial({ color: 0xb45309 }),
+        STONE: new THREE.MeshBasicMaterial({ color: 0x94a3b8 }),
+        GEMS: new THREE.MeshBasicMaterial({ color: 0xc084fc }),
+    };
+
+    private overlayMats = {
+        flow: new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.32 }),
+        congestionWarm: new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.38 }),
+        congestionHot: new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.45 }),
+        junction: new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.4 }),
+        beacon: new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.7 }),
+    };
+
     private tileCache: Map<number, { type: string; progress: number; state: string }> = new Map();
     private templateCache: Map<string, THREE.Group> = new Map();
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
 
-        // Init Cursor
         this.selectionCursor = new THREE.Mesh(
             new THREE.BoxGeometry(1.0, 0.05, 1.0),
             new THREE.MeshBasicMaterial({ color: 0x22c55e, opacity: 0.5, transparent: true, depthWrite: false })
         );
         this.selectionCursor.visible = false;
         this.scene.add(this.selectionCursor);
+
+        this.packetGroup.renderOrder = 9;
+        this.overlayGroup.renderOrder = 8;
+        this.scene.add(this.overlayGroup);
+        this.scene.add(this.packetGroup);
     }
 
     public update(
         dt: number,
         time: number,
         chunks: Record<string, Chunk>,
+        factory?: FactoryState,
+        overlayMode: LogisticsOverlayMode = 'OFF',
         dirtyKeys?: Set<string>,
         viewMode: 'SURFACE' | 'FIRST_PERSON' = 'SURFACE',
         zoomLevel: number = 65,
@@ -87,19 +124,17 @@ export class BuildingRenderSystem {
         const detailLevelChanged = nextDetailLevel !== this.currentDetailLevel;
         this.currentDetailLevel = nextDetailLevel;
 
-        // 1. Sync Grid Changes
         if (detailLevelChanged) {
-            Object.values(chunks).forEach(chunk => {
+            Object.values(chunks).forEach((chunk) => {
                 chunk.meshDirty = true;
             });
         }
 
         if ((dirtyKeys && dirtyKeys.has('chunks')) || detailLevelChanged) {
-            Object.values(chunks).forEach(chunk => {
-                if (!chunk.meshDirty && !chunk.simDirty) return; // Optimization
+            Object.values(chunks).forEach((chunk) => {
+                if (!chunk.meshDirty && !chunk.simDirty) return;
 
-                chunk.tiles.forEach(tile => {
-                    // Quick skip for most tiles
+                chunk.tiles.forEach((tile) => {
                     if (!tile.buildingType || tile.buildingType === BuildingType.EMPTY) {
                         if (tile.foliage !== 'ILLEGAL_CAMP') {
                             if (this.buildingMeshes.has(tile.id)) {
@@ -111,16 +146,14 @@ export class BuildingRenderSystem {
 
                     const cached = this.tileCache.get(tile.id);
                     const currentProgress = 1 - ((tile.constructionTimeLeft || 0) / (BUILDINGS[tile.buildingType]?.buildTime || 1));
-
                     const stateHash = this.getTileVisualStateHash(tile, currentProgress, viewMode, chunks);
 
-                    // Detect Changes
                     if (!cached || cached.type !== tile.buildingType || Math.abs(cached.progress - currentProgress) > 0.05 || cached.state !== stateHash) {
                         this.updateTile(tile, currentProgress, chunks, stateHash);
                         this.tileCache.set(tile.id, {
                             type: tile.buildingType,
                             progress: currentProgress,
-                            state: stateHash
+                            state: stateHash,
                         });
                     }
                 });
@@ -130,8 +163,8 @@ export class BuildingRenderSystem {
             });
         }
 
-        // 2. Animate
         this.animate(dt, time);
+        this.updateLogisticsVisuals(chunks, factory, overlayMode);
     }
 
     private removeTile(tileId: number) {
@@ -144,9 +177,6 @@ export class BuildingRenderSystem {
         }
     }
 
-    /**
-     * Calculate infrastructure connections by checking neighboring tiles
-     */
     private getInfrastructureConnections(tile: GridTile, chunks: Record<string, Chunk>): {
         north: boolean;
         south: boolean;
@@ -158,8 +188,6 @@ export class BuildingRenderSystem {
         westDelta: number;
     } {
         const targetType = tile.buildingType;
-
-        // Find neighbors via ChunkStore
         const north = ChunkStore.getTile(chunks, tile.x, tile.z - 1);
         const south = ChunkStore.getTile(chunks, tile.x, tile.z + 1);
         const east = ChunkStore.getTile(chunks, tile.x + 1, tile.z);
@@ -184,14 +212,12 @@ export class BuildingRenderSystem {
 
     private getTileVisualStateHash(tile: GridTile, progress: number, viewMode: 'SURFACE' | 'FIRST_PERSON', chunks: Record<string, Chunk>): string {
         let connectionHash = '';
-        if (tile.buildingType === BuildingType.ROAD || tile.buildingType === BuildingType.PIPE || tile.buildingType === BuildingType.FENCE || tile.buildingType === BuildingType.POWER_LINE) {
+        if ([BuildingType.ROAD, BuildingType.PIPE, BuildingType.FENCE, BuildingType.POWER_LINE, BuildingType.RAIL_LINE, BuildingType.DISTRIBUTION_HUB].includes(tile.buildingType)) {
             const conn = this.getInfrastructureConnections(tile, chunks);
             connectionHash = `_${conn.north}_${conn.south}_${conn.east}_${conn.west}_${conn.northDelta}_${conn.southDelta}_${conn.eastDelta}_${conn.westDelta}`;
         }
 
-        const progressBucket = tile.isUnderConstruction
-            ? Math.round(progress * 20) / 20
-            : 1;
+        const progressBucket = tile.isUnderConstruction ? Math.round(progress * 20) / 20 : 1;
 
         return [
             tile.buildingType,
@@ -209,7 +235,6 @@ export class BuildingRenderSystem {
     }
 
     private updateTile(tile: GridTile, progress: number, chunks: Record<string, Chunk>, templateKey: string) {
-        // Remove existing
         if (this.buildingMeshes.has(tile.id)) {
             const mesh = this.buildingMeshes.get(tile.id)!;
             this.scene.remove(mesh);
@@ -218,19 +243,15 @@ export class BuildingRenderSystem {
         }
 
         if (tile.buildingType === BuildingType.EMPTY && tile.foliage !== 'ILLEGAL_CAMP') return;
-
-        // Water is handled by TerrainRenderSystem now
         if (tile.buildingType === BuildingType.POND) return;
 
-        // Skip multi-tile tails (infrastructure excluded)
         if (tile.structureHeadX !== undefined && (tile.x !== tile.structureHeadX || tile.z !== tile.structureHeadZ) &&
-            !(tile.buildingType === BuildingType.ROAD || tile.buildingType === BuildingType.PIPE || tile.buildingType === BuildingType.FENCE || tile.buildingType === BuildingType.POWER_LINE)) {
+            ![BuildingType.ROAD, BuildingType.PIPE, BuildingType.FENCE, BuildingType.POWER_LINE, BuildingType.RAIL_LINE].includes(tile.buildingType)) {
             return;
         }
 
         let type: BuildingType | 'ILLEGAL_CAMP' = tile.buildingType;
         if (type === BuildingType.EMPTY && tile.foliage === 'ILLEGAL_CAMP') type = 'ILLEGAL_CAMP';
-
         if (!(type in BuildingFactory)) return;
 
         const def = BUILDINGS[tile.buildingType];
@@ -239,16 +260,24 @@ export class BuildingRenderSystem {
         const dx = (w - 1) / 2;
         const dz = (d - 1) / 2;
         const root = this.getTemplateClone(type, tile, progress, chunks, templateKey);
-
-        // Position (Raw world coordinates)
         root.position.set(tile.x + dx, tile.terrainHeight * 0.5, tile.z + dz);
 
-        // Collect Animations
         const anims: AnimationDef[] = [];
         root.traverse((c: any) => {
             if (c.userData.isRotor) anims.push({ mesh: c, type: 'ROTOR' });
             if (c.userData.isSolarPanel) anims.push({ mesh: c, type: 'SOLAR', baseRotX: c.rotation.x });
             if (c.userData.isNugget) anims.push({ mesh: c, type: 'NUGGET_POP', velocity: c.userData.velocity, groundY: c.userData.groundY });
+            if (c.userData.isConveyorPulse) {
+                anims.push({
+                    mesh: c,
+                    type: 'CONVEYOR',
+                    axis: c.userData.axis,
+                    range: c.userData.range,
+                    phase: c.userData.phase,
+                    baseY: c.userData.baseY,
+                    orbitRadius: c.userData.orbitRadius,
+                });
+            }
         });
 
         if (['WASH_PLANT', 'RECYCLING_PLANT', 'ILLEGAL_CAMP'].includes(type)) {
@@ -284,7 +313,6 @@ export class BuildingRenderSystem {
         chunks: Record<string, Chunk>
     ): THREE.Group {
         const root = new THREE.Group();
-
         if (tile.buildingType === BuildingType.EMPTY) {
             return root;
         }
@@ -305,11 +333,18 @@ export class BuildingRenderSystem {
         };
 
         let connections = undefined;
-        if (tile.buildingType === BuildingType.ROAD || tile.buildingType === BuildingType.PIPE || tile.buildingType === BuildingType.FENCE || tile.buildingType === BuildingType.POWER_LINE) {
+        if ([BuildingType.ROAD, BuildingType.PIPE, BuildingType.FENCE, BuildingType.POWER_LINE, BuildingType.RAIL_LINE].includes(tile.buildingType)) {
             connections = this.getInfrastructureConnections(tile, chunks);
         }
 
         const buildingGroup = BuildingFactory[type]({ ...config, connections });
+
+        if (tile.buildingType === BuildingType.RAIL_LINE && connections) {
+            this.decorateConveyor(buildingGroup, connections, seed);
+        }
+        if (tile.buildingType === BuildingType.DISTRIBUTION_HUB) {
+            this.decorateJunctionHub(buildingGroup);
+        }
 
         if (tile.isUnderConstruction) {
             const scale = 0.4 + (progress * 0.6);
@@ -325,22 +360,107 @@ export class BuildingRenderSystem {
                         roughness: 0.2,
                         metalness: 0.8,
                         emissive: 0x00ffff,
-                        emissiveIntensity: 0.4
+                        emissiveIntensity: 0.4,
                     });
                 }
             });
 
             if (BuildingFactory['CONSTRUCTION']) {
-                root.add(BuildingFactory['CONSTRUCTION']({
-                    width: w,
-                    depth: d,
-                    progress
-                }));
+                root.add(BuildingFactory['CONSTRUCTION']({ width: w, depth: d, progress }));
             }
         }
 
         root.add(buildingGroup);
         return root;
+    }
+
+    private decorateConveyor(
+        group: THREE.Group,
+        connections: ReturnType<BuildingRenderSystem['getInfrastructureConnections']>,
+        seed: number
+    ) {
+        const base = new THREE.Mesh(
+            new THREE.BoxGeometry(0.82, 0.045, 0.82),
+            new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8, metalness: 0.2 })
+        );
+        base.position.y = 0.04;
+        group.add(base);
+
+        const laneMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x164e63, emissiveIntensity: 0.2, roughness: 0.4, metalness: 0.7 });
+        const pulseMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.95 });
+
+        const hasX = connections.east || connections.west;
+        const hasZ = connections.north || connections.south;
+        const straightX = hasX && !hasZ;
+        const straightZ = hasZ && !hasX;
+
+        const lane = new THREE.Mesh(
+            new THREE.BoxGeometry(straightX ? 0.82 : 0.3, 0.06, straightZ ? 0.82 : 0.3),
+            laneMat
+        );
+        lane.position.y = 0.09;
+        group.add(lane);
+
+        if (!straightX && !straightZ) {
+            const crossX = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.055, 0.24), laneMat);
+            crossX.position.y = 0.095;
+            const crossZ = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.055, 0.82), laneMat);
+            crossZ.position.y = 0.095;
+            group.add(crossX, crossZ);
+        }
+
+        for (let i = 0; i < 3; i++) {
+            const pulse = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.08, 0.11), pulseMat.clone());
+            pulse.position.y = 0.16;
+            pulse.userData.isConveyorPulse = true;
+            pulse.userData.phase = (i / 3) + ((seed % 13) * 0.01);
+            pulse.userData.baseY = 0.16;
+            if (straightX) {
+                pulse.userData.axis = 'x';
+                pulse.userData.range = 0.5;
+                pulse.position.z = 0;
+            } else if (straightZ) {
+                pulse.userData.axis = 'z';
+                pulse.userData.range = 0.5;
+                pulse.position.x = 0;
+            } else {
+                pulse.userData.axis = 'orbit';
+                pulse.userData.orbitRadius = 0.22;
+            }
+            group.add(pulse);
+        }
+    }
+
+    private decorateJunctionHub(group: THREE.Group) {
+        const platform = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.42, 0.42, 0.12, 16),
+            new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.75, roughness: 0.35, emissive: 0x0f172a, emissiveIntensity: 0.3 })
+        );
+        platform.position.y = 0.14;
+        group.add(platform);
+
+        const ring = new THREE.Mesh(
+            new THREE.TorusGeometry(0.32, 0.045, 8, 24),
+            new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.6 })
+        );
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = 0.22;
+        group.add(ring);
+
+        const arrowOffsets: Array<[number, number, number]> = [
+            [0, 0, -0.28],
+            [0, 0, 0.28],
+            [0.28, 0, 0],
+            [-0.28, 0, 0],
+        ];
+        arrowOffsets.forEach(([x, _y, z], index) => {
+            const arrow = new THREE.Mesh(this.junctionArrowGeo, new THREE.MeshBasicMaterial({ color: 0xe9d5ff, transparent: true, opacity: 0.8 }));
+            arrow.position.set(x, 0.2, z);
+            if (index >= 2) {
+                arrow.rotation.y = Math.PI / 2;
+            }
+            group.add(arrow);
+        });
     }
 
     private getDetailLevel(viewMode: 'SURFACE' | 'FIRST_PERSON', zoomLevel: number, runtimeDetailCap: SmoothDetailLevel): 'LOW' | 'MEDIUM' | 'HIGH' {
@@ -359,9 +479,7 @@ export class BuildingRenderSystem {
         return rank[zoomDetail] <= rank[runtimeDetailCap] ? zoomDetail : runtimeDetailCap;
     }
 
-    // ... Animation Loop ...
     private animate(dt: number, time: number) {
-        // Particles
         for (let i = this.particles.length - 1; i >= 0; i--) {
             const p = this.particles[i];
             p.mesh.position.add(p.velocity);
@@ -374,28 +492,138 @@ export class BuildingRenderSystem {
             }
         }
 
-        // Buildings
-        this.animatedElements.forEach((anims, tileId) => anims.forEach(anim => {
+        this.animatedElements.forEach((anims, tileId) => anims.forEach((anim) => {
             if (anim.type === 'ROTOR') {
-                anim.mesh.rotation.z -= 0.15 * (dt * 60); // approx
+                anim.mesh.rotation.z -= 0.15 * (dt * 60);
                 anim.mesh.updateMatrix();
             } else if (anim.type === 'SMOKE_EMITTER' && (!anim.lastEmit || time - anim.lastEmit > 0.4)) {
                 if (Math.random() > 0.2) this.emitParticle(tileId, 'SMOKE');
                 anim.lastEmit = time;
+            } else if (anim.type === 'CONVEYOR') {
+                const pulse = ((time * 1.8) + (anim.phase || 0)) % 1;
+                const travel = (pulse - 0.5) * (anim.range || 0.45) * 2;
+                if (anim.axis === 'x') {
+                    anim.mesh.position.x = travel;
+                    anim.mesh.position.y = anim.baseY || 0.16;
+                } else if (anim.axis === 'z') {
+                    anim.mesh.position.z = travel;
+                    anim.mesh.position.y = anim.baseY || 0.16;
+                } else {
+                    const angle = (pulse * Math.PI * 2);
+                    const radius = anim.orbitRadius || 0.22;
+                    anim.mesh.position.x = Math.cos(angle) * radius;
+                    anim.mesh.position.z = Math.sin(angle) * radius;
+                    anim.mesh.position.y = anim.baseY || 0.16;
+                }
             }
         }));
     }
 
+    private updateLogisticsVisuals(chunks: Record<string, Chunk>, factory: FactoryState | undefined, overlayMode: LogisticsOverlayMode) {
+        this.clearGroup(this.packetGroup);
+        this.clearGroup(this.overlayGroup);
+
+        if (!factory) return;
+
+        for (const packet of factory.packets) {
+            const fromNode = factory.nodes[packet.fromKey];
+            const toNode = factory.nodes[packet.toKey];
+            if (!fromNode || !toNode) continue;
+
+            const fromPos = this.getNodeWorldPosition(fromNode, chunks);
+            const toPos = this.getNodeWorldPosition(toNode, chunks);
+            const pos = fromPos.clone().lerp(toPos, Math.min(1, Math.max(0, packet.progress)));
+            pos.y += 0.28;
+
+            const packetMesh = new THREE.Mesh(this.packetGeo, (this.packetMats[packet.resource] || this.packetMats.ORE).clone());
+            packetMesh.position.copy(pos);
+            packetMesh.scale.setScalar(0.85 + Math.min(0.5, packet.amount * 0.06));
+            this.packetGroup.add(packetMesh);
+        }
+
+        if (overlayMode === 'OFF') {
+            return;
+        }
+
+        Object.values(factory.nodes).forEach((node) => {
+            const pos = this.getNodeWorldPosition(node, chunks);
+            if (overlayMode === 'FLOW' && statefulActivity(node, factory.lastNetworkTick)) {
+                const plate = new THREE.Mesh(this.overlayPlateGeo, this.overlayMats.flow);
+                plate.position.set(node.x, pos.y + 0.03, node.z);
+                this.overlayGroup.add(plate);
+            }
+
+            if (overlayMode === 'CONGESTION') {
+                const queued = resourceTotal(node.buffer) + resourceTotal(node.inputBuffer);
+                if (queued > 0.75 || node.stalledTicks > 0) {
+                    const hot = queued > 4 || node.stalledTicks > 8;
+                    const plate = new THREE.Mesh(this.overlayPlateGeo, hot ? this.overlayMats.congestionHot : this.overlayMats.congestionWarm);
+                    plate.position.set(node.x, pos.y + 0.03, node.z);
+                    this.overlayGroup.add(plate);
+
+                    const beacon = new THREE.Mesh(this.beaconGeo, this.overlayMats.beacon);
+                    beacon.position.set(node.x, pos.y + 0.38, node.z);
+                    this.overlayGroup.add(beacon);
+                }
+            }
+
+            if (overlayMode === 'JUNCTIONS' && this.isJunctionNode(factory, node)) {
+                const ring = new THREE.Mesh(this.ringGeo, this.overlayMats.junction);
+                ring.rotation.x = Math.PI / 2;
+                ring.position.set(node.x, pos.y + 0.08, node.z);
+                this.overlayGroup.add(ring);
+
+                const beacon = new THREE.Mesh(this.beaconGeo, this.overlayMats.beacon);
+                beacon.position.set(node.x, pos.y + 0.45, node.z);
+                this.overlayGroup.add(beacon);
+            }
+        });
+
+        function resourceTotal(bucket: Partial<Record<string, number>>) {
+            return Object.values(bucket).reduce((sum, value) => sum + (value || 0), 0);
+        }
+
+        function statefulActivity(node: FactoryNodeState, lastTick: number) {
+            return lastTick - node.lastActiveTick <= 90 || resourceTotal(node.buffer) > 0 || resourceTotal(node.inputBuffer) > 0;
+        }
+    }
+
+    private isJunctionNode(factory: FactoryState, node: FactoryNodeState): boolean {
+        if (node.buildingType === BuildingType.DISTRIBUTION_HUB) return true;
+        if (node.buildingType !== BuildingType.RAIL_LINE) return false;
+        return this.getFactoryNeighbors(factory, node).length > 2;
+    }
+
+    private getFactoryNeighbors(factory: FactoryState, node: FactoryNodeState): FactoryNodeState[] {
+        const keys = [
+            `${node.x + 1},${node.z}`,
+            `${node.x - 1},${node.z}`,
+            `${node.x},${node.z + 1}`,
+            `${node.x},${node.z - 1}`,
+        ];
+        return keys.map((key) => factory.nodes[key]).filter(Boolean) as FactoryNodeState[];
+    }
+
+    private getNodeWorldPosition(node: FactoryNodeState, chunks: Record<string, Chunk>) {
+        const tile = ChunkStore.getTile(chunks, node.x, node.z);
+        return new THREE.Vector3(node.x, (tile?.terrainHeight || 0) * 0.5, node.z);
+    }
+
+    private clearGroup(group: THREE.Group) {
+        while (group.children.length > 0) {
+            group.remove(group.children[0]);
+        }
+    }
+
     private emitParticle(tileId: number, type: string) {
         const mesh = this.buildingMeshes.get(tileId);
-
         const mat = this.particleMats[type];
         const p = new THREE.Mesh(this.particleGeo, mat);
 
         if (mesh) {
             p.position.copy(mesh.position);
         } else {
-            p.position.set(0, 0, 0); // Temporary fallback, ideally use worldX/Z
+            p.position.set(0, 0, 0);
         }
 
         p.position.y += 0.5 + Math.random() * 0.5;
@@ -407,13 +635,11 @@ export class BuildingRenderSystem {
             mesh: p,
             velocity: new THREE.Vector3((Math.random() - 0.5) * 0.08, 0.05 + Math.random() * 0.08, (Math.random() - 0.5) * 0.1),
             life: 1.0,
-            decay: 0.03
+            decay: 0.03,
         });
     }
 
     public triggerEffect(worldX: number, worldZ: number, type: string, offset: number) {
-        // Find or create a temporary tile object or just use coordinates
-        // For simplicity, we'll use buildingMeshes lookup if tileId was worldX*1M + worldZ
         const tileId = Math.round(worldX) * 1000000 + Math.round(worldZ);
         if (type === 'DUST') {
             for (let i = 0; i < 5; i++) this.emitParticle(tileId, 'DIRT');
@@ -422,13 +648,12 @@ export class BuildingRenderSystem {
         } else if (type === 'SMOKE') {
             for (let i = 0; i < 3; i++) this.emitParticle(tileId, 'SMOKE');
         } else if (type === 'ECO_REHAB') {
-            for (let i = 0; i < 10; i++) this.emitParticle(tileId, 'GRASS');
+            for (let i = 0; i < 10; i++) this.emitParticle(tileId, 'ECO');
         }
     }
 
     public setPinnedGhost(pos: { x: number, z: number } | null, y: number = 0) {
         this.pinnedGhostPos = pos;
-        // If we have a pinned position, position the ghost there
         if (pos !== null && this.ghostBuilding) {
             const def = BUILDINGS[this.ghostType!];
             const w = def?.width || 1;
@@ -443,7 +668,6 @@ export class BuildingRenderSystem {
     public setGhostBuilding(type: BuildingType | null) {
         if (this.ghostType === type) return;
 
-        // Remove old
         if (this.ghostBuilding) {
             this.scene.remove(this.ghostBuilding);
             this.ghostBuilding = null;
@@ -456,12 +680,13 @@ export class BuildingRenderSystem {
             this.ghostBuilding = new THREE.Group();
             this.ghostBuilding.add(group);
 
-            // Ghost Material
             this.ghostBuilding.traverse((c: any) => {
                 if (c.isMesh) {
                     c.material = new THREE.MeshStandardMaterial({
-                        color: 0xffffff, transparent: true, opacity: 0.5,
-                        emissive: 0x444444
+                        color: 0xffffff,
+                        transparent: true,
+                        opacity: 0.5,
+                        emissive: 0x444444,
                     });
                     c.castShadow = false;
                     c.receiveShadow = false;
@@ -475,17 +700,15 @@ export class BuildingRenderSystem {
     public setCursorMode(mode: 'BUILD' | 'BULLDOZE' | 'INSPECT') {
         const mat = this.selectionCursor.material as THREE.MeshBasicMaterial;
         if (mode === 'BULLDOZE') {
-            mat.color.setHex(0xf43f5e); // Red
+            mat.color.setHex(0xf43f5e);
         } else if (mode === 'INSPECT') {
-            mat.color.setHex(0x3b82f6); // Blue
+            mat.color.setHex(0x3b82f6);
         } else {
-            mat.color.setHex(0x22c55e); // Green
+            mat.color.setHex(0x22c55e);
         }
     }
 
     public updateCursor(pos: THREE.Vector3 | null, fallbackCenter: THREE.Vector3 | null = null) {
-        // 1. Determine effective position for the Ghost Building
-        // Priority: Pinned > Cursor > Fallback (Screen Center)
         let ghostPos = null;
 
         if (this.pinnedGhostPos !== null) {
@@ -496,34 +719,25 @@ export class BuildingRenderSystem {
             ghostPos = fallbackCenter;
         }
 
-        // 2. Update Selection Cursor (Only follows actual mouse/touch)
         if (pos) {
-            // Snap to grid center
             const cx = Math.floor(pos.x + 0.5);
             const cz = Math.floor(pos.z + 0.5);
-
             this.selectionCursor.visible = true;
             this.selectionCursor.position.set(cx, pos.y + 0.1, cz);
         } else {
             this.selectionCursor.visible = false;
         }
 
-        // 3. Update Ghost Building Position
         if (this.ghostBuilding && this.pinnedGhostPos === null) {
             if (ghostPos) {
                 this.ghostBuilding.visible = true;
-
-                // Snap to grid
                 const cx = Math.floor(ghostPos.x + 0.5);
                 const cz = Math.floor(ghostPos.z + 0.5);
-
-                // Adjust for size
                 const def = BUILDINGS[this.ghostType!];
                 const w = def?.width || 1;
                 const d = def?.depth || 1;
                 const dx = (w - 1) / 2;
                 const dz = (d - 1) / 2;
-
                 this.ghostBuilding.position.set(cx + dx, ghostPos.y, cz + dz);
             } else {
                 this.ghostBuilding.visible = false;
