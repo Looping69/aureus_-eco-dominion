@@ -8,6 +8,7 @@ import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '.
 import { GameState, BuildingType, SfxType, GameCommand } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { getEcoMultiplier } from '../../utils/GameUtils';
+import { getIndustrialBuildingCosts, getMissingIndustrialCosts } from '../../data/industrialCosts';
 
 
 export class EconomySystem extends BaseSimSystem {
@@ -108,6 +109,19 @@ export class EconomySystem extends BaseSimSystem {
             };
         }
 
+        const industrialCosts = getIndustrialBuildingCosts(buildingType);
+        if (!state.cheatsEnabled) {
+            const missingIndustrial = getMissingIndustrialCosts(state.industry, industrialCosts);
+            if (missingIndustrial.length > 0) {
+                state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ERROR });
+                return {
+                    ok: false,
+                    code: CommandErrorCode.INSUFFICIENT_RESOURCES,
+                    reason: `Insufficient industrial stock: ${missingIndustrial.join(', ')}`
+                };
+            }
+        }
+
         if (def.costs) {
             // Check resources first
             for (const [res, amt] of Object.entries(def.costs)) {
@@ -129,6 +143,23 @@ export class EconomySystem extends BaseSimSystem {
                 return { ok: false, code: CommandErrorCode.INSUFFICIENT_RESOURCES, reason: 'Insufficient AGT' };
             }
             state.resources.agt -= cost;
+        }
+
+        if (!state.cheatsEnabled && Object.keys(industrialCosts).length > 0) {
+            if (!state.industry) {
+                state.industry = {
+                    refinedMaterials: 0,
+                    alloys: 0,
+                    machineParts: 0,
+                    automatedChains: 0,
+                    gridLoad: 0,
+                };
+            }
+
+            Object.entries(industrialCosts).forEach(([resource, amount]) => {
+                const key = resource as 'refinedMaterials' | 'alloys' | 'machineParts';
+                state.industry![key] -= amount as number;
+            });
         }
 
         // Ensure inventory map exists and add the purchased unit
