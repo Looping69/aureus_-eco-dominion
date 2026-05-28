@@ -55,7 +55,7 @@ export interface GlobalEvent {
     id: string;
     name: string;
     type: 'WEATHER' | 'ECONOMIC' | 'GEOLOGICAL' | 'SOCIAL' | 'INCURSION';
-    duration: number; // in ticks
+    duration: number;
     description: string;
     visualTheme?: 'NORMAL' | 'GOLDEN';
     weatherOverride?: WeatherType;
@@ -133,15 +133,49 @@ export type SimulationEffect =
     | { type: 'AUDIO', sfx: SfxType };
 
 export interface GameCommand {
-    id: string; // Unique ID to prevent double execution
+    id: string;
     type: 'PLACE_BUILDING' | 'BULLDOZE' | 'SPEED_UP' | 'REHABILITATE' | 'UPGRADE_BUILDING' | 'EXPLODE_TILE' | 'COMMAND_AGENT' | 'MANUAL_MOVE_AGENT' | 'BUY_BUILDING' | 'SELL_RESOURCE' | 'BUY_RESOURCE' | 'SET_AUTO_SELL' | 'MARK_HARVEST' | 'RESEARCH_TECH' | 'DELIVER_CONTRACT' | 'ADVANCE_TUTORIAL' | 'START_DEMO' | 'DISMISS_POPUP' | 'SUBMIT_PERMIT' | 'TALK_TO_NPC' | 'CHOOSE_DIALOGUE' | 'CLOSE_DIALOGUE';
     payload: any;
     issuedAtTick?: number;
 }
 
+export type LogisticsOverlayMode = 'OFF' | 'FLOW' | 'CONGESTION' | 'JUNCTIONS';
+export type FactoryResourceType = 'ORE' | 'CONCENTRATE' | 'MINERALS' | 'WOOD' | 'STONE' | 'GEMS';
+
+export interface FactoryNodeState {
+    key: string;
+    x: number;
+    z: number;
+    buildingType: BuildingType;
+    mode: 'SOURCE' | 'PROCESSOR' | 'TRANSPORT' | 'SINK';
+    buffer: Partial<Record<FactoryResourceType, number>>;
+    inputBuffer: Partial<Record<FactoryResourceType, number>>;
+    stalledTicks: number;
+    lastActiveTick: number;
+}
+
+export interface FactoryPacketState {
+    id: string;
+    resource: FactoryResourceType;
+    amount: number;
+    fromKey: string;
+    toKey: string;
+    progress: number;
+    speed: number;
+}
+
+export interface FactoryState {
+    nodes: Record<string, FactoryNodeState>;
+    packets: FactoryPacketState[];
+    throughput: number;
+    backlog: number;
+    stalledNodes: number;
+    lastNetworkTick: number;
+}
+
 export interface GameState {
     resources: GameResources;
-    chunks: Record<string, Chunk>; // Surface chunks
+    chunks: Record<string, Chunk>;
     agents: Agent[];
     ambientNpcs: Agent[];
     jobs: Job[];
@@ -154,9 +188,10 @@ export interface GameState {
     tickCount: number;
     idCounter: number;
     seed: number;
-    spawnX: number;  // World X offset for this game's starting point
-    spawnZ: number;  // World Z offset for this game's starting point
+    spawnX: number;
+    spawnZ: number;
     logistics: LogisticsState;
+    factory?: FactoryState;
     activeGoal: Goal | null;
     newsFeed: NewsItem[];
     activeEvents: GlobalEvent[];
@@ -164,44 +199,28 @@ export interface GameState {
     debugMode: boolean;
     cheatsEnabled: boolean;
     pendingEffects: SimulationEffect[];
-    // Galactic Trade System
     market: MarketState;
     contracts: Contract[];
-
-    // Environmental System
     weather: WeatherState;
-
-    // View State
     activeView: 'SURFACE' | 'DUNGEON';
     isFPS: boolean;
     dungeon: DungeonState;
     underground: UndergroundState;
-
-    // Day/Night Cycle (1 game day = 24000 ticks = ~80 real minutes at 200ms/tick)
     dayNightCycle: DayNightCycleState;
-
-    // Era System
     currentEra: Era;
     unlockedEras: Era[];
-    eraUnlockedPopup: Era | null; // Set when a new era is unlocked to show popup
-
-    // Power Grid System
+    eraUnlockedPopup: Era | null;
     powerGrid: {
         totalProduced: number;
         totalConsumed: number;
         deficit: number;
     };
-
-    // Water Network System
     waterNetwork: {
         totalProduced: number;
         totalConsumed: number;
         deficit: number;
     };
-
-    // Agent requests system
     agentRequests: AgentRequest[];
-
     experiments: {
         BIOLUMINESCENCE: boolean;
         GREEDY_MESHING_V2: boolean;
@@ -209,12 +228,8 @@ export interface GameState {
         SHARED_BUFFER_TRANSFER: boolean;
     };
     commandQueue: GameCommand[];
-
-    // View Transition Loading Screen
     isLoading: boolean;
     loadingMessage: string;
-
-    // Command Pipeline
     debug: {
         commandTrace: Array<{
             tick: number;
@@ -234,14 +249,13 @@ export interface GameState {
             reason?: string;
         } | null;
     };
-
-    // Bureaucracy System (Permits & NPCs)
     bureaucracy: BureaucracyState;
 }
 
 export interface LogisticsState {
     autoSell: boolean;
     sellThreshold: number;
+    overlayMode: LogisticsOverlayMode;
 }
 
 export type SidebarMode = 'NONE' | 'OPS' | 'SHOP' | 'TRADE' | 'CREW' | 'TECH';
