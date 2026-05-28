@@ -5,7 +5,7 @@
 */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Coins, Pickaxe, Leaf, Heart, Gem, Users, Target, Trees, Database } from 'lucide-react';
+import { Coins, Pickaxe, Leaf, Heart, Gem, Users, Target, Trees, Database, Truck } from 'lucide-react';
 import { GameState, Era } from '../types';
 import { ERAS } from '../engine/data/VoxelConstants';
 
@@ -204,11 +204,7 @@ const EraBlock = ({ currentEra, state, isExpanded, onToggle }: { currentEra: Era
 
         {nextDef && isExpanded && (
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-950/50 rounded-b-[2px] overflow-hidden">
-            <div
-              className="h-full bg-amber-500 transition-all duration-500"
-              style={{ width: `${progress}%`, backgroundColor: eraDef.color }}
-            />
-            {/* Milestone Markers */}
+            <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${progress}%`, backgroundColor: eraDef.color }} />
             {nextDef.milestones?.map((m: any, i: number) => (
               <div
                 key={m.id}
@@ -221,80 +217,10 @@ const EraBlock = ({ currentEra, state, isExpanded, onToggle }: { currentEra: Era
 
         {!isExpanded && nextDef && (
           <div className="absolute bottom-1 left-1.5 right-1.5 h-0.5 bg-slate-800 rounded-full overflow-hidden">
-            <div
-              className="h-full transition-all duration-500"
-              style={{ width: `${progress}%`, backgroundColor: eraDef.color }}
-            />
+            <div className="h-full transition-all duration-500" style={{ width: `${progress}%`, backgroundColor: eraDef.color }} />
           </div>
         )}
       </button>
-
-      {nextDef && isExpanded && (
-        <div className="absolute top-full left-0 mt-2 w-64 bg-slate-900 border-2 border-slate-700 p-3 shadow-2xl z-50 rounded pointer-events-none animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex justify-between items-start mb-2">
-            <div>
-              <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Next: {nextDef.name}</h4>
-              <p className="text-[8px] text-slate-400 italic leading-tight">{nextDef.description}</p>
-            </div>
-            <div className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-[8px] font-mono font-bold text-amber-400">
-              {Math.floor(progress)}%
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="space-y-1">
-              <span className="text-[7px] text-slate-500 uppercase font-black tracking-widest">Core Requirements</span>
-              {nextDef.unlockConditions.minColonists && (
-                <div className="flex justify-between items-center text-[9px] font-mono">
-                  <span className="text-slate-400">Population:</span>
-                  <span className={state.agents.filter(a => a.type !== 'ILLEGAL_MINER').length >= nextDef.unlockConditions.minColonists ? 'text-emerald-400' : 'text-slate-500'}>
-                    {state.agents.filter(a => a.type !== 'ILLEGAL_MINER').length}/{nextDef.unlockConditions.minColonists}
-                  </span>
-                </div>
-              )}
-              {nextDef.unlockConditions.minAgt && (
-                <div className="flex justify-between items-center text-[9px] font-mono">
-                  <span className="text-slate-400">Capital:</span>
-                  <span className={state.resources.agt >= nextDef.unlockConditions.minAgt ? 'text-emerald-400' : 'text-slate-500'}>
-                    {Math.floor(state.resources.agt).toLocaleString()}/{nextDef.unlockConditions.minAgt.toLocaleString()}
-                  </span>
-                </div>
-              )}
-              {nextDef.unlockConditions.minEco && (
-                <div className="flex justify-between items-center text-[9px] font-mono">
-                  <span className="text-slate-400">Eco Score:</span>
-                  <span className={state.resources.eco >= nextDef.unlockConditions.minEco ? 'text-emerald-400' : 'text-slate-500'}>
-                    {Math.floor(state.resources.eco)}/{nextDef.unlockConditions.minEco}
-                  </span>
-                </div>
-              )}
-              {nextDef.unlockConditions.minTrust && (
-                <div className="flex justify-between items-center text-[9px] font-mono">
-                  <span className="text-slate-400">Trust:</span>
-                  <span className={state.resources.trust >= nextDef.unlockConditions.minTrust ? 'text-emerald-400' : 'text-slate-500'}>
-                    {Math.floor(state.resources.trust)}/{nextDef.unlockConditions.minTrust}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {nextDef.milestones && nextDef.milestones.length > 0 && (
-              <div className="space-y-1 pt-1 border-t border-slate-800">
-                <span className="text-[7px] text-slate-500 uppercase font-black tracking-widest">Era Markers</span>
-                {nextDef.milestones.map((m: any) => (
-                  <div key={m.id} className="flex items-center gap-2">
-                    <div className={`w-1 h-1 rounded-full ${progress >= 100 ? 'bg-emerald-400' : 'bg-slate-700'}`} />
-                    <span className="text-[9px] text-slate-400 flex-1">{m.name}</span>
-                    <div className="w-8 h-1 bg-slate-950 rounded-full overflow-hidden">
-                      <div className="h-full bg-slate-700" style={{ width: `${Math.min(100, progress)}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -306,86 +232,16 @@ export const HUD: React.FC<HUDProps> = React.memo(({ resources, financials, popu
 
   return (
     <div className="absolute top-0 left-0 right-0 p-2 sm:p-3 pt-3 sm:pt-4 z-10 flex flex-wrap gap-2 sm:gap-3 pointer-events-none items-start justify-start sm:justify-center px-3 sm:px-4">
-      <EraBlock
-        currentEra={currentEra}
-        state={state}
-        isExpanded={activeBlock === 'era'}
-        onToggle={(open) => toggleBlock('era', open)}
-      />
-      <ResourceBlock
-        icon={Coins}
-        val={resources.agt}
-        label="AGT"
-        borderClass="border-amber-600/80"
-        iconBgClass="bg-amber-500"
-        sub={financials.net}
-        isExpanded={activeBlock === 'agt'}
-        onToggle={(open: boolean) => toggleBlock('agt', open)}
-      />
-      <ResourceBlock
-        icon={Pickaxe}
-        val={resources.minerals}
-        label="Ore"
-        borderClass="border-slate-500/80"
-        iconBgClass="bg-slate-400"
-        isExpanded={activeBlock === 'minerals'}
-        onToggle={(open: boolean) => toggleBlock('minerals', open)}
-      />
-      <ResourceBlock
-        icon={Leaf}
-        val={resources.eco}
-        label="Eco"
-        borderClass="border-emerald-600/80"
-        iconBgClass="bg-emerald-500"
-        isExpanded={activeBlock === 'eco'}
-        onToggle={(open: boolean) => toggleBlock('eco', open)}
-      />
-      <ResourceBlock
-        icon={Heart}
-        val={resources.trust}
-        label="Trust"
-        borderClass="border-rose-600/80"
-        iconBgClass="bg-rose-500"
-        isExpanded={activeBlock === 'trust'}
-        onToggle={(open: boolean) => toggleBlock('trust', open)}
-      />
-      <ResourceBlock
-        icon={Users}
-        val={population}
-        label="Pop"
-        borderClass="border-blue-600/80"
-        iconBgClass="bg-blue-500"
-        isExpanded={activeBlock === 'pop'}
-        onToggle={(open: boolean) => toggleBlock('pop', open)}
-      />
-      <ResourceBlock
-        icon={Trees}
-        val={resources.wood}
-        label="Wood"
-        borderClass="border-amber-700/80"
-        iconBgClass="bg-amber-900"
-        isExpanded={activeBlock === 'wood'}
-        onToggle={(open: boolean) => toggleBlock('wood', open)}
-      />
-      <ResourceBlock
-        icon={Database}
-        val={resources.stone}
-        label="Stone"
-        borderClass="border-slate-400/80"
-        iconBgClass="bg-slate-600"
-        isExpanded={activeBlock === 'stone'}
-        onToggle={(open: boolean) => toggleBlock('stone', open)}
-      />
-      <ResourceBlock
-        icon={Gem}
-        val={resources.gems}
-        label="Thundergems"
-        borderClass="border-purple-600/80"
-        iconBgClass="bg-purple-500"
-        textColor="text-purple-300"
-        isExpanded={activeBlock === 'gems'}
-        onToggle={(open: boolean) => toggleBlock('gems', open)}
-      />
+      <EraBlock currentEra={currentEra} state={state} isExpanded={activeBlock === 'era'} onToggle={(open) => toggleBlock('era', open)} />
+      <ResourceBlock icon={Coins} val={resources.agt} label="AGT" borderClass="border-amber-600/80" iconBgClass="bg-amber-500" sub={financials.net} isExpanded={activeBlock === 'agt'} onToggle={(open: boolean) => toggleBlock('agt', open)} />
+      <ResourceBlock icon={Pickaxe} val={resources.minerals} label="Ore" borderClass="border-slate-500/80" iconBgClass="bg-slate-400" isExpanded={activeBlock === 'minerals'} onToggle={(open: boolean) => toggleBlock('minerals', open)} />
+      <ResourceBlock icon={Leaf} val={resources.eco} label="Eco" borderClass="border-emerald-600/80" iconBgClass="bg-emerald-500" isExpanded={activeBlock === 'eco'} onToggle={(open: boolean) => toggleBlock('eco', open)} />
+      <ResourceBlock icon={Heart} val={resources.trust} label="Trust" borderClass="border-rose-600/80" iconBgClass="bg-rose-500" isExpanded={activeBlock === 'trust'} onToggle={(open: boolean) => toggleBlock('trust', open)} />
+      <ResourceBlock icon={Users} val={population} label="Pop" borderClass="border-blue-600/80" iconBgClass="bg-blue-500" isExpanded={activeBlock === 'pop'} onToggle={(open: boolean) => toggleBlock('pop', open)} />
+      <ResourceBlock icon={Trees} val={resources.wood} label="Wood" borderClass="border-amber-700/80" iconBgClass="bg-amber-900" isExpanded={activeBlock === 'wood'} onToggle={(open: boolean) => toggleBlock('wood', open)} />
+      <ResourceBlock icon={Database} val={resources.stone} label="Stone" borderClass="border-slate-400/80" iconBgClass="bg-slate-600" isExpanded={activeBlock === 'stone'} onToggle={(open: boolean) => toggleBlock('stone', open)} />
+      <ResourceBlock icon={Gem} val={resources.gems} label="Thundergems" borderClass="border-purple-600/80" iconBgClass="bg-purple-500" textColor="text-purple-300" isExpanded={activeBlock === 'gems'} onToggle={(open: boolean) => toggleBlock('gems', open)} />
+      <ResourceBlock icon={Truck} val={state.factory?.throughput || 0} label="Flow" borderClass="border-cyan-600/80" iconBgClass="bg-cyan-500" textColor="text-cyan-200" isExpanded={activeBlock === 'flow'} onToggle={(open: boolean) => toggleBlock('flow', open)} />
     </div>
   );
 });
