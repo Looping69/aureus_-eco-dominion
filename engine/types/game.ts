@@ -140,7 +140,16 @@ export interface GameCommand {
 }
 
 export type LogisticsOverlayMode = 'OFF' | 'FLOW' | 'CONGESTION' | 'JUNCTIONS';
-export type FactoryResourceType = 'ORE' | 'CONCENTRATE' | 'MINERALS' | 'WOOD' | 'STONE' | 'GEMS';
+export type FactoryResourceType =
+    | 'ORE'
+    | 'CONCENTRATE'
+    | 'MINERALS'
+    | 'WOOD'
+    | 'STONE'
+    | 'GEMS'
+    | 'REFINED_MATERIALS'
+    | 'ALLOYS'
+    | 'MACHINE_PARTS';
 
 export interface FactoryNodeState {
     key: string;
@@ -173,8 +182,17 @@ export interface FactoryState {
     lastNetworkTick: number;
 }
 
+export interface IndustryState {
+    refinedMaterials: number;
+    alloys: number;
+    machineParts: number;
+    automatedChains: number;
+    gridLoad: number;
+}
+
 export interface GameState {
     resources: GameResources;
+    industry: IndustryState;
     chunks: Record<string, Chunk>;
     agents: Agent[];
     ambientNpcs: Agent[];
@@ -257,49 +275,3 @@ export interface LogisticsState {
     sellThreshold: number;
     overlayMode: LogisticsOverlayMode;
 }
-
-export type SidebarMode = 'NONE' | 'OPS' | 'SHOP' | 'TRADE' | 'CREW' | 'TECH';
-
-export type Action =
-    | { type: 'TICK' }
-    | { type: 'SELL_MINERALS' }
-    | { type: 'SELL_GEMS'; payload: { address: string } }
-    | { type: 'SELL_WOOD' }
-    | { type: 'SELL_STONE' }
-    | { type: 'BUY_RESOURCE', payload: { resource: 'minerals' | 'gems' | 'wood' | 'stone', amount: number } }
-    | { type: 'UPDATE_LOGISTICS', payload: Partial<LogisticsState> }
-    | { type: 'BUY_BUILDING', payload: { type: BuildingType, cost: number } }
-    | { type: 'SELECT_BUILDING_TO_PLACE', payload: BuildingType | null }
-    | { type: 'SELECT_AGENT', payload: string | null }
-    | { type: 'COMMAND_AGENT', payload: { agentId: string, x: number, z: number } }
-    | { type: 'ACTIVATE_BULLDOZER' }
-    | { type: 'PLACE_BUILDING', payload: { x: number, z: number } }
-    | { type: 'PLACE_BATCH_BUILDING', payload: { coords: { x: number, z: number }[], cost: number } }
-    | { type: 'BULLDOZE_TILE', payload: { x: number, z: number } }
-    | { type: 'SPEED_UP_BUILDING', payload: { x: number, z: number } }
-    | { type: 'REHABILITATE_TILE', payload: { x: number, z: number } }
-    | { type: 'UPGRADE_BUILDING', payload: { x: number, z: number } }
-    | { type: 'ADVANCE_TUTORIAL' }
-    | { type: 'START_DEMO' }
-    | { type: 'SKIP_TUTORIAL' }
-    | { type: 'RESET_GAME' }
-    | { type: 'TOGGLE_DEBUG' }
-    | { type: 'TOGGLE_CHEATS' }
-    | { type: 'TOGGLE_VIEW' }
-    | { type: 'ENTER_FPS', payload?: string }
-    | { type: 'EXIT_FPS' }
-    | { type: 'CLAIM_GOAL' }
-    | { type: 'DISMISS_NEWS', payload: string }
-    | { type: 'UNLOCK_TECH', payload: TechId }
-    | { type: 'MINE_CLICK', payload: { x: number, z: number } }
-    | { type: 'CLEAR_EFFECTS' }
-    | { type: 'ACCEPT_CONTRACT', payload: string }
-    | { type: 'DELIVER_CONTRACT', payload: string }
-    | { type: 'SET_INTERACTION_MODE', payload: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT' }
-    | { type: 'EXPLODE_TILE', payload: { x: number, z: number, radius: number, damage: number } }
-    | { type: 'SAVE_GAME' }
-    | { type: 'LOAD_GAME', payload: GameState }
-    | { type: 'SUBMIT_PERMIT', payload: string }
-    | { type: 'TALK_TO_NPC', payload: string }
-    | { type: 'CHOOSE_DIALOGUE', payload: number }
-    | { type: 'CLOSE_DIALOGUE' };
