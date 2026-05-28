@@ -13,6 +13,7 @@ import {
 import { GameState, BuildingType, Action, Chunk } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import { calculateBuildingCost } from '../engine/utils/GameUtils';
+import { formatIndustrialCosts, getIndustrialBuildingCosts, getMissingIndustrialCosts } from '../engine/data/industrialCosts';
 
 interface SupplySidebarProps {
     isOpen: boolean;
@@ -269,6 +270,13 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
         }
 
         const scaledCost = calculateBuildingCost(selectedItem, state.chunks);
+        const industrialCosts = getIndustrialBuildingCosts(selectedItem);
+        const missingIndustrial = state.cheatsEnabled ? [] : getMissingIndustrialCosts(state.industry, industrialCosts);
+        if (missingIndustrial.length > 0) {
+            playSfx('ERROR');
+            return;
+        }
+
         if (state.cheatsEnabled || state.resources.agt >= scaledCost) {
             dispatch({ type: 'BUY_BUILDING', payload: { type: selectedItem, cost: state.cheatsEnabled ? 0 : scaledCost } });
             playSfx('SELL');
@@ -408,6 +416,8 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
                                             cost: type === 'D_HIRE' ? 500 : 0
                                         };
                                         const cost = b.cost || (BUILDINGS[type] ? calculateBuildingCost(type, state.chunks) : 0);
+                                        const industrialCosts = getIndustrialBuildingCosts(type);
+                                        const missingIndustrial = state.cheatsEnabled ? [] : getMissingIndustrialCosts(state.industry, industrialCosts);
                                         const isEcoLocked = (b as any).ecoReq ? state.resources.eco < (b as any).ecoReq : false;
                                         const isTrustLocked = (b as any).trustReq ? state.resources.trust < (b as any).trustReq : false;
                                         let dependencyMet = true;
@@ -416,7 +426,7 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
                                         }
                                         const isEraLocked = b.era && b.era !== 'UNDERGROUND' && !state.unlockedEras.includes(b.era);
                                         const isLocked = !state.cheatsEnabled && (isEcoLocked || isTrustLocked || !dependencyMet || isEraLocked);
-                                        const canAfford = state.cheatsEnabled || state.resources.agt >= cost;
+                                        const canAfford = (state.cheatsEnabled || state.resources.agt >= cost) && missingIndustrial.length === 0;
                                         const isSelected = selectedItem === type;
 
                                         return (
@@ -462,6 +472,12 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
                                                         </span>
                                                     </div>
 
+                                                    {missingIndustrial.length > 0 && (
+                                                        <div className="mt-1 text-[8px] font-mono uppercase tracking-tight text-orange-300 truncate">
+                                                            Needs {missingIndustrial[0]}
+                                                        </div>
+                                                    )}
+
                                                     {/* Mini Availability Bar */}
                                                     <div className="w-full h-[2px] bg-slate-800 mt-2 overflow-hidden rounded-full">
                                                         <div className={`h-full transition-all duration-700 ${canAfford ? 'bg-emerald-500 w-full' : 'bg-rose-500 w-1/3 shadow-[0_0_5px_rgba(239,68,68,0.5)]'}`} />
@@ -502,6 +518,9 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
                                     cost: selectedItem === BuildingType.D_HIRE ? 500 : 0
                                 };
                                 const scaledCost = (BUILDINGS[selectedItem] ? calculateBuildingCost(selectedItem, state.chunks) : (b as any).cost) || 0;
+                                const industrialCosts = getIndustrialBuildingCosts(selectedItem);
+                                const industrialRequirements = formatIndustrialCosts(industrialCosts);
+                                const missingIndustrial = state.cheatsEnabled ? [] : getMissingIndustrialCosts(state.industry, industrialCosts);
 
                                 // NEW: Multi-resource affordance check
                                 let canAfford = state.cheatsEnabled || state.resources.agt >= scaledCost;
@@ -516,6 +535,11 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
                                     });
                                 } else if (!state.cheatsEnabled && state.resources.agt < scaledCost) {
                                     missingResources.push(`${Math.ceil(scaledCost - state.resources.agt)} AGT`);
+                                }
+
+                                if (missingIndustrial.length > 0) {
+                                    canAfford = false;
+                                    missingResources.push(...missingIndustrial);
                                 }
 
                                 const isEcoLocked = (b as any).ecoReq ? state.resources.eco < (b as any).ecoReq : false;
@@ -573,6 +597,13 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
                                                     <div className="text-emerald-400 font-mono text-sm">+{(b as any).production || 0} <span className="text-[10px] opacity-50 uppercase">{(b as any).productionType || 'N/A'}</span></div>
                                                 </div>
                                             </div>
+
+                                            {industrialRequirements.length > 0 && (
+                                                <div className="p-3 bg-sky-500/10 border border-sky-500/20 rounded-lg">
+                                                    <p className="text-[10px] font-black text-sky-300 uppercase mb-2">Industrial Inputs</p>
+                                                    <p className="text-xs text-sky-100">{industrialRequirements.join(', ')}</p>
+                                                </div>
+                                            )}
 
                                             {/* Error/Requirement Alerts */}
                                             {isLocked && (
