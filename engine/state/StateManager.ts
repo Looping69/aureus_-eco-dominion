@@ -67,6 +67,14 @@ export class StateManager {
                 maxCapacity: 1000,
             },
 
+            industry: {
+                refinedMaterials: 0,
+                alloys: 0,
+                machineParts: 0,
+                automatedChains: 0,
+                gridLoad: 0,
+            },
+
             selectedBuilding: null,
             selectedAgentId: null,
             interactionMode: 'INSPECT',
@@ -164,6 +172,13 @@ export class StateManager {
                 autoSell: overrides?.logistics?.autoSell ?? false,
                 sellThreshold: overrides?.logistics?.sellThreshold ?? 100,
                 overlayMode: overrides?.logistics?.overlayMode ?? 'FLOW',
+            },
+            industry: {
+                refinedMaterials: overrides?.industry?.refinedMaterials ?? 0,
+                alloys: overrides?.industry?.alloys ?? 0,
+                machineParts: overrides?.industry?.machineParts ?? 0,
+                automatedChains: overrides?.industry?.automatedChains ?? 0,
+                gridLoad: overrides?.industry?.gridLoad ?? 0,
             },
             underground: normalizeUndergroundState(overrides?.underground),
         } as GameState;
