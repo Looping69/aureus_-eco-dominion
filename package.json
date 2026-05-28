@@ -11,6 +11,7 @@
     "vite": "vite",
     "build": "node scripts/build.js",
     "typecheck": "tsc --noEmit",
+    "test:contracts": "node --test tests/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
