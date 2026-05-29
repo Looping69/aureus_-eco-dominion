@@ -49,7 +49,7 @@ function createNoiseTexture(
     data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + grain));
     data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + grain));
   }
-  ctx.putImageData(imgData, 0, 0);
+  ctx.putImageData(imgData, data ? 0 : 0, 0);
   return finalizeCanvasTexture(canvas, filterMode);
 }
 
@@ -289,7 +289,8 @@ function createWaterMaterial(baseColorHex: number, foamColorHex: number): THREE.
         opacity: 0.85,
         roughness: 0.05,
         metalness: 0.8,
-        side: THREE.DoubleSide
+        side: THREE.FrontSide,
+        depthWrite: false
     }) as unknown as THREE.ShaderMaterial;
 
     const uniforms = {
@@ -440,7 +441,7 @@ export const mats: Record<string, THREE.Material> = {
   sand: new THREE.MeshStandardMaterial({ map: texSand, color: 0xe6c288, roughness: 0.9 }),
   grass: new THREE.MeshStandardMaterial({ map: texGrass, color: 0x72b35f, roughness: 1.0 }),
   pine: new THREE.MeshStandardMaterial({ map: texPine, color: 0x1f5a1a, roughness: 0.9 }),
-  water: new THREE.MeshStandardMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.85, roughness: 0.1 }),
+  water: new THREE.MeshStandardMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.85, roughness: 0.1, side: THREE.FrontSide, depthWrite: false }),
   brick: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xb91c1c, 40, 'smooth'), roughness: 0.9 }),
   white: new THREE.MeshStandardMaterial({ map: createNoiseTexture(128, 128, 0xf8fafc, 35, 'smooth'), roughness: 0.5 }),
   concreteLight: new THREE.MeshStandardMaterial({ map: createNoiseTexture(128, 128, 0xe2e8f0, 40, 'smooth'), roughness: 0.75 }),
@@ -484,7 +485,7 @@ export const mats: Record<string, THREE.Material> = {
 
   // New Water System Mats
   sandWet: new THREE.MeshStandardMaterial({ map: texSandWet, roughness: 0.6 }),
-  waterDeep: new THREE.MeshStandardMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.9, roughness: 0.1 }),
+  waterDeep: new THREE.MeshStandardMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.9, roughness: 0.1, side: THREE.FrontSide, depthWrite: false }),
   waterSurface: waterFlowMaterial,
   waterMaterial: waterFlowMaterial,
   waterSeaweed: new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 0.8 }),
