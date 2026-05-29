@@ -67,14 +67,6 @@ export class StateManager {
                 maxCapacity: 1000,
             },
 
-            industry: {
-                refinedMaterials: 0,
-                alloys: 0,
-                machineParts: 0,
-                automatedChains: 0,
-                gridLoad: 0,
-            },
-
             selectedBuilding: null,
             selectedAgentId: null,
             interactionMode: 'INSPECT',
@@ -110,12 +102,6 @@ export class StateManager {
                 wood: { basePrice: 5, currentPrice: 5, trend: 'STABLE', history: [5], volatility: 0.08 },
                 stone: { basePrice: 8, currentPrice: 8, trend: 'STABLE', history: [8], volatility: 0.06 },
                 eventDuration: 0,
-            },
-
-            logistics: {
-                autoSell: false,
-                sellThreshold: 100,
-                overlayMode: 'FLOW',
             },
 
             weather: createWeatherState('CLEAR', 0.2, 180),
