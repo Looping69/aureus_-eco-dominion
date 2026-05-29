@@ -49,7 +49,7 @@ function createNoiseTexture(
     data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + grain));
     data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + grain));
   }
-  ctx.putImageData(imgData, data ? 0 : 0, 0);
+  ctx.putImageData(imgData, 0, 0);
   return finalizeCanvasTexture(canvas, filterMode);
 }
 
