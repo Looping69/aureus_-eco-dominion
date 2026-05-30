@@ -231,6 +231,8 @@ export interface GameState {
     powerGrid: {
         totalProduced: number;
         totalConsumed: number;
+        industrialDemand: number;
+        strandedDemand: number;
         deficit: number;
     };
     waterNetwork: {
