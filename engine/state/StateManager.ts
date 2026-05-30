@@ -131,7 +131,13 @@ export class StateManager {
             unlockedEras: [Era.SETTLEMENT],
             eraUnlockedPopup: null,
 
-            powerGrid: { totalProduced: 0, totalConsumed: 0, deficit: 0 },
+            powerGrid: {
+                totalProduced: 0,
+                totalConsumed: 0,
+                industrialDemand: 0,
+                strandedDemand: 0,
+                deficit: 0,
+            },
             waterNetwork: { totalProduced: 0, totalConsumed: 0, deficit: 0 },
 
             bureaucracy: {
@@ -158,6 +164,13 @@ export class StateManager {
                 autoSell: overrides?.logistics?.autoSell ?? false,
                 sellThreshold: overrides?.logistics?.sellThreshold ?? 100,
                 overlayMode: overrides?.logistics?.overlayMode ?? 'FLOW',
+            },
+            powerGrid: {
+                totalProduced: overrides?.powerGrid?.totalProduced ?? 0,
+                totalConsumed: overrides?.powerGrid?.totalConsumed ?? 0,
+                industrialDemand: overrides?.powerGrid?.industrialDemand ?? 0,
+                strandedDemand: overrides?.powerGrid?.strandedDemand ?? 0,
+                deficit: overrides?.powerGrid?.deficit ?? 0,
             },
             industry: {
                 refinedMaterials: overrides?.industry?.refinedMaterials ?? 0,
