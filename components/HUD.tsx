@@ -5,7 +5,7 @@
 */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Coins, Pickaxe, Leaf, Heart, Gem, Users, Target, Trees, Database, Truck, Hammer } from 'lucide-react';
+import { Coins, Pickaxe, Leaf, Heart, Gem, Users, Target, Trees, Database, Truck, Hammer, Zap } from 'lucide-react';
 import { GameState, Era } from '../types';
 import { ERAS } from '../engine/data/VoxelConstants';
 
@@ -244,6 +244,8 @@ export const HUD: React.FC<HUDProps> = React.memo(({ resources, financials, popu
       <ResourceBlock icon={Database} val={state.industry?.refinedMaterials || 0} label="Refined" borderClass="border-sky-600/80" iconBgClass="bg-sky-400" textColor="text-sky-100" isExpanded={activeBlock === 'refined'} onToggle={(open: boolean) => toggleBlock('refined', open)} />
       <ResourceBlock icon={Gem} val={state.industry?.alloys || 0} label="Alloys" borderClass="border-violet-600/80" iconBgClass="bg-violet-400" textColor="text-violet-100" isExpanded={activeBlock === 'alloys'} onToggle={(open: boolean) => toggleBlock('alloys', open)} />
       <ResourceBlock icon={Hammer} val={state.industry?.machineParts || 0} label="Parts" borderClass="border-orange-600/80" iconBgClass="bg-orange-400" textColor="text-orange-100" isExpanded={activeBlock === 'parts'} onToggle={(open: boolean) => toggleBlock('parts', open)} />
+      <ResourceBlock icon={Hammer} val={state.industry?.automatedChains || 0} label="Chains" borderClass="border-lime-600/80" iconBgClass="bg-lime-400" textColor="text-lime-100" isExpanded={activeBlock === 'chains'} onToggle={(open: boolean) => toggleBlock('chains', open)} />
+      <ResourceBlock icon={Zap} val={state.industry?.gridLoad || 0} label="Grid" borderClass="border-yellow-500/80" iconBgClass="bg-yellow-400" textColor="text-yellow-100" sub={state.powerGrid?.strandedDemand ? -Math.floor(state.powerGrid.strandedDemand) : undefined} isExpanded={activeBlock === 'grid'} onToggle={(open: boolean) => toggleBlock('grid', open)} />
       <ResourceBlock icon={Truck} val={state.factory?.throughput || 0} label="Flow" borderClass="border-cyan-600/80" iconBgClass="bg-cyan-500" textColor="text-cyan-200" isExpanded={activeBlock === 'flow'} onToggle={(open: boolean) => toggleBlock('flow', open)} />
     </div>
   );
