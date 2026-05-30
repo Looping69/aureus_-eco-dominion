@@ -88,6 +88,22 @@ export class PersistenceManager {
         state.industry.gridLoad ??= 0;
     }
 
+    private ensurePowerGridState(state: GameState): void {
+        state.powerGrid ??= {
+            totalProduced: 0,
+            totalConsumed: 0,
+            industrialDemand: 0,
+            strandedDemand: 0,
+            deficit: 0,
+        };
+
+        state.powerGrid.totalProduced ??= 0;
+        state.powerGrid.totalConsumed ??= 0;
+        state.powerGrid.industrialDemand ??= 0;
+        state.powerGrid.strandedDemand ??= 0;
+        state.powerGrid.deficit ??= 0;
+    }
+
     /**
      * Loads and deserializes the game state
      */
@@ -111,6 +127,7 @@ export class PersistenceManager {
             if (!state.pendingEffects) state.pendingEffects = [];
             if (!state.commandQueue) state.commandQueue = [];
             this.ensureIndustryState(state);
+            this.ensurePowerGridState(state);
 
             // MIGRATION & REVIVAL: Ensure all tiles have required properties
             if (state.chunks) {
@@ -163,6 +180,7 @@ export class PersistenceManager {
             if (!state.pendingEffects) state.pendingEffects = [];
             if (!state.commandQueue) state.commandQueue = [];
             this.ensureIndustryState(state);
+            this.ensurePowerGridState(state);
 
             // MIGRATION & REVIVAL: Ensure all tiles have required properties
             if (state.chunks) {
