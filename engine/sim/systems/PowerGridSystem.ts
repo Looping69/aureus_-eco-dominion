@@ -12,7 +12,6 @@ import { ChunkStore } from '../../space/ChunkStore';
 import { getSolarEfficiency } from '../dayNightCycle';
 import { getWeatherGameplayEffects } from '../../weather/weatherModel';
 
-
 export class PowerGridSystem extends BaseSimSystem {
     readonly id = 'powerGrid';
     readonly priority = 10; // Run early so ProductionSystem can use the results
@@ -24,10 +23,10 @@ export class PowerGridSystem extends BaseSimSystem {
         if (ctx.time - this.lastUpdate < this.INTERVAL) return;
         this.lastUpdate = ctx.time;
 
-
-
         let totalProduced = 0;
         let totalConsumed = 0;
+        let industrialDemand = 0;
+        let strandedDemand = 0;
 
         // 1. Identify Sources and reset network state
         const openSet: { x: number, z: number }[] = [];
@@ -80,7 +79,6 @@ export class PowerGridSystem extends BaseSimSystem {
             }
         }
 
-
         // 2. BFS Propagation
         let head = 0;
         while (head < openSet.length) {
@@ -116,13 +114,20 @@ export class PowerGridSystem extends BaseSimSystem {
             }
         }
 
-        // 3. Calculate Consumption
+        // 3. Calculate connected and stranded demand separately
         for (const chunk of Object.values(state.chunks)) {
             for (const tile of chunk.tiles) {
                 if (!tile) continue;
                 const def = BUILDINGS[tile.buildingType];
-                if (def && def.power?.consumes) {
+                if (!def?.power?.consumes) continue;
+
+                if (tile.powerStatus === 'CONNECTED') {
                     totalConsumed += def.power.consumes;
+                    if (this.isIndustrialConsumer(tile.buildingType)) {
+                        industrialDemand += def.power.consumes;
+                    }
+                } else {
+                    strandedDemand += def.power.consumes;
                 }
             }
         }
@@ -130,8 +135,19 @@ export class PowerGridSystem extends BaseSimSystem {
         state.powerGrid = {
             totalProduced,
             totalConsumed,
+            industrialDemand,
+            strandedDemand,
             deficit: Math.max(0, totalConsumed - totalProduced)
         };
+    }
 
+    private isIndustrialConsumer(type: BuildingType): boolean {
+        return [
+            BuildingType.WASH_PLANT,
+            BuildingType.RECYCLING_PLANT,
+            BuildingType.ORE_FOUNDRY,
+            BuildingType.GEM_REFINERY,
+            BuildingType.WORKSHOP,
+        ].includes(type);
     }
 }
