@@ -8,6 +8,7 @@ const productionPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'Pro
 const logisticsPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'LogisticsSystem.ts');
 const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
 const persistencePath = path.join(process.cwd(), 'engine', 'sim', 'PersistenceManager.ts');
+const powerGridPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'PowerGridSystem.ts');
 const economyPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'EconomySystem.ts');
 const supplySidebarPath = path.join(process.cwd(), 'components', 'SupplySidebar.tsx');
 const industrialCostsPath = path.join(process.cwd(), 'engine', 'data', 'industrialCosts.ts');
@@ -16,7 +17,7 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-test('Phase 2 state types expose industrial stocks and keep industry backward-compatible', () => {
+test('Phase 2 state types expose industrial stocks and connected-grid demand metrics', () => {
   assert.equal(existsSync(gameTypesPath), true, 'engine/types/game.ts is missing');
 
   const source = readFileSync(gameTypesPath, 'utf8');
@@ -30,6 +31,8 @@ test('Phase 2 state types expose industrial stocks and keep industry backward-co
     'alloys: number;',
     'machineParts: number;',
     'industry?: IndustryState;',
+    'industrialDemand: number;',
+    'strandedDemand: number;',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
@@ -48,9 +51,10 @@ test('Phase 2 production turns foundry throughput into refined materials and all
     "this.pullInput(node, 'REFINED_MATERIALS'",
     "this.pullInput(node, 'ALLOYS'",
     "this.pushOutput(node, 'MACHINE_PARTS'",
+    "if (tile.powerStatus !== 'CONNECTED')",
     'const industry = this.getIndustryState(state);',
     'industry.automatedChains = automatedChains;',
-    'industry.gridLoad = state.powerGrid?.totalConsumed || 0;',
+    'industry.gridLoad = state.powerGrid?.industrialDemand || 0;',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
@@ -73,7 +77,7 @@ test('Phase 2 logistics routes workshop inputs and deposits industrial stock int
   }
 });
 
-test('HUD surfaces Phase 2 industrial stocks for live monitoring even before save migration runs', () => {
+test('HUD surfaces phase 2 industrial stocks, automated chains, and live grid load', () => {
   assert.equal(existsSync(hudPath), true, 'HUD.tsx is missing');
 
   const source = readFileSync(hudPath, 'utf8');
@@ -85,12 +89,17 @@ test('HUD surfaces Phase 2 industrial stocks for live monitoring even before sav
     'label="Alloys"',
     'state.industry?.machineParts || 0',
     'label="Parts"',
+    'state.industry?.automatedChains || 0',
+    'label="Chains"',
+    'state.industry?.gridLoad || 0',
+    'label="Grid"',
+    'state.powerGrid?.strandedDemand',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Persistence backfills industrial stock when older saves are loaded or revived', () => {
+test('Persistence backfills industrial stock and extended power grid metrics when older saves are loaded or revived', () => {
   assert.equal(existsSync(persistencePath), true, 'PersistenceManager.ts is missing');
 
   const source = readFileSync(persistencePath, 'utf8');
@@ -101,7 +110,31 @@ test('Persistence backfills industrial stock when older saves are loaded or revi
     'state.industry.refinedMaterials ??= 0;',
     'state.industry.alloys ??= 0;',
     'state.industry.machineParts ??= 0;',
+    'private ensurePowerGridState(state: GameState): void {',
+    'state.powerGrid ??=',
+    'state.powerGrid.industrialDemand ??= 0;',
+    'state.powerGrid.strandedDemand ??= 0;',
     'this.ensureIndustryState(state);',
+    'this.ensurePowerGridState(state);',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Power grid tracks connected industrial demand separately from stranded demand', () => {
+  assert.equal(existsSync(powerGridPath), true, 'PowerGridSystem.ts is missing');
+
+  const source = readFileSync(powerGridPath, 'utf8');
+
+  for (const snippet of [
+    'let industrialDemand = 0;',
+    'let strandedDemand = 0;',
+    "if (tile.powerStatus === 'CONNECTED')",
+    'industrialDemand += def.power.consumes;',
+    'strandedDemand += def.power.consumes;',
+    'private isIndustrialConsumer(type: BuildingType): boolean {',
+    'BuildingType.ORE_FOUNDRY',
+    'BuildingType.WORKSHOP',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
