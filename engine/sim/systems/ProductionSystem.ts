@@ -77,8 +77,12 @@ export class ProductionSystem extends BaseSimSystem {
                 let powerEfficiency = 1.0;
                 let waterEfficiency = 1.0;
 
-                if (currentDef.power?.consumes && state.powerGrid?.deficit > 0) {
-                    powerEfficiency = 0.25;
+                if (currentDef.power?.consumes) {
+                    if (tile.powerStatus !== 'CONNECTED') {
+                        powerEfficiency = 0.1;
+                    } else if (state.powerGrid?.deficit > 0) {
+                        powerEfficiency = 0.25;
+                    }
                 }
 
                 if (currentDef.water?.consumes) {
@@ -231,7 +235,7 @@ export class ProductionSystem extends BaseSimSystem {
 
         const industry = this.getIndustryState(state);
         industry.automatedChains = automatedChains;
-        industry.gridLoad = state.powerGrid?.totalConsumed || 0;
+        industry.gridLoad = state.powerGrid?.industrialDemand || 0;
 
         if (state.logistics.autoSell && state.resources.minerals >= state.logistics.sellThreshold) {
             this.executeAutoSell(ctx, state, modifiers);
