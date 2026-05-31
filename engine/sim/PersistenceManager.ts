@@ -75,6 +75,7 @@ export class PersistenceManager {
                 refinedMaterials: 0,
                 alloys: 0,
                 machineParts: 0,
+                automationKits: 0,
                 automatedChains: 0,
                 gridLoad: 0,
             };
@@ -84,6 +85,7 @@ export class PersistenceManager {
         state.industry.refinedMaterials ??= 0;
         state.industry.alloys ??= 0;
         state.industry.machineParts ??= 0;
+        state.industry.automationKits ??= 0;
         state.industry.automatedChains ??= 0;
         state.industry.gridLoad ??= 0;
     }
