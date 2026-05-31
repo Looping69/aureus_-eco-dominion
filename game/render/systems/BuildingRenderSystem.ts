@@ -8,6 +8,7 @@ import {
     BuildingType,
     Chunk,
     FactoryNodeState,
+    FactoryPacketTransportMode,
     FactoryState,
     GridTile,
     LogisticsOverlayMode,
@@ -57,10 +58,14 @@ export class BuildingRenderSystem {
 
     private particleGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
     private packetGeo = new THREE.SphereGeometry(0.09, 10, 10);
+    private railPacketGeo = new THREE.BoxGeometry(0.22, 0.12, 0.14);
+    private dronePacketGeo = new THREE.OctahedronGeometry(0.13, 0);
     private overlayPlateGeo = new THREE.BoxGeometry(0.84, 0.035, 0.84);
     private beaconGeo = new THREE.CylinderGeometry(0.045, 0.06, 0.72, 8);
     private ringGeo = new THREE.TorusGeometry(0.28, 0.035, 8, 20);
     private junctionArrowGeo = new THREE.BoxGeometry(0.12, 0.08, 0.3);
+    private dronePadGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.025, 14);
+    private railTrailGeo = new THREE.BoxGeometry(0.32, 0.04, 0.12);
 
     private particleMats: Record<string, THREE.MeshBasicMaterial> = {
         MINERAL: new THREE.MeshBasicMaterial({ color: 0xcbd5e1 }),
@@ -79,6 +84,10 @@ export class BuildingRenderSystem {
         WOOD: new THREE.MeshBasicMaterial({ color: 0xb45309 }),
         STONE: new THREE.MeshBasicMaterial({ color: 0x94a3b8 }),
         GEMS: new THREE.MeshBasicMaterial({ color: 0xc084fc }),
+        REFINED_MATERIALS: new THREE.MeshBasicMaterial({ color: 0x7dd3fc }),
+        ALLOYS: new THREE.MeshBasicMaterial({ color: 0xddd6fe }),
+        MACHINE_PARTS: new THREE.MeshBasicMaterial({ color: 0xfb923c }),
+        AUTOMATION_KITS: new THREE.MeshBasicMaterial({ color: 0x2dd4bf }),
     };
 
     private overlayMats = {
@@ -87,6 +96,8 @@ export class BuildingRenderSystem {
         congestionHot: new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.45 }),
         junction: new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.4 }),
         beacon: new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.7 }),
+        rail: new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.42 }),
+        drone: new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.48 }),
     };
 
     private tileCache: Map<number, { type: string; progress: number; state: string }> = new Map();
@@ -164,7 +175,7 @@ export class BuildingRenderSystem {
         }
 
         this.animate(dt, time);
-        this.updateLogisticsVisuals(chunks, factory, overlayMode);
+        this.updateLogisticsVisuals(chunks, factory, overlayMode, time);
     }
 
     private removeTile(tileId: number) {
@@ -345,6 +356,9 @@ export class BuildingRenderSystem {
         if (tile.buildingType === BuildingType.DISTRIBUTION_HUB) {
             this.decorateJunctionHub(buildingGroup);
         }
+        if (tile.buildingType === BuildingType.TRAIN_STATION) {
+            this.decorateTrainStation(buildingGroup, seed);
+        }
 
         if (tile.isUnderConstruction) {
             const scale = 0.4 + (progress * 0.6);
@@ -463,6 +477,60 @@ export class BuildingRenderSystem {
         });
     }
 
+    private decorateTrainStation(group: THREE.Group, seed: number) {
+        const platform = new THREE.Mesh(
+            new THREE.BoxGeometry(1.35, 0.12, 1.35),
+            new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.65, emissive: 0x082f49, emissiveIntensity: 0.35 })
+        );
+        platform.position.y = 0.1;
+        group.add(platform);
+
+        const hubRing = new THREE.Mesh(
+            new THREE.TorusGeometry(0.44, 0.05, 10, 28),
+            new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 })
+        );
+        hubRing.rotation.x = Math.PI / 2;
+        hubRing.position.y = 0.28;
+        group.add(hubRing);
+
+        const padOffsets: Array<[number, number]> = [
+            [0.48, 0.48],
+            [-0.48, 0.48],
+            [0.48, -0.48],
+            [-0.48, -0.48],
+        ];
+        padOffsets.forEach(([x, z], index) => {
+            const pad = new THREE.Mesh(
+                this.dronePadGeo,
+                new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x2dd4bf, emissiveIntensity: 0.25, roughness: 0.5, metalness: 0.6 })
+            );
+            pad.position.set(x, 0.17, z);
+            group.add(pad);
+
+            const orb = new THREE.Mesh(
+                new THREE.SphereGeometry(0.07, 8, 8),
+                new THREE.MeshBasicMaterial({ color: index % 2 === 0 ? 0x2dd4bf : 0x38bdf8, transparent: true, opacity: 0.95 })
+            );
+            orb.position.y = 0.34;
+            orb.userData.isConveyorPulse = true;
+            orb.userData.axis = 'orbit';
+            orb.userData.orbitRadius = 0.18 + (index * 0.02);
+            orb.userData.phase = (index / 4) + ((seed % 17) * 0.01);
+            orb.userData.baseY = 0.34;
+            group.add(orb);
+        });
+
+        const towerOffsets: Array<[number, number]> = [
+            [0.62, 0],
+            [-0.62, 0],
+        ];
+        towerOffsets.forEach(([x, z]) => {
+            const tower = new THREE.Mesh(this.beaconGeo, new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.7 }));
+            tower.position.set(x, 0.45, z);
+            group.add(tower);
+        });
+    }
+
     private getDetailLevel(viewMode: 'SURFACE' | 'FIRST_PERSON', zoomLevel: number, runtimeDetailCap: SmoothDetailLevel): 'LOW' | 'MEDIUM' | 'HIGH' {
         let zoomDetail: SmoothDetailLevel;
         if (viewMode === 'FIRST_PERSON') {
@@ -519,27 +587,90 @@ export class BuildingRenderSystem {
         }));
     }
 
-    private updateLogisticsVisuals(chunks: Record<string, Chunk>, factory: FactoryState | undefined, overlayMode: LogisticsOverlayMode) {
+    private updateLogisticsVisuals(chunks: Record<string, Chunk>, factory: FactoryState | undefined, overlayMode: LogisticsOverlayMode, time: number) {
         this.clearGroup(this.packetGroup);
         this.clearGroup(this.overlayGroup);
 
         if (!factory) return;
+
+        const activeRailNodes = new Set<string>();
+        const activeDroneStations = new Set<string>();
 
         for (const packet of factory.packets) {
             const fromNode = factory.nodes[packet.fromKey];
             const toNode = factory.nodes[packet.toKey];
             if (!fromNode || !toNode) continue;
 
+            const mode = packet.transportMode || 'BELT';
             const fromPos = this.getNodeWorldPosition(fromNode, chunks);
             const toPos = this.getNodeWorldPosition(toNode, chunks);
+            const packetMesh = new THREE.Mesh(
+                mode === 'RAIL' ? this.railPacketGeo : mode === 'DRONE' ? this.dronePacketGeo : this.packetGeo,
+                (this.packetMats[packet.resource] || this.packetMats.ORE).clone()
+            );
             const pos = fromPos.clone().lerp(toPos, Math.min(1, Math.max(0, packet.progress)));
-            pos.y += 0.28;
 
-            const packetMesh = new THREE.Mesh(this.packetGeo, (this.packetMats[packet.resource] || this.packetMats.ORE).clone());
+            if (mode === 'DRONE') {
+                pos.y += 0.72 + Math.sin(packet.progress * Math.PI) * 0.28;
+                const halo = new THREE.Mesh(this.ringGeo, this.overlayMats.drone.clone());
+                halo.rotation.x = Math.PI / 2;
+                halo.scale.setScalar(0.45);
+                halo.position.set(pos.x, pos.y - 0.1, pos.z);
+                this.packetGroup.add(halo);
+                packetMesh.rotation.y = time * 2.2;
+                if (fromNode.buildingType === BuildingType.TRAIN_STATION) activeDroneStations.add(fromNode.key);
+                if (toNode.buildingType === BuildingType.TRAIN_STATION) activeDroneStations.add(toNode.key);
+            } else if (mode === 'RAIL') {
+                pos.y += 0.19;
+                const trail = new THREE.Mesh(this.railTrailGeo, this.overlayMats.rail.clone());
+                trail.position.set(pos.x, pos.y - 0.06, pos.z);
+                if (Math.abs(toPos.x - fromPos.x) > Math.abs(toPos.z - fromPos.z)) {
+                    trail.rotation.y = 0;
+                } else {
+                    trail.rotation.y = Math.PI / 2;
+                }
+                this.packetGroup.add(trail);
+                if (fromNode.buildingType === BuildingType.TRAIN_STATION || fromNode.buildingType === BuildingType.RAIL_LINE) activeRailNodes.add(fromNode.key);
+                if (toNode.buildingType === BuildingType.TRAIN_STATION || toNode.buildingType === BuildingType.RAIL_LINE) activeRailNodes.add(toNode.key);
+            } else {
+                pos.y += 0.28;
+            }
+
             packetMesh.position.copy(pos);
-            packetMesh.scale.setScalar(0.85 + Math.min(0.5, packet.amount * 0.06));
+            packetMesh.scale.setScalar(mode === 'DRONE' ? 1.1 : 0.85 + Math.min(0.5, packet.amount * 0.06));
             this.packetGroup.add(packetMesh);
         }
+
+        Object.values(factory.nodes).forEach((node) => {
+            const pos = this.getNodeWorldPosition(node, chunks);
+            if (node.buildingType === BuildingType.TRAIN_STATION && (this.isRecentlyActive(node, factory.lastNetworkTick) || activeDroneStations.has(node.key) || activeRailNodes.has(node.key))) {
+                const railRing = new THREE.Mesh(this.ringGeo, this.overlayMats.rail.clone());
+                railRing.rotation.x = Math.PI / 2;
+                railRing.scale.setScalar(1.25);
+                railRing.position.set(node.x, pos.y + 0.18, node.z);
+                this.overlayGroup.add(railRing);
+
+                const beacon = new THREE.Mesh(this.beaconGeo, this.overlayMats.beacon.clone());
+                beacon.scale.setScalar(activeDroneStations.has(node.key) ? 1.25 : 1.05);
+                beacon.position.set(node.x, pos.y + 0.54, node.z);
+                this.overlayGroup.add(beacon);
+
+                if (activeDroneStations.has(node.key)) {
+                    const droneRing = new THREE.Mesh(this.ringGeo, this.overlayMats.drone.clone());
+                    droneRing.rotation.x = Math.PI / 2;
+                    droneRing.scale.setScalar(0.72);
+                    droneRing.position.set(node.x, pos.y + 0.28, node.z);
+                    this.overlayGroup.add(droneRing);
+                }
+            }
+
+            if (node.buildingType === BuildingType.RAIL_LINE && activeRailNodes.has(node.key)) {
+                const railPlate = new THREE.Mesh(this.overlayPlateGeo, this.overlayMats.rail.clone());
+                railPlate.scale.set(0.8, 0.8, 0.55);
+                railPlate.position.set(node.x, pos.y + 0.05, node.z);
+                this.overlayGroup.add(railPlate);
+            }
+        });
 
         if (overlayMode === 'OFF') {
             return;
@@ -547,14 +678,14 @@ export class BuildingRenderSystem {
 
         Object.values(factory.nodes).forEach((node) => {
             const pos = this.getNodeWorldPosition(node, chunks);
-            if (overlayMode === 'FLOW' && statefulActivity(node, factory.lastNetworkTick)) {
+            if (overlayMode === 'FLOW' && this.isRecentlyActive(node, factory.lastNetworkTick)) {
                 const plate = new THREE.Mesh(this.overlayPlateGeo, this.overlayMats.flow);
                 plate.position.set(node.x, pos.y + 0.03, node.z);
                 this.overlayGroup.add(plate);
             }
 
             if (overlayMode === 'CONGESTION') {
-                const queued = resourceTotal(node.buffer) + resourceTotal(node.inputBuffer);
+                const queued = this.resourceTotal(node.buffer) + this.resourceTotal(node.inputBuffer);
                 if (queued > 0.75 || node.stalledTicks > 0) {
                     const hot = queued > 4 || node.stalledTicks > 8;
                     const plate = new THREE.Mesh(this.overlayPlateGeo, hot ? this.overlayMats.congestionHot : this.overlayMats.congestionWarm);
@@ -578,18 +709,18 @@ export class BuildingRenderSystem {
                 this.overlayGroup.add(beacon);
             }
         });
+    }
 
-        function resourceTotal(bucket: Partial<Record<string, number>>) {
-            return Object.values(bucket).reduce((sum, value) => sum + (value || 0), 0);
-        }
+    private resourceTotal(bucket: Partial<Record<string, number>>) {
+        return Object.values(bucket).reduce((sum, value) => sum + (value || 0), 0);
+    }
 
-        function statefulActivity(node: FactoryNodeState, lastTick: number) {
-            return lastTick - node.lastActiveTick <= 90 || resourceTotal(node.buffer) > 0 || resourceTotal(node.inputBuffer) > 0;
-        }
+    private isRecentlyActive(node: FactoryNodeState, lastTick: number) {
+        return lastTick - node.lastActiveTick <= 90 || this.resourceTotal(node.buffer) > 0 || this.resourceTotal(node.inputBuffer) > 0;
     }
 
     private isJunctionNode(factory: FactoryState, node: FactoryNodeState): boolean {
-        if (node.buildingType === BuildingType.DISTRIBUTION_HUB) return true;
+        if (node.buildingType === BuildingType.DISTRIBUTION_HUB || node.buildingType === BuildingType.TRAIN_STATION) return true;
         if (node.buildingType !== BuildingType.RAIL_LINE) return false;
         return this.getFactoryNeighbors(factory, node).length > 2;
     }
