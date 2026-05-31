@@ -151,13 +151,14 @@ export class EconomySystem extends BaseSimSystem {
                     refinedMaterials: 0,
                     alloys: 0,
                     machineParts: 0,
+                    automationKits: 0,
                     automatedChains: 0,
                     gridLoad: 0,
                 };
             }
 
             Object.entries(industrialCosts).forEach(([resource, amount]) => {
-                const key = resource as 'refinedMaterials' | 'alloys' | 'machineParts';
+                const key = resource as 'refinedMaterials' | 'alloys' | 'machineParts' | 'automationKits';
                 state.industry![key] -= amount as number;
             });
         }
