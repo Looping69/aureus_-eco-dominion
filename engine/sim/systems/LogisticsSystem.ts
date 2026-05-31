@@ -286,6 +286,7 @@ export class LogisticsSystem extends BaseSimSystem {
     private findRoute(factory: FactoryState, origin: FactoryNodeState, resource: FactoryResourceType): { node: FactoryNodeState; target: 'buffer' | 'input' } | null {
         const visited = new Set<string>([origin.key]);
         const queue: Array<{ key: string; depth: number }> = [{ key: origin.key, depth: 0 }];
+        let best: { node: FactoryNodeState; target: 'buffer' | 'input'; score: number } | null = null;
 
         while (queue.length > 0) {
             const current = queue.shift()!;
@@ -296,18 +297,58 @@ export class LogisticsSystem extends BaseSimSystem {
                 if (visited.has(neighbor.key)) continue;
                 visited.add(neighbor.key);
 
+                const nextDepth = current.depth + 1;
                 const acceptTarget = this.getAcceptTarget(neighbor, resource);
                 if (acceptTarget) {
-                    return { node: neighbor, target: acceptTarget };
+                    const score = this.scoreRouteCandidate(factory, origin, neighbor, resource, acceptTarget, nextDepth);
+                    if (!best || score > best.score) {
+                        best = { node: neighbor, target: acceptTarget, score };
+                    }
                 }
 
                 if (neighbor.mode === 'TRANSPORT' && current.depth < this.MAX_ROUTE_DEPTH) {
-                    queue.push({ key: neighbor.key, depth: current.depth + 1 });
+                    queue.push({ key: neighbor.key, depth: nextDepth });
                 }
             }
         }
 
-        return null;
+        return best ? { node: best.node, target: best.target } : null;
+    }
+
+    private scoreRouteCandidate(
+        factory: FactoryState,
+        origin: FactoryNodeState,
+        candidate: FactoryNodeState,
+        resource: FactoryResourceType,
+        target: 'buffer' | 'input',
+        depth: number
+    ): number {
+        let score = 100 - (depth * 7) + this.getCapacityLeft(candidate, target) * 0.45;
+        const transportMode = this.getPacketTransportMode(origin, candidate);
+        const originSectorName = this.getNodeSector(factory, origin);
+        const destinationSectorName = this.getNodeSector(factory, candidate);
+        const originSector = originSectorName ? this.getSectorProfile(factory, originSectorName) : undefined;
+        const destinationSector = destinationSectorName ? this.getSectorProfile(factory, destinationSectorName) : undefined;
+
+        if (target === 'input') score += 3;
+        if (candidate.mode === 'TRANSPORT') score += 2;
+        if (destinationSector?.importFocus === resource) score += 7;
+        if (originSector?.exportFocus === resource) score += 4;
+        if (destinationSector?.directive === 'IMPORT') score += 5;
+        if (originSector?.directive === 'EXPORT') score += 4;
+        if (destinationSector?.priorityResource === resource) score += destinationSector.directive === 'IMPORT' ? 12 : 6;
+        if (originSector?.priorityResource === resource) score += originSector.directive === 'EXPORT' ? 10 : 5;
+
+        if (transportMode === 'RAIL' && originSectorName && destinationSectorName && originSectorName !== destinationSectorName) {
+            score += 5;
+        }
+
+        if (transportMode === 'DRONE') {
+            const droneAnchor = this.getDroneAnchor(factory, origin, candidate);
+            score -= this.getDronePressure(factory, droneAnchor) * 10;
+        }
+
+        return score;
     }
 
     private getNeighbors(factory: FactoryState, node: FactoryNodeState): FactoryNodeState[] {
@@ -476,6 +517,7 @@ export class LogisticsSystem extends BaseSimSystem {
     private summarizeSectors(factory: FactoryState): FactorySectorState[] {
         const throughputBySector = new Map<string, number>();
         const stationCountBySector = new Map<string, number>();
+        const previousByName = new Map((factory.sectors || []).map((sector) => [sector.name, sector]));
 
         Object.values(factory.nodes)
             .filter((node) => node.buildingType === BuildingType.TRAIN_STATION && node.sectorName)
@@ -492,24 +534,35 @@ export class LogisticsSystem extends BaseSimSystem {
             });
 
         return Array.from(stationCountBySector.entries()).map(([name, stationCount]) =>
-            this.buildSectorProfile(name, stationCount, throughputBySector.get(name) || 0)
+            this.buildSectorProfile(name, stationCount, throughputBySector.get(name) || 0, previousByName.get(name))
         );
     }
 
-    private buildSectorProfile(name: string, stationCount: number, throughput: number): FactorySectorState {
+    private buildSectorProfile(name: string, stationCount: number, throughput: number, previous?: FactorySectorState): FactorySectorState {
         const exportFocuses: FactoryResourceType[] = ['MINERALS', 'WOOD', 'STONE', 'GEMS', 'REFINED_MATERIALS', 'ALLOYS'];
         const importFocuses: FactoryResourceType[] = ['WOOD', 'STONE', 'MINERALS', 'MACHINE_PARTS', 'AUTOMATION_KITS', 'ALLOYS'];
         const hash = Array.from(name).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+        const exportFocus = exportFocuses[hash % exportFocuses.length];
+        const importFocus = importFocuses[(hash + 3) % importFocuses.length];
+        const directive = previous?.directive || 'BALANCED';
+        const priorityResource = previous?.priorityResource || (directive === 'IMPORT' ? importFocus : exportFocus);
+
         return {
             name,
-            exportFocus: exportFocuses[hash % exportFocuses.length],
-            importFocus: importFocuses[(hash + 3) % importFocuses.length],
+            exportFocus,
+            importFocus,
             exportBonus: 0.06 + ((hash % 4) * 0.02),
             importDiscount: 0.05 + (((hash + 2) % 3) * 0.02),
             demandBonus: 0.04 + ((hash % 3) * 0.01),
             stationCount,
             throughput,
+            directive,
+            priorityResource,
         };
+    }
+
+    private getSectorProfile(factory: FactoryState, name: string): FactorySectorState | undefined {
+        return (factory.sectors || []).find((sector) => sector.name === name);
     }
 
     private getPacketSector(
