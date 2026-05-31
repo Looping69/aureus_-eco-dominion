@@ -6,8 +6,31 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Coins, Pickaxe, Leaf, Heart, Gem, Users, Target, Trees, Database, Truck, Hammer, Zap } from 'lucide-react';
-import { GameState, Era } from '../types';
+import { GameState, Era, FactoryResourceType } from '../types';
 import { ERAS } from '../engine/data/VoxelConstants';
+
+const SECTOR_RESOURCE_LABELS: Record<FactoryResourceType, string> = {
+  ORE: 'Ore',
+  CONCENTRATE: 'Conc.',
+  MINERALS: 'Minerals',
+  WOOD: 'Wood',
+  STONE: 'Stone',
+  GEMS: 'Gems',
+  REFINED_MATERIALS: 'Refined',
+  ALLOYS: 'Alloys',
+  MACHINE_PARTS: 'Parts',
+  AUTOMATION_KITS: 'Kits',
+};
+
+const getSectorBadge = (name: string) =>
+  name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 3)
+    .toUpperCase();
+
+const toPercent = (value: number) => `${Math.round(value * 100)}%`;
 
 const ResourceBlock = React.memo(({ icon: Icon, val, label, borderClass, iconBgClass, sub, textColor = "text-white", isExpanded, onToggle }: any) => {
   const [popup, setPopup] = useState<{ id: number; text: string; isPositive: boolean } | null>(null);
@@ -225,6 +248,97 @@ const EraBlock = ({ currentEra, state, isExpanded, onToggle }: { currentEra: Era
   );
 };
 
+const MarketBlock = ({ state, isExpanded, onToggle }: { state: GameState; isExpanded: boolean; onToggle: (open: boolean) => void }) => {
+  const sectors = [...(state.factory?.sectors || [])].sort((a, b) => {
+    if (b.throughput !== a.throughput) return b.throughput - a.throughput;
+    return b.stationCount - a.stationCount;
+  });
+  const visibleSectors = sectors.slice(0, 3);
+  const rechargePads = state.factory?.rechargePads || 0;
+  const railFlow = Math.floor(state.factory?.regionalThroughput || 0);
+  const [hasNew, setHasNew] = useState(false);
+  const prevSectorSignature = useRef('');
+
+  useEffect(() => {
+    const signature = visibleSectors
+      .map((sector) => `${sector.name}:${Math.round(sector.throughput)}:${sector.exportFocus}:${sector.importFocus}`)
+      .join('|');
+    if (signature && prevSectorSignature.current && signature !== prevSectorSignature.current && !isExpanded) {
+      setHasNew(true);
+    }
+    prevSectorSignature.current = signature;
+  }, [isExpanded, visibleSectors]);
+
+  const handleToggle = () => {
+    onToggle(!isExpanded);
+    if (!isExpanded) {
+      setHasNew(false);
+    }
+  };
+
+  return (
+    <div className="relative group pointer-events-auto">
+      <button
+        onClick={handleToggle}
+        className={`
+          flex items-start gap-2 sm:gap-3 
+          bg-slate-900 
+          border-2 border-cyan-700/80
+          rounded-[4px] px-2 py-1 sm:px-3 sm:py-2
+          ${isExpanded ? 'min-w-[220px] sm:min-w-[260px]' : 'w-10 h-10 sm:w-12 sm:h-12 justify-center'}
+          shadow-[4px_4px_0px_0px_rgba(0,0,0,0.4)]
+          transition-all duration-200
+          hover:-translate-y-0.5 hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,0.3)]
+          relative
+        `}
+      >
+        {!isExpanded && hasNew && (
+          <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-900 animate-pulse z-10" />
+        )}
+
+        <div className="w-5 h-5 sm:w-7 sm:h-7 flex items-center justify-center rounded-[3px] bg-cyan-500 text-slate-900 border border-black/20 shadow-inner shrink-0">
+          <Truck size={12} className="sm:hidden" strokeWidth={2.5} />
+          <Truck size={16} className="hidden sm:block" strokeWidth={2.5} />
+        </div>
+
+        {isExpanded && (
+          <div className="flex flex-col items-start gap-1.5 pr-1 animate-in fade-in slide-in-from-left-1 duration-200 text-left">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[7px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-wider">Market</span>
+              <span className="text-[7px] sm:text-[9px] text-cyan-200 font-mono">{sectors.length} sectors</span>
+            </div>
+
+            {visibleSectors.length > 0 ? visibleSectors.map((sector) => (
+              <div key={sector.name} className="w-full border border-cyan-950/70 bg-slate-950/70 rounded-[3px] px-2 py-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[8px] sm:text-[9px] font-black text-cyan-300 bg-cyan-950/80 border border-cyan-800 rounded-[2px] px-1.5 py-0.5 shrink-0">
+                      {getSectorBadge(sector.name)}
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] text-white font-semibold truncate max-w-[108px] sm:max-w-[138px]">{sector.name}</span>
+                  </div>
+                  <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono shrink-0">{Math.round(sector.throughput)}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[8px] sm:text-[9px] font-mono text-slate-300">
+                  <span>Out {SECTOR_RESOURCE_LABELS[sector.exportFocus]} +{toPercent(sector.exportBonus)}</span>
+                  <span>In {SECTOR_RESOURCE_LABELS[sector.importFocus]} -{toPercent(sector.importDiscount)}</span>
+                  <span>Demand +{toPercent(sector.demandBonus)}</span>
+                </div>
+              </div>
+            )) : (
+              <div className="text-[8px] sm:text-[9px] text-slate-500 font-mono">Build rail hubs to read regional demand.</div>
+            )}
+
+            <div className="text-[8px] sm:text-[9px] text-slate-400 font-mono">
+              Pads {rechargePads} · Rail {railFlow}
+            </div>
+          </div>
+        )}
+      </button>
+    </div>
+  );
+};
+
 export const HUD: React.FC<HUDProps> = React.memo(({ resources, financials, population, currentEra, state, activeBlock, onToggleBlock }) => {
   const toggleBlock = (id: string, isOpen: boolean) => {
     onToggleBlock(isOpen ? id : null);
@@ -250,6 +364,7 @@ export const HUD: React.FC<HUDProps> = React.memo(({ resources, financials, popu
       <ResourceBlock icon={Truck} val={state.factory?.throughput || 0} label="Flow" borderClass="border-cyan-600/80" iconBgClass="bg-cyan-500" textColor="text-cyan-200" isExpanded={activeBlock === 'flow'} onToggle={(open: boolean) => toggleBlock('flow', open)} />
       <ResourceBlock icon={Truck} val={state.factory?.regionalThroughput || 0} label="Rail" borderClass="border-sky-700/80" iconBgClass="bg-sky-500" textColor="text-sky-100" isExpanded={activeBlock === 'rail'} onToggle={(open: boolean) => toggleBlock('rail', open)} />
       <ResourceBlock icon={Zap} val={(state.factory?.droneCharge || 0) * 100} label="Charge" borderClass="border-emerald-700/80" iconBgClass="bg-emerald-400" textColor="text-emerald-100" sub={state.factory?.droneUpkeep ? -Math.floor(state.factory.droneUpkeep) : undefined} isExpanded={activeBlock === 'charge'} onToggle={(open: boolean) => toggleBlock('charge', open)} />
+      <MarketBlock state={state} isExpanded={activeBlock === 'market'} onToggle={(open) => toggleBlock('market', open)} />
     </div>
   );
 });
