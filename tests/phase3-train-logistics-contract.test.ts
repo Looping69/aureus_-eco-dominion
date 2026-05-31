@@ -6,6 +6,7 @@ import test from 'node:test';
 const gameTypesPath = path.join(process.cwd(), 'engine', 'types', 'game.ts');
 const logisticsPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'LogisticsSystem.ts');
 const buildingsPath = path.join(process.cwd(), 'engine', 'data', 'buildings.ts');
+const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -36,13 +37,15 @@ test('Phase 3 packet types expose explicit belt, rail, and drone transport modes
   }
 });
 
-test('Train stations act as regional sector anchors with deterministic economic personalities and can extend to drone-served last-mile nodes', () => {
+test('Train stations act as regional sector anchors, drone depots extend local service, and both feed deterministic sector-aware logistics', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
 
   for (const snippet of [
-    "[BuildingType.RAIL_LINE, BuildingType.DISTRIBUTION_HUB, BuildingType.TRAIN_STATION].includes(type)",
+    'private isDroneHub(type: BuildingType): boolean {',
+    'BuildingType.DRONE_DEPOT',
+    "[BuildingType.RAIL_LINE, BuildingType.DISTRIBUTION_HUB, BuildingType.TRAIN_STATION, BuildingType.DRONE_DEPOT].includes(type)",
     "if ([BuildingType.STORAGE_DEPOT, BuildingType.STOCKPILE].includes(type)) return 'SINK';",
     "sectorName: tile.buildingType === BuildingType.TRAIN_STATION ? this.getRegionalSectorName(tile.x, tile.z) : undefined,",
     'private getRegionalSectorName(x: number, z: number): string {',
@@ -50,16 +53,17 @@ test('Train stations act as regional sector anchors with deterministic economic 
     'private buildSectorProfile(name: string, stationCount: number, throughput: number): FactorySectorState {',
     'private findRailLinkedStations(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
     'private findDroneServedNodes(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
-    'this.findRailLinkedStations(factory, node).forEach((neighbor) => neighborMap.set(neighbor.key, neighbor));',
-    'this.findDroneServedNodes(factory, node).forEach((neighbor) => neighborMap.set(neighbor.key, neighbor));',
-    'const manhattanDistance = Math.abs(node.x - origin.x) + Math.abs(node.z - origin.z);',
-    'if (manhattanDistance <= this.MAX_DRONE_RADIUS)',
+    'if (node.buildingType === BuildingType.TRAIN_STATION) {',
+    'if (this.isDroneHub(node.buildingType)) {',
+    'const serviceRadius = this.getDroneServiceRadius(origin);',
+    'private getDroneServiceRadius(station: FactoryNodeState | null): number {',
+    'return station.buildingType === BuildingType.DRONE_DEPOT ? this.DRONE_DEPOT_RADIUS : this.MAX_DRONE_RADIUS;',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Train packets distinguish long-haul inter-sector rail movement from pressure-limited, recharge-bound drone dispatch', () => {
+test('Train packets distinguish long-haul inter-sector rail movement from pressure-limited, depot-boosted drone dispatch', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
@@ -80,27 +84,43 @@ test('Train packets distinguish long-haul inter-sector rail movement from pressu
     'private countRechargePads(factory: FactoryState): number {',
     'private getDroneCharge(rechargePads: number, droneTrips: number): number {',
     'private getDroneUpkeep(droneTrips: number, rechargePads: number): number {',
-    "if (origin.buildingType === BuildingType.TRAIN_STATION && destination.mode !== 'TRANSPORT') return 'DRONE';",
-    "if (destination.buildingType === BuildingType.TRAIN_STATION && origin.mode !== 'TRANSPORT') return 'DRONE';",
+    "if (this.isDroneHub(origin.buildingType) && destination.mode !== 'TRANSPORT') return 'DRONE';",
+    "if (this.isDroneHub(destination.buildingType) && origin.mode !== 'TRANSPORT') return 'DRONE';",
     "if (origin.buildingType === BuildingType.TRAIN_STATION || destination.buildingType === BuildingType.TRAIN_STATION) return 'RAIL';",
-    "if (mode === 'RAIL') return this.RAIL_TRAVEL_SPEED;",
-    "if (mode === 'DRONE') return this.DRONE_TRAVEL_SPEED;",
+    'if (station.buildingType === BuildingType.DRONE_DEPOT) return 10;',
+    'reduce((sum, node) => sum + this.getDroneRechargePadCapacity(node), 0);',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Building definitions describe rail lines and train stations as regional logistics infrastructure', () => {
+test('Building definitions and HUD now describe visible regional personalities plus dedicated drone support infrastructure', () => {
   assert.equal(existsSync(buildingsPath), true, 'engine/data/buildings.ts is missing');
+  assert.equal(existsSync(hudPath), true, 'components/HUD.tsx is missing');
 
-  const source = readFileSync(buildingsPath, 'utf8');
+  const buildingsSource = readFileSync(buildingsPath, 'utf8');
+  const hudSource = readFileSync(hudPath, 'utf8');
 
   for (const snippet of [
     'Industrial track for regional bulk transport between train hubs.',
     'Regional Rail Throughput',
     'dispatches short-range drones for nearby delivery',
     'Regional Rail + Drone Dispatch, +50 Trust/s',
+    'name: \'Drone Depot\'',
+    'Drone Range + Charge Capacity',
+    'district-scale last-mile drone delivery',
   ]) {
-    assert.match(source, new RegExp(escapeRegExp(snippet)));
+    assert.match(buildingsSource, new RegExp(escapeRegExp(snippet)));
+  }
+
+  for (const snippet of [
+    'const sectors = [...(state.factory?.sectors || [])].sort',
+    'Out {SECTOR_RESOURCE_LABELS[sector.exportFocus]} +{toPercent(sector.exportBonus)}',
+    'In {SECTOR_RESOURCE_LABELS[sector.importFocus]} -{toPercent(sector.importDiscount)}',
+    'Demand +{toPercent(sector.demandBonus)}',
+    'Build rail hubs to read regional demand.',
+    'Pads {rechargePads} · Rail {railFlow}',
+  ]) {
+    assert.match(hudSource, new RegExp(escapeRegExp(snippet)));
   }
 });
