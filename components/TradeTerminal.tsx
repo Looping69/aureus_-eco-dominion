@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { GameState, Action } from '../types';
-import { TrendingUp, TrendingDown, Minus, Briefcase, RefreshCw, DollarSign } from 'lucide-react';
+import { GameState, Action, FactoryResourceType } from '../types';
+import { TrendingUp, TrendingDown, Minus, Briefcase, RefreshCw, DollarSign, Map, RadioTower, Zap } from 'lucide-react';
 
 interface TradeTerminalProps {
     isOpen: boolean;
@@ -11,13 +11,35 @@ interface TradeTerminalProps {
     playSfx: (sfx: any) => void;
 }
 
+const SECTOR_RESOURCE_LABELS: Record<FactoryResourceType, string> = {
+    ORE: 'Ore',
+    CONCENTRATE: 'Conc.',
+    MINERALS: 'Minerals',
+    WOOD: 'Wood',
+    STONE: 'Stone',
+    GEMS: 'Gems',
+    REFINED_MATERIALS: 'Refined',
+    ALLOYS: 'Alloys',
+    MACHINE_PARTS: 'Parts',
+    AUTOMATION_KITS: 'Kits',
+};
+
+const getSectorBadge = (name: string) =>
+    name
+        .split(/\s+/)
+        .map((part) => part[0])
+        .join('')
+        .slice(0, 3)
+        .toUpperCase();
+
+const toPercent = (value: number) => `${Math.round(value * 100)}%`;
+
 const PriceSparkline: React.FC<{ history: number[]; color: string }> = ({ history, color }) => {
     if (!history || history.length < 2) return null;
     const min = Math.min(...history);
     const max = Math.max(...history);
     const range = max - min || 1;
 
-    // SVG points
     const points = history.map((val, i) => {
         const x = (i / (history.length - 1)) * 100;
         const y = 100 - ((val - min) / range) * 100;
@@ -42,6 +64,10 @@ const PriceSparkline: React.FC<{ history: number[]; color: string }> = ({ histor
 export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, state, dispatch, playSfx }) => {
     const { market, resources } = state;
     const [walletAddress, setWalletAddress] = React.useState('');
+    const sectors = [...(state.factory?.sectors || [])].sort((a, b) => {
+        if (b.throughput !== a.throughput) return b.throughput - a.throughput;
+        return b.stationCount - a.stationCount;
+    });
 
     if (!market || !state.contracts) return null;
 
@@ -67,7 +93,64 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-6">
-                    {/* MINERALS MARKET */}
+                    <div className="bg-slate-900 border border-cyan-900/60 rounded-xl p-4">
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Map className="text-cyan-400" size={16} />
+                                    <h3 className="text-cyan-300 text-xs font-bold uppercase tracking-wider">Sector Market</h3>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Regional export and import bias</p>
+                            </div>
+                            <div className="text-right text-[10px] font-mono text-slate-400">
+                                <div>{sectors.length} sectors</div>
+                                <div>{Math.floor(state.factory?.regionalThroughput || 0)} rail</div>
+                            </div>
+                        </div>
+
+                        {sectors.length === 0 ? (
+                            <div className="text-center p-4 bg-slate-950/80 rounded-lg border border-dashed border-slate-800">
+                                <RadioTower className="mx-auto text-slate-600 mb-2" size={20} />
+                                <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">No active sectors</p>
+                                <p className="text-slate-600 text-[10px] mt-1">Build train stations to open regional trade lanes.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {sectors.map((sector) => (
+                                    <div key={sector.name} className="bg-slate-950/80 border border-slate-800 rounded-lg p-3">
+                                        <div className="flex items-center justify-between gap-3 mb-2">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <span className="text-[9px] font-black text-cyan-300 bg-cyan-950/80 border border-cyan-800 rounded-[3px] px-1.5 py-1 shrink-0">
+                                                    {getSectorBadge(sector.name)}
+                                                </span>
+                                                <div className="min-w-0">
+                                                    <div className="text-sm font-bold text-white truncate">{sector.name}</div>
+                                                    <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">{sector.stationCount} hubs · {Math.round(sector.throughput)} flow</div>
+                                                </div>
+                                            </div>
+                                            <div className="text-right text-[10px] font-mono text-slate-400 shrink-0">
+                                                <div className="flex items-center justify-end gap-1"><Zap size={10} className="text-emerald-400" />{toPercent(sector.demandBonus)}</div>
+                                                <div>pads bias</div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+                                            <div className="bg-emerald-950/30 border border-emerald-900/40 rounded px-2 py-2">
+                                                <div className="text-emerald-400 font-bold uppercase tracking-wider mb-1">Exports</div>
+                                                <div className="text-white font-bold">{SECTOR_RESOURCE_LABELS[sector.exportFocus]}</div>
+                                                <div className="text-emerald-300">+{toPercent(sector.exportBonus)} price</div>
+                                            </div>
+                                            <div className="bg-violet-950/30 border border-violet-900/40 rounded px-2 py-2">
+                                                <div className="text-violet-400 font-bold uppercase tracking-wider mb-1">Imports</div>
+                                                <div className="text-white font-bold">{SECTOR_RESOURCE_LABELS[sector.importFocus]}</div>
+                                                <div className="text-violet-300">-{toPercent(sector.importDiscount)} cost</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                         <div className="flex justify-between items-start mb-4">
                             <div>
@@ -105,7 +188,6 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                         </div>
                     </div>
 
-                    {/* THUNDERGEMS MARKET */}
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                         <div className="flex justify-between items-start mb-4">
                             <div>
@@ -141,14 +223,13 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                     onClick={() => {
                                         dispatch({ type: 'SELL_GEMS', payload: { address: walletAddress } });
                                         playSfx('UI_COIN');
-                                        setWalletAddress(''); // Clear after send? Or keep? Clearing for now.
+                                        setWalletAddress('');
                                     }}
                                     disabled={resources.gems <= 0 || !walletAddress.trim()}
                                     className="flex-1 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg text-xs"
                                 >
                                     DEPOSIT ({Math.floor(resources.gems)})
                                 </button>
-                                {/* Buying raw gems doesn't make sense if they are tokens, maybe 'Buy Back'? Keeping generic for now */}
                                 <button
                                     onClick={() => { dispatch({ type: 'BUY_RESOURCE', payload: { resource: 'gems', amount: 10 } }); }}
                                     disabled={resources.agt < Math.floor(market.gems.currentPrice * 1.25 * 10)}
@@ -160,7 +241,6 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                         </div>
                     </div>
 
-                    {/* WOOD & STONE MARKET (Compact) */}
                     <div className="grid grid-cols-1 gap-4">
                         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                             <h3 className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Wood Market</h3>
@@ -213,7 +293,6 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                         </div>
                     </div>
 
-                    {/* CONTRACTS (Placeholder for now) */}
                     <div className="border-t border-slate-800 pt-6">
                         <div className="flex items-center gap-2 mb-4">
                             <Briefcase className="text-amber-500" size={18} />
@@ -234,7 +313,6 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
 
                                     return (
                                         <div key={contract.id} className="bg-slate-900 border border-slate-700 rounded-lg p-3 relative overflow-hidden group">
-                                            {/* Progress Bar Background for Timer */}
                                             <div
                                                 className="absolute bottom-0 left-0 h-1 bg-amber-500 transition-all duration-1000"
                                                 style={{ width: `${(contract.timeLeft / 120) * 100}%` }}
