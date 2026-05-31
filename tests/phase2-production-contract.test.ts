@@ -12,6 +12,7 @@ const powerGridPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'Powe
 const economyPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'EconomySystem.ts');
 const supplySidebarPath = path.join(process.cwd(), 'components', 'SupplySidebar.tsx');
 const industrialCostsPath = path.join(process.cwd(), 'engine', 'data', 'industrialCosts.ts');
+const buildingTypesPath = path.join(process.cwd(), 'engine', 'types', 'buildings.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -94,7 +95,7 @@ test('Phase 2 logistics routes workshop and lab inputs, deposits industrial stoc
   }
 });
 
-test('HUD surfaces phase 2 industrial stocks, automation kits, automated chains, grid load, rail throughput, and drone charge', () => {
+test('HUD surfaces phase 2 industrial stocks, automation kits, automated chains, grid load, rail throughput, drone charge, and sector market personalities', () => {
   assert.equal(existsSync(hudPath), true, 'HUD.tsx is missing');
 
   const source = readFileSync(hudPath, 'utf8');
@@ -118,6 +119,11 @@ test('HUD surfaces phase 2 industrial stocks, automation kits, automated chains,
     '(state.factory?.droneCharge || 0) * 100',
     'label="Charge"',
     'state.factory?.droneUpkeep',
+    'const sectors = [...(state.factory?.sectors || [])].sort',
+    'Out {SECTOR_RESOURCE_LABELS[sector.exportFocus]} +{toPercent(sector.exportBonus)}',
+    'In {SECTOR_RESOURCE_LABELS[sector.importFocus]} -{toPercent(sector.importDiscount)}',
+    'Pads {rechargePads} · Rail {railFlow}',
+    '<MarketBlock state={state}',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
@@ -166,18 +172,21 @@ test('Power grid tracks connected industrial demand separately from stranded dem
   }
 });
 
-test('Advanced buildings spend industrial stock instead of treating machine parts as passive inventory, while sectors and drones now hit market economics', () => {
+test('Advanced buildings spend industrial stock, the market panel exposes regional personalities, and drone depots add dedicated late-game support', () => {
   assert.equal(existsSync(industrialCostsPath), true, 'industrialCosts.ts is missing');
   assert.equal(existsSync(economyPath), true, 'EconomySystem.ts is missing');
   assert.equal(existsSync(supplySidebarPath), true, 'SupplySidebar.tsx is missing');
+  assert.equal(existsSync(buildingTypesPath), true, 'engine/types/buildings.ts is missing');
 
   const costsSource = readFileSync(industrialCostsPath, 'utf8');
   const economySource = readFileSync(economyPath, 'utf8');
   const sidebarSource = readFileSync(supplySidebarPath, 'utf8');
+  const buildingTypesSource = readFileSync(buildingTypesPath, 'utf8');
 
   for (const snippet of [
     'BuildingType.DISTRIBUTION_HUB',
     'BuildingType.TRAIN_STATION',
+    'BuildingType.DRONE_DEPOT',
     'BuildingType.GEOTHERMAL_PLANT',
     'BuildingType.GREEN_TECH_LAB',
     'BuildingType.SPACEPORT',
@@ -211,5 +220,11 @@ test('Advanced buildings spend industrial stock instead of treating machine part
     'Needs {missingIndustrial[0]}',
   ]) {
     assert.match(sidebarSource, new RegExp(escapeRegExp(snippet)));
+  }
+
+  for (const snippet of [
+    "DRONE_DEPOT = 'DRONE_DEPOT'",
+  ]) {
+    assert.match(buildingTypesSource, new RegExp(escapeRegExp(snippet)));
   }
 });
