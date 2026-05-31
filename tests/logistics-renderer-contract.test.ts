@@ -5,6 +5,8 @@ import test from 'node:test';
 
 const worldPath = path.join(process.cwd(), 'game', 'AureusWorld.ts');
 const rendererPath = path.join(process.cwd(), 'game', 'render', 'systems', 'BuildingRenderSystem.ts');
+const era4IndexPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'era4', 'index.ts');
+const droneDepotFactoryPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'era4', 'DroneDepot.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -71,6 +73,31 @@ test('Renderer exposes named sector labels, regional bulk-load markers, drone-pr
     'const padOffsets: Array<[number, number]> = [',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Drone depot renderer hook is backed by a registered voxel factory', () => {
+  assert.equal(existsSync(era4IndexPath), true, 'engine/data/voxels/buildings/era4/index.ts is missing');
+  assert.equal(existsSync(droneDepotFactoryPath), true, 'engine/data/voxels/buildings/era4/DroneDepot.ts is missing');
+
+  const indexSource = readFileSync(era4IndexPath, 'utf8');
+  const factorySource = readFileSync(droneDepotFactoryPath, 'utf8');
+
+  for (const snippet of [
+    "import { DroneDepotFactory } from './DroneDepot';",
+    '[BuildingType.DRONE_DEPOT]: DroneDepotFactory',
+  ]) {
+    assert.match(indexSource, new RegExp(escapeRegExp(snippet)));
+  }
+
+  for (const snippet of [
+    'export const DroneDepotFactory = (opts?: FactoryOptions) => {',
+    'const isPowered = opts?.powerStatus === \'CONNECTED\';',
+    'const padOffsets: Array<[number, number]> = [',
+    'mats.emissiveCyan',
+    'mats.emissiveGreen',
+  ]) {
+    assert.match(factorySource, new RegExp(escapeRegExp(snippet)));
   }
 });
 
