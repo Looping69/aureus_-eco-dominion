@@ -17,7 +17,7 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-test('Phase 2 state types expose industrial stocks and connected-grid demand metrics', () => {
+test('Phase 2 state types expose industrial stocks, connected-grid demand metrics, and late-game logistics economy metrics', () => {
   assert.equal(existsSync(gameTypesPath), true, 'engine/types/game.ts is missing');
 
   const source = readFileSync(gameTypesPath, 'utf8');
@@ -35,6 +35,12 @@ test('Phase 2 state types expose industrial stocks and connected-grid demand met
     'industry?: IndustryState;',
     'industrialDemand: number;',
     'strandedDemand: number;',
+    'export interface FactorySectorState',
+    'exportFocus: FactoryResourceType;',
+    'importDiscount: number;',
+    'droneCharge?: number;',
+    'droneUpkeep?: number;',
+    'rechargePads?: number;',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
@@ -65,7 +71,7 @@ test('Phase 2 production turns foundry throughput into refined materials and all
   }
 });
 
-test('Phase 2 logistics routes workshop and lab inputs and deposits industrial stock into the shared ledger', () => {
+test('Phase 2 logistics routes workshop and lab inputs, deposits industrial stock, and tracks sectors plus drone upkeep', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
@@ -80,12 +86,15 @@ test('Phase 2 logistics routes workshop and lab inputs and deposits industrial s
     "if (resource === 'ALLOYS') state.industry.alloys += amount;",
     "if (resource === 'MACHINE_PARTS') state.industry.machineParts += amount;",
     "if (resource === 'AUTOMATION_KITS') state.industry.automationKits += amount;",
+    'factory.sectors = this.summarizeSectors(factory);',
+    'factory.droneCharge = this.getDroneCharge(factory.rechargePads || 0, droneTrips);',
+    'factory.droneUpkeep = this.getDroneUpkeep(droneTrips, factory.rechargePads || 0);',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('HUD surfaces phase 2 industrial stocks, automation kits, automated chains, and live grid load', () => {
+test('HUD surfaces phase 2 industrial stocks, automation kits, automated chains, grid load, rail throughput, and drone charge', () => {
   assert.equal(existsSync(hudPath), true, 'HUD.tsx is missing');
 
   const source = readFileSync(hudPath, 'utf8');
@@ -104,6 +113,11 @@ test('HUD surfaces phase 2 industrial stocks, automation kits, automated chains,
     'state.industry?.gridLoad || 0',
     'label="Grid"',
     'state.powerGrid?.strandedDemand',
+    'state.factory?.regionalThroughput || 0',
+    'label="Rail"',
+    '(state.factory?.droneCharge || 0) * 100',
+    'label="Charge"',
+    'state.factory?.droneUpkeep',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
@@ -152,7 +166,7 @@ test('Power grid tracks connected industrial demand separately from stranded dem
   }
 });
 
-test('Advanced buildings spend industrial stock instead of treating machine parts as passive inventory', () => {
+test('Advanced buildings spend industrial stock instead of treating machine parts as passive inventory, while sectors and drones now hit market economics', () => {
   assert.equal(existsSync(industrialCostsPath), true, 'industrialCosts.ts is missing');
   assert.equal(existsSync(economyPath), true, 'EconomySystem.ts is missing');
   assert.equal(existsSync(supplySidebarPath), true, 'SupplySidebar.tsx is missing');
@@ -181,6 +195,11 @@ test('Advanced buildings spend industrial stock instead of treating machine part
     'getMissingIndustrialCosts(state.industry, industrialCosts)',
     "const key = resource as 'refinedMaterials' | 'alloys' | 'machineParts' | 'automationKits';",
     'state.industry![key] -= amount as number;',
+    'if ((state.factory?.droneUpkeep || 0) > 0)',
+    'private getSectorExportBonus(state: GameState, resource: FactoryResourceType): number {',
+    'private getSectorImportDiscount(state: GameState, resource: FactoryResourceType): number {',
+    'sector premium',
+    'sector discount',
   ]) {
     assert.match(economySource, new RegExp(escapeRegExp(snippet)));
   }
