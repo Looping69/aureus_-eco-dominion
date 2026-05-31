@@ -5,6 +5,7 @@ import {
     BuildingType,
     FactoryNodeState,
     FactoryPacketState,
+    FactoryPacketTransportMode,
     FactoryResourceType,
     FactoryState,
     GameState,
@@ -21,7 +22,10 @@ export class LogisticsSystem extends BaseSimSystem {
     private lastFactoryUpdate = 0;
     private readonly FACTORY_INTERVAL = 0.25;
     private readonly MAX_ROUTE_DEPTH = 14;
-    private readonly PACKET_TRAVEL_SPEED = 1.8;
+    private readonly MAX_DRONE_RADIUS = 4;
+    private readonly BELT_TRAVEL_SPEED = 1.8;
+    private readonly RAIL_TRAVEL_SPEED = 2.7;
+    private readonly DRONE_TRAVEL_SPEED = 2.2;
 
     tick(ctx: FixedContext, state: GameState): void {
         const chunks = state.chunks;
@@ -173,6 +177,7 @@ export class LogisticsSystem extends BaseSimSystem {
                     pendingInbound.push({ to: route.node, resource, amount, target: route.target });
                 }
 
+                const transportMode = this.getPacketTransportMode(node, route.node);
                 factory.packets.push({
                     id: `${state.tickCount}-${node.key}-${route.node.key}-${resource}`,
                     resource,
@@ -180,7 +185,8 @@ export class LogisticsSystem extends BaseSimSystem {
                     fromKey: node.key,
                     toKey: route.node.key,
                     progress: 0,
-                    speed: route.node.buildingType === BuildingType.TRAIN_STATION ? this.PACKET_TRAVEL_SPEED * 1.5 : this.PACKET_TRAVEL_SPEED,
+                    speed: this.getPacketSpeed(transportMode),
+                    transportMode,
                 });
                 if (factory.packets.length > 128) {
                     factory.packets.splice(0, factory.packets.length - 128);
@@ -242,12 +248,17 @@ export class LogisticsSystem extends BaseSimSystem {
             `${node.x},${node.z - 1}`,
         ];
 
-        const neighbors = keys.map((key) => factory.nodes[key]).filter(Boolean) as FactoryNodeState[];
+        const neighborMap = new Map<string, FactoryNodeState>();
+        keys.map((key) => factory.nodes[key]).filter(Boolean).forEach((neighbor) => {
+            neighborMap.set(neighbor.key, neighbor);
+        });
+
         if (node.buildingType === BuildingType.TRAIN_STATION) {
-            neighbors.push(...this.findRailLinkedStations(factory, node));
+            this.findRailLinkedStations(factory, node).forEach((neighbor) => neighborMap.set(neighbor.key, neighbor));
+            this.findDroneServedNodes(factory, node).forEach((neighbor) => neighborMap.set(neighbor.key, neighbor));
         }
 
-        return neighbors;
+        return Array.from(neighborMap.values());
     }
 
     private findRailLinkedStations(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {
@@ -277,6 +288,22 @@ export class LogisticsSystem extends BaseSimSystem {
                 }
 
                 queue.push(next);
+            }
+        }
+
+        return linked;
+    }
+
+    private findDroneServedNodes(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {
+        const linked: FactoryNodeState[] = [];
+
+        for (const node of Object.values(factory.nodes)) {
+            if (node.key === origin.key) continue;
+            if (node.mode === 'TRANSPORT') continue;
+
+            const manhattanDistance = Math.abs(node.x - origin.x) + Math.abs(node.z - origin.z);
+            if (manhattanDistance <= this.MAX_DRONE_RADIUS) {
+                linked.push(node);
             }
         }
 
@@ -335,6 +362,20 @@ export class LogisticsSystem extends BaseSimSystem {
         const active = target === 'input' ? node.inputBuffer : node.buffer;
         const used = Object.values(active).reduce((sum, value) => sum + (value || 0), 0);
         return Math.max(0, cap - used);
+    }
+
+    private getPacketTransportMode(origin: FactoryNodeState, destination: FactoryNodeState): FactoryPacketTransportMode {
+        if (origin.buildingType === BuildingType.TRAIN_STATION && destination.mode !== 'TRANSPORT') return 'DRONE';
+        if (destination.buildingType === BuildingType.TRAIN_STATION && origin.mode !== 'TRANSPORT') return 'DRONE';
+        if (origin.buildingType === BuildingType.TRAIN_STATION || destination.buildingType === BuildingType.TRAIN_STATION) return 'RAIL';
+        if (origin.buildingType === BuildingType.RAIL_LINE || destination.buildingType === BuildingType.RAIL_LINE) return 'RAIL';
+        return 'BELT';
+    }
+
+    private getPacketSpeed(mode: FactoryPacketTransportMode): number {
+        if (mode === 'RAIL') return this.RAIL_TRAVEL_SPEED;
+        if (mode === 'DRONE') return this.DRONE_TRAVEL_SPEED;
+        return this.BELT_TRAVEL_SPEED;
     }
 
     private depositResource(state: GameState, resource: FactoryResourceType, amount: number): void {
