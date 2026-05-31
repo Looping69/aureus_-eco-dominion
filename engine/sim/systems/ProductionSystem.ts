@@ -160,6 +160,26 @@ export class ProductionSystem extends BaseSimSystem {
                     } else if (refinedAvailable > 0 || woodAvailable > 0 || alloyAvailable > 0) {
                         node.stalledTicks += 1;
                     }
+                } else if (tile.buildingType === BuildingType.GREEN_TECH_LAB) {
+                    const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'PROCESSOR', state.tickCount);
+                    const refinedAvailable = node.inputBuffer.REFINED_MATERIALS || 0;
+                    const alloyAvailable = node.inputBuffer.ALLOYS || 0;
+                    const partsAvailable = node.inputBuffer.MACHINE_PARTS || 0;
+                    const batch = Math.min(
+                        refinedAvailable / 2,
+                        alloyAvailable,
+                        partsAvailable,
+                        Math.max(0.2, ((currentDef.production || 18) * 0.015) * utilityEfficiency)
+                    );
+                    if (batch > 0) {
+                        this.pullInput(node, 'REFINED_MATERIALS', batch * 2);
+                        this.pullInput(node, 'ALLOYS', batch);
+                        this.pullInput(node, 'MACHINE_PARTS', batch);
+                        this.pushOutput(node, 'AUTOMATION_KITS', batch * 0.7);
+                        automatedChains += 1;
+                    } else if (refinedAvailable > 0 || alloyAvailable > 0 || partsAvailable > 0) {
+                        node.stalledTicks += 1;
+                    }
                 } else if (tile.buildingType === BuildingType.GEM_REFINERY) {
                     const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'PROCESSOR', state.tickCount);
                     const concentrate = this.pullInput(node, 'CONCENTRATE', Math.max(0.2, (currentDef.production || 0) * 0.02 * utilityEfficiency));
@@ -263,6 +283,7 @@ export class ProductionSystem extends BaseSimSystem {
                 refinedMaterials: 0,
                 alloys: 0,
                 machineParts: 0,
+                automationKits: 0,
                 automatedChains: 0,
                 gridLoad: 0,
             };
