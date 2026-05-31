@@ -37,12 +37,31 @@ test('Renderer distinguishes rail and drone packet traffic for in-world logistic
     'FactoryPacketTransportMode',
     'private railPacketGeo = new THREE.BoxGeometry',
     'private dronePacketGeo = new THREE.OctahedronGeometry',
-    "const mode = packet.transportMode || 'BELT';",
+    "const mode = (packet.transportMode || 'BELT') as FactoryPacketTransportMode;",
     "mode === 'RAIL' ? this.railPacketGeo : mode === 'DRONE' ? this.dronePacketGeo : this.packetGeo",
     "if (mode === 'DRONE')",
     "if (mode === 'RAIL')",
     'activeDroneStations',
     'activeRailNodes',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Renderer exposes named sector labels, regional bulk-load markers, and drone-pressure feedback', () => {
+  assert.equal(existsSync(rendererPath), true, 'BuildingRenderSystem.ts is missing');
+
+  const source = readFileSync(rendererPath, 'utf8');
+
+  for (const snippet of [
+    'private sectorLabelCache: Map<string, THREE.SpriteMaterial> = new Map();',
+    'private getSectorLabelMaterial(text: string, color: number): THREE.SpriteMaterial {',
+    'private getSectorColor(label: string): number {',
+    'private getSectorCode(label: string): string {',
+    'packet.sectorFrom && packet.sectorTo && packet.sectorFrom !== packet.sectorTo',
+    'factory.dronePressure || 0',
+    'node.sectorName',
+    'stationDroneLoad',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
