@@ -24,6 +24,7 @@ export class LogisticsSystem extends BaseSimSystem {
     private readonly FACTORY_INTERVAL = 0.25;
     private readonly MAX_ROUTE_DEPTH = 14;
     private readonly MAX_DRONE_RADIUS = 4;
+    private readonly DRONE_DEPOT_RADIUS = 6;
     private readonly SECTOR_SIZE = 18;
     private readonly BELT_TRAVEL_SPEED = 1.8;
     private readonly RAIL_TRAVEL_SPEED = 2.7;
@@ -126,12 +127,17 @@ export class LogisticsSystem extends BaseSimSystem {
             BuildingType.STORAGE_DEPOT,
             BuildingType.STOCKPILE,
             BuildingType.TRAIN_STATION,
+            BuildingType.DRONE_DEPOT,
             BuildingType.DISTRIBUTION_HUB,
         ].includes(type);
     }
 
+    private isDroneHub(type: BuildingType): boolean {
+        return [BuildingType.TRAIN_STATION, BuildingType.DRONE_DEPOT].includes(type);
+    }
+
     private getNodeMode(type: BuildingType): FactoryNodeState['mode'] | null {
-        if ([BuildingType.RAIL_LINE, BuildingType.DISTRIBUTION_HUB, BuildingType.TRAIN_STATION].includes(type)) return 'TRANSPORT';
+        if ([BuildingType.RAIL_LINE, BuildingType.DISTRIBUTION_HUB, BuildingType.TRAIN_STATION, BuildingType.DRONE_DEPOT].includes(type)) return 'TRANSPORT';
         if ([BuildingType.STORAGE_DEPOT, BuildingType.STOCKPILE].includes(type)) return 'SINK';
         if ([BuildingType.WASH_PLANT, BuildingType.RECYCLING_PLANT, BuildingType.ORE_FOUNDRY, BuildingType.GEM_REFINERY, BuildingType.WORKSHOP, BuildingType.GREEN_TECH_LAB].includes(type)) return 'PROCESSOR';
         if ([BuildingType.MINING_HEADFRAME, BuildingType.SAWMILL, BuildingType.STONE_QUARRY].includes(type)) return 'SOURCE';
@@ -319,6 +325,8 @@ export class LogisticsSystem extends BaseSimSystem {
 
         if (node.buildingType === BuildingType.TRAIN_STATION) {
             this.findRailLinkedStations(factory, node).forEach((neighbor) => neighborMap.set(neighbor.key, neighbor));
+        }
+        if (this.isDroneHub(node.buildingType)) {
             this.findDroneServedNodes(factory, node).forEach((neighbor) => neighborMap.set(neighbor.key, neighbor));
         }
 
@@ -360,13 +368,14 @@ export class LogisticsSystem extends BaseSimSystem {
 
     private findDroneServedNodes(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {
         const linked: FactoryNodeState[] = [];
+        const serviceRadius = this.getDroneServiceRadius(origin);
 
         for (const node of Object.values(factory.nodes)) {
             if (node.key === origin.key) continue;
             if (node.mode === 'TRANSPORT') continue;
 
             const manhattanDistance = Math.abs(node.x - origin.x) + Math.abs(node.z - origin.z);
-            if (manhattanDistance <= this.MAX_DRONE_RADIUS) {
+            if (manhattanDistance <= serviceRadius) {
                 linked.push(node);
             }
         }
@@ -416,21 +425,30 @@ export class LogisticsSystem extends BaseSimSystem {
 
     private getTransferBudget(node: FactoryNodeState): number {
         if (node.buildingType === BuildingType.TRAIN_STATION) return 12;
+        if (node.buildingType === BuildingType.DRONE_DEPOT) return 8;
         if (node.buildingType === BuildingType.DISTRIBUTION_HUB) return 6;
         if (node.buildingType === BuildingType.RAIL_LINE) return 4;
         return 3;
     }
 
     private getCapacityLeft(node: FactoryNodeState, target: 'buffer' | 'input'): number {
-        const cap = node.buildingType === BuildingType.TRAIN_STATION ? 36 : node.buildingType === BuildingType.DISTRIBUTION_HUB ? 24 : node.mode === 'TRANSPORT' ? 10 : 20;
+        const cap = node.buildingType === BuildingType.TRAIN_STATION
+            ? 36
+            : node.buildingType === BuildingType.DRONE_DEPOT
+                ? 28
+                : node.buildingType === BuildingType.DISTRIBUTION_HUB
+                    ? 24
+                    : node.mode === 'TRANSPORT'
+                        ? 10
+                        : 20;
         const active = target === 'input' ? node.inputBuffer : node.buffer;
         const used = Object.values(active).reduce((sum, value) => sum + (value || 0), 0);
         return Math.max(0, cap - used);
     }
 
     private getPacketTransportMode(origin: FactoryNodeState, destination: FactoryNodeState): FactoryPacketTransportMode {
-        if (origin.buildingType === BuildingType.TRAIN_STATION && destination.mode !== 'TRANSPORT') return 'DRONE';
-        if (destination.buildingType === BuildingType.TRAIN_STATION && origin.mode !== 'TRANSPORT') return 'DRONE';
+        if (this.isDroneHub(origin.buildingType) && destination.mode !== 'TRANSPORT') return 'DRONE';
+        if (this.isDroneHub(destination.buildingType) && origin.mode !== 'TRANSPORT') return 'DRONE';
         if (origin.buildingType === BuildingType.TRAIN_STATION || destination.buildingType === BuildingType.TRAIN_STATION) return 'RAIL';
         if (origin.buildingType === BuildingType.RAIL_LINE || destination.buildingType === BuildingType.RAIL_LINE) return 'RAIL';
         return 'BELT';
@@ -514,19 +532,19 @@ export class LogisticsSystem extends BaseSimSystem {
         if (node.buildingType === BuildingType.RAIL_LINE) {
             return this.findRailLinkedStations(factory, node)[0]?.sectorName;
         }
-        return this.findNearbyStations(factory, node)[0]?.sectorName;
+        return this.findNearbyDroneHubs(factory, node)[0]?.sectorName;
     }
 
     private getDroneAnchor(factory: FactoryState, origin: FactoryNodeState, destination: FactoryNodeState): FactoryNodeState | null {
-        if (origin.buildingType === BuildingType.TRAIN_STATION) return origin;
-        if (destination.buildingType === BuildingType.TRAIN_STATION) return destination;
-        return this.findNearbyStations(factory, origin)[0] || this.findNearbyStations(factory, destination)[0] || null;
+        if (this.isDroneHub(origin.buildingType)) return origin;
+        if (this.isDroneHub(destination.buildingType)) return destination;
+        return this.findNearbyDroneHubs(factory, origin)[0] || this.findNearbyDroneHubs(factory, destination)[0] || null;
     }
 
-    private findNearbyStations(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {
+    private findNearbyDroneHubs(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {
         return Object.values(factory.nodes)
-            .filter((node) => node.buildingType === BuildingType.TRAIN_STATION)
-            .filter((node) => Math.abs(node.x - origin.x) + Math.abs(node.z - origin.z) <= this.MAX_DRONE_RADIUS)
+            .filter((node) => this.isDroneHub(node.buildingType))
+            .filter((node) => Math.abs(node.x - origin.x) + Math.abs(node.z - origin.z) <= this.getDroneServiceRadius(node))
             .sort((a, b) => {
                 const distanceA = Math.abs(a.x - origin.x) + Math.abs(a.z - origin.z);
                 const distanceB = Math.abs(b.x - origin.x) + Math.abs(b.z - origin.z);
@@ -553,15 +571,21 @@ export class LogisticsSystem extends BaseSimSystem {
         return Math.min(1, activeTrips / Math.max(this.DRONE_HARD_CAP, this.getDroneRechargePadCapacity(station)));
     }
 
+    private getDroneServiceRadius(station: FactoryNodeState | null): number {
+        if (!station) return this.MAX_DRONE_RADIUS;
+        return station.buildingType === BuildingType.DRONE_DEPOT ? this.DRONE_DEPOT_RADIUS : this.MAX_DRONE_RADIUS;
+    }
+
     private getDroneRechargePadCapacity(station: FactoryNodeState | null): number {
         if (!station) return 2;
+        if (station.buildingType === BuildingType.DRONE_DEPOT) return 10;
         return station.buildingType === BuildingType.TRAIN_STATION ? 4 : 2;
     }
 
     private countRechargePads(factory: FactoryState): number {
         return Object.values(factory.nodes)
-            .filter((node) => node.buildingType === BuildingType.TRAIN_STATION)
-            .length * 4;
+            .filter((node) => this.isDroneHub(node.buildingType))
+            .reduce((sum, node) => sum + this.getDroneRechargePadCapacity(node), 0);
     }
 
     private getDroneCharge(rechargePads: number, droneTrips: number): number {
