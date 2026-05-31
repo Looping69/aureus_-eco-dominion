@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { GameState, Action, FactoryResourceType } from '../types';
+import { GameState, Action, FactoryResourceType, FactorySectorDirective } from '../types';
 import { TrendingUp, TrendingDown, Minus, Briefcase, RefreshCw, DollarSign, Map, RadioTower, Zap } from 'lucide-react';
 
 interface TradeTerminalProps {
@@ -24,6 +24,18 @@ const SECTOR_RESOURCE_LABELS: Record<FactoryResourceType, string> = {
     AUTOMATION_KITS: 'Kits',
 };
 
+const SECTOR_DIRECTIVES: FactorySectorDirective[] = ['BALANCED', 'EXPORT', 'IMPORT'];
+const PRIORITY_RESOURCE_ORDER: FactoryResourceType[] = [
+    'MINERALS',
+    'WOOD',
+    'STONE',
+    'GEMS',
+    'REFINED_MATERIALS',
+    'ALLOYS',
+    'MACHINE_PARTS',
+    'AUTOMATION_KITS',
+];
+
 const getSectorBadge = (name: string) =>
     name
         .split(/\s+/)
@@ -33,6 +45,18 @@ const getSectorBadge = (name: string) =>
         .toUpperCase();
 
 const toPercent = (value: number) => `${Math.round(value * 100)}%`;
+
+const getNextDirective = (directive?: FactorySectorDirective): FactorySectorDirective => {
+    const current = directive || 'BALANCED';
+    const index = SECTOR_DIRECTIVES.indexOf(current);
+    return SECTOR_DIRECTIVES[(index + 1) % SECTOR_DIRECTIVES.length];
+};
+
+const getNextPriorityResource = (resource?: FactoryResourceType): FactoryResourceType => {
+    const current = resource || PRIORITY_RESOURCE_ORDER[0];
+    const index = PRIORITY_RESOURCE_ORDER.indexOf(current);
+    return PRIORITY_RESOURCE_ORDER[(index + 1) % PRIORITY_RESOURCE_ORDER.length];
+};
 
 const PriceSparkline: React.FC<{ history: number[]; color: string }> = ({ history, color }) => {
     if (!history || history.length < 2) return null;
@@ -116,37 +140,78 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {sectors.map((sector) => (
-                                    <div key={sector.name} className="bg-slate-950/80 border border-slate-800 rounded-lg p-3">
-                                        <div className="flex items-center justify-between gap-3 mb-2">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <span className="text-[9px] font-black text-cyan-300 bg-cyan-950/80 border border-cyan-800 rounded-[3px] px-1.5 py-1 shrink-0">
-                                                    {getSectorBadge(sector.name)}
-                                                </span>
-                                                <div className="min-w-0">
-                                                    <div className="text-sm font-bold text-white truncate">{sector.name}</div>
-                                                    <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">{sector.stationCount} hubs · {Math.round(sector.throughput)} flow</div>
+                                {sectors.map((sector) => {
+                                    const directive = sector.directive || 'BALANCED';
+                                    const priorityResource = sector.priorityResource || (directive === 'IMPORT' ? sector.importFocus : sector.exportFocus);
+
+                                    return (
+                                        <div key={sector.name} className="bg-slate-950/80 border border-slate-800 rounded-lg p-3">
+                                            <div className="flex items-center justify-between gap-3 mb-2">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <span className="text-[9px] font-black text-cyan-300 bg-cyan-950/80 border border-cyan-800 rounded-[3px] px-1.5 py-1 shrink-0">
+                                                        {getSectorBadge(sector.name)}
+                                                    </span>
+                                                    <div className="min-w-0">
+                                                        <div className="text-sm font-bold text-white truncate">{sector.name}</div>
+                                                        <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">{sector.stationCount} hubs · {Math.round(sector.throughput)} flow</div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right text-[10px] font-mono text-slate-400 shrink-0">
+                                                    <div className="flex items-center justify-end gap-1"><Zap size={10} className="text-emerald-400" />{toPercent(sector.demandBonus)}</div>
+                                                    <div>{directive.toLowerCase()}</div>
                                                 </div>
                                             </div>
-                                            <div className="text-right text-[10px] font-mono text-slate-400 shrink-0">
-                                                <div className="flex items-center justify-end gap-1"><Zap size={10} className="text-emerald-400" />{toPercent(sector.demandBonus)}</div>
-                                                <div>pads bias</div>
+                                            <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+                                                <div className="bg-emerald-950/30 border border-emerald-900/40 rounded px-2 py-2">
+                                                    <div className="text-emerald-400 font-bold uppercase tracking-wider mb-1">Exports</div>
+                                                    <div className="text-white font-bold">{SECTOR_RESOURCE_LABELS[sector.exportFocus]}</div>
+                                                    <div className="text-emerald-300">+{toPercent(sector.exportBonus)} price</div>
+                                                </div>
+                                                <div className="bg-violet-950/30 border border-violet-900/40 rounded px-2 py-2">
+                                                    <div className="text-violet-400 font-bold uppercase tracking-wider mb-1">Imports</div>
+                                                    <div className="text-white font-bold">{SECTOR_RESOURCE_LABELS[sector.importFocus]}</div>
+                                                    <div className="text-violet-300">-{toPercent(sector.importDiscount)} cost</div>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 mt-3">
+                                                <button
+                                                    onClick={() => {
+                                                        dispatch({
+                                                            type: 'UPDATE_SECTOR_POLICY',
+                                                            payload: {
+                                                                sectorName: sector.name,
+                                                                directive: getNextDirective(directive),
+                                                                priorityResource,
+                                                            },
+                                                        });
+                                                        playSfx('UI_CLICK');
+                                                    }}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Dispatch</div>
+                                                    <div className="text-xs font-bold text-cyan-300">{directive}</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        dispatch({
+                                                            type: 'UPDATE_SECTOR_POLICY',
+                                                            payload: {
+                                                                sectorName: sector.name,
+                                                                directive,
+                                                                priorityResource: getNextPriorityResource(priorityResource),
+                                                            },
+                                                        });
+                                                        playSfx('UI_CLICK');
+                                                    }}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Priority</div>
+                                                    <div className="text-xs font-bold text-amber-300">{SECTOR_RESOURCE_LABELS[priorityResource]}</div>
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
-                                            <div className="bg-emerald-950/30 border border-emerald-900/40 rounded px-2 py-2">
-                                                <div className="text-emerald-400 font-bold uppercase tracking-wider mb-1">Exports</div>
-                                                <div className="text-white font-bold">{SECTOR_RESOURCE_LABELS[sector.exportFocus]}</div>
-                                                <div className="text-emerald-300">+{toPercent(sector.exportBonus)} price</div>
-                                            </div>
-                                            <div className="bg-violet-950/30 border border-violet-900/40 rounded px-2 py-2">
-                                                <div className="text-violet-400 font-bold uppercase tracking-wider mb-1">Imports</div>
-                                                <div className="text-white font-bold">{SECTOR_RESOURCE_LABELS[sector.importFocus]}</div>
-                                                <div className="text-violet-300">-{toPercent(sector.importDiscount)} cost</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
