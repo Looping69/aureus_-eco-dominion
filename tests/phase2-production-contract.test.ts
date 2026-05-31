@@ -214,6 +214,9 @@ test('Advanced buildings spend industrial stock, the market panel exposes region
   }
 
   for (const snippet of [
+    'case BuildingType.DRONE_DEPOT: return <Package size={18} />;',
+    "[BuildingType.DRONE_DEPOT]: 'ADVANCED'",
+    'BuildingType.NATURE_RESERVE, BuildingType.HYDROPONICS, BuildingType.GEOTHERMAL_PLANT, BuildingType.DRONE_DEPOT,',
     'const industrialCosts = getIndustrialBuildingCosts(selectedItem);',
     'const missingIndustrial = state.cheatsEnabled ? [] : getMissingIndustrialCosts(state.industry, industrialCosts);',
     'formatIndustrialCosts(industrialCosts)',
