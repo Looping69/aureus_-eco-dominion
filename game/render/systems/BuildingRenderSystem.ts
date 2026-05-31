@@ -361,6 +361,9 @@ export class BuildingRenderSystem {
         if (tile.buildingType === BuildingType.TRAIN_STATION) {
             this.decorateTrainStation(buildingGroup, seed);
         }
+        if (tile.buildingType === BuildingType.DRONE_DEPOT) {
+            this.decorateDroneDepot(buildingGroup, seed);
+        }
 
         if (tile.isUnderConstruction) {
             const scale = 0.4 + (progress * 0.6);
@@ -533,6 +536,90 @@ export class BuildingRenderSystem {
         });
     }
 
+    private decorateDroneDepot(group: THREE.Group, seed: number) {
+        const platform = new THREE.Mesh(
+            new THREE.BoxGeometry(1.6, 0.12, 1.2),
+            new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.45, metalness: 0.7, emissive: 0x052e2b, emissiveIntensity: 0.28 })
+        );
+        platform.position.y = 0.1;
+        group.add(platform);
+
+        const deck = new THREE.Mesh(
+            new THREE.BoxGeometry(1.15, 0.05, 0.78),
+            new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.35, metalness: 0.75, emissive: 0x0f766e, emissiveIntensity: 0.22 })
+        );
+        deck.position.y = 0.19;
+        group.add(deck);
+
+        const controlSpire = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.08, 0.11, 0.82, 10),
+            new THREE.MeshStandardMaterial({ color: 0x99f6e4, roughness: 0.25, metalness: 0.8, emissive: 0x2dd4bf, emissiveIntensity: 0.35 })
+        );
+        controlSpire.position.set(0, 0.55, -0.18);
+        group.add(controlSpire);
+
+        const spireCap = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.14, 0),
+            new THREE.MeshBasicMaterial({ color: 0x99f6e4, transparent: true, opacity: 0.9 })
+        );
+        spireCap.position.set(0, 0.98, -0.18);
+        group.add(spireCap);
+
+        const launchRing = new THREE.Mesh(
+            new THREE.TorusGeometry(0.52, 0.06, 10, 32),
+            new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.72 })
+        );
+        launchRing.rotation.x = Math.PI / 2;
+        launchRing.position.y = 0.24;
+        group.add(launchRing);
+
+        const padOffsets: Array<[number, number]> = [
+            [0.56, 0.32],
+            [-0.56, 0.32],
+            [0.56, -0.28],
+            [-0.56, -0.28],
+            [0.24, 0.02],
+            [-0.24, 0.02],
+        ];
+        padOffsets.forEach(([x, z], index) => {
+            const pad = new THREE.Mesh(
+                this.dronePadGeo,
+                new THREE.MeshStandardMaterial({ color: 0x111827, emissive: index % 2 === 0 ? 0x2dd4bf : 0x5eead4, emissiveIntensity: 0.3, roughness: 0.45, metalness: 0.7 })
+            );
+            pad.scale.set(index < 4 ? 1 : 0.85, 1, index < 4 ? 1 : 0.85);
+            pad.position.set(x, 0.18, z);
+            group.add(pad);
+        });
+
+        const antennaOffsets: Array<[number, number]> = [
+            [0.72, 0],
+            [-0.72, 0],
+        ];
+        antennaOffsets.forEach(([x, z], index) => {
+            const antenna = new THREE.Mesh(
+                this.beaconGeo,
+                new THREE.MeshBasicMaterial({ color: index === 0 ? 0x2dd4bf : 0x5eead4, transparent: true, opacity: 0.78 })
+            );
+            antenna.scale.set(1.1, 1.25, 1.1);
+            antenna.position.set(x, 0.52, z);
+            group.add(antenna);
+        });
+
+        for (let i = 0; i < 5; i++) {
+            const orb = new THREE.Mesh(
+                i % 2 === 0 ? this.dronePacketGeo : new THREE.SphereGeometry(0.06, 8, 8),
+                new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0x2dd4bf : 0x99f6e4, transparent: true, opacity: 0.95 })
+            );
+            orb.position.y = 0.42;
+            orb.userData.isConveyorPulse = true;
+            orb.userData.axis = 'orbit';
+            orb.userData.orbitRadius = 0.24 + (i * 0.035);
+            orb.userData.phase = (i / 5) + ((seed % 19) * 0.01);
+            orb.userData.baseY = 0.42 + ((i % 2) * 0.05);
+            group.add(orb);
+        }
+    }
+
     private getDetailLevel(viewMode: 'SURFACE' | 'FIRST_PERSON', zoomLevel: number, runtimeDetailCap: SmoothDetailLevel): 'LOW' | 'MEDIUM' | 'HIGH' {
         let zoomDetail: SmoothDetailLevel;
         if (viewMode === 'FIRST_PERSON') {
@@ -622,11 +709,11 @@ export class BuildingRenderSystem {
                 halo.position.set(pos.x, pos.y - 0.1, pos.z);
                 this.packetGroup.add(halo);
                 packetMesh.rotation.y = time * 2.2;
-                if (fromNode.buildingType === BuildingType.TRAIN_STATION) {
+                if (this.isDroneHubNode(fromNode)) {
                     activeDroneStations.add(fromNode.key);
                     stationDroneLoad.set(fromNode.key, (stationDroneLoad.get(fromNode.key) || 0) + 1);
                 }
-                if (toNode.buildingType === BuildingType.TRAIN_STATION) {
+                if (this.isDroneHubNode(toNode)) {
                     activeDroneStations.add(toNode.key);
                     stationDroneLoad.set(toNode.key, (stationDroneLoad.get(toNode.key) || 0) + 1);
                 }
@@ -685,11 +772,11 @@ export class BuildingRenderSystem {
                 this.overlayGroup.add(sectorBeacon);
             }
 
-            if (node.buildingType === BuildingType.TRAIN_STATION && (this.isRecentlyActive(node, factory.lastNetworkTick) || activeDroneStations.has(node.key) || activeRailNodes.has(node.key))) {
-                const sectorColor = node.sectorName ? this.getSectorColor(node.sectorName) : 0x38bdf8;
+            if ((node.buildingType === BuildingType.TRAIN_STATION || node.buildingType === BuildingType.DRONE_DEPOT) && (this.isRecentlyActive(node, factory.lastNetworkTick) || activeDroneStations.has(node.key) || activeRailNodes.has(node.key))) {
+                const sectorColor = node.sectorName ? this.getSectorColor(node.sectorName) : node.buildingType === BuildingType.DRONE_DEPOT ? 0x2dd4bf : 0x38bdf8;
                 const railRing = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: sectorColor, transparent: true, opacity: 0.46 }));
                 railRing.rotation.x = Math.PI / 2;
-                railRing.scale.setScalar(activeRegionalSectors.has(node.sectorName || '') ? 1.42 : 1.25);
+                railRing.scale.setScalar(activeRegionalSectors.has(node.sectorName || '') ? 1.42 : node.buildingType === BuildingType.DRONE_DEPOT ? 1.08 : 1.25);
                 railRing.position.set(node.x, pos.y + 0.18, node.z);
                 this.overlayGroup.add(railRing);
 
@@ -705,7 +792,7 @@ export class BuildingRenderSystem {
                         : this.overlayMats.drone.clone();
                     const droneRing = new THREE.Mesh(this.ringGeo, pressureMat);
                     droneRing.rotation.x = Math.PI / 2;
-                    droneRing.scale.setScalar(load >= 3 ? 0.92 : 0.72);
+                    droneRing.scale.setScalar(load >= 3 ? 0.92 : node.buildingType === BuildingType.DRONE_DEPOT ? 0.84 : 0.72);
                     droneRing.position.set(node.x, pos.y + 0.28, node.z);
                     this.overlayGroup.add(droneRing);
                 }
@@ -757,6 +844,10 @@ export class BuildingRenderSystem {
                 this.overlayGroup.add(beacon);
             }
         });
+    }
+
+    private isDroneHubNode(node: FactoryNodeState): boolean {
+        return node.buildingType === BuildingType.TRAIN_STATION || node.buildingType === BuildingType.DRONE_DEPOT;
     }
 
     private getSectorLabelMaterial(text: string, color: number): THREE.SpriteMaterial {
@@ -819,7 +910,7 @@ export class BuildingRenderSystem {
     }
 
     private isJunctionNode(factory: FactoryState, node: FactoryNodeState): boolean {
-        if (node.buildingType === BuildingType.DISTRIBUTION_HUB || node.buildingType === BuildingType.TRAIN_STATION) return true;
+        if (node.buildingType === BuildingType.DISTRIBUTION_HUB || node.buildingType === BuildingType.TRAIN_STATION || node.buildingType === BuildingType.DRONE_DEPOT) return true;
         if (node.buildingType !== BuildingType.RAIL_LINE) return false;
         return this.getFactoryNeighbors(factory, node).length > 2;
     }
