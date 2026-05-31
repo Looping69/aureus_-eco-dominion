@@ -18,9 +18,31 @@ test('Building renderer contract accepts logistics factory state and overlay mod
   for (const snippet of [
     'factory?: FactoryState',
     "overlayMode: LogisticsOverlayMode = 'OFF'",
-    'this.updateLogisticsVisuals(chunks, factory, overlayMode);',
+    'this.updateLogisticsVisuals(chunks, factory, overlayMode, time);',
     "if (tile.buildingType === BuildingType.RAIL_LINE && connections)",
     "if (tile.buildingType === BuildingType.DISTRIBUTION_HUB)",
+    "if (tile.buildingType === BuildingType.TRAIN_STATION)",
+    'this.decorateTrainStation(buildingGroup, seed);',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Renderer distinguishes rail and drone packet traffic for in-world logistics feedback', () => {
+  assert.equal(existsSync(rendererPath), true, 'BuildingRenderSystem.ts is missing');
+
+  const source = readFileSync(rendererPath, 'utf8');
+
+  for (const snippet of [
+    'FactoryPacketTransportMode',
+    'private railPacketGeo = new THREE.BoxGeometry',
+    'private dronePacketGeo = new THREE.OctahedronGeometry',
+    "const mode = packet.transportMode || 'BELT';",
+    "mode === 'RAIL' ? this.railPacketGeo : mode === 'DRONE' ? this.dronePacketGeo : this.packetGeo",
+    "if (mode === 'DRONE')",
+    "if (mode === 'RAIL')",
+    'activeDroneStations',
+    'activeRailNodes',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
