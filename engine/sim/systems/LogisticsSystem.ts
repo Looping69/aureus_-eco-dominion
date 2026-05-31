@@ -23,9 +23,12 @@ export class LogisticsSystem extends BaseSimSystem {
     private readonly FACTORY_INTERVAL = 0.25;
     private readonly MAX_ROUTE_DEPTH = 14;
     private readonly MAX_DRONE_RADIUS = 4;
+    private readonly SECTOR_SIZE = 18;
     private readonly BELT_TRAVEL_SPEED = 1.8;
     private readonly RAIL_TRAVEL_SPEED = 2.7;
     private readonly DRONE_TRAVEL_SPEED = 2.2;
+    private readonly DRONE_SOFT_CAP = 3;
+    private readonly DRONE_HARD_CAP = 6;
 
     tick(ctx: FixedContext, state: GameState): void {
         const chunks = state.chunks;
@@ -60,11 +63,23 @@ export class LogisticsSystem extends BaseSimSystem {
                 backlog: 0,
                 stalledNodes: 0,
                 lastNetworkTick: 0,
+                regionalThroughput: 0,
+                dronePressure: 0,
+                droneTrips: 0,
             };
         }
 
         if (!state.factory.packets) {
             state.factory.packets = [];
+        }
+        if (state.factory.regionalThroughput === undefined) {
+            state.factory.regionalThroughput = 0;
+        }
+        if (state.factory.dronePressure === undefined) {
+            state.factory.dronePressure = 0;
+        }
+        if (state.factory.droneTrips === undefined) {
+            state.factory.droneTrips = 0;
         }
 
         return state.factory;
@@ -133,8 +148,14 @@ export class LogisticsSystem extends BaseSimSystem {
                         inputBuffer: existing?.inputBuffer || {},
                         stalledTicks: existing?.stalledTicks || 0,
                         lastActiveTick: existing?.lastActiveTick || state.tickCount,
+                        sectorName: tile.buildingType === BuildingType.TRAIN_STATION ? this.getRegionalSectorName(tile.x, tile.z) : undefined,
                     };
+                    continue;
                 }
+
+                factory.nodes[key].sectorName = tile.buildingType === BuildingType.TRAIN_STATION
+                    ? this.getRegionalSectorName(tile.x, tile.z)
+                    : undefined;
             }
         }
 
@@ -151,6 +172,9 @@ export class LogisticsSystem extends BaseSimSystem {
         const pendingInbound: Array<{ to: FactoryNodeState; resource: FactoryResourceType; amount: number; target: 'buffer' | 'input' }> = [];
         let throughput = 0;
         let stalledNodes = 0;
+        let regionalThroughput = 0;
+        let dronePressureTotal = 0;
+        let droneTrips = 0;
 
         for (const node of Object.values(factory.nodes)) {
             for (const [resource, rawAmount] of Object.entries(node.buffer) as Array<[FactoryResourceType, number]>) {
@@ -163,7 +187,16 @@ export class LogisticsSystem extends BaseSimSystem {
                     continue;
                 }
 
-                const amount = Math.min(rawAmount, this.getTransferBudget(node), this.getCapacityLeft(route.node, route.target));
+                const transportMode = this.getPacketTransportMode(node, route.node);
+                let amount = Math.min(rawAmount, this.getTransferBudget(node), this.getCapacityLeft(route.node, route.target));
+                if (transportMode === 'DRONE') {
+                    const droneAnchor = this.getDroneAnchor(factory, node, route.node);
+                    amount = Math.min(amount, this.getDroneTransferBudget(factory, droneAnchor));
+                    if (amount > 0) {
+                        droneTrips += 1;
+                        dronePressureTotal += this.getDronePressure(factory, droneAnchor);
+                    }
+                }
                 if (amount <= 0) continue;
 
                 node.buffer[resource] = rawAmount - amount;
@@ -177,7 +210,12 @@ export class LogisticsSystem extends BaseSimSystem {
                     pendingInbound.push({ to: route.node, resource, amount, target: route.target });
                 }
 
-                const transportMode = this.getPacketTransportMode(node, route.node);
+                const sectorFrom = this.getPacketSector(factory, node, route.node, transportMode);
+                const sectorTo = this.getPacketSector(factory, route.node, node, transportMode);
+                if (transportMode === 'RAIL' && sectorFrom && sectorTo && sectorFrom !== sectorTo) {
+                    regionalThroughput += amount;
+                }
+
                 factory.packets.push({
                     id: `${state.tickCount}-${node.key}-${route.node.key}-${resource}`,
                     resource,
@@ -187,6 +225,8 @@ export class LogisticsSystem extends BaseSimSystem {
                     progress: 0,
                     speed: this.getPacketSpeed(transportMode),
                     transportMode,
+                    sectorFrom,
+                    sectorTo,
                 });
                 if (factory.packets.length > 128) {
                     factory.packets.splice(0, factory.packets.length - 128);
@@ -204,6 +244,9 @@ export class LogisticsSystem extends BaseSimSystem {
         }
 
         factory.throughput = throughput / this.FACTORY_INTERVAL;
+        factory.regionalThroughput = regionalThroughput / this.FACTORY_INTERVAL;
+        factory.droneTrips = droneTrips;
+        factory.dronePressure = droneTrips > 0 ? dronePressureTotal / droneTrips : 0;
         factory.stalledNodes = stalledNodes;
         factory.backlog = Object.values(factory.nodes).reduce((sum, node) => {
             const out = Object.values(node.buffer).reduce((acc, value) => acc + (value || 0), 0);
@@ -376,6 +419,77 @@ export class LogisticsSystem extends BaseSimSystem {
         if (mode === 'RAIL') return this.RAIL_TRAVEL_SPEED;
         if (mode === 'DRONE') return this.DRONE_TRAVEL_SPEED;
         return this.BELT_TRAVEL_SPEED;
+    }
+
+    private getRegionalSectorName(x: number, z: number): string {
+        const regionX = Math.floor(x / this.SECTOR_SIZE);
+        const regionZ = Math.floor(z / this.SECTOR_SIZE);
+        const northSouth = regionZ < 0 ? 'North' : regionZ > 0 ? 'South' : 'Central';
+        const eastWest = regionX < 0 ? 'West' : regionX > 0 ? 'East' : 'Crown';
+        const landmarks = ['Basin', 'Spur', 'Reach', 'Yard', 'Escarpment', 'Works'];
+        const prefix = [northSouth, eastWest]
+            .filter((part) => part !== 'Central' && part !== 'Crown')
+            .join(' ');
+        const landmark = landmarks[Math.abs(regionX * 7 + regionZ * 11) % landmarks.length];
+        return `${prefix || 'Central'} ${landmark}`;
+    }
+
+    private getPacketSector(
+        factory: FactoryState,
+        origin: FactoryNodeState,
+        destination: FactoryNodeState,
+        mode: FactoryPacketTransportMode
+    ): string | undefined {
+        if (mode === 'DRONE') {
+            return this.getDroneAnchor(factory, origin, destination)?.sectorName;
+        }
+
+        const direct = this.getNodeSector(factory, origin);
+        if (direct) return direct;
+        return this.getNodeSector(factory, destination);
+    }
+
+    private getNodeSector(factory: FactoryState, node: FactoryNodeState): string | undefined {
+        if (node.sectorName) return node.sectorName;
+        if (node.buildingType === BuildingType.RAIL_LINE) {
+            return this.findRailLinkedStations(factory, node)[0]?.sectorName;
+        }
+        return this.findNearbyStations(factory, node)[0]?.sectorName;
+    }
+
+    private getDroneAnchor(factory: FactoryState, origin: FactoryNodeState, destination: FactoryNodeState): FactoryNodeState | null {
+        if (origin.buildingType === BuildingType.TRAIN_STATION) return origin;
+        if (destination.buildingType === BuildingType.TRAIN_STATION) return destination;
+        return this.findNearbyStations(factory, origin)[0] || this.findNearbyStations(factory, destination)[0] || null;
+    }
+
+    private findNearbyStations(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {
+        return Object.values(factory.nodes)
+            .filter((node) => node.buildingType === BuildingType.TRAIN_STATION)
+            .filter((node) => Math.abs(node.x - origin.x) + Math.abs(node.z - origin.z) <= this.MAX_DRONE_RADIUS)
+            .sort((a, b) => {
+                const distanceA = Math.abs(a.x - origin.x) + Math.abs(a.z - origin.z);
+                const distanceB = Math.abs(b.x - origin.x) + Math.abs(b.z - origin.z);
+                return distanceA - distanceB;
+            });
+    }
+
+    private countActiveDroneTrips(factory: FactoryState, station: FactoryNodeState | null): number {
+        if (!station) return 0;
+        return factory.packets.filter((packet) => packet.transportMode === 'DRONE' && (packet.fromKey === station.key || packet.toKey === station.key)).length;
+    }
+
+    private getDroneTransferBudget(factory: FactoryState, station: FactoryNodeState | null): number {
+        const activeTrips = this.countActiveDroneTrips(factory, station);
+        if (activeTrips <= 1) return 3;
+        if (activeTrips <= this.DRONE_SOFT_CAP) return 2.25;
+        if (activeTrips < this.DRONE_HARD_CAP) return 1.5;
+        return 0.75;
+    }
+
+    private getDronePressure(factory: FactoryState, station: FactoryNodeState | null): number {
+        const activeTrips = this.countActiveDroneTrips(factory, station);
+        return Math.min(1, activeTrips / this.DRONE_HARD_CAP);
     }
 
     private depositResource(state: GameState, resource: FactoryResourceType, amount: number): void {
