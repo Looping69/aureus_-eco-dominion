@@ -1,7 +1,14 @@
 
 import React from 'react';
-import { GameState, Action, FactoryResourceType, FactorySectorDirective } from '../types';
-import { TrendingUp, TrendingDown, Minus, Briefcase, RefreshCw, DollarSign, Map, RadioTower, Zap } from 'lucide-react';
+import {
+    GameState,
+    Action,
+    FactoryResourceType,
+    FactorySectorDirective,
+    FactorySectorFlowMode,
+    FactorySectorCongestionMode,
+} from '../types';
+import { TrendingUp, TrendingDown, Minus, Briefcase, RefreshCw, Map, RadioTower, Zap, Gauge, Activity, ClipboardList } from 'lucide-react';
 
 interface TradeTerminalProps {
     isOpen: boolean;
@@ -25,6 +32,9 @@ const SECTOR_RESOURCE_LABELS: Record<FactoryResourceType, string> = {
 };
 
 const SECTOR_DIRECTIVES: FactorySectorDirective[] = ['BALANCED', 'EXPORT', 'IMPORT'];
+const FLOW_MODES: FactorySectorFlowMode[] = ['STABLE', 'SURGE'];
+const CONGESTION_POLICIES: FactorySectorCongestionMode[] = ['SAFE', 'BALANCED', 'AGGRESSIVE'];
+const CONTRACT_TARGETS = [16, 24, 32, 48, 64, 96];
 const PRIORITY_RESOURCE_ORDER: FactoryResourceType[] = [
     'MINERALS',
     'WOOD',
@@ -52,10 +62,28 @@ const getNextDirective = (directive?: FactorySectorDirective): FactorySectorDire
     return SECTOR_DIRECTIVES[(index + 1) % SECTOR_DIRECTIVES.length];
 };
 
+const getNextFlowMode = (mode?: FactorySectorFlowMode): FactorySectorFlowMode => {
+    const current = mode || 'STABLE';
+    const index = FLOW_MODES.indexOf(current);
+    return FLOW_MODES[(index + 1) % FLOW_MODES.length];
+};
+
+const getNextCongestionPolicy = (policy?: FactorySectorCongestionMode): FactorySectorCongestionMode => {
+    const current = policy || 'BALANCED';
+    const index = CONGESTION_POLICIES.indexOf(current);
+    return CONGESTION_POLICIES[(index + 1) % CONGESTION_POLICIES.length];
+};
+
 const getNextPriorityResource = (resource?: FactoryResourceType): FactoryResourceType => {
     const current = resource || PRIORITY_RESOURCE_ORDER[0];
     const index = PRIORITY_RESOURCE_ORDER.indexOf(current);
     return PRIORITY_RESOURCE_ORDER[(index + 1) % PRIORITY_RESOURCE_ORDER.length];
+};
+
+const getNextContractTarget = (target?: number): number => {
+    const current = target || CONTRACT_TARGETS[1];
+    const index = CONTRACT_TARGETS.indexOf(current);
+    return CONTRACT_TARGETS[(index + 1 + CONTRACT_TARGETS.length) % CONTRACT_TARGETS.length];
 };
 
 const PriceSparkline: React.FC<{ history: number[]; color: string }> = ({ history, color }) => {
@@ -89,6 +117,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
     const { market, resources } = state;
     const [walletAddress, setWalletAddress] = React.useState('');
     const sectors = [...(state.factory?.sectors || [])].sort((a, b) => {
+        if ((b.contractTarget || 0) !== (a.contractTarget || 0)) return (b.contractTarget || 0) - (a.contractTarget || 0);
         if (b.throughput !== a.throughput) return b.throughput - a.throughput;
         return b.stationCount - a.stationCount;
     });
@@ -124,7 +153,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                     <Map className="text-cyan-400" size={16} />
                                     <h3 className="text-cyan-300 text-xs font-bold uppercase tracking-wider">Sector Market</h3>
                                 </div>
-                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Regional export and import bias</p>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Regional export, congestion, and quota control</p>
                             </div>
                             <div className="text-right text-[10px] font-mono text-slate-400">
                                 <div>{sectors.length} sectors</div>
@@ -142,7 +171,31 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                             <div className="space-y-3">
                                 {sectors.map((sector) => {
                                     const directive = sector.directive || 'BALANCED';
+                                    const flowMode = sector.flowMode || 'STABLE';
+                                    const congestionPolicy = sector.congestionPolicy || 'BALANCED';
                                     const priorityResource = sector.priorityResource || (directive === 'IMPORT' ? sector.importFocus : sector.exportFocus);
+                                    const contractResource = sector.contractResource || (directive === 'EXPORT' ? sector.exportFocus : sector.importFocus);
+                                    const contractTarget = sector.contractTarget || 24;
+                                    const contractProgress = Math.min(contractTarget, sector.contractProgress || 0);
+                                    const quotaCompletion = contractTarget > 0 ? Math.min(1, contractProgress / contractTarget) : 0;
+                                    const congestionLevel = sector.congestionLevel || 0;
+
+                                    const updatePolicy = (payload: Record<string, unknown>) => {
+                                        dispatch({
+                                            type: 'UPDATE_SECTOR_POLICY',
+                                            payload: {
+                                                sectorName: sector.name,
+                                                directive,
+                                                priorityResource,
+                                                flowMode,
+                                                congestionPolicy,
+                                                contractResource,
+                                                contractTarget,
+                                                ...payload,
+                                            },
+                                        });
+                                        playSfx('UI_CLICK');
+                                    };
 
                                     return (
                                         <div key={sector.name} className="bg-slate-950/80 border border-slate-800 rounded-lg p-3">
@@ -173,40 +226,74 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                                     <div className="text-violet-300">-{toPercent(sector.importDiscount)} cost</div>
                                                 </div>
                                             </div>
+                                            <div className="grid grid-cols-3 gap-2 mt-3 text-[10px] font-mono">
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Gauge size={10} />Flow</div>
+                                                    <div className="text-cyan-300 font-bold">{flowMode}</div>
+                                                    <div className="text-slate-400">{Math.round(sector.throughput)} / tick</div>
+                                                </div>
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={10} />Congest</div>
+                                                    <div className="text-amber-300 font-bold">{congestionPolicy}</div>
+                                                    <div className="text-slate-400">{toPercent(congestionLevel)}</div>
+                                                </div>
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><ClipboardList size={10} />Quota</div>
+                                                    <div className="text-orange-300 font-bold">{SECTOR_RESOURCE_LABELS[contractResource]}</div>
+                                                    <div className="text-slate-400">{Math.round(contractProgress)} / {contractTarget}</div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-3">
+                                                <div className="flex items-center justify-between text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">
+                                                    <span>Demand contract</span>
+                                                    <span>{Math.round(quotaCompletion * 100)}% · +{sector.contractReward || 0} AGT</span>
+                                                </div>
+                                                <div className="w-full h-2 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
+                                                    <div className="h-full bg-gradient-to-r from-orange-500 to-amber-400" style={{ width: `${quotaCompletion * 100}%` }} />
+                                                </div>
+                                            </div>
                                             <div className="grid grid-cols-2 gap-2 mt-3">
                                                 <button
-                                                    onClick={() => {
-                                                        dispatch({
-                                                            type: 'UPDATE_SECTOR_POLICY',
-                                                            payload: {
-                                                                sectorName: sector.name,
-                                                                directive: getNextDirective(directive),
-                                                                priorityResource,
-                                                            },
-                                                        });
-                                                        playSfx('UI_CLICK');
-                                                    }}
+                                                    onClick={() => updatePolicy({ directive: getNextDirective(directive) })}
                                                     className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
                                                 >
                                                     <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Dispatch</div>
                                                     <div className="text-xs font-bold text-cyan-300">{directive}</div>
                                                 </button>
                                                 <button
-                                                    onClick={() => {
-                                                        dispatch({
-                                                            type: 'UPDATE_SECTOR_POLICY',
-                                                            payload: {
-                                                                sectorName: sector.name,
-                                                                directive,
-                                                                priorityResource: getNextPriorityResource(priorityResource),
-                                                            },
-                                                        });
-                                                        playSfx('UI_CLICK');
-                                                    }}
+                                                    onClick={() => updatePolicy({ priorityResource: getNextPriorityResource(priorityResource) })}
                                                     className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
                                                 >
                                                     <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Priority</div>
                                                     <div className="text-xs font-bold text-amber-300">{SECTOR_RESOURCE_LABELS[priorityResource]}</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => updatePolicy({ flowMode: getNextFlowMode(flowMode) })}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Throughput</div>
+                                                    <div className="text-xs font-bold text-sky-300">{flowMode}</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => updatePolicy({ congestionPolicy: getNextCongestionPolicy(congestionPolicy) })}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Congestion</div>
+                                                    <div className="text-xs font-bold text-rose-300">{congestionPolicy}</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => updatePolicy({ contractResource: getNextPriorityResource(contractResource) })}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Contract</div>
+                                                    <div className="text-xs font-bold text-orange-300">{SECTOR_RESOURCE_LABELS[contractResource]}</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => updatePolicy({ contractTarget: getNextContractTarget(contractTarget) })}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Quota</div>
+                                                    <div className="text-xs font-bold text-lime-300">{contractTarget}</div>
                                                 </button>
                                             </div>
                                         </div>
