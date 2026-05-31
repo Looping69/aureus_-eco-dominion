@@ -85,6 +85,7 @@ export class LogisticsSystem extends BaseSimSystem {
             BuildingType.SAWMILL,
             BuildingType.STONE_QUARRY,
             BuildingType.WORKSHOP,
+            BuildingType.GREEN_TECH_LAB,
             BuildingType.RAIL_LINE,
             BuildingType.STORAGE_DEPOT,
             BuildingType.STOCKPILE,
@@ -94,9 +95,9 @@ export class LogisticsSystem extends BaseSimSystem {
     }
 
     private getNodeMode(type: BuildingType): FactoryNodeState['mode'] | null {
-        if (type === BuildingType.RAIL_LINE || type === BuildingType.DISTRIBUTION_HUB) return 'TRANSPORT';
-        if ([BuildingType.STORAGE_DEPOT, BuildingType.STOCKPILE, BuildingType.TRAIN_STATION].includes(type)) return 'SINK';
-        if ([BuildingType.WASH_PLANT, BuildingType.RECYCLING_PLANT, BuildingType.ORE_FOUNDRY, BuildingType.GEM_REFINERY, BuildingType.WORKSHOP].includes(type)) return 'PROCESSOR';
+        if ([BuildingType.RAIL_LINE, BuildingType.DISTRIBUTION_HUB, BuildingType.TRAIN_STATION].includes(type)) return 'TRANSPORT';
+        if ([BuildingType.STORAGE_DEPOT, BuildingType.STOCKPILE].includes(type)) return 'SINK';
+        if ([BuildingType.WASH_PLANT, BuildingType.RECYCLING_PLANT, BuildingType.ORE_FOUNDRY, BuildingType.GEM_REFINERY, BuildingType.WORKSHOP, BuildingType.GREEN_TECH_LAB].includes(type)) return 'PROCESSOR';
         if ([BuildingType.MINING_HEADFRAME, BuildingType.SAWMILL, BuildingType.STONE_QUARRY].includes(type)) return 'SOURCE';
         return null;
     }
@@ -179,7 +180,7 @@ export class LogisticsSystem extends BaseSimSystem {
                     fromKey: node.key,
                     toKey: route.node.key,
                     progress: 0,
-                    speed: this.PACKET_TRAVEL_SPEED,
+                    speed: route.node.buildingType === BuildingType.TRAIN_STATION ? this.PACKET_TRAVEL_SPEED * 1.5 : this.PACKET_TRAVEL_SPEED,
                 });
                 if (factory.packets.length > 128) {
                     factory.packets.splice(0, factory.packets.length - 128);
@@ -241,7 +242,45 @@ export class LogisticsSystem extends BaseSimSystem {
             `${node.x},${node.z - 1}`,
         ];
 
-        return keys.map((key) => factory.nodes[key]).filter(Boolean) as FactoryNodeState[];
+        const neighbors = keys.map((key) => factory.nodes[key]).filter(Boolean) as FactoryNodeState[];
+        if (node.buildingType === BuildingType.TRAIN_STATION) {
+            neighbors.push(...this.findRailLinkedStations(factory, node));
+        }
+
+        return neighbors;
+    }
+
+    private findRailLinkedStations(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {
+        const linked: FactoryNodeState[] = [];
+        const visited = new Set<string>([origin.key]);
+        const queue: FactoryNodeState[] = [origin];
+
+        while (queue.length > 0) {
+            const current = queue.shift()!;
+            const keys = [
+                `${current.x + 1},${current.z}`,
+                `${current.x - 1},${current.z}`,
+                `${current.x},${current.z + 1}`,
+                `${current.x},${current.z - 1}`,
+            ];
+
+            for (const key of keys) {
+                if (visited.has(key)) continue;
+                const next = factory.nodes[key];
+                if (!next) continue;
+                if (![BuildingType.RAIL_LINE, BuildingType.TRAIN_STATION].includes(next.buildingType)) continue;
+
+                visited.add(key);
+                if (next.buildingType === BuildingType.TRAIN_STATION && next.key !== origin.key) {
+                    linked.push(next);
+                    continue;
+                }
+
+                queue.push(next);
+            }
+        }
+
+        return linked;
     }
 
     private getAcceptTarget(node: FactoryNodeState, resource: FactoryResourceType): 'buffer' | 'input' | null {
@@ -250,7 +289,7 @@ export class LogisticsSystem extends BaseSimSystem {
         }
 
         if (node.mode === 'SINK') {
-            return ['MINERALS', 'WOOD', 'STONE', 'GEMS', 'REFINED_MATERIALS', 'ALLOYS', 'MACHINE_PARTS'].includes(resource)
+            return ['MINERALS', 'WOOD', 'STONE', 'GEMS', 'REFINED_MATERIALS', 'ALLOYS', 'MACHINE_PARTS', 'AUTOMATION_KITS'].includes(resource)
                 ? 'buffer'
                 : null;
         }
@@ -275,17 +314,24 @@ export class LogisticsSystem extends BaseSimSystem {
                 : null;
         }
 
+        if (node.buildingType === BuildingType.GREEN_TECH_LAB) {
+            return (resource === 'REFINED_MATERIALS' || resource === 'ALLOYS' || resource === 'MACHINE_PARTS') && this.getCapacityLeft(node, 'input') > 0
+                ? 'input'
+                : null;
+        }
+
         return null;
     }
 
     private getTransferBudget(node: FactoryNodeState): number {
+        if (node.buildingType === BuildingType.TRAIN_STATION) return 12;
         if (node.buildingType === BuildingType.DISTRIBUTION_HUB) return 6;
-        if (node.buildingType === BuildingType.RAIL_LINE) return 2;
+        if (node.buildingType === BuildingType.RAIL_LINE) return 4;
         return 3;
     }
 
     private getCapacityLeft(node: FactoryNodeState, target: 'buffer' | 'input'): number {
-        const cap = node.buildingType === BuildingType.DISTRIBUTION_HUB ? 24 : node.mode === 'TRANSPORT' ? 10 : 20;
+        const cap = node.buildingType === BuildingType.TRAIN_STATION ? 36 : node.buildingType === BuildingType.DISTRIBUTION_HUB ? 24 : node.mode === 'TRANSPORT' ? 10 : 20;
         const active = target === 'input' ? node.inputBuffer : node.buffer;
         const used = Object.values(active).reduce((sum, value) => sum + (value || 0), 0);
         return Math.max(0, cap - used);
@@ -297,6 +343,7 @@ export class LogisticsSystem extends BaseSimSystem {
                 refinedMaterials: 0,
                 alloys: 0,
                 machineParts: 0,
+                automationKits: 0,
                 automatedChains: 0,
                 gridLoad: 0,
             };
@@ -309,6 +356,7 @@ export class LogisticsSystem extends BaseSimSystem {
         if (resource === 'REFINED_MATERIALS') state.industry.refinedMaterials += amount;
         if (resource === 'ALLOYS') state.industry.alloys += amount;
         if (resource === 'MACHINE_PARTS') state.industry.machineParts += amount;
+        if (resource === 'AUTOMATION_KITS') state.industry.automationKits += amount;
     }
 
     private updateExploration(state: GameState) {
