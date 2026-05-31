@@ -9,6 +9,7 @@ const buildingsPath = path.join(process.cwd(), 'engine', 'data', 'buildings.ts')
 const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
 const tradeTerminalPath = path.join(process.cwd(), 'components', 'TradeTerminal.tsx');
 const engineBridgePath = path.join(process.cwd(), 'game', 'useAureusEngine.ts');
+const economyPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'EconomySystem.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -22,6 +23,8 @@ test('Phase 3 packet types expose explicit belt, rail, and drone transport modes
   for (const snippet of [
     "export type FactoryPacketTransportMode = 'BELT' | 'RAIL' | 'DRONE';",
     "export type FactorySectorDirective = 'BALANCED' | 'EXPORT' | 'IMPORT';",
+    "export type FactorySectorFlowMode = 'STABLE' | 'SURGE';",
+    "export type FactorySectorCongestionMode = 'SAFE' | 'BALANCED' | 'AGGRESSIVE';",
     'transportMode?: FactoryPacketTransportMode;',
     'sectorName?: string;',
     'sectorFrom?: string;',
@@ -34,6 +37,13 @@ test('Phase 3 packet types expose explicit belt, rail, and drone transport modes
     'demandBonus: number;',
     'directive?: FactorySectorDirective;',
     'priorityResource?: FactoryResourceType;',
+    'flowMode?: FactorySectorFlowMode;',
+    'congestionPolicy?: FactorySectorCongestionMode;',
+    'congestionLevel?: number;',
+    'contractResource?: FactoryResourceType;',
+    'contractTarget?: number;',
+    'contractProgress?: number;',
+    'contractReward?: number;',
     'droneCharge?: number;',
     'droneUpkeep?: number;',
     'rechargePads?: number;',
@@ -56,9 +66,16 @@ test('Train stations act as regional sector anchors, drone depots extend local s
     'private getRegionalSectorName(x: number, z: number): string {',
     'private summarizeSectors(factory: FactoryState): FactorySectorState[] {',
     'const previousByName = new Map((factory.sectors || []).map((sector) => [sector.name, sector]));',
-    'private buildSectorProfile(name: string, stationCount: number, throughput: number, previous?: FactorySectorState): FactorySectorState {',
-    "const directive = previous?.directive || 'BALANCED';",
-    "const priorityResource = previous?.priorityResource || (directive === 'IMPORT' ? importFocus : exportFocus);",
+    'const contractProgressBySector = new Map<string, number>();',
+    'const dronePressureBySector = new Map<string, number>();',
+    'private buildSectorProfile(',
+    "const flowMode = previous?.flowMode || 'STABLE';",
+    "const congestionPolicy = previous?.congestionPolicy || 'BALANCED';",
+    "const contractResource = previous?.contractResource || defaultContractResource;",
+    'const contractTarget = previous?.contractTarget || (18 + stationCount * 8 + Math.round(throughput * 0.35));',
+    'const congestionLevel = Math.max(0, Math.min(1, (throughput / Math.max(18, stationCount * 18)) + (dronePressure * 0.55)));',
+    'contractProgress: cappedProgress,',
+    'contractReward: Math.round(contractTarget * (4 + ((hash % 3) * 0.5))),',
     'private findRailLinkedStations(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
     'private findDroneServedNodes(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
     'if (node.buildingType === BuildingType.TRAIN_STATION) {',
@@ -71,12 +88,13 @@ test('Train stations act as regional sector anchors, drone depots extend local s
   }
 });
 
-test('Train packets distinguish long-haul inter-sector rail movement from pressure-limited, depot-boosted drone dispatch, and route scoring now listens to sector policy', () => {
+test('Train packets now score routes with sector flow posture, congestion appetite, and live quota pull', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
 
   for (const snippet of [
+    'const transferBudget = Math.max(0.75, this.getTransferBudget(node) + this.getSectorTransferBias(factory, node, route.node, transportMode));',
     'const transportMode = this.getPacketTransportMode(node, route.node);',
     'const sectorFrom = this.getPacketSector(factory, node, route.node, transportMode);',
     'const sectorTo = this.getPacketSector(factory, route.node, node, transportMode);',
@@ -87,11 +105,16 @@ test('Train packets distinguish long-haul inter-sector rail movement from pressu
     'factory.droneUpkeep = this.getDroneUpkeep(droneTrips, factory.rechargePads || 0);',
     'factory.dronePressure = droneTrips > 0 ? dronePressureTotal / droneTrips : 0;',
     'private scoreRouteCandidate(',
-    'const destinationSector = destinationSectorName ? this.getSectorProfile(factory, destinationSectorName) : undefined;',
-    "if (destinationSector?.directive === 'IMPORT') score += 5;",
-    "if (originSector?.directive === 'EXPORT') score += 4;",
-    "if (destinationSector?.priorityResource === resource) score += destinationSector.directive === 'IMPORT' ? 12 : 6;",
-    "if (originSector?.priorityResource === resource) score += originSector.directive === 'EXPORT' ? 10 : 5;",
+    "if (destinationSector?.flowMode === 'SURGE') score += 4;",
+    "if (destinationSector?.flowMode === 'STABLE' && target === 'input') score += 2;",
+    'const congestionPenalty = this.getCongestionPenalty(destinationSector, transportMode) + (originSector?.congestionLevel || 0) * 2;',
+    'score += this.getSectorContractPull(destinationSector, resource);',
+    'private getCongestionPenalty(sector: FactorySectorState | undefined, mode: FactoryPacketTransportMode): number {',
+    'private getSectorContractPull(sector: FactorySectorState | undefined, resource: FactoryResourceType): number {',
+    'private getSectorTransferBias(',
+    "if (sector.flowMode === 'SURGE') bias += transportMode === 'RAIL' ? 1.5 : 1;",
+    "if (sector.congestionPolicy === 'AGGRESSIVE') bias += 0.6;",
+    "if (sector.congestionPolicy === 'SAFE') bias -= 0.45;",
     'private getSectorProfile(factory: FactoryState, name: string): FactorySectorState | undefined {',
     'private getDroneTransferBudget(factory: FactoryState, station: FactoryNodeState | null): number {',
     'private countActiveDroneTrips(factory: FactoryState, station: FactoryNodeState | null): number {',
@@ -99,11 +122,27 @@ test('Train packets distinguish long-haul inter-sector rail movement from pressu
     'private countRechargePads(factory: FactoryState): number {',
     'private getDroneCharge(rechargePads: number, droneTrips: number): number {',
     'private getDroneUpkeep(droneTrips: number, rechargePads: number): number {',
-    "if (this.isDroneHub(origin.buildingType) && destination.mode !== 'TRANSPORT') return 'DRONE';",
-    "if (this.isDroneHub(destination.buildingType) && origin.mode !== 'TRANSPORT') return 'DRONE';",
-    "if (origin.buildingType === BuildingType.TRAIN_STATION || destination.buildingType === BuildingType.TRAIN_STATION) return 'RAIL';",
-    'if (station.buildingType === BuildingType.DRONE_DEPOT) return 10;',
-    'reduce((sum, node) => sum + this.getDroneRechargePadCapacity(node), 0);',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Sector quotas now affect market pricing instead of staying purely descriptive', () => {
+  assert.equal(existsSync(economyPath), true, 'EconomySystem.ts is missing');
+
+  const source = readFileSync(economyPath, 'utf8');
+
+  for (const snippet of [
+    'FactorySectorState',
+    'private getSectorExportBonus(state: GameState, resource: FactoryResourceType): number {',
+    'private getSectorImportDiscount(state: GameState, resource: FactoryResourceType): number {',
+    'private getSectorExportContractBonus(sector: FactorySectorState, resource: FactoryResourceType): number {',
+    'private getSectorImportContractDiscount(sector: FactorySectorState, resource: FactoryResourceType): number {',
+    'private getSectorContractCompletion(sector: FactorySectorState): number {',
+    'sector.exportBonus + this.getSectorExportContractBonus(sector, resource)',
+    'sector.importDiscount + this.getSectorImportContractDiscount(sector, resource)',
+    'if (sector.contractResource !== resource || sector.importFocus !== resource) return 0;',
+    'const needRatio = Math.max(0, 1 - this.getSectorContractCompletion(sector));',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
@@ -140,32 +179,39 @@ test('Building definitions and HUD now describe visible regional personalities p
   }
 });
 
-test('Trade terminal includes a dedicated sector market planning view with steerable dispatch controls', () => {
+test('Trade terminal includes visible throughput, congestion, and quota controls on each sector card', () => {
   assert.equal(existsSync(tradeTerminalPath), true, 'components/TradeTerminal.tsx is missing');
 
   const source = readFileSync(tradeTerminalPath, 'utf8');
 
   for (const snippet of [
     'const sectors = [...(state.factory?.sectors || [])].sort',
-    'const SECTOR_DIRECTIVES: FactorySectorDirective[] = [\'BALANCED\', \'EXPORT\', \'IMPORT\'];',
-    'const PRIORITY_RESOURCE_ORDER: FactoryResourceType[] = [',
-    'const getNextDirective = (directive?: FactorySectorDirective): FactorySectorDirective => {',
-    'const getNextPriorityResource = (resource?: FactoryResourceType): FactoryResourceType => {',
+    "const SECTOR_DIRECTIVES: FactorySectorDirective[] = ['BALANCED', 'EXPORT', 'IMPORT'];",
+    "const FLOW_MODES: FactorySectorFlowMode[] = ['STABLE', 'SURGE'];",
+    "const CONGESTION_POLICIES: FactorySectorCongestionMode[] = ['SAFE', 'BALANCED', 'AGGRESSIVE'];",
+    'const CONTRACT_TARGETS = [16, 24, 32, 48, 64, 96];',
+    'const getNextFlowMode = (mode?: FactorySectorFlowMode): FactorySectorFlowMode => {',
+    'const getNextCongestionPolicy = (policy?: FactorySectorCongestionMode): FactorySectorCongestionMode => {',
+    'const getNextContractTarget = (target?: number): number => {',
     'Sector Market',
-    'Regional export and import bias',
+    'Regional export, congestion, and quota control',
     'Build train stations to open regional trade lanes.',
-    'Dispatch',
-    'Priority',
+    'Demand contract',
+    'Throughput',
+    'Congestion',
+    'Contract',
+    'Quota',
     "type: 'UPDATE_SECTOR_POLICY'",
-    'directive: getNextDirective(directive),',
-    'priorityResource: getNextPriorityResource(priorityResource),',
-    'SECTOR_RESOURCE_LABELS[priorityResource]',
+    'flowMode: getNextFlowMode(flowMode)',
+    'congestionPolicy: getNextCongestionPolicy(congestionPolicy)',
+    'contractResource: getNextPriorityResource(contractResource)',
+    'contractTarget: getNextContractTarget(contractTarget)',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Engine dispatch bridge persists sector policy updates back into engine-owned state', () => {
+test('Engine dispatch bridge persists expanded sector policy updates back into engine-owned state', () => {
   assert.equal(existsSync(engineBridgePath), true, 'game/useAureusEngine.ts is missing');
 
   const source = readFileSync(engineBridgePath, 'utf8');
@@ -178,6 +224,10 @@ test('Engine dispatch bridge persists sector policy updates back into engine-own
     'sectors: state.factory.sectors.map((sector) =>',
     "directive: action.payload.directive ?? sector.directive ?? 'BALANCED'",
     'priorityResource: action.payload.priorityResource ?? sector.priorityResource ?? sector.exportFocus,',
+    "flowMode: action.payload.flowMode ?? sector.flowMode ?? 'STABLE'",
+    "congestionPolicy: action.payload.congestionPolicy ?? sector.congestionPolicy ?? 'BALANCED'",
+    'contractResource: action.payload.contractResource ?? sector.contractResource ?? sector.importFocus,',
+    'contractTarget: action.payload.contractTarget ?? sector.contractTarget ?? 24,',
     'world.loadGame(JSON.stringify(updatedState));',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
