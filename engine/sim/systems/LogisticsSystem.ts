@@ -7,6 +7,7 @@ import {
     FactoryPacketState,
     FactoryPacketTransportMode,
     FactoryResourceType,
+    FactorySectorState,
     FactoryState,
     GameState,
 } from '../../../types';
@@ -63,9 +64,13 @@ export class LogisticsSystem extends BaseSimSystem {
                 backlog: 0,
                 stalledNodes: 0,
                 lastNetworkTick: 0,
+                sectors: [],
                 regionalThroughput: 0,
                 dronePressure: 0,
                 droneTrips: 0,
+                droneCharge: 1,
+                droneUpkeep: 0,
+                rechargePads: 0,
             };
         }
 
@@ -80,6 +85,18 @@ export class LogisticsSystem extends BaseSimSystem {
         }
         if (state.factory.droneTrips === undefined) {
             state.factory.droneTrips = 0;
+        }
+        if (state.factory.droneCharge === undefined) {
+            state.factory.droneCharge = 1;
+        }
+        if (state.factory.droneUpkeep === undefined) {
+            state.factory.droneUpkeep = 0;
+        }
+        if (state.factory.rechargePads === undefined) {
+            state.factory.rechargePads = 0;
+        }
+        if (!state.factory.sectors) {
+            state.factory.sectors = [];
         }
 
         return state.factory;
@@ -244,8 +261,12 @@ export class LogisticsSystem extends BaseSimSystem {
         }
 
         factory.throughput = throughput / this.FACTORY_INTERVAL;
+        factory.sectors = this.summarizeSectors(factory);
         factory.regionalThroughput = regionalThroughput / this.FACTORY_INTERVAL;
+        factory.rechargePads = this.countRechargePads(factory);
         factory.droneTrips = droneTrips;
+        factory.droneCharge = this.getDroneCharge(factory.rechargePads || 0, droneTrips);
+        factory.droneUpkeep = this.getDroneUpkeep(droneTrips, factory.rechargePads || 0);
         factory.dronePressure = droneTrips > 0 ? dronePressureTotal / droneTrips : 0;
         factory.stalledNodes = stalledNodes;
         factory.backlog = Object.values(factory.nodes).reduce((sum, node) => {
@@ -434,6 +455,45 @@ export class LogisticsSystem extends BaseSimSystem {
         return `${prefix || 'Central'} ${landmark}`;
     }
 
+    private summarizeSectors(factory: FactoryState): FactorySectorState[] {
+        const throughputBySector = new Map<string, number>();
+        const stationCountBySector = new Map<string, number>();
+
+        Object.values(factory.nodes)
+            .filter((node) => node.buildingType === BuildingType.TRAIN_STATION && node.sectorName)
+            .forEach((node) => {
+                const name = node.sectorName!;
+                stationCountBySector.set(name, (stationCountBySector.get(name) || 0) + 1);
+            });
+
+        factory.packets
+            .filter((packet) => packet.transportMode === 'RAIL' && packet.sectorFrom && packet.sectorTo && packet.sectorFrom !== packet.sectorTo)
+            .forEach((packet) => {
+                throughputBySector.set(packet.sectorFrom!, (throughputBySector.get(packet.sectorFrom!) || 0) + packet.amount);
+                throughputBySector.set(packet.sectorTo!, (throughputBySector.get(packet.sectorTo!) || 0) + packet.amount);
+            });
+
+        return Array.from(stationCountBySector.entries()).map(([name, stationCount]) =>
+            this.buildSectorProfile(name, stationCount, throughputBySector.get(name) || 0)
+        );
+    }
+
+    private buildSectorProfile(name: string, stationCount: number, throughput: number): FactorySectorState {
+        const exportFocuses: FactoryResourceType[] = ['MINERALS', 'WOOD', 'STONE', 'GEMS', 'REFINED_MATERIALS', 'ALLOYS'];
+        const importFocuses: FactoryResourceType[] = ['WOOD', 'STONE', 'MINERALS', 'MACHINE_PARTS', 'AUTOMATION_KITS', 'ALLOYS'];
+        const hash = Array.from(name).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+        return {
+            name,
+            exportFocus: exportFocuses[hash % exportFocuses.length],
+            importFocus: importFocuses[(hash + 3) % importFocuses.length],
+            exportBonus: 0.06 + ((hash % 4) * 0.02),
+            importDiscount: 0.05 + (((hash + 2) % 3) * 0.02),
+            demandBonus: 0.04 + ((hash % 3) * 0.01),
+            stationCount,
+            throughput,
+        };
+    }
+
     private getPacketSector(
         factory: FactoryState,
         origin: FactoryNodeState,
@@ -481,15 +541,38 @@ export class LogisticsSystem extends BaseSimSystem {
 
     private getDroneTransferBudget(factory: FactoryState, station: FactoryNodeState | null): number {
         const activeTrips = this.countActiveDroneTrips(factory, station);
-        if (activeTrips <= 1) return 3;
-        if (activeTrips <= this.DRONE_SOFT_CAP) return 2.25;
-        if (activeTrips < this.DRONE_HARD_CAP) return 1.5;
+        const rechargePads = this.getDroneRechargePadCapacity(station);
+        if (activeTrips <= Math.max(1, Math.floor(rechargePads / 2))) return 3;
+        if (activeTrips <= Math.max(this.DRONE_SOFT_CAP, rechargePads)) return 2.25;
+        if (activeTrips < Math.max(this.DRONE_HARD_CAP, rechargePads + 2)) return 1.5;
         return 0.75;
     }
 
     private getDronePressure(factory: FactoryState, station: FactoryNodeState | null): number {
         const activeTrips = this.countActiveDroneTrips(factory, station);
-        return Math.min(1, activeTrips / this.DRONE_HARD_CAP);
+        return Math.min(1, activeTrips / Math.max(this.DRONE_HARD_CAP, this.getDroneRechargePadCapacity(station)));
+    }
+
+    private getDroneRechargePadCapacity(station: FactoryNodeState | null): number {
+        if (!station) return 2;
+        return station.buildingType === BuildingType.TRAIN_STATION ? 4 : 2;
+    }
+
+    private countRechargePads(factory: FactoryState): number {
+        return Object.values(factory.nodes)
+            .filter((node) => node.buildingType === BuildingType.TRAIN_STATION)
+            .length * 4;
+    }
+
+    private getDroneCharge(rechargePads: number, droneTrips: number): number {
+        if (rechargePads <= 0) return droneTrips > 0 ? 0.2 : 1;
+        return Math.max(0.18, Math.min(1, 1 - (droneTrips / (rechargePads * 1.5))));
+    }
+
+    private getDroneUpkeep(droneTrips: number, rechargePads: number): number {
+        if (droneTrips <= 0) return 0;
+        const overload = Math.max(0, droneTrips - rechargePads);
+        return Math.round((droneTrips * 1.5 + overload * 2) * 10) / 10;
     }
 
     private depositResource(state: GameState, resource: FactoryResourceType, amount: number): void {
