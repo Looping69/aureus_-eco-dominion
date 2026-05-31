@@ -5,7 +5,7 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
-import { GameState, BuildingType, SfxType, GameCommand } from '../../../types';
+import { FactoryResourceType, GameState, BuildingType, SfxType, GameCommand } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { getEcoMultiplier } from '../../utils/GameUtils';
 import { getIndustrialBuildingCosts, getMissingIndustrialCosts } from '../../data/industrialCosts';
@@ -36,6 +36,10 @@ export class EconomySystem extends BaseSimSystem {
         this.updateTrend(ctx, market.gems);
         this.updateTrend(ctx, market.wood);
         this.updateTrend(ctx, market.stone);
+
+        if ((state.factory?.droneUpkeep || 0) > 0) {
+            state.resources.agt = Math.max(0, state.resources.agt - (state.factory?.droneUpkeep || 0));
+        }
 
         // Calculate and Enforce Capacity
         // Run every tick or throttled? Throttled is fine, or every 1s
@@ -193,15 +197,16 @@ export class EconomySystem extends BaseSimSystem {
 
         const ecoMult = getEcoMultiplier(state.resources.eco);
         const trustMult = 1 + (state.resources.trust / 200);
+        const sectorBonus = this.getSectorExportBonus(state, this.toFactoryResourceType(resource));
         const price = state.market[resource].currentPrice;
-        const value = Math.floor(amount * price * ecoMult * trustMult);
+        const value = Math.floor(amount * price * ecoMult * trustMult * (1 + sectorBonus));
 
         state.resources.agt += value;
         state.resources[resource] = 0;
         state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.SELL });
         state.newsFeed.unshift({
             id: `sell_${resource}_${Date.now()}`,
-            headline: `Market Transaction: Sold ${resource} for ${value} AGT`,
+            headline: `Market Transaction: Sold ${resource} for ${value} AGT${sectorBonus > 0 ? ` with a ${Math.round(sectorBonus * 100)}% sector premium` : ''}`,
             type: 'POSITIVE',
             timestamp: state.tickCount
         });
@@ -209,7 +214,8 @@ export class EconomySystem extends BaseSimSystem {
     }
 
     private handleBuyResource(resource: 'minerals' | 'gems' | 'wood' | 'stone', amount: number, state: GameState): CommandResult {
-        const price = state.market[resource].currentPrice * 1.25;
+        const sectorDiscount = this.getSectorImportDiscount(state, this.toFactoryResourceType(resource));
+        const price = state.market[resource].currentPrice * 1.25 * (1 - sectorDiscount);
         const totalCost = Math.floor(price * amount);
 
         if (state.resources.agt < totalCost) {
@@ -222,11 +228,30 @@ export class EconomySystem extends BaseSimSystem {
         state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.UI_COIN });
         state.newsFeed.unshift({
             id: `buy_${resource}_${Date.now()}`,
-            headline: `Import Dispatch: Acquired ${amount} ${resource} for ${totalCost} AGT`,
+            headline: `Import Dispatch: Acquired ${amount} ${resource} for ${totalCost} AGT${sectorDiscount > 0 ? ` with a ${Math.round(sectorDiscount * 100)}% sector discount` : ''}`,
             type: 'NEUTRAL',
             timestamp: state.tickCount
         });
         return { ok: true };
+    }
+
+    private getSectorExportBonus(state: GameState, resource: FactoryResourceType): number {
+        return Math.max(0, ...(state.factory?.sectors || [])
+            .filter((sector) => sector.exportFocus === resource)
+            .map((sector) => sector.exportBonus));
+    }
+
+    private getSectorImportDiscount(state: GameState, resource: FactoryResourceType): number {
+        return Math.max(0, ...(state.factory?.sectors || [])
+            .filter((sector) => sector.importFocus === resource)
+            .map((sector) => sector.importDiscount));
+    }
+
+    private toFactoryResourceType(resource: 'minerals' | 'gems' | 'wood' | 'stone'): FactoryResourceType {
+        if (resource === 'minerals') return 'MINERALS';
+        if (resource === 'gems') return 'GEMS';
+        if (resource === 'wood') return 'WOOD';
+        return 'STONE';
     }
 
     private fluatuateResource(ctx: FixedContext, m: any) {
