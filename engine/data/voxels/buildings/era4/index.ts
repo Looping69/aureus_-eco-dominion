@@ -6,6 +6,7 @@ import { WasteTreatmentFactory } from './WasteTreatment';
 import { NatureReserveFactory } from './NatureReserve';
 import { HydroponicsFactory } from './Hydroponics';
 import { GeothermalPlantFactory } from './GeothermalPlant';
+import { DroneDepotFactory } from './DroneDepot';
 
 export const Era4Buildings = {
     [BuildingType.RESERVOIR]: ReservoirFactory,
@@ -13,5 +14,6 @@ export const Era4Buildings = {
     [BuildingType.WASTE_TREATMENT]: WasteTreatmentFactory,
     [BuildingType.NATURE_RESERVE]: NatureReserveFactory,
     [BuildingType.HYDROPONICS]: HydroponicsFactory,
-    [BuildingType.GEOTHERMAL_PLANT]: GeothermalPlantFactory
+    [BuildingType.GEOTHERMAL_PLANT]: GeothermalPlantFactory,
+    [BuildingType.DRONE_DEPOT]: DroneDepotFactory,
 };
