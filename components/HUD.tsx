@@ -248,6 +248,8 @@ export const HUD: React.FC<HUDProps> = React.memo(({ resources, financials, popu
       <ResourceBlock icon={Hammer} val={state.industry?.automatedChains || 0} label="Chains" borderClass="border-lime-600/80" iconBgClass="bg-lime-400" textColor="text-lime-100" isExpanded={activeBlock === 'chains'} onToggle={(open: boolean) => toggleBlock('chains', open)} />
       <ResourceBlock icon={Zap} val={state.industry?.gridLoad || 0} label="Grid" borderClass="border-yellow-500/80" iconBgClass="bg-yellow-400" textColor="text-yellow-100" sub={state.powerGrid?.strandedDemand ? -Math.floor(state.powerGrid.strandedDemand) : undefined} isExpanded={activeBlock === 'grid'} onToggle={(open: boolean) => toggleBlock('grid', open)} />
       <ResourceBlock icon={Truck} val={state.factory?.throughput || 0} label="Flow" borderClass="border-cyan-600/80" iconBgClass="bg-cyan-500" textColor="text-cyan-200" isExpanded={activeBlock === 'flow'} onToggle={(open: boolean) => toggleBlock('flow', open)} />
+      <ResourceBlock icon={Truck} val={state.factory?.regionalThroughput || 0} label="Rail" borderClass="border-sky-700/80" iconBgClass="bg-sky-500" textColor="text-sky-100" isExpanded={activeBlock === 'rail'} onToggle={(open: boolean) => toggleBlock('rail', open)} />
+      <ResourceBlock icon={Zap} val={(state.factory?.droneCharge || 0) * 100} label="Charge" borderClass="border-emerald-700/80" iconBgClass="bg-emerald-400" textColor="text-emerald-100" sub={state.factory?.droneUpkeep ? -Math.floor(state.factory.droneUpkeep) : undefined} isExpanded={activeBlock === 'charge'} onToggle={(open: boolean) => toggleBlock('charge', open)} />
     </div>
   );
 });
