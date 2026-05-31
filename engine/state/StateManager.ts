@@ -176,6 +176,7 @@ export class StateManager {
                 refinedMaterials: overrides?.industry?.refinedMaterials ?? 0,
                 alloys: overrides?.industry?.alloys ?? 0,
                 machineParts: overrides?.industry?.machineParts ?? 0,
+                automationKits: overrides?.industry?.automationKits ?? 0,
                 automatedChains: overrides?.industry?.automatedChains ?? 0,
                 gridLoad: overrides?.industry?.gridLoad ?? 0,
             },
