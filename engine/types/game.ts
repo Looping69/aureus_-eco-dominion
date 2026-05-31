@@ -152,6 +152,7 @@ export type FactoryResourceType =
     | 'MACHINE_PARTS'
     | 'AUTOMATION_KITS';
 export type FactoryPacketTransportMode = 'BELT' | 'RAIL' | 'DRONE';
+export type FactorySectorDirective = 'BALANCED' | 'EXPORT' | 'IMPORT';
 
 export interface FactorySectorState {
     name: string;
@@ -162,6 +163,8 @@ export interface FactorySectorState {
     demandBonus: number;
     stationCount: number;
     throughput: number;
+    directive?: FactorySectorDirective;
+    priorityResource?: FactoryResourceType;
 }
 
 export interface FactoryNodeState {
