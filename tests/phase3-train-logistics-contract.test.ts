@@ -7,6 +7,7 @@ const gameTypesPath = path.join(process.cwd(), 'engine', 'types', 'game.ts');
 const logisticsPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'LogisticsSystem.ts');
 const buildingsPath = path.join(process.cwd(), 'engine', 'data', 'buildings.ts');
 const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
+const tradeTerminalPath = path.join(process.cwd(), 'components', 'TradeTerminal.tsx');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -122,5 +123,25 @@ test('Building definitions and HUD now describe visible regional personalities p
     'Pads {rechargePads} · Rail {railFlow}',
   ]) {
     assert.match(hudSource, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Trade terminal includes a dedicated sector market planning view', () => {
+  assert.equal(existsSync(tradeTerminalPath), true, 'components/TradeTerminal.tsx is missing');
+
+  const source = readFileSync(tradeTerminalPath, 'utf8');
+
+  for (const snippet of [
+    'const sectors = [...(state.factory?.sectors || [])].sort',
+    'Sector Market',
+    'Regional export and import bias',
+    'Build train stations to open regional trade lanes.',
+    'Exports',
+    'Imports',
+    'pads bias',
+    'SECTOR_RESOURCE_LABELS[sector.exportFocus]',
+    'SECTOR_RESOURCE_LABELS[sector.importFocus]',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
