@@ -211,7 +211,8 @@ export class LogisticsSystem extends BaseSimSystem {
                 }
 
                 const transportMode = this.getPacketTransportMode(node, route.node);
-                let amount = Math.min(rawAmount, this.getTransferBudget(node), this.getCapacityLeft(route.node, route.target));
+                const transferBudget = Math.max(0.75, this.getTransferBudget(node) + this.getSectorTransferBias(factory, node, route.node, transportMode));
+                let amount = Math.min(rawAmount, transferBudget, this.getCapacityLeft(route.node, route.target));
                 if (transportMode === 'DRONE') {
                     const droneAnchor = this.getDroneAnchor(factory, node, route.node);
                     amount = Math.min(amount, this.getDroneTransferBudget(factory, droneAnchor));
@@ -339,6 +340,14 @@ export class LogisticsSystem extends BaseSimSystem {
         if (destinationSector?.priorityResource === resource) score += destinationSector.directive === 'IMPORT' ? 12 : 6;
         if (originSector?.priorityResource === resource) score += originSector.directive === 'EXPORT' ? 10 : 5;
 
+        if (destinationSector?.flowMode === 'SURGE') score += 4;
+        if (destinationSector?.flowMode === 'STABLE' && target === 'input') score += 2;
+        if (originSector?.flowMode === 'SURGE') score += 2;
+
+        const congestionPenalty = this.getCongestionPenalty(destinationSector, transportMode) + (originSector?.congestionLevel || 0) * 2;
+        score -= congestionPenalty;
+        score += this.getSectorContractPull(destinationSector, resource);
+
         if (transportMode === 'RAIL' && originSectorName && destinationSectorName && originSectorName !== destinationSectorName) {
             score += 5;
         }
@@ -349,6 +358,50 @@ export class LogisticsSystem extends BaseSimSystem {
         }
 
         return score;
+    }
+
+    private getCongestionPenalty(sector: FactorySectorState | undefined, mode: FactoryPacketTransportMode): number {
+        if (!sector) return 0;
+        const level = sector.congestionLevel || 0;
+        if (sector.congestionPolicy === 'SAFE') return level * (mode === 'DRONE' ? 11 : 9);
+        if (sector.congestionPolicy === 'AGGRESSIVE') return level * (mode === 'DRONE' ? 3 : 2.5);
+        return level * (mode === 'DRONE' ? 7 : 5.5);
+    }
+
+    private getSectorContractPull(sector: FactorySectorState | undefined, resource: FactoryResourceType): number {
+        if (!sector) return 0;
+        if (sector.contractResource !== resource) return 0;
+        const target = sector.contractTarget || 0;
+        if (target <= 0) return 0;
+        const progress = Math.min(target, sector.contractProgress || 0);
+        const unmetRatio = Math.max(0, 1 - (progress / target));
+        const basePull = sector.importFocus === resource ? 16 : 9;
+        return unmetRatio * basePull;
+    }
+
+    private getSectorTransferBias(
+        factory: FactoryState,
+        origin: FactoryNodeState,
+        destination: FactoryNodeState,
+        transportMode: FactoryPacketTransportMode
+    ): number {
+        const sectors = [
+            this.getNodeSector(factory, origin),
+            this.getNodeSector(factory, destination),
+        ]
+            .filter(Boolean)
+            .map((name) => this.getSectorProfile(factory, name!))
+            .filter(Boolean) as FactorySectorState[];
+
+        let bias = 0;
+        for (const sector of sectors) {
+            if (sector.flowMode === 'SURGE') bias += transportMode === 'RAIL' ? 1.5 : 1;
+            if (sector.flowMode === 'STABLE') bias -= 0.35;
+            if (sector.congestionPolicy === 'AGGRESSIVE') bias += 0.6;
+            if (sector.congestionPolicy === 'SAFE') bias -= 0.45;
+        }
+
+        return bias;
     }
 
     private getNeighbors(factory: FactoryState, node: FactoryNodeState): FactoryNodeState[] {
@@ -517,6 +570,8 @@ export class LogisticsSystem extends BaseSimSystem {
     private summarizeSectors(factory: FactoryState): FactorySectorState[] {
         const throughputBySector = new Map<string, number>();
         const stationCountBySector = new Map<string, number>();
+        const contractProgressBySector = new Map<string, number>();
+        const dronePressureBySector = new Map<string, number>();
         const previousByName = new Map((factory.sectors || []).map((sector) => [sector.name, sector]));
 
         Object.values(factory.nodes)
@@ -524,6 +579,7 @@ export class LogisticsSystem extends BaseSimSystem {
             .forEach((node) => {
                 const name = node.sectorName!;
                 stationCountBySector.set(name, (stationCountBySector.get(name) || 0) + 1);
+                dronePressureBySector.set(name, (dronePressureBySector.get(name) || 0) + this.getDronePressure(factory, node));
             });
 
         factory.packets
@@ -531,14 +587,33 @@ export class LogisticsSystem extends BaseSimSystem {
             .forEach((packet) => {
                 throughputBySector.set(packet.sectorFrom!, (throughputBySector.get(packet.sectorFrom!) || 0) + packet.amount);
                 throughputBySector.set(packet.sectorTo!, (throughputBySector.get(packet.sectorTo!) || 0) + packet.amount);
+
+                const previousDestination = previousByName.get(packet.sectorTo!);
+                if (previousDestination?.contractResource === packet.resource) {
+                    contractProgressBySector.set(packet.sectorTo!, (contractProgressBySector.get(packet.sectorTo!) || 0) + packet.amount);
+                }
             });
 
         return Array.from(stationCountBySector.entries()).map(([name, stationCount]) =>
-            this.buildSectorProfile(name, stationCount, throughputBySector.get(name) || 0, previousByName.get(name))
+            this.buildSectorProfile(
+                name,
+                stationCount,
+                throughputBySector.get(name) || 0,
+                contractProgressBySector.get(name) || 0,
+                dronePressureBySector.get(name) || 0,
+                previousByName.get(name)
+            )
         );
     }
 
-    private buildSectorProfile(name: string, stationCount: number, throughput: number, previous?: FactorySectorState): FactorySectorState {
+    private buildSectorProfile(
+        name: string,
+        stationCount: number,
+        throughput: number,
+        contractProgress: number,
+        dronePressure: number,
+        previous?: FactorySectorState
+    ): FactorySectorState {
         const exportFocuses: FactoryResourceType[] = ['MINERALS', 'WOOD', 'STONE', 'GEMS', 'REFINED_MATERIALS', 'ALLOYS'];
         const importFocuses: FactoryResourceType[] = ['WOOD', 'STONE', 'MINERALS', 'MACHINE_PARTS', 'AUTOMATION_KITS', 'ALLOYS'];
         const hash = Array.from(name).reduce((sum, char) => sum + char.charCodeAt(0), 0);
@@ -546,6 +621,13 @@ export class LogisticsSystem extends BaseSimSystem {
         const importFocus = importFocuses[(hash + 3) % importFocuses.length];
         const directive = previous?.directive || 'BALANCED';
         const priorityResource = previous?.priorityResource || (directive === 'IMPORT' ? importFocus : exportFocus);
+        const flowMode = previous?.flowMode || 'STABLE';
+        const congestionPolicy = previous?.congestionPolicy || 'BALANCED';
+        const defaultContractResource = directive === 'EXPORT' ? exportFocus : importFocus;
+        const contractResource = previous?.contractResource || defaultContractResource;
+        const contractTarget = previous?.contractTarget || (18 + stationCount * 8 + Math.round(throughput * 0.35));
+        const congestionLevel = Math.max(0, Math.min(1, (throughput / Math.max(18, stationCount * 18)) + (dronePressure * 0.55)));
+        const cappedProgress = Math.min(contractTarget, contractProgress);
 
         return {
             name,
@@ -558,6 +640,13 @@ export class LogisticsSystem extends BaseSimSystem {
             throughput,
             directive,
             priorityResource,
+            flowMode,
+            congestionPolicy,
+            congestionLevel,
+            contractResource,
+            contractTarget,
+            contractProgress: cappedProgress,
+            contractReward: Math.round(contractTarget * (4 + ((hash % 3) * 0.5))),
         };
     }
 
