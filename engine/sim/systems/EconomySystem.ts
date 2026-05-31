@@ -5,7 +5,7 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
-import { FactoryResourceType, GameState, BuildingType, SfxType, GameCommand } from '../../../types';
+import { FactoryResourceType, FactorySectorState, GameState, BuildingType, SfxType, GameCommand } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { getEcoMultiplier } from '../../utils/GameUtils';
 import { getIndustrialBuildingCosts, getMissingIndustrialCosts } from '../../data/industrialCosts';
@@ -238,13 +238,33 @@ export class EconomySystem extends BaseSimSystem {
     private getSectorExportBonus(state: GameState, resource: FactoryResourceType): number {
         return Math.max(0, ...(state.factory?.sectors || [])
             .filter((sector) => sector.exportFocus === resource)
-            .map((sector) => sector.exportBonus));
+            .map((sector) => sector.exportBonus + this.getSectorExportContractBonus(sector, resource)));
     }
 
     private getSectorImportDiscount(state: GameState, resource: FactoryResourceType): number {
         return Math.max(0, ...(state.factory?.sectors || [])
             .filter((sector) => sector.importFocus === resource)
-            .map((sector) => sector.importDiscount));
+            .map((sector) => sector.importDiscount + this.getSectorImportContractDiscount(sector, resource)));
+    }
+
+    private getSectorExportContractBonus(sector: FactorySectorState, resource: FactoryResourceType): number {
+        if (sector.contractResource !== resource || sector.exportFocus !== resource) return 0;
+        const completion = this.getSectorContractCompletion(sector);
+        return completion * (sector.demandBonus + 0.02);
+    }
+
+    private getSectorImportContractDiscount(sector: FactorySectorState, resource: FactoryResourceType): number {
+        if (sector.contractResource !== resource || sector.importFocus !== resource) return 0;
+        const target = sector.contractTarget || 0;
+        if (target <= 0) return 0;
+        const needRatio = Math.max(0, 1 - this.getSectorContractCompletion(sector));
+        return needRatio * (sector.demandBonus + 0.04);
+    }
+
+    private getSectorContractCompletion(sector: FactorySectorState): number {
+        const target = sector.contractTarget || 0;
+        if (target <= 0) return 0;
+        return Math.min(1, (sector.contractProgress || 0) / target);
     }
 
     private toFactoryResourceType(resource: 'minerals' | 'gems' | 'wood' | 'stone'): FactoryResourceType {
