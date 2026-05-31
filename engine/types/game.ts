@@ -149,7 +149,8 @@ export type FactoryResourceType =
     | 'GEMS'
     | 'REFINED_MATERIALS'
     | 'ALLOYS'
-    | 'MACHINE_PARTS';
+    | 'MACHINE_PARTS'
+    | 'AUTOMATION_KITS';
 
 export interface FactoryNodeState {
     key: string;
@@ -186,6 +187,7 @@ export interface IndustryState {
     refinedMaterials: number;
     alloys: number;
     machineParts: number;
+    automationKits: number;
     automatedChains: number;
     gridLoad: number;
 }
