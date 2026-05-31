@@ -24,12 +24,19 @@ test('Phase 3 packet types expose explicit belt, rail, and drone transport modes
     'sectorTo?: string;',
     'regionalThroughput?: number;',
     'dronePressure?: number;',
+    'export interface FactorySectorState',
+    'exportBonus: number;',
+    'importDiscount: number;',
+    'demandBonus: number;',
+    'droneCharge?: number;',
+    'droneUpkeep?: number;',
+    'rechargePads?: number;',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Train stations act as regional sector anchors and can extend to drone-served last-mile nodes', () => {
+test('Train stations act as regional sector anchors with deterministic economic personalities and can extend to drone-served last-mile nodes', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
@@ -39,6 +46,8 @@ test('Train stations act as regional sector anchors and can extend to drone-serv
     "if ([BuildingType.STORAGE_DEPOT, BuildingType.STOCKPILE].includes(type)) return 'SINK';",
     "sectorName: tile.buildingType === BuildingType.TRAIN_STATION ? this.getRegionalSectorName(tile.x, tile.z) : undefined,",
     'private getRegionalSectorName(x: number, z: number): string {',
+    'private summarizeSectors(factory: FactoryState): FactorySectorState[] {',
+    'private buildSectorProfile(name: string, stationCount: number, throughput: number): FactorySectorState {',
     'private findRailLinkedStations(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
     'private findDroneServedNodes(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
     'this.findRailLinkedStations(factory, node).forEach((neighbor) => neighborMap.set(neighbor.key, neighbor));',
@@ -50,7 +59,7 @@ test('Train stations act as regional sector anchors and can extend to drone-serv
   }
 });
 
-test('Train packets distinguish long-haul inter-sector rail movement from pressure-limited drone dispatch', () => {
+test('Train packets distinguish long-haul inter-sector rail movement from pressure-limited, recharge-bound drone dispatch', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
@@ -59,11 +68,18 @@ test('Train packets distinguish long-haul inter-sector rail movement from pressu
     'const transportMode = this.getPacketTransportMode(node, route.node);',
     'const sectorFrom = this.getPacketSector(factory, node, route.node, transportMode);',
     'const sectorTo = this.getPacketSector(factory, route.node, node, transportMode);',
+    'factory.sectors = this.summarizeSectors(factory);',
     'factory.regionalThroughput = regionalThroughput / this.FACTORY_INTERVAL;',
+    'factory.rechargePads = this.countRechargePads(factory);',
+    'factory.droneCharge = this.getDroneCharge(factory.rechargePads || 0, droneTrips);',
+    'factory.droneUpkeep = this.getDroneUpkeep(droneTrips, factory.rechargePads || 0);',
     'factory.dronePressure = droneTrips > 0 ? dronePressureTotal / droneTrips : 0;',
     'private getDroneTransferBudget(factory: FactoryState, station: FactoryNodeState | null): number {',
     'private countActiveDroneTrips(factory: FactoryState, station: FactoryNodeState | null): number {',
     'private getDronePressure(factory: FactoryState, station: FactoryNodeState | null): number {',
+    'private countRechargePads(factory: FactoryState): number {',
+    'private getDroneCharge(rechargePads: number, droneTrips: number): number {',
+    'private getDroneUpkeep(droneTrips: number, rechargePads: number): number {',
     "if (origin.buildingType === BuildingType.TRAIN_STATION && destination.mode !== 'TRANSPORT') return 'DRONE';",
     "if (destination.buildingType === BuildingType.TRAIN_STATION && origin.mode !== 'TRANSPORT') return 'DRONE';",
     "if (origin.buildingType === BuildingType.TRAIN_STATION || destination.buildingType === BuildingType.TRAIN_STATION) return 'RAIL';",
