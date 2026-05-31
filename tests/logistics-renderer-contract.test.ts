@@ -22,7 +22,9 @@ test('Building renderer contract accepts logistics factory state and overlay mod
     "if (tile.buildingType === BuildingType.RAIL_LINE && connections)",
     "if (tile.buildingType === BuildingType.DISTRIBUTION_HUB)",
     "if (tile.buildingType === BuildingType.TRAIN_STATION)",
+    "if (tile.buildingType === BuildingType.DRONE_DEPOT)",
     'this.decorateTrainStation(buildingGroup, seed);',
+    'this.decorateDroneDepot(buildingGroup, seed);',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
@@ -43,12 +45,13 @@ test('Renderer distinguishes rail and drone packet traffic for in-world logistic
     "if (mode === 'RAIL')",
     'activeDroneStations',
     'activeRailNodes',
+    'private isDroneHubNode(node: FactoryNodeState): boolean {',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Renderer exposes named sector labels, regional bulk-load markers, and drone-pressure feedback', () => {
+test('Renderer exposes named sector labels, regional bulk-load markers, drone-pressure feedback, and a distinct depot silhouette', () => {
   assert.equal(existsSync(rendererPath), true, 'BuildingRenderSystem.ts is missing');
 
   const source = readFileSync(rendererPath, 'utf8');
@@ -62,6 +65,10 @@ test('Renderer exposes named sector labels, regional bulk-load markers, and dron
     'factory.dronePressure || 0',
     'node.sectorName',
     'stationDroneLoad',
+    'private decorateDroneDepot(group: THREE.Group, seed: number) {',
+    'const launchRing = new THREE.Mesh(',
+    'const controlSpire = new THREE.Mesh(',
+    'const padOffsets: Array<[number, number]> = [',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
