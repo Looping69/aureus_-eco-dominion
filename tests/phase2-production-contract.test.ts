@@ -26,10 +26,12 @@ test('Phase 2 state types expose industrial stocks and connected-grid demand met
     "'REFINED_MATERIALS'",
     "'ALLOYS'",
     "'MACHINE_PARTS'",
+    "'AUTOMATION_KITS'",
     'export interface IndustryState',
     'refinedMaterials: number;',
     'alloys: number;',
     'machineParts: number;',
+    'automationKits: number;',
     'industry?: IndustryState;',
     'industrialDemand: number;',
     'strandedDemand: number;',
@@ -38,7 +40,7 @@ test('Phase 2 state types expose industrial stocks and connected-grid demand met
   }
 });
 
-test('Phase 2 production turns foundry throughput into refined materials and alloys, then workshop throughput into parts', () => {
+test('Phase 2 production turns foundry throughput into refined materials and alloys, then workshop and lab throughput into higher-tier outputs', () => {
   assert.equal(existsSync(productionPath), true, 'ProductionSystem.ts is missing');
 
   const source = readFileSync(productionPath, 'utf8');
@@ -51,6 +53,9 @@ test('Phase 2 production turns foundry throughput into refined materials and all
     "this.pullInput(node, 'REFINED_MATERIALS'",
     "this.pullInput(node, 'ALLOYS'",
     "this.pushOutput(node, 'MACHINE_PARTS'",
+    'tile.buildingType === BuildingType.GREEN_TECH_LAB',
+    "this.pullInput(node, 'MACHINE_PARTS'",
+    "this.pushOutput(node, 'AUTOMATION_KITS'",
     "if (tile.powerStatus !== 'CONNECTED')",
     'const industry = this.getIndustryState(state);',
     'industry.automatedChains = automatedChains;',
@@ -60,24 +65,27 @@ test('Phase 2 production turns foundry throughput into refined materials and all
   }
 });
 
-test('Phase 2 logistics routes workshop inputs and deposits industrial stock into the shared ledger', () => {
+test('Phase 2 logistics routes workshop and lab inputs and deposits industrial stock into the shared ledger', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
 
   for (const snippet of [
     'BuildingType.WORKSHOP',
+    'BuildingType.GREEN_TECH_LAB',
     "resource === 'REFINED_MATERIALS' || resource === 'WOOD' || resource === 'ALLOYS'",
-    "'REFINED_MATERIALS', 'ALLOYS', 'MACHINE_PARTS'",
+    "resource === 'REFINED_MATERIALS' || resource === 'ALLOYS' || resource === 'MACHINE_PARTS'",
+    "'REFINED_MATERIALS', 'ALLOYS', 'MACHINE_PARTS', 'AUTOMATION_KITS'",
     "if (resource === 'REFINED_MATERIALS') state.industry.refinedMaterials += amount;",
     "if (resource === 'ALLOYS') state.industry.alloys += amount;",
     "if (resource === 'MACHINE_PARTS') state.industry.machineParts += amount;",
+    "if (resource === 'AUTOMATION_KITS') state.industry.automationKits += amount;",
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('HUD surfaces phase 2 industrial stocks, automated chains, and live grid load', () => {
+test('HUD surfaces phase 2 industrial stocks, automation kits, automated chains, and live grid load', () => {
   assert.equal(existsSync(hudPath), true, 'HUD.tsx is missing');
 
   const source = readFileSync(hudPath, 'utf8');
@@ -89,6 +97,8 @@ test('HUD surfaces phase 2 industrial stocks, automated chains, and live grid lo
     'label="Alloys"',
     'state.industry?.machineParts || 0',
     'label="Parts"',
+    'state.industry?.automationKits || 0',
+    'label="Kits"',
     'state.industry?.automatedChains || 0',
     'label="Chains"',
     'state.industry?.gridLoad || 0',
@@ -110,6 +120,7 @@ test('Persistence backfills industrial stock and extended power grid metrics whe
     'state.industry.refinedMaterials ??= 0;',
     'state.industry.alloys ??= 0;',
     'state.industry.machineParts ??= 0;',
+    'state.industry.automationKits ??= 0;',
     'private ensurePowerGridState(state: GameState): void {',
     'state.powerGrid ??=',
     'state.powerGrid.industrialDemand ??= 0;',
@@ -135,6 +146,7 @@ test('Power grid tracks connected industrial demand separately from stranded dem
     'private isIndustrialConsumer(type: BuildingType): boolean {',
     'BuildingType.ORE_FOUNDRY',
     'BuildingType.WORKSHOP',
+    'BuildingType.GREEN_TECH_LAB',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
@@ -158,6 +170,8 @@ test('Advanced buildings spend industrial stock instead of treating machine part
     'machineParts',
     'alloys',
     'refinedMaterials',
+    'automationKits',
+    'Automation Kits',
   ]) {
     assert.match(costsSource, new RegExp(escapeRegExp(snippet)));
   }
@@ -165,6 +179,7 @@ test('Advanced buildings spend industrial stock instead of treating machine part
   for (const snippet of [
     'getIndustrialBuildingCosts(buildingType)',
     'getMissingIndustrialCosts(state.industry, industrialCosts)',
+    "const key = resource as 'refinedMaterials' | 'alloys' | 'machineParts' | 'automationKits';",
     'state.industry![key] -= amount as number;',
   ]) {
     assert.match(economySource, new RegExp(escapeRegExp(snippet)));
