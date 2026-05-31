@@ -148,6 +148,7 @@ export class PowerGridSystem extends BaseSimSystem {
             BuildingType.ORE_FOUNDRY,
             BuildingType.GEM_REFINERY,
             BuildingType.WORKSHOP,
+            BuildingType.GREEN_TECH_LAB,
         ].includes(type);
     }
 }
