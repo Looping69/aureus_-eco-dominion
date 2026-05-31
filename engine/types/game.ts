@@ -151,6 +151,7 @@ export type FactoryResourceType =
     | 'ALLOYS'
     | 'MACHINE_PARTS'
     | 'AUTOMATION_KITS';
+export type FactoryPacketTransportMode = 'BELT' | 'RAIL' | 'DRONE';
 
 export interface FactoryNodeState {
     key: string;
@@ -172,6 +173,7 @@ export interface FactoryPacketState {
     toKey: string;
     progress: number;
     speed: number;
+    transportMode?: FactoryPacketTransportMode;
 }
 
 export interface FactoryState {
