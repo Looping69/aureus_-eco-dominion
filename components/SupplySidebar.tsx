@@ -64,6 +64,7 @@ export const getBuildingIcon = (type: BuildingType) => {
         case BuildingType.NATURE_RESERVE: return <TreeDeciduous size={18} />;
         case BuildingType.HYDROPONICS: return <Salad size={18} />;
         case BuildingType.GEOTHERMAL_PLANT: return <Thermometer size={18} />;
+        case BuildingType.DRONE_DEPOT: return <Package size={18} />;
         // Era 5: Prosperity
         case BuildingType.MONUMENT: return <Trophy size={18} />;
         case BuildingType.SPACEPORT: return <Rocket size={18} />;
@@ -136,6 +137,7 @@ const ITEM_CATEGORIES: Record<BuildingType, CategoryType> = {
     [BuildingType.NATURE_RESERVE]: 'ADVANCED',
     [BuildingType.HYDROPONICS]: 'UTILITIES',
     [BuildingType.GEOTHERMAL_PLANT]: 'UTILITIES',
+    [BuildingType.DRONE_DEPOT]: 'ADVANCED',
     // Era 5: Prosperity
     [BuildingType.SPACEPORT]: 'ADVANCED',
     [BuildingType.MONUMENT]: 'ADVANCED',
@@ -185,7 +187,7 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
             BuildingType.RAIL_LINE, BuildingType.TRAIN_STATION, BuildingType.DISTRIBUTION_HUB, BuildingType.POND,
             // Era 4: Sustainability
             BuildingType.RESERVOIR, BuildingType.LOCAL_SCHOOL, BuildingType.WASTE_TREATMENT,
-            BuildingType.NATURE_RESERVE, BuildingType.HYDROPONICS, BuildingType.GEOTHERMAL_PLANT,
+            BuildingType.NATURE_RESERVE, BuildingType.HYDROPONICS, BuildingType.GEOTHERMAL_PLANT, BuildingType.DRONE_DEPOT,
             // Era 5: Prosperity
             BuildingType.SAFARI_LODGE, BuildingType.GREEN_TECH_LAB,
             BuildingType.MONUMENT, BuildingType.SPACEPORT
