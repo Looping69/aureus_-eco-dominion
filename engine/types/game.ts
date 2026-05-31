@@ -153,6 +153,17 @@ export type FactoryResourceType =
     | 'AUTOMATION_KITS';
 export type FactoryPacketTransportMode = 'BELT' | 'RAIL' | 'DRONE';
 
+export interface FactorySectorState {
+    name: string;
+    exportFocus: FactoryResourceType;
+    importFocus: FactoryResourceType;
+    exportBonus: number;
+    importDiscount: number;
+    demandBonus: number;
+    stationCount: number;
+    throughput: number;
+}
+
 export interface FactoryNodeState {
     key: string;
     x: number;
@@ -186,9 +197,13 @@ export interface FactoryState {
     backlog: number;
     stalledNodes: number;
     lastNetworkTick: number;
+    sectors?: FactorySectorState[];
     regionalThroughput?: number;
     dronePressure?: number;
     droneTrips?: number;
+    droneCharge?: number;
+    droneUpkeep?: number;
+    rechargePads?: number;
 }
 
 export interface IndustryState {
