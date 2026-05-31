@@ -11,7 +11,7 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-test('Phase 3 packet types expose explicit belt, rail, and drone transport modes', () => {
+test('Phase 3 packet types expose explicit belt, rail, and drone transport modes plus regional packet metadata', () => {
   assert.equal(existsSync(gameTypesPath), true, 'engine/types/game.ts is missing');
 
   const source = readFileSync(gameTypesPath, 'utf8');
@@ -19,12 +19,17 @@ test('Phase 3 packet types expose explicit belt, rail, and drone transport modes
   for (const snippet of [
     "export type FactoryPacketTransportMode = 'BELT' | 'RAIL' | 'DRONE';",
     'transportMode?: FactoryPacketTransportMode;',
+    'sectorName?: string;',
+    'sectorFrom?: string;',
+    'sectorTo?: string;',
+    'regionalThroughput?: number;',
+    'dronePressure?: number;',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Train stations act as transport nodes instead of dead-end sinks and can extend to drone-served last-mile nodes', () => {
+test('Train stations act as regional sector anchors and can extend to drone-served last-mile nodes', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
@@ -32,6 +37,8 @@ test('Train stations act as transport nodes instead of dead-end sinks and can ex
   for (const snippet of [
     "[BuildingType.RAIL_LINE, BuildingType.DISTRIBUTION_HUB, BuildingType.TRAIN_STATION].includes(type)",
     "if ([BuildingType.STORAGE_DEPOT, BuildingType.STOCKPILE].includes(type)) return 'SINK';",
+    "sectorName: tile.buildingType === BuildingType.TRAIN_STATION ? this.getRegionalSectorName(tile.x, tile.z) : undefined,",
+    'private getRegionalSectorName(x: number, z: number): string {',
     'private findRailLinkedStations(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
     'private findDroneServedNodes(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
     'this.findRailLinkedStations(factory, node).forEach((neighbor) => neighborMap.set(neighbor.key, neighbor));',
@@ -43,19 +50,23 @@ test('Train stations act as transport nodes instead of dead-end sinks and can ex
   }
 });
 
-test('Train packets distinguish long-haul rail movement from short-range drone dispatch', () => {
+test('Train packets distinguish long-haul inter-sector rail movement from pressure-limited drone dispatch', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
 
   for (const snippet of [
     'const transportMode = this.getPacketTransportMode(node, route.node);',
-    'transportMode,',
-    'private getPacketTransportMode(origin: FactoryNodeState, destination: FactoryNodeState): FactoryPacketTransportMode {',
+    'const sectorFrom = this.getPacketSector(factory, node, route.node, transportMode);',
+    'const sectorTo = this.getPacketSector(factory, route.node, node, transportMode);',
+    'factory.regionalThroughput = regionalThroughput / this.FACTORY_INTERVAL;',
+    'factory.dronePressure = droneTrips > 0 ? dronePressureTotal / droneTrips : 0;',
+    'private getDroneTransferBudget(factory: FactoryState, station: FactoryNodeState | null): number {',
+    'private countActiveDroneTrips(factory: FactoryState, station: FactoryNodeState | null): number {',
+    'private getDronePressure(factory: FactoryState, station: FactoryNodeState | null): number {',
     "if (origin.buildingType === BuildingType.TRAIN_STATION && destination.mode !== 'TRANSPORT') return 'DRONE';",
     "if (destination.buildingType === BuildingType.TRAIN_STATION && origin.mode !== 'TRANSPORT') return 'DRONE';",
     "if (origin.buildingType === BuildingType.TRAIN_STATION || destination.buildingType === BuildingType.TRAIN_STATION) return 'RAIL';",
-    'private getPacketSpeed(mode: FactoryPacketTransportMode): number {',
     "if (mode === 'RAIL') return this.RAIL_TRAVEL_SPEED;",
     "if (mode === 'DRONE') return this.DRONE_TRAVEL_SPEED;",
   ]) {
