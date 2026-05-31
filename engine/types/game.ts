@@ -153,6 +153,8 @@ export type FactoryResourceType =
     | 'AUTOMATION_KITS';
 export type FactoryPacketTransportMode = 'BELT' | 'RAIL' | 'DRONE';
 export type FactorySectorDirective = 'BALANCED' | 'EXPORT' | 'IMPORT';
+export type FactorySectorFlowMode = 'STABLE' | 'SURGE';
+export type FactorySectorCongestionMode = 'SAFE' | 'BALANCED' | 'AGGRESSIVE';
 
 export interface FactorySectorState {
     name: string;
@@ -165,6 +167,13 @@ export interface FactorySectorState {
     throughput: number;
     directive?: FactorySectorDirective;
     priorityResource?: FactoryResourceType;
+    flowMode?: FactorySectorFlowMode;
+    congestionPolicy?: FactorySectorCongestionMode;
+    congestionLevel?: number;
+    contractResource?: FactoryResourceType;
+    contractTarget?: number;
+    contractProgress?: number;
+    contractReward?: number;
 }
 
 export interface FactoryNodeState {
