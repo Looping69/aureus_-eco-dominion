@@ -376,6 +376,10 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                                     ...sector,
                                     directive: action.payload.directive ?? sector.directive ?? 'BALANCED',
                                     priorityResource: action.payload.priorityResource ?? sector.priorityResource ?? sector.exportFocus,
+                                    flowMode: action.payload.flowMode ?? sector.flowMode ?? 'STABLE',
+                                    congestionPolicy: action.payload.congestionPolicy ?? sector.congestionPolicy ?? 'BALANCED',
+                                    contractResource: action.payload.contractResource ?? sector.contractResource ?? sector.importFocus,
+                                    contractTarget: action.payload.contractTarget ?? sector.contractTarget ?? 24,
                                 }
                                 : sector
                         ),
