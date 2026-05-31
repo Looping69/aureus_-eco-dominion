@@ -360,7 +360,33 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
             };
         }, [world, runtime]),
         dispatch: useCallback((action: any) => {
-            world?.dispatch(action);
+            if (!world) return;
+
+            if (action?.type === 'UPDATE_SECTOR_POLICY') {
+                const state = world.getState();
+                if (!state.factory?.sectors) return;
+
+                const updatedState: GameState = {
+                    ...state,
+                    factory: {
+                        ...state.factory,
+                        sectors: state.factory.sectors.map((sector) =>
+                            sector.name === action.payload.sectorName
+                                ? {
+                                    ...sector,
+                                    directive: action.payload.directive ?? sector.directive ?? 'BALANCED',
+                                    priorityResource: action.payload.priorityResource ?? sector.priorityResource ?? sector.exportFocus,
+                                }
+                                : sector
+                        ),
+                    },
+                };
+
+                world.loadGame(JSON.stringify(updatedState));
+                return;
+            }
+
+            world.dispatch(action);
         }, [world])
     };
 }
