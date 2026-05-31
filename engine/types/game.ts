@@ -163,6 +163,7 @@ export interface FactoryNodeState {
     inputBuffer: Partial<Record<FactoryResourceType, number>>;
     stalledTicks: number;
     lastActiveTick: number;
+    sectorName?: string;
 }
 
 export interface FactoryPacketState {
@@ -174,6 +175,8 @@ export interface FactoryPacketState {
     progress: number;
     speed: number;
     transportMode?: FactoryPacketTransportMode;
+    sectorFrom?: string;
+    sectorTo?: string;
 }
 
 export interface FactoryState {
@@ -183,6 +186,9 @@ export interface FactoryState {
     backlog: number;
     stalledNodes: number;
     lastNetworkTick: number;
+    regionalThroughput?: number;
+    dronePressure?: number;
+    droneTrips?: number;
 }
 
 export interface IndustryState {
