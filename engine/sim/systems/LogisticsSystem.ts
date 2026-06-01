@@ -6,6 +6,7 @@ import {
     FactoryNodeState,
     FactoryPacketState,
     FactoryPacketTransportMode,
+    FactoryPlannerRecommendation,
     FactoryPressurePoint,
     FactoryPressureState,
     FactoryResourceType,
@@ -79,6 +80,10 @@ export class LogisticsSystem extends BaseSimSystem {
                     underfedProcessors: 0,
                     hotspots: 0,
                     bottlenecks: [],
+                    pinnedKeys: [],
+                    emergencyReliefSectors: [],
+                    recommendations: [],
+                    efficiencyPenalty: 0,
                 },
             };
         }
@@ -113,6 +118,10 @@ export class LogisticsSystem extends BaseSimSystem {
                 underfedProcessors: 0,
                 hotspots: 0,
                 bottlenecks: [],
+                pinnedKeys: [],
+                emergencyReliefSectors: [],
+                recommendations: [],
+                efficiencyPenalty: 0,
             };
         }
 
@@ -226,7 +235,7 @@ export class LogisticsSystem extends BaseSimSystem {
                     stalledNodes++;
                     routeDebt += rawAmount;
                     node.stalledTicks += 1;
-                    this.pushPressurePoint(bottlenecks, {
+                    this.pushPressurePoint(factory, bottlenecks, {
                         key: node.key,
                         buildingType: node.buildingType,
                         reason: 'ROUTE_DEBT',
@@ -370,6 +379,12 @@ export class LogisticsSystem extends BaseSimSystem {
         if (originSector?.directive === 'EXPORT') score += 4;
         if (destinationSector?.priorityResource === resource) score += destinationSector.directive === 'IMPORT' ? 12 : 6;
         if (originSector?.priorityResource === resource) score += originSector.directive === 'EXPORT' ? 10 : 5;
+        if (destinationSectorName && this.getEmergencyReliefSectors(factory).includes(destinationSectorName)) {
+            score += destinationSector?.importFocus === resource ? 10 : 5;
+        }
+        if (this.getPinnedKeys(factory).includes(candidate.key) && target === 'input') {
+            score += 7;
+        }
 
         if (destinationSector?.flowMode === 'SURGE') score += 4;
         if (destinationSector?.flowMode === 'STABLE' && target === 'input') score += 2;
@@ -436,6 +451,7 @@ export class LogisticsSystem extends BaseSimSystem {
             if (sector.congestionPolicy === 'SAFE') bias -= 0.45;
             if ((sector.satisfaction || 1) < 0.4) bias += 0.9;
             if ((sector.bonusChain || 0) >= 2 && transportMode === 'RAIL') bias += 0.55;
+            if (this.getEmergencyReliefSectors(factory).includes(sector.name)) bias += 0.75;
         }
 
         return bias;
@@ -455,7 +471,7 @@ export class LogisticsSystem extends BaseSimSystem {
             const totalBuffered = this.getNodeBufferAmount(node.buffer) + this.getNodeBufferAmount(node.inputBuffer);
             if (node.stalledTicks >= 2 || totalBuffered >= 14) {
                 hotspots += 1;
-                this.pushPressurePoint(bottlenecks, {
+                this.pushPressurePoint(factory, bottlenecks, {
                     key: node.key,
                     buildingType: node.buildingType,
                     reason: 'CONGESTION',
@@ -469,7 +485,7 @@ export class LogisticsSystem extends BaseSimSystem {
             const missingInputs = requiredInputs.filter((resource) => (node.inputBuffer[resource] || 0) < 1);
             if (missingInputs.length > 0) {
                 underfedProcessors += 1;
-                this.pushPressurePoint(bottlenecks, {
+                this.pushPressurePoint(factory, bottlenecks, {
                     key: node.key,
                     buildingType: node.buildingType,
                     reason: 'UNDERFED',
@@ -481,20 +497,87 @@ export class LogisticsSystem extends BaseSimSystem {
             }
         }
 
+        const pinnedKeys = this.getPinnedKeys(factory);
+        const emergencyReliefSectors = this.getEmergencyReliefSectors(factory);
+        const recommendations = this.buildPlannerRecommendations(bottlenecks, pinnedKeys, emergencyReliefSectors);
+        const chronicDebt = Math.max(0, routeDebt - 10);
+        const chronicUnderfed = Math.max(0, underfedProcessors - 1);
+        const chronicHotspots = Math.max(0, hotspots - 1);
+        const efficiencyPenalty = Math.min(
+            0.28,
+            (chronicDebt * 0.0035) + (chronicUnderfed * 0.025) + (chronicHotspots * 0.015) - (emergencyReliefSectors.length * 0.012)
+        );
+
         return {
             routeDebt: Math.round(routeDebt * 10) / 10,
             underfedProcessors,
             hotspots: Math.max(hotspots, stalledNodes),
             bottlenecks: bottlenecks.slice(0, 6),
+            pinnedKeys,
+            emergencyReliefSectors,
+            recommendations,
+            efficiencyPenalty: Math.max(0, Math.round(efficiencyPenalty * 100) / 100),
         };
     }
 
-    private pushPressurePoint(bottlenecks: FactoryPressurePoint[], point: FactoryPressurePoint): void {
-        bottlenecks.push(point);
+    private pushPressurePoint(factory: FactoryState, bottlenecks: FactoryPressurePoint[], point: FactoryPressurePoint): void {
+        const pinned = this.getPinnedKeys(factory).includes(point.key);
+        const relief = point.sectorName ? this.getEmergencyReliefSectors(factory).includes(point.sectorName) : false;
+        bottlenecks.push({
+            ...point,
+            severity: point.severity + (pinned ? 4 : 0) + (relief ? 2 : 0),
+        });
         bottlenecks.sort((a, b) => b.severity - a.severity);
         if (bottlenecks.length > 6) {
             bottlenecks.length = 6;
         }
+    }
+
+    private buildPlannerRecommendations(
+        bottlenecks: FactoryPressurePoint[],
+        pinnedKeys: string[],
+        emergencyReliefSectors: string[]
+    ): FactoryPlannerRecommendation[] {
+        return bottlenecks.slice(0, 4).map((point) => {
+            const isPinned = pinnedKeys.includes(point.key);
+            const isRelief = point.sectorName ? emergencyReliefSectors.includes(point.sectorName) : false;
+            const suggestedBuilding = this.getSuggestedBuilding(point);
+            const title = point.reason === 'ROUTE_DEBT'
+                ? 'Open a stronger route'
+                : point.reason === 'UNDERFED'
+                    ? 'Feed the starved processor'
+                    : 'Bleed off congestion';
+            const flags = [isPinned ? 'pinned' : '', isRelief ? 'relief' : ''].filter(Boolean).join(' · ');
+            return {
+                id: `${point.key}:${point.reason}:${point.resource || 'none'}`,
+                title,
+                detail: `${point.detail}${flags ? ` · ${flags}` : ''}`,
+                reason: point.reason,
+                severity: point.severity,
+                targetKey: point.key,
+                sectorName: point.sectorName,
+                resource: point.resource,
+                suggestedBuilding,
+            };
+        });
+    }
+
+    private getSuggestedBuilding(point: FactoryPressurePoint): BuildingType {
+        if (point.reason === 'ROUTE_DEBT') {
+            return point.sectorName ? BuildingType.TRAIN_STATION : BuildingType.DISTRIBUTION_HUB;
+        }
+        if (point.reason === 'UNDERFED') {
+            return point.sectorName ? BuildingType.DRONE_DEPOT : BuildingType.STORAGE_DEPOT;
+        }
+        return point.sectorName ? BuildingType.DRONE_DEPOT : BuildingType.TRAIN_STATION;
+    }
+
+    private getPinnedKeys(factory: FactoryState): string[] {
+        return factory.pressure?.pinnedKeys || [];
+    }
+
+    private getEmergencyReliefSectors(factory: FactoryState): string[] {
+        return factory.pressure?.emergencyReliefSectors || [];
     }
 
     private getRequiredInputs(node: FactoryNodeState): FactoryResourceType[] {
