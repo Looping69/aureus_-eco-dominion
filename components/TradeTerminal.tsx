@@ -70,6 +70,12 @@ const formatPressureReason = (reason?: string) => {
 
 const formatSuggestedBuilding = (value?: string) => value ? value.replace(/_/g, ' ') : 'Support Upgrade';
 
+const getRecommendationScope = (rec: { reason?: string; sectorName?: string }) => {
+    if (rec.reason === 'ROUTE_DEBT') return rec.sectorName ? 'Rail corridor' : 'Transfer lane';
+    if (rec.reason === 'UNDERFED') return 'Processor cluster';
+    return 'Depot relief';
+};
+
 const getRecommendationHint = (rec: { reason?: string; sectorName?: string; suggestedBuilding?: string }) => {
     if (rec.reason === 'ROUTE_DEBT') {
         return `Build ${formatSuggestedBuilding(rec.suggestedBuilding)} near ${rec.sectorName || 'the blocked lane'} to add transfer capacity.`;
@@ -185,7 +191,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
 
     if (!market || !state.contracts) return null;
 
-    const updatePlanner = (plannerAction: 'TOGGLE_PIN' | 'TOGGLE_RELIEF', payload: Record<string, unknown>) => {
+    const updatePlanner = (plannerAction: 'TOGGLE_PIN' | 'TOGGLE_RELIEF' | 'FOCUS_RECOMMENDATION', payload: Record<string, unknown>) => {
         dispatch({
             type: 'UPDATE_FACTORY_PLANNER',
             payload: {
@@ -312,13 +318,24 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                                     <div className="text-[10px] text-white font-bold">{rec.title}</div>
                                                     <div className="text-[10px] text-slate-500 font-mono">{Math.round(rec.severity)}</div>
                                                 </div>
-                                                <div className="text-[10px] text-slate-400 font-mono mt-1">{rec.detail}</div>
                                                 <div className="grid grid-cols-1 gap-1 mt-2 text-[10px] font-mono">
+                                                    <div className="text-sky-300">Upgrade lane {getRecommendationScope(rec)}</div>
+                                                    <div className="text-slate-400">{rec.detail}</div>
                                                     <div className="text-cyan-300">Suggest {formatSuggestedBuilding(rec.suggestedBuilding)}</div>
                                                     <div className="text-amber-300">Build hint {getRecommendationHint(rec)}</div>
                                                     <div className="text-lime-300">Sector goal {getRecommendationGoal(rec)}</div>
                                                     <div className="text-slate-500">World tag {rec.sectorName ? getSectorBadge(rec.sectorName) : rec.targetKey || 'Network'}</div>
                                                 </div>
+                                                <button
+                                                    onClick={() => updatePlanner('FOCUS_RECOMMENDATION', {
+                                                        targetKey: rec.targetKey,
+                                                        sectorName: rec.sectorName,
+                                                        suggestedBuilding: rec.suggestedBuilding,
+                                                    })}
+                                                    className="mt-2 w-full border border-cyan-700 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-200 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                                >
+                                                    Frame & Preview
+                                                </button>
                                             </div>
                                         ))}
                                     </div>
