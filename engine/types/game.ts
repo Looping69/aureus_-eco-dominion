@@ -174,6 +174,9 @@ export interface FactorySectorState {
     contractTarget?: number;
     contractProgress?: number;
     contractReward?: number;
+    satisfaction?: number;
+    bonusChain?: number;
+    missedQuotaTicks?: number;
 }
 
 export interface FactoryNodeState {
