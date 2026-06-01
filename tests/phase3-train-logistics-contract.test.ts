@@ -213,7 +213,7 @@ test('Sector quotas now affect market pricing and create bonus-chain or missed-t
   }
 });
 
-test('Renderer exposes in-world sector heatmaps and quota pressure overlays', () => {
+test('Renderer exposes in-world sector heatmaps and planner markers for relief, pins, and build goals', () => {
   assert.equal(existsSync(buildingRenderPath), true, 'BuildingRenderSystem.ts is missing');
 
   const source = readFileSync(buildingRenderPath, 'utf8');
@@ -224,6 +224,12 @@ test('Renderer exposes in-world sector heatmaps and quota pressure overlays', ()
     'sectorStrain: new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.42 }),',
     'const sectorProfiles = new Map((factory.sectors || []).map((sector) => [sector.name, sector]));',
     'const routeLoadBySector = new Map<string, number>();',
+    'const pinnedKeys = new Set(factory.pressure?.pinnedKeys || []);',
+    'const reliefSectors = new Set(factory.pressure?.emergencyReliefSectors || []);',
+    'const recommendationByKey = new Map((factory.pressure?.recommendations || [])',
+    'RELIEF ${this.getSectorCode(node.sectorName)}',
+    'PIN ${this.getSuggestedBuildingCode(recommendation.suggestedBuilding)}',
+    'UP ${this.getSuggestedBuildingCode(recommendation?.suggestedBuilding)}',
     "if (overlayMode === 'FLOW') {",
     'const heatTrail = new THREE.Mesh(',
     "if (overlayMode === 'CONGESTION') {",
@@ -231,6 +237,12 @@ test('Renderer exposes in-world sector heatmaps and quota pressure overlays', ()
     'const flowPlate = new THREE.Mesh(',
     'const sectorPlate = new THREE.Mesh(',
     'const quotaStress = new THREE.Mesh(',
+    'const plannerRing = new THREE.Mesh(',
+    'const plannerBadge = new THREE.Sprite(this.getSectorLabelMaterial(',
+    'const goalBadge = new THREE.Sprite(this.getSectorLabelMaterial(',
+    'private getPlannerColor(reason?: string): number {',
+    'private getSuggestedBuildingCode(type?: BuildingType): string {',
+    'private getSectorGoalLabel(sector: FactorySectorState): string {',
     'if ((sector.missedQuotaTicks || 0) >= 3 || (sector.satisfaction || 1) < 0.35) {',
     'private getSectorPressure(sector: FactorySectorState | undefined): number {',
     'private getSectorPressureColor(pressure: number): number {',
@@ -277,7 +289,7 @@ test('Building definitions and HUD now describe visible regional personalities p
   }
 });
 
-test('Trade terminal includes planner pins, emergency relief controls, and recommendation readouts', () => {
+test('Trade terminal includes planner pins, emergency relief controls, and actionable build and goal guidance', () => {
   assert.equal(existsSync(tradeTerminalPath), true, 'components/TradeTerminal.tsx is missing');
 
   const source = readFileSync(tradeTerminalPath, 'utf8');
@@ -289,6 +301,10 @@ test('Trade terminal includes planner pins, emergency relief controls, and recom
     'const recommendations = pressure?.recommendations || [];',
     "const updatePlanner = (plannerAction: 'TOGGLE_PIN' | 'TOGGLE_RELIEF', payload: Record<string, unknown>) => {",
     "type: 'UPDATE_FACTORY_PLANNER'",
+    'const formatSuggestedBuilding = (value?: string) => value ? value.replace(/_/g, \' \\') : \'Support Upgrade\';',
+    'const getRecommendationHint = (rec: { reason?: string; sectorName?: string; suggestedBuilding?: string }) => {',
+    'const getRecommendationGoal = (rec: { reason?: string; sectorName?: string; resource?: FactoryResourceType }) => {',
+    'const getSectorPerformanceGoal = (sector: {',
     'Regional export, congestion, quota control, and planner relief',
     'Penalty',
     'Megafactory Planning',
@@ -300,7 +316,12 @@ test('Trade terminal includes planner pins, emergency relief controls, and recom
     'Clear Relief',
     'Relief',
     'ACTIVE',
-    'Suggest {rec.suggestedBuilding?.replace(/_/g, \' \\')}',
+    'Build hint',
+    'Sector goal',
+    'World tag',
+    'Performance goal',
+    'Suggest {formatSuggestedBuilding(rec.suggestedBuilding)}',
+    'getSectorPerformanceGoal({ name: sector.name, satisfaction, contractTarget, contractProgress, contractResource, bonusChain })',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
