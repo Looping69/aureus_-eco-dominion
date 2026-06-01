@@ -14,7 +14,8 @@ import { WorldHost, Runtime } from '../engine';
 import { RuntimeQualityGovernor, ThreeRenderAdapter, getRecommendedRenderQuality } from '../engine/render';
 import { DebugHud } from '../engine/tools';
 import { AureusWorld, AureusWorldConfig } from './AureusWorld';
-import { GameState, SfxType } from '../types';
+import { BuildingType, GameState, SfxType } from '../types';
+import { ChunkStore } from '../engine/space/ChunkStore';
 
 export interface LoadingProgress {
     stage: string;
@@ -64,6 +65,51 @@ export interface AureusEngineHandle {
 
     /** Dispatch action */
     dispatch: (action: any) => void;
+}
+
+function findPlannerTargetNode(state: GameState, payload: Record<string, any>) {
+    const nodes = state.factory?.nodes || {};
+    if (payload?.targetKey && nodes[payload.targetKey]) {
+        return nodes[payload.targetKey];
+    }
+
+    if (payload?.sectorName) {
+        const sectorNodes = Object.values(nodes).filter((node) => node.sectorName === payload.sectorName);
+        return sectorNodes.find((node) => node.buildingType === BuildingType.TRAIN_STATION)
+            || sectorNodes.find((node) => node.buildingType === BuildingType.DRONE_DEPOT)
+            || sectorNodes[0]
+            || null;
+    }
+
+    return null;
+}
+
+function findPlannerPreviewPosition(state: GameState, x: number, z: number, buildingType?: BuildingType) {
+    const offsets: Array<[number, number]> = [
+        [0, 0],
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+        [1, 1],
+        [-1, 1],
+        [1, -1],
+        [-1, -1],
+        [2, 0],
+        [-2, 0],
+        [0, 2],
+        [0, -2],
+    ];
+
+    for (const [dx, dz] of offsets) {
+        const tile = ChunkStore.getTile(state.chunks, x + dx, z + dz);
+        if (!tile) continue;
+        if (tile.buildingType === BuildingType.EMPTY && !tile.isUnderConstruction) {
+            return { x: x + dx, z: z + dz };
+        }
+    }
+
+    return { x, z };
 }
 
 /**
@@ -349,6 +395,30 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
             if (action?.type === 'UPDATE_FACTORY_PLANNER') {
                 const state = world.getState();
                 if (!state.factory) return;
+
+                if (action.payload?.plannerAction === 'FOCUS_RECOMMENDATION') {
+                    const targetNode = findPlannerTargetNode(state, action.payload);
+                    if (!targetNode) return;
+
+                    if (state.isFPS) {
+                        world.exitFPS();
+                    }
+                    if (state.activeView === 'DUNGEON') {
+                        world.toggleViewMode();
+                    }
+
+                    if (action.payload?.suggestedBuilding) {
+                        world.selectBuilding(action.payload.suggestedBuilding);
+                        const preview = findPlannerPreviewPosition(state, targetNode.x, targetNode.z, action.payload.suggestedBuilding);
+                        world.pinBuildingForConfirmation(preview.x, preview.z);
+                    }
+
+                    const tile = ChunkStore.getTile(state.chunks, targetNode.x, targetNode.z);
+                    const focusY = tile ? tile.terrainHeight * 0.5 : 0;
+                    (world as any).cameraSystem?.setTargetHeight?.(focusY);
+                    (world as any).cameraSystem?.zoomToPosition?.(targetNode.x, targetNode.z, 2);
+                    return;
+                }
 
                 const currentPressure = state.factory.pressure || {
                     routeDebt: 0,
