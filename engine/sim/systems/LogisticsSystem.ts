@@ -3,6 +3,7 @@ import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
 import {
     BuildingType,
+    FactoryCorridorState,
     FactoryNodeState,
     FactoryPacketState,
     FactoryPacketTransportMode,
@@ -84,6 +85,7 @@ export class LogisticsSystem extends BaseSimSystem {
                     emergencyReliefSectors: [],
                     recommendations: [],
                     efficiencyPenalty: 0,
+                    corridors: [],
                 },
             };
         }
@@ -122,7 +124,11 @@ export class LogisticsSystem extends BaseSimSystem {
                 emergencyReliefSectors: [],
                 recommendations: [],
                 efficiencyPenalty: 0,
+                corridors: [],
             };
+        }
+        if (!state.factory.pressure.corridors) {
+            state.factory.pressure.corridors = [];
         }
 
         return state.factory;
@@ -497,13 +503,15 @@ export class LogisticsSystem extends BaseSimSystem {
             }
         }
 
+        const totalHotspots = Math.max(hotspots, stalledNodes);
         const pinnedKeys = this.getPinnedKeys(factory);
         const emergencyReliefSectors = this.getEmergencyReliefSectors(factory);
+        const corridors = this.buildCorridorInsights(factory, bottlenecks);
         const recommendations = this.buildPlannerRecommendations(bottlenecks, pinnedKeys, emergencyReliefSectors, {
             routeDebt,
             underfedProcessors,
-            hotspots: Math.max(hotspots, stalledNodes),
-        });
+            hotspots: totalHotspots,
+        }, corridors);
         const chronicDebt = Math.max(0, routeDebt - 10);
         const chronicUnderfed = Math.max(0, underfedProcessors - 1);
         const chronicHotspots = Math.max(0, hotspots - 1);
@@ -515,12 +523,13 @@ export class LogisticsSystem extends BaseSimSystem {
         return {
             routeDebt: Math.round(routeDebt * 10) / 10,
             underfedProcessors,
-            hotspots: Math.max(hotspots, stalledNodes),
+            hotspots: totalHotspots,
             bottlenecks: bottlenecks.slice(0, 6),
             pinnedKeys,
             emergencyReliefSectors,
             recommendations,
             efficiencyPenalty: Math.max(0, Math.round(efficiencyPenalty * 100) / 100),
+            corridors,
         };
     }
 
@@ -537,25 +546,135 @@ export class LogisticsSystem extends BaseSimSystem {
         }
     }
 
+    private buildCorridorInsights(factory: FactoryState, bottlenecks: FactoryPressurePoint[]): FactoryCorridorState[] {
+        const previousByName = new Map((factory.pressure?.corridors || []).map((corridor) => [corridor.sectorName, corridor]));
+
+        return (factory.sectors || [])
+            .map((sector) => {
+                const previous = previousByName.get(sector.name);
+                const throughput = Math.round((sector.throughput || 0) * 10) / 10;
+                const history = [...(previous?.history || []).slice(-5), throughput];
+                const baselineThroughput = Math.round(((history[0] ?? throughput) || 0) * 10) / 10;
+                const trend = this.getCorridorTrend(history);
+                const improvement = Math.round((throughput - baselineThroughput) * 10) / 10;
+                const routeDebtShare = Math.round(this.getCorridorRouteDebtShare(bottlenecks, sector.name) * 10) / 10;
+                const underfedProcessors = bottlenecks.filter((point) => point.reason === 'UNDERFED' && point.sectorName === sector.name).length;
+                const hotspots = bottlenecks.filter((point) => point.reason === 'CONGESTION' && point.sectorName === sector.name).length;
+                const recommendedBuilding = this.getCorridorSuggestedBuilding(routeDebtShare, underfedProcessors, hotspots);
+
+                return {
+                    id: `corridor:${sector.name}`,
+                    sectorName: sector.name,
+                    anchorKey: this.getCorridorAnchorKey(factory, sector.name) || previous?.anchorKey || `${sector.name}:anchor`,
+                    throughput,
+                    baselineThroughput,
+                    history,
+                    trend,
+                    improvement,
+                    routeDebtShare,
+                    underfedProcessors,
+                    hotspots,
+                    congestionLevel: Math.round((sector.congestionLevel || 0) * 100) / 100,
+                    satisfaction: Math.round((sector.satisfaction ?? 0.72) * 100) / 100,
+                    bonusChain: sector.bonusChain || 0,
+                    recommendedBuilding,
+                    followThrough: this.getCorridorFollowThrough(sector.name, routeDebtShare, underfedProcessors, hotspots, trend, improvement),
+                };
+            })
+            .sort((a, b) => this.getCorridorPriorityScore(b) - this.getCorridorPriorityScore(a))
+            .slice(0, 4);
+    }
+
+    private getCorridorTrend(history: number[]): FactoryCorridorState['trend'] {
+        if (!history || history.length < 2) return 'FLAT';
+        const latest = history[history.length - 1];
+        const previousAverage = history.slice(0, -1).reduce((sum, value) => sum + value, 0) / (history.length - 1);
+        const delta = latest - previousAverage;
+        if (delta > 1.5) return 'UP';
+        if (delta < -1.5) return 'DOWN';
+        return 'FLAT';
+    }
+
+    private getCorridorRouteDebtShare(bottlenecks: FactoryPressurePoint[], sectorName: string): number {
+        return bottlenecks
+            .filter((point) => point.reason === 'ROUTE_DEBT' && point.sectorName === sectorName)
+            .reduce((sum, point) => sum + point.severity, 0);
+    }
+
+    private getCorridorSuggestedBuilding(routeDebtShare: number, underfedProcessors: number, hotspots: number): BuildingType {
+        if (routeDebtShare >= 8) return BuildingType.RAIL_LINE;
+        if (underfedProcessors > 0) return BuildingType.DRONE_DEPOT;
+        if (hotspots > 0) return BuildingType.DISTRIBUTION_HUB;
+        return BuildingType.TRAIN_STATION;
+    }
+
+    private getCorridorPriorityScore(corridor: FactoryCorridorState): number {
+        return corridor.routeDebtShare
+            + (corridor.underfedProcessors * 8)
+            + (corridor.hotspots * 6)
+            + (corridor.congestionLevel * 12)
+            + ((1 - corridor.satisfaction) * 10)
+            - corridor.improvement;
+    }
+
+    private getCorridorAnchorKey(factory: FactoryState, sectorName: string): string | undefined {
+        const sectorNodes = Object.values(factory.nodes).filter((node) => this.getNodeSector(factory, node) === sectorName);
+        return sectorNodes.find((node) => node.buildingType === BuildingType.TRAIN_STATION)?.key
+            || sectorNodes.find((node) => node.buildingType === BuildingType.RAIL_LINE)?.key
+            || sectorNodes.find((node) => node.buildingType === BuildingType.DRONE_DEPOT)?.key
+            || sectorNodes[0]?.key;
+    }
+
+    private getCorridorFollowThrough(
+        sectorName: string,
+        routeDebtShare: number,
+        underfedProcessors: number,
+        hotspots: number,
+        trend: FactoryCorridorState['trend'],
+        improvement: number
+    ): string {
+        if (routeDebtShare >= 8) {
+            return `Anchor fresh rail in ${sectorName} until route debt falls back under the lane budget.`;
+        }
+        if (underfedProcessors > 0) {
+            return `Chain depot relief into hungry processors until ${underfedProcessors} cluster${underfedProcessors === 1 ? '' : 's'} clear.`;
+        }
+        if (hotspots > 0) {
+            return `Bleed buffer pressure before ${sectorName} drops into another satisfaction dip.`;
+        }
+        if (trend === 'UP') {
+            return `Flow is improving by ${improvement >= 0 ? '+' : ''}${improvement.toFixed(1)}. Hold the lane steady and protect the quota streak.`;
+        }
+        if (trend === 'DOWN') {
+            return `Throughput is sliding by ${improvement.toFixed(1)}. Re-center capacity here before the next miss lands.`;
+        }
+        return `Keep ${sectorName} balanced and only intervene if debt or underfed pressure returns.`;
+    }
+
     private buildPlannerRecommendations(
         bottlenecks: FactoryPressurePoint[],
         pinnedKeys: string[],
         emergencyReliefSectors: string[],
-        metrics: { routeDebt: number; underfedProcessors: number; hotspots: number }
+        metrics: { routeDebt: number; underfedProcessors: number; hotspots: number },
+        corridors: FactoryCorridorState[]
     ): FactoryPlannerRecommendation[] {
         const routeDebtPoint = bottlenecks.find((point) => point.reason === 'ROUTE_DEBT');
         const underfedPoint = bottlenecks.find((point) => point.reason === 'UNDERFED');
         const congestionPoint = bottlenecks.find((point) => point.reason === 'CONGESTION');
+        const routeDebtCorridor = this.findRecommendationCorridor(corridors, routeDebtPoint);
+        const underfedCorridor = this.findRecommendationCorridor(corridors, underfedPoint);
+        const congestionCorridor = this.findRecommendationCorridor(corridors, congestionPoint);
         const recommendations: FactoryPlannerRecommendation[] = [];
 
         if (routeDebtPoint) {
             recommendations.push(this.buildScopedRecommendation(
                 routeDebtPoint,
                 'Reinforce rail corridor',
-                `Chronic route debt ${Math.round(metrics.routeDebt)} is choking ${routeDebtPoint.sectorName || 'the main transfer lane'}.`,
-                this.getSuggestedBuilding(routeDebtPoint),
+                `Chronic route debt ${Math.round(metrics.routeDebt)} is choking ${routeDebtPoint.sectorName || 'the main transfer lane'} while corridor flow is ${this.getCorridorTrendLabel(routeDebtCorridor?.trend)}.`,
+                routeDebtCorridor?.recommendedBuilding || this.getSuggestedBuilding(routeDebtPoint),
                 pinnedKeys,
-                emergencyReliefSectors
+                emergencyReliefSectors,
+                routeDebtCorridor
             ));
         }
 
@@ -563,10 +682,11 @@ export class LogisticsSystem extends BaseSimSystem {
             recommendations.push(this.buildScopedRecommendation(
                 underfedPoint,
                 'Stabilize processor cluster',
-                `Processors are idling on ${underfedPoint.resource || 'critical inputs'} across ${metrics.underfedProcessors} stressed clusters.`,
-                this.getSuggestedBuilding(underfedPoint),
+                `Processors are idling on ${underfedPoint.resource || 'critical inputs'} across ${metrics.underfedProcessors} stressed clusters, and the feeder lane is ${this.getCorridorTrendLabel(underfedCorridor?.trend)}.`,
+                underfedCorridor?.recommendedBuilding || this.getSuggestedBuilding(underfedPoint),
                 pinnedKeys,
-                emergencyReliefSectors
+                emergencyReliefSectors,
+                underfedCorridor
             ));
         }
 
@@ -574,14 +694,31 @@ export class LogisticsSystem extends BaseSimSystem {
             recommendations.push(this.buildScopedRecommendation(
                 congestionPoint,
                 'Expand depot relief',
-                `Buffers are pooling faster than the hub can clear them across ${metrics.hotspots} hotspot${metrics.hotspots === 1 ? '' : 's'}.`,
-                this.getSuggestedBuilding(congestionPoint),
+                `Buffers are pooling faster than the hub can clear them across ${metrics.hotspots} hotspot${metrics.hotspots === 1 ? '' : 's'}, and the lane is ${this.getCorridorTrendLabel(congestionCorridor?.trend)}.`,
+                congestionCorridor?.recommendedBuilding || this.getSuggestedBuilding(congestionPoint),
                 pinnedKeys,
-                emergencyReliefSectors
+                emergencyReliefSectors,
+                congestionCorridor
             ));
         }
 
         return recommendations.slice(0, 4);
+    }
+
+    private findRecommendationCorridor(
+        corridors: FactoryCorridorState[],
+        point?: FactoryPressurePoint
+    ): FactoryCorridorState | undefined {
+        if (!point) return corridors[0];
+        return corridors.find((corridor) => point.sectorName && corridor.sectorName === point.sectorName)
+            || corridors.find((corridor) => corridor.anchorKey === point.key)
+            || corridors[0];
+    }
+
+    private getCorridorTrendLabel(trend?: FactoryCorridorState['trend']): string {
+        if (trend === 'UP') return 'recovering';
+        if (trend === 'DOWN') return 'slipping';
+        return 'holding flat';
     }
 
     private buildScopedRecommendation(
@@ -590,22 +727,24 @@ export class LogisticsSystem extends BaseSimSystem {
         lead: string,
         suggestedBuilding: BuildingType,
         pinnedKeys: string[],
-        emergencyReliefSectors: string[]
+        emergencyReliefSectors: string[],
+        corridor?: FactoryCorridorState
     ): FactoryPlannerRecommendation {
         const isPinned = pinnedKeys.includes(point.key);
         const isRelief = point.sectorName ? emergencyReliefSectors.includes(point.sectorName) : false;
         const flags = [isPinned ? 'pinned' : '', isRelief ? 'relief' : ''].filter(Boolean).join(' · ');
+        const corridorDetail = corridor ? ` · anchor ${corridor.anchorKey} · ${corridor.followThrough}` : '';
 
         return {
             id: `${point.reason}:${point.key}:${point.resource || 'none'}`,
             title,
-            detail: `${lead} ${point.detail}${flags ? ` · ${flags}` : ''}`.trim(),
+            detail: `${lead} ${point.detail}${corridorDetail}${flags ? ` · ${flags}` : ''}`.trim(),
             reason: point.reason,
             severity: point.severity,
-            targetKey: point.key,
+            targetKey: corridor?.anchorKey || point.key,
             sectorName: point.sectorName,
             resource: point.resource,
-            suggestedBuilding,
+            suggestedBuilding: corridor?.recommendedBuilding || suggestedBuilding,
         };
     }
 
