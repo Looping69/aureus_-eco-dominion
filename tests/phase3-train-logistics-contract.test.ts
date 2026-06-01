@@ -10,6 +10,7 @@ const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
 const tradeTerminalPath = path.join(process.cwd(), 'components', 'TradeTerminal.tsx');
 const engineBridgePath = path.join(process.cwd(), 'game', 'useAureusEngine.ts');
 const economyPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'EconomySystem.ts');
+const buildingRenderPath = path.join(process.cwd(), 'game', 'render', 'systems', 'BuildingRenderSystem.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -44,6 +45,9 @@ test('Phase 3 packet types expose explicit belt, rail, and drone transport modes
     'contractTarget?: number;',
     'contractProgress?: number;',
     'contractReward?: number;',
+    'satisfaction?: number;',
+    'bonusChain?: number;',
+    'missedQuotaTicks?: number;',
     'droneCharge?: number;',
     'droneUpkeep?: number;',
     'rechargePads?: number;',
@@ -73,9 +77,17 @@ test('Train stations act as regional sector anchors, drone depots extend local s
     "const congestionPolicy = previous?.congestionPolicy || 'BALANCED';",
     "const contractResource = previous?.contractResource || defaultContractResource;",
     'const contractTarget = previous?.contractTarget || (18 + stationCount * 8 + Math.round(throughput * 0.35));',
-    'const congestionLevel = Math.max(0, Math.min(1, (throughput / Math.max(18, stationCount * 18)) + (dronePressure * 0.55)));',
-    'contractProgress: cappedProgress,',
-    'contractReward: Math.round(contractTarget * (4 + ((hash % 3) * 0.5))),',
+    'const completion = contractTarget > 0 ? cappedProgress / contractTarget : 0;',
+    'const previousSatisfaction = previous?.satisfaction ?? 0.72;',
+    'let satisfaction = previousSatisfaction;',
+    'let bonusChain = previousBonusChain;',
+    'let missedQuotaTicks = previousMissedTicks;',
+    'satisfaction = Math.max(0.05, previousSatisfaction - 0.16);',
+    'bonusChain = 0;',
+    'missedQuotaTicks = previousMissedTicks + 2;',
+    'satisfaction,',
+    'bonusChain,',
+    'missedQuotaTicks,',
     'private findRailLinkedStations(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
     'private findDroneServedNodes(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
     'if (node.buildingType === BuildingType.TRAIN_STATION) {',
@@ -88,7 +100,7 @@ test('Train stations act as regional sector anchors, drone depots extend local s
   }
 });
 
-test('Train packets now score routes with sector flow posture, congestion appetite, and live quota pull', () => {
+test('Train packets now score routes with sector flow posture, congestion appetite, and live quota pressure', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
@@ -105,16 +117,17 @@ test('Train packets now score routes with sector flow posture, congestion appeti
     'factory.droneUpkeep = this.getDroneUpkeep(droneTrips, factory.rechargePads || 0);',
     'factory.dronePressure = droneTrips > 0 ? dronePressureTotal / droneTrips : 0;',
     'private scoreRouteCandidate(',
-    "if (destinationSector?.flowMode === 'SURGE') score += 4;",
-    "if (destinationSector?.flowMode === 'STABLE' && target === 'input') score += 2;",
+    "if ((destinationSector?.satisfaction || 1) < 0.35) score += 6;",
+    "if ((destinationSector?.bonusChain || 0) >= 3 && transportMode === 'RAIL') score += 2;",
     'const congestionPenalty = this.getCongestionPenalty(destinationSector, transportMode) + (originSector?.congestionLevel || 0) * 2;',
     'score += this.getSectorContractPull(destinationSector, resource);',
     'private getCongestionPenalty(sector: FactorySectorState | undefined, mode: FactoryPacketTransportMode): number {',
+    'const satisfactionPenalty = Math.max(0, 0.45 - (sector.satisfaction || 0.45)) * 8;',
     'private getSectorContractPull(sector: FactorySectorState | undefined, resource: FactoryResourceType): number {',
+    'const missedPressure = Math.min(6, (sector.missedQuotaTicks || 0) * 0.8);',
     'private getSectorTransferBias(',
-    "if (sector.flowMode === 'SURGE') bias += transportMode === 'RAIL' ? 1.5 : 1;",
-    "if (sector.congestionPolicy === 'AGGRESSIVE') bias += 0.6;",
-    "if (sector.congestionPolicy === 'SAFE') bias -= 0.45;",
+    "if ((sector.satisfaction || 1) < 0.4) bias += 0.9;",
+    "if ((sector.bonusChain || 0) >= 2 && transportMode === 'RAIL') bias += 0.55;",
     'private getSectorProfile(factory: FactoryState, name: string): FactorySectorState | undefined {',
     'private getDroneTransferBudget(factory: FactoryState, station: FactoryNodeState | null): number {',
     'private countActiveDroneTrips(factory: FactoryState, station: FactoryNodeState | null): number {',
@@ -127,22 +140,57 @@ test('Train packets now score routes with sector flow posture, congestion appeti
   }
 });
 
-test('Sector quotas now affect market pricing instead of staying purely descriptive', () => {
+test('Sector quotas now affect market pricing and create bonus-chain or missed-target pressure', () => {
   assert.equal(existsSync(economyPath), true, 'EconomySystem.ts is missing');
 
   const source = readFileSync(economyPath, 'utf8');
 
   for (const snippet of [
-    'FactorySectorState',
+    'private applySectorQuotaPressure(state: GameState) {',
+    'const satisfaction = sector.satisfaction ?? 0.75;',
+    'const bonusChain = sector.bonusChain ?? 0;',
+    'const missedQuotaTicks = sector.missedQuotaTicks ?? 0;',
+    'state.resources.agt += reward;',
+    'state.resources.trust = Math.min(100, state.resources.trust + (0.05 * bonusChain));',
+    'state.resources.agt = Math.max(0, state.resources.agt - agtPenalty);',
+    'state.resources.trust = Math.max(0, state.resources.trust - (0.08 + (missedQuotaTicks * 0.015)));',
     'private getSectorExportBonus(state: GameState, resource: FactoryResourceType): number {',
     'private getSectorImportDiscount(state: GameState, resource: FactoryResourceType): number {',
     'private getSectorExportContractBonus(sector: FactorySectorState, resource: FactoryResourceType): number {',
+    'const chainBonus = Math.min(0.08, (sector.bonusChain || 0) * 0.015);',
     'private getSectorImportContractDiscount(sector: FactorySectorState, resource: FactoryResourceType): number {',
+    'const missedPressure = Math.min(0.08, (sector.missedQuotaTicks || 0) * 0.01);',
     'private getSectorContractCompletion(sector: FactorySectorState): number {',
     'sector.exportBonus + this.getSectorExportContractBonus(sector, resource)',
     'sector.importDiscount + this.getSectorImportContractDiscount(sector, resource)',
-    'if (sector.contractResource !== resource || sector.importFocus !== resource) return 0;',
-    'const needRatio = Math.max(0, 1 - this.getSectorContractCompletion(sector));',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Renderer exposes in-world sector heatmaps and quota pressure overlays', () => {
+  assert.equal(existsSync(buildingRenderPath), true, 'BuildingRenderSystem.ts is missing');
+
+  const source = readFileSync(buildingRenderPath, 'utf8');
+
+  for (const snippet of [
+    'FactorySectorState,',
+    'sectorBonus: new THREE.MeshBasicMaterial({ color: 0x84cc16, transparent: true, opacity: 0.38 }),',
+    'sectorStrain: new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.42 }),',
+    'const sectorProfiles = new Map((factory.sectors || []).map((sector) => [sector.name, sector]));',
+    'const routeLoadBySector = new Map<string, number>();',
+    "if (overlayMode === 'FLOW') {",
+    'const heatTrail = new THREE.Mesh(',
+    "if (overlayMode === 'CONGESTION') {",
+    'const pressure = Math.max(this.getSectorPressure(fromSector), this.getSectorPressure(toSector));',
+    'const flowPlate = new THREE.Mesh(',
+    'const sectorPlate = new THREE.Mesh(',
+    'const quotaStress = new THREE.Mesh(',
+    'if ((sector.missedQuotaTicks || 0) >= 3 || (sector.satisfaction || 1) < 0.35) {',
+    'private getSectorPressure(sector: FactorySectorState | undefined): number {',
+    'private getSectorPressureColor(pressure: number): number {',
+    'private getSectorFlowColor(sector: FactorySectorState): number {',
+    'private getSectorSatisfactionColor(sector: FactorySectorState): number {',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
