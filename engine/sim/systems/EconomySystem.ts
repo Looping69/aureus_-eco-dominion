@@ -37,6 +37,8 @@ export class EconomySystem extends BaseSimSystem {
         this.updateTrend(ctx, market.wood);
         this.updateTrend(ctx, market.stone);
 
+        this.applySectorQuotaPressure(state);
+
         if ((state.factory?.droneUpkeep || 0) > 0) {
             state.resources.agt = Math.max(0, state.resources.agt - (state.factory?.droneUpkeep || 0));
         }
@@ -235,6 +237,29 @@ export class EconomySystem extends BaseSimSystem {
         return { ok: true };
     }
 
+    private applySectorQuotaPressure(state: GameState) {
+        const sectors = state.factory?.sectors || [];
+        if (sectors.length === 0) return;
+
+        for (const sector of sectors) {
+            const satisfaction = sector.satisfaction ?? 0.75;
+            const bonusChain = sector.bonusChain ?? 0;
+            const missedQuotaTicks = sector.missedQuotaTicks ?? 0;
+
+            if (bonusChain > 0 && satisfaction > 0.82) {
+                const reward = Math.max(1, Math.round((sector.contractReward || 0) * 0.015 + bonusChain));
+                state.resources.agt += reward;
+                state.resources.trust = Math.min(100, state.resources.trust + (0.05 * bonusChain));
+            }
+
+            if (missedQuotaTicks >= 3 && satisfaction < 0.38) {
+                const agtPenalty = Math.max(1, Math.round((sector.contractReward || 0) * 0.01 + missedQuotaTicks));
+                state.resources.agt = Math.max(0, state.resources.agt - agtPenalty);
+                state.resources.trust = Math.max(0, state.resources.trust - (0.08 + (missedQuotaTicks * 0.015)));
+            }
+        }
+    }
+
     private getSectorExportBonus(state: GameState, resource: FactoryResourceType): number {
         return Math.max(0, ...(state.factory?.sectors || [])
             .filter((sector) => sector.exportFocus === resource)
@@ -250,7 +275,8 @@ export class EconomySystem extends BaseSimSystem {
     private getSectorExportContractBonus(sector: FactorySectorState, resource: FactoryResourceType): number {
         if (sector.contractResource !== resource || sector.exportFocus !== resource) return 0;
         const completion = this.getSectorContractCompletion(sector);
-        return completion * (sector.demandBonus + 0.02);
+        const chainBonus = Math.min(0.08, (sector.bonusChain || 0) * 0.015);
+        return completion * (sector.demandBonus + 0.02 + chainBonus);
     }
 
     private getSectorImportContractDiscount(sector: FactorySectorState, resource: FactoryResourceType): number {
@@ -258,7 +284,8 @@ export class EconomySystem extends BaseSimSystem {
         const target = sector.contractTarget || 0;
         if (target <= 0) return 0;
         const needRatio = Math.max(0, 1 - this.getSectorContractCompletion(sector));
-        return needRatio * (sector.demandBonus + 0.04);
+        const missedPressure = Math.min(0.08, (sector.missedQuotaTicks || 0) * 0.01);
+        return needRatio * (sector.demandBonus + 0.04 + missedPressure);
     }
 
     private getSectorContractCompletion(sector: FactorySectorState): number {
