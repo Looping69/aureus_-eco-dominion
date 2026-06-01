@@ -190,11 +190,27 @@ export interface FactoryPressurePoint {
     sectorName?: string;
 }
 
+export interface FactoryPlannerRecommendation {
+    id: string;
+    title: string;
+    detail: string;
+    reason: FactoryPressureReason;
+    severity: number;
+    targetKey?: string;
+    sectorName?: string;
+    resource?: FactoryResourceType;
+    suggestedBuilding?: BuildingType;
+}
+
 export interface FactoryPressureState {
     routeDebt: number;
     underfedProcessors: number;
     hotspots: number;
     bottlenecks: FactoryPressurePoint[];
+    pinnedKeys: string[];
+    emergencyReliefSectors: string[];
+    recommendations: FactoryPlannerRecommendation[];
+    efficiencyPenalty: number;
 }
 
 export interface FactoryNodeState {
