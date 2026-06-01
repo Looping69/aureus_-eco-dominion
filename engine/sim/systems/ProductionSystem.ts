@@ -40,6 +40,7 @@ export class ProductionSystem extends BaseSimSystem {
         const modifiers = this.getModifiers(state);
         let totalIncome = 0;
         const factory = this.getFactoryState(state);
+        const factoryPenalty = 1 - (state.factory?.pressure?.efficiencyPenalty || 0);
 
         let hasSpaceport = false;
         let hasWasteTreatment = false;
@@ -94,6 +95,8 @@ export class ProductionSystem extends BaseSimSystem {
                 }
 
                 const utilityEfficiency = powerEfficiency * waterEfficiency;
+                const plannerEfficiency = this.isFactoryPenaltyTarget(tile.buildingType) ? factoryPenalty : 1;
+                const effectiveFactoryEfficiency = utilityEfficiency * plannerEfficiency;
 
                 let productionMult = 1.0;
                 if (tile.buildingType === BuildingType.SAWMILL || tile.buildingType === BuildingType.STONE_QUARRY) {
@@ -105,20 +108,20 @@ export class ProductionSystem extends BaseSimSystem {
 
                 if (tile.buildingType === BuildingType.MINING_HEADFRAME) {
                     const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'SOURCE', state.tickCount);
-                    this.pushOutput(node, 'ORE', (currentDef.production || 0) * modifiers.production * utilityEfficiency * 0.05);
+                    this.pushOutput(node, 'ORE', (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.05);
                 } else if (tile.buildingType === BuildingType.SAWMILL) {
                     const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'SOURCE', state.tickCount);
                     if (productionMult > 0) {
-                        this.pushOutput(node, 'WOOD', (currentDef.production || 0) * modifiers.production * utilityEfficiency * 0.05);
+                        this.pushOutput(node, 'WOOD', (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.05);
                     }
                 } else if (tile.buildingType === BuildingType.STONE_QUARRY) {
                     const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'SOURCE', state.tickCount);
                     if (productionMult > 0) {
-                        this.pushOutput(node, 'STONE', (currentDef.production || 0) * modifiers.production * utilityEfficiency * 0.05);
+                        this.pushOutput(node, 'STONE', (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.05);
                     }
                 } else if (tile.buildingType === BuildingType.WASH_PLANT || tile.buildingType === BuildingType.RECYCLING_PLANT) {
                     const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'PROCESSOR', state.tickCount);
-                    const ore = this.pullInput(node, 'ORE', Math.max(0.5, (currentDef.production || 0) * 0.03 * utilityEfficiency));
+                    const ore = this.pullInput(node, 'ORE', Math.max(0.5, (currentDef.production || 0) * 0.03 * effectiveFactoryEfficiency));
                     if (ore > 0) {
                         this.pushOutput(node, 'CONCENTRATE', ore * 0.85);
                         automatedChains += 1;
@@ -129,7 +132,7 @@ export class ProductionSystem extends BaseSimSystem {
                     const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'PROCESSOR', state.tickCount);
                     const concentrateAvailable = node.inputBuffer.CONCENTRATE || 0;
                     const stoneAvailable = node.inputBuffer.STONE || 0;
-                    const batch = Math.min(concentrateAvailable, stoneAvailable * 3, Math.max(0.5, (currentDef.production || 0) * 0.025 * utilityEfficiency));
+                    const batch = Math.min(concentrateAvailable, stoneAvailable * 3, Math.max(0.5, (currentDef.production || 0) * 0.025 * effectiveFactoryEfficiency));
                     if (batch > 0) {
                         this.pullInput(node, 'CONCENTRATE', batch);
                         this.pullInput(node, 'STONE', batch / 3);
@@ -149,7 +152,7 @@ export class ProductionSystem extends BaseSimSystem {
                         refinedAvailable,
                         woodAvailable,
                         alloyAvailable * 2,
-                        Math.max(0.35, ((currentDef.production || 18) * 0.02) * utilityEfficiency)
+                        Math.max(0.35, ((currentDef.production || 18) * 0.02) * effectiveFactoryEfficiency)
                     );
                     if (batch > 0) {
                         this.pullInput(node, 'REFINED_MATERIALS', batch);
@@ -169,7 +172,7 @@ export class ProductionSystem extends BaseSimSystem {
                         refinedAvailable / 2,
                         alloyAvailable,
                         partsAvailable,
-                        Math.max(0.2, ((currentDef.production || 18) * 0.015) * utilityEfficiency)
+                        Math.max(0.2, ((currentDef.production || 18) * 0.015) * effectiveFactoryEfficiency)
                     );
                     if (batch > 0) {
                         this.pullInput(node, 'REFINED_MATERIALS', batch * 2);
@@ -182,7 +185,7 @@ export class ProductionSystem extends BaseSimSystem {
                     }
                 } else if (tile.buildingType === BuildingType.GEM_REFINERY) {
                     const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'PROCESSOR', state.tickCount);
-                    const concentrate = this.pullInput(node, 'CONCENTRATE', Math.max(0.2, (currentDef.production || 0) * 0.02 * utilityEfficiency));
+                    const concentrate = this.pullInput(node, 'CONCENTRATE', Math.max(0.2, (currentDef.production || 0) * 0.02 * effectiveFactoryEfficiency));
                     if (concentrate > 0) {
                         this.pushOutput(node, 'GEMS', concentrate * 0.25);
                         automatedChains += 1;
@@ -198,11 +201,11 @@ export class ProductionSystem extends BaseSimSystem {
                 } else if (currentDef.productionType === 'MINERALS') {
                     mineralProd += (currentDef.production || 0) * modifiers.production * utilityEfficiency * 0.02;
                 } else if (currentDef.productionType === 'WOOD') {
-                    woodProd += (currentDef.production || 0) * modifiers.production * utilityEfficiency * 0.02 * productionMult;
+                    woodProd += (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.02 * productionMult;
                 } else if (currentDef.productionType === 'STONE') {
-                    stoneProd += (currentDef.production || 0) * modifiers.production * utilityEfficiency * 0.02 * productionMult;
+                    stoneProd += (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.02 * productionMult;
                 } else if (currentDef.productionType === 'GEMS') {
-                    gemProd += (currentDef.production || 0) * modifiers.production * utilityEfficiency * 0.01;
+                    gemProd += (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.01;
                 }
             }
         }
@@ -337,6 +340,20 @@ export class ProductionSystem extends BaseSimSystem {
             delete node.inputBuffer[resource];
         }
         return taken;
+    }
+
+    private isFactoryPenaltyTarget(type: BuildingType): boolean {
+        return [
+            BuildingType.MINING_HEADFRAME,
+            BuildingType.SAWMILL,
+            BuildingType.STONE_QUARRY,
+            BuildingType.WASH_PLANT,
+            BuildingType.RECYCLING_PLANT,
+            BuildingType.ORE_FOUNDRY,
+            BuildingType.WORKSHOP,
+            BuildingType.GREEN_TECH_LAB,
+            BuildingType.GEM_REFINERY,
+        ].includes(type);
     }
 
     private getModifiers(state: GameState) {
