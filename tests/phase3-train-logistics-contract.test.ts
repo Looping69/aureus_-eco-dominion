@@ -168,6 +168,7 @@ test('Train packets now score routes with sector flow posture, planner relief, p
     'Processors are idling on',
     'Buffers are pooling faster than the hub can clear them',
     'private getSuggestedBuilding(point: FactoryPressurePoint): BuildingType {',
+    'return BuildingType.RAIL_LINE;',
     'private getPinnedKeys(factory: FactoryState): string[] {',
     'private getEmergencyReliefSectors(factory: FactoryState): string[] {',
   ]) {
