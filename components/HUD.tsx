@@ -32,6 +32,12 @@ const getSectorBadge = (name: string) =>
 
 const toPercent = (value: number) => `${Math.round(value * 100)}%`;
 
+const getSatisfactionTone = (value: number) => {
+  if (value >= 0.75) return 'text-emerald-300';
+  if (value >= 0.45) return 'text-amber-300';
+  return 'text-rose-300';
+};
+
 const ResourceBlock = React.memo(({ icon: Icon, val, label, borderClass, iconBgClass, sub, textColor = "text-white", isExpanded, onToggle }: any) => {
   const [popup, setPopup] = useState<{ id: number; text: string; isPositive: boolean } | null>(null);
   const [hasNew, setHasNew] = useState(false);
@@ -256,12 +262,15 @@ const MarketBlock = ({ state, isExpanded, onToggle }: { state: GameState; isExpa
   const visibleSectors = sectors.slice(0, 3);
   const rechargePads = state.factory?.rechargePads || 0;
   const railFlow = Math.floor(state.factory?.regionalThroughput || 0);
+  const routeDebt = Math.round(state.factory?.pressure?.routeDebt || 0);
+  const underfed = state.factory?.pressure?.underfedProcessors || 0;
+  const hotspots = state.factory?.pressure?.hotspots || 0;
   const [hasNew, setHasNew] = useState(false);
   const prevSectorSignature = useRef('');
 
   useEffect(() => {
     const signature = visibleSectors
-      .map((sector) => `${sector.name}:${Math.round(sector.throughput)}:${sector.exportFocus}:${sector.importFocus}`)
+      .map((sector) => `${sector.name}:${Math.round(sector.throughput)}:${sector.exportFocus}:${sector.importFocus}:${Math.round((sector.satisfaction ?? 0.72) * 100)}:${sector.bonusChain ?? 0}`)
       .join('|');
     if (signature && prevSectorSignature.current && signature !== prevSectorSignature.current && !isExpanded) {
       setHasNew(true);
@@ -308,29 +317,38 @@ const MarketBlock = ({ state, isExpanded, onToggle }: { state: GameState; isExpa
               <span className="text-[7px] sm:text-[9px] text-cyan-200 font-mono">{sectors.length} sectors</span>
             </div>
 
-            {visibleSectors.length > 0 ? visibleSectors.map((sector) => (
-              <div key={sector.name} className="w-full border border-cyan-950/70 bg-slate-950/70 rounded-[3px] px-2 py-1">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[8px] sm:text-[9px] font-black text-cyan-300 bg-cyan-950/80 border border-cyan-800 rounded-[2px] px-1.5 py-0.5 shrink-0">
-                      {getSectorBadge(sector.name)}
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] text-white font-semibold truncate max-w-[108px] sm:max-w-[138px]">{sector.name}</span>
+            {visibleSectors.length > 0 ? visibleSectors.map((sector) => {
+              const satisfaction = sector.satisfaction ?? 0.72;
+              const bonusChain = sector.bonusChain ?? 0;
+
+              return (
+                <div key={sector.name} className="w-full border border-cyan-950/70 bg-slate-950/70 rounded-[3px] px-2 py-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[8px] sm:text-[9px] font-black text-cyan-300 bg-cyan-950/80 border border-cyan-800 rounded-[2px] px-1.5 py-0.5 shrink-0">
+                        {getSectorBadge(sector.name)}
+                      </span>
+                      <span className="text-[9px] sm:text-[10px] text-white font-semibold truncate max-w-[108px] sm:max-w-[138px]">{sector.name}</span>
+                    </div>
+                    <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono shrink-0">{Math.round(sector.throughput)}</span>
                   </div>
-                  <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono shrink-0">{Math.round(sector.throughput)}</span>
+                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[8px] sm:text-[9px] font-mono text-slate-300">
+                    <span>Out {SECTOR_RESOURCE_LABELS[sector.exportFocus]} +{toPercent(sector.exportBonus)}</span>
+                    <span>In {SECTOR_RESOURCE_LABELS[sector.importFocus]} -{toPercent(sector.importDiscount)}</span>
+                    <span>Demand +{toPercent(sector.demandBonus)}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[8px] sm:text-[9px] font-mono">
+                    <span className={getSatisfactionTone(satisfaction)}>Sat {toPercent(satisfaction)}</span>
+                    <span className="text-lime-300">Chain x{bonusChain}</span>
+                  </div>
                 </div>
-                <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[8px] sm:text-[9px] font-mono text-slate-300">
-                  <span>Out {SECTOR_RESOURCE_LABELS[sector.exportFocus]} +{toPercent(sector.exportBonus)}</span>
-                  <span>In {SECTOR_RESOURCE_LABELS[sector.importFocus]} -{toPercent(sector.importDiscount)}</span>
-                  <span>Demand +{toPercent(sector.demandBonus)}</span>
-                </div>
-              </div>
-            )) : (
+              );
+            }) : (
               <div className="text-[8px] sm:text-[9px] text-slate-500 font-mono">Build rail hubs to read regional demand.</div>
             )}
 
             <div className="text-[8px] sm:text-[9px] text-slate-400 font-mono">
-              Pads {rechargePads} · Rail {railFlow}
+              Pads {rechargePads} · Rail {railFlow} · Debt {routeDebt} · Feed {underfed} · Hot {hotspots}
             </div>
           </div>
         )}
