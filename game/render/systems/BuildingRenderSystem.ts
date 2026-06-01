@@ -9,6 +9,7 @@ import {
     Chunk,
     FactoryNodeState,
     FactoryPacketTransportMode,
+    FactoryPlannerRecommendation,
     FactorySectorState,
     FactoryState,
     GridTile,
@@ -691,6 +692,11 @@ export class BuildingRenderSystem {
         const activeRegionalSectors = new Set<string>();
         const stationDroneLoad = new Map<string, number>();
         const routeLoadBySector = new Map<string, number>();
+        const pinnedKeys = new Set(factory.pressure?.pinnedKeys || []);
+        const reliefSectors = new Set(factory.pressure?.emergencyReliefSectors || []);
+        const recommendationByKey = new Map((factory.pressure?.recommendations || [])
+            .filter((recommendation) => recommendation.targetKey)
+            .map((recommendation) => [recommendation.targetKey!, recommendation]));
 
         for (const packet of factory.packets) {
             const fromNode = factory.nodes[packet.fromKey];
@@ -796,6 +802,9 @@ export class BuildingRenderSystem {
         Object.values(factory.nodes).forEach((node) => {
             const pos = this.getNodeWorldPosition(node, chunks);
             const sector = node.sectorName ? sectorProfiles.get(node.sectorName) : undefined;
+            const recommendation = recommendationByKey.get(node.key);
+            const pinned = pinnedKeys.has(node.key);
+            const inRelief = node.sectorName ? reliefSectors.has(node.sectorName) : false;
 
             if (node.buildingType === BuildingType.TRAIN_STATION && node.sectorName) {
                 const sectorColor = this.getSectorColor(node.sectorName);
@@ -822,6 +831,29 @@ export class BuildingRenderSystem {
                     quotaRing.scale.setScalar(0.92 + Math.min(0.4, (sector.bonusChain || 0) * 0.08));
                     quotaRing.position.set(node.x, pos.y + 0.11, node.z);
                     this.overlayGroup.add(quotaRing);
+
+                    if (inRelief) {
+                        const reliefRing = new THREE.Mesh(this.ringGeo, this.overlayMats.sectorStrain.clone());
+                        reliefRing.rotation.x = Math.PI / 2;
+                        reliefRing.scale.setScalar(1.18);
+                        reliefRing.position.set(node.x, pos.y + 0.24, node.z);
+                        this.overlayGroup.add(reliefRing);
+
+                        const reliefBadge = new THREE.Sprite(this.getSectorLabelMaterial(`RELIEF ${this.getSectorCode(node.sectorName)}`, 0xf97316));
+                        reliefBadge.scale.set(1.9, 0.42, 1);
+                        reliefBadge.position.set(node.x, pos.y + 0.88, node.z);
+                        this.overlayGroup.add(reliefBadge);
+                    }
+
+                    if (overlayMode !== 'OFF' || inRelief || (sector.satisfaction || 1) < 0.72) {
+                        const goalBadge = new THREE.Sprite(this.getSectorLabelMaterial(
+                            this.getSectorGoalLabel(sector),
+                            inRelief ? 0xf97316 : this.getSectorSatisfactionColor(sector)
+                        ));
+                        goalBadge.scale.set(1.85, 0.38, 1);
+                        goalBadge.position.set(node.x, pos.y + 0.68, node.z + 0.46);
+                        this.overlayGroup.add(goalBadge);
+                    }
                 }
             }
 
@@ -851,6 +883,30 @@ export class BuildingRenderSystem {
                 }
             }
 
+            if (pinned || recommendation) {
+                const plannerColor = pinned ? 0xf59e0b : this.getPlannerColor(recommendation?.reason);
+                const plannerRing = new THREE.Mesh(
+                    this.ringGeo,
+                    new THREE.MeshBasicMaterial({ color: plannerColor, transparent: true, opacity: pinned ? 0.72 : 0.58 })
+                );
+                plannerRing.rotation.x = Math.PI / 2;
+                plannerRing.scale.setScalar(pinned ? 1.14 : 0.98);
+                plannerRing.position.set(node.x, pos.y + 0.34, node.z);
+                this.overlayGroup.add(plannerRing);
+
+                const plannerBadge = new THREE.Sprite(this.getSectorLabelMaterial(
+                    pinned && recommendation
+                        ? `PIN ${this.getSuggestedBuildingCode(recommendation.suggestedBuilding)}`
+                        : pinned
+                            ? 'PIN'
+                            : `UP ${this.getSuggestedBuildingCode(recommendation?.suggestedBuilding)}`,
+                    plannerColor
+                ));
+                plannerBadge.scale.set(1.62, 0.36, 1);
+                plannerBadge.position.set(node.x, pos.y + 0.98, node.z);
+                this.overlayGroup.add(plannerBadge);
+            }
+
             if (node.buildingType === BuildingType.RAIL_LINE && activeRailNodes.has(node.key)) {
                 const railPlate = new THREE.Mesh(this.overlayPlateGeo, this.overlayMats.rail.clone());
                 railPlate.scale.set(0.8, 0.8, 0.55);
@@ -866,6 +922,9 @@ export class BuildingRenderSystem {
         Object.values(factory.nodes).forEach((node) => {
             const pos = this.getNodeWorldPosition(node, chunks);
             const sector = node.sectorName ? sectorProfiles.get(node.sectorName) : undefined;
+            const inRelief = node.sectorName ? reliefSectors.has(node.sectorName) : false;
+            const pinned = pinnedKeys.has(node.key);
+            const recommendation = recommendationByKey.get(node.key);
 
             if (overlayMode === 'FLOW' && this.isRecentlyActive(node, factory.lastNetworkTick)) {
                 const plate = new THREE.Mesh(this.overlayPlateGeo, this.overlayMats.flow);
@@ -893,6 +952,13 @@ export class BuildingRenderSystem {
                     streakRing.scale.setScalar(1.1 + Math.min(0.55, (sector.bonusChain || 0) * 0.1));
                     streakRing.position.set(node.x, pos.y + 0.22, node.z);
                     this.overlayGroup.add(streakRing);
+                }
+
+                if (inRelief) {
+                    const reliefPlate = new THREE.Mesh(this.overlayPlateGeo, this.overlayMats.sectorStrain.clone());
+                    reliefPlate.scale.set(1.5, 1, 1.5);
+                    reliefPlate.position.set(node.x, pos.y + 0.05, node.z);
+                    this.overlayGroup.add(reliefPlate);
                 }
             }
 
@@ -942,6 +1008,20 @@ export class BuildingRenderSystem {
                         stressBadge.position.set(node.x, pos.y + 0.88, node.z);
                         this.overlayGroup.add(stressBadge);
                     }
+                }
+
+                if (pinned || recommendation) {
+                    const plannerBeacon = new THREE.Mesh(
+                        this.beaconGeo,
+                        new THREE.MeshBasicMaterial({
+                            color: pinned ? 0xf59e0b : this.getPlannerColor(recommendation?.reason),
+                            transparent: true,
+                            opacity: 0.62,
+                        })
+                    );
+                    plannerBeacon.scale.set(1.05, 1.3, 1.05);
+                    plannerBeacon.position.set(node.x, pos.y + 0.62, node.z);
+                    this.overlayGroup.add(plannerBeacon);
                 }
             }
 
@@ -1038,6 +1118,30 @@ export class BuildingRenderSystem {
             .join('')
             .slice(0, 3)
             .toUpperCase();
+    }
+
+    private getPlannerColor(reason?: string): number {
+        if (reason === 'UNDERFED') return 0xf59e0b;
+        if (reason === 'CONGESTION') return 0xef4444;
+        return 0x38bdf8;
+    }
+
+    private getSuggestedBuildingCode(type?: BuildingType): string {
+        return (type || 'PLAN')
+            .split('_')
+            .map((part) => part[0] || '')
+            .join('')
+            .slice(0, 4)
+            .toUpperCase();
+    }
+
+    private getSectorGoalLabel(sector: FactorySectorState): string {
+        const target = sector.contractTarget || 0;
+        const progress = Math.min(target, sector.contractProgress || 0);
+        if ((sector.satisfaction || 1) < 0.7) return `SAT ${Math.round((sector.satisfaction || 0) * 100)}->70`;
+        if (target > 0 && progress < target) return `Q ${Math.round(progress)}/${target}`;
+        if ((sector.bonusChain || 0) > 0) return `HOLD x${sector.bonusChain}`;
+        return `FLOW ${Math.round(sector.throughput || 0)}`;
     }
 
     private resourceTotal(bucket: Partial<Record<string, number>>) {
