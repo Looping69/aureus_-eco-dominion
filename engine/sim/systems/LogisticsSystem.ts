@@ -611,7 +611,7 @@ export class LogisticsSystem extends BaseSimSystem {
 
     private getSuggestedBuilding(point: FactoryPressurePoint): BuildingType {
         if (point.reason === 'ROUTE_DEBT') {
-            return point.sectorName ? BuildingType.TRAIN_STATION : BuildingType.DISTRIBUTION_HUB;
+            return BuildingType.RAIL_LINE;
         }
         if (point.reason === 'UNDERFED') {
             return point.sectorName ? BuildingType.DRONE_DEPOT : BuildingType.STORAGE_DEPOT;
