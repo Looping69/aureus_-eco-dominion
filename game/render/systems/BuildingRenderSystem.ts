@@ -9,6 +9,7 @@ import {
     Chunk,
     FactoryNodeState,
     FactoryPacketTransportMode,
+    FactorySectorState,
     FactoryState,
     GridTile,
     LogisticsOverlayMode,
@@ -100,6 +101,8 @@ export class BuildingRenderSystem {
         rail: new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.42 }),
         drone: new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.48 }),
         droneWarm: new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.55 }),
+        sectorBonus: new THREE.MeshBasicMaterial({ color: 0x84cc16, transparent: true, opacity: 0.38 }),
+        sectorStrain: new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.42 }),
     };
 
     private tileCache: Map<number, { type: string; progress: number; state: string }> = new Map();
@@ -682,10 +685,12 @@ export class BuildingRenderSystem {
 
         if (!factory) return;
 
+        const sectorProfiles = new Map((factory.sectors || []).map((sector) => [sector.name, sector]));
         const activeRailNodes = new Set<string>();
         const activeDroneStations = new Set<string>();
         const activeRegionalSectors = new Set<string>();
         const stationDroneLoad = new Map<string, number>();
+        const routeLoadBySector = new Map<string, number>();
 
         for (const packet of factory.packets) {
             const fromNode = factory.nodes[packet.fromKey];
@@ -732,11 +737,42 @@ export class BuildingRenderSystem {
                 if (packet.sectorFrom && packet.sectorTo && packet.sectorFrom !== packet.sectorTo) {
                     activeRegionalSectors.add(packet.sectorFrom);
                     activeRegionalSectors.add(packet.sectorTo);
+                    routeLoadBySector.set(packet.sectorFrom, (routeLoadBySector.get(packet.sectorFrom) || 0) + packet.amount);
+                    routeLoadBySector.set(packet.sectorTo, (routeLoadBySector.get(packet.sectorTo) || 0) + packet.amount);
                     const bulkRing = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: routeColor, transparent: true, opacity: 0.55 }));
                     bulkRing.rotation.x = Math.PI / 2;
                     bulkRing.scale.setScalar(0.62 + Math.min(0.42, packet.amount * 0.04));
                     bulkRing.position.set(pos.x, pos.y + 0.04, pos.z);
                     this.packetGroup.add(bulkRing);
+
+                    if (overlayMode === 'FLOW') {
+                        const heatTrail = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.56, 0.06, 0.22),
+                            new THREE.MeshBasicMaterial({ color: routeColor, transparent: true, opacity: 0.18 + Math.min(0.32, packet.amount * 0.025) })
+                        );
+                        heatTrail.position.set(pos.x, pos.y - 0.02, pos.z);
+                        if (Math.abs(toPos.x - fromPos.x) <= Math.abs(toPos.z - fromPos.z)) {
+                            heatTrail.rotation.y = Math.PI / 2;
+                        }
+                        this.packetGroup.add(heatTrail);
+                    }
+
+                    if (overlayMode === 'CONGESTION') {
+                        const fromSector = sectorProfiles.get(packet.sectorFrom);
+                        const toSector = sectorProfiles.get(packet.sectorTo);
+                        const pressure = Math.max(this.getSectorPressure(fromSector), this.getSectorPressure(toSector));
+                        if (pressure > 0.52) {
+                            const hotTrail = new THREE.Mesh(
+                                new THREE.BoxGeometry(0.54, 0.05, 0.2),
+                                new THREE.MeshBasicMaterial({ color: this.getSectorPressureColor(pressure), transparent: true, opacity: 0.2 + pressure * 0.24 })
+                            );
+                            hotTrail.position.set(pos.x, pos.y + 0.02, pos.z);
+                            if (Math.abs(toPos.x - fromPos.x) <= Math.abs(toPos.z - fromPos.z)) {
+                                hotTrail.rotation.y = Math.PI / 2;
+                            }
+                            this.packetGroup.add(hotTrail);
+                        }
+                    }
 
                     const routeBadge = new THREE.Sprite(this.getSectorLabelMaterial(
                         `${this.getSectorCode(packet.sectorFrom)}-${this.getSectorCode(packet.sectorTo)}`,
@@ -759,6 +795,8 @@ export class BuildingRenderSystem {
 
         Object.values(factory.nodes).forEach((node) => {
             const pos = this.getNodeWorldPosition(node, chunks);
+            const sector = node.sectorName ? sectorProfiles.get(node.sectorName) : undefined;
+
             if (node.buildingType === BuildingType.TRAIN_STATION && node.sectorName) {
                 const sectorColor = this.getSectorColor(node.sectorName);
                 const label = new THREE.Sprite(this.getSectorLabelMaterial(node.sectorName, sectorColor));
@@ -770,6 +808,21 @@ export class BuildingRenderSystem {
                 sectorBeacon.scale.set(0.9, activeRegionalSectors.has(node.sectorName) ? 1.55 : 1.15, 0.9);
                 sectorBeacon.position.set(node.x, pos.y + 0.74, node.z);
                 this.overlayGroup.add(sectorBeacon);
+
+                if (sector) {
+                    const quotaRing = new THREE.Mesh(
+                        this.ringGeo,
+                        new THREE.MeshBasicMaterial({
+                            color: this.getSectorSatisfactionColor(sector),
+                            transparent: true,
+                            opacity: 0.26 + ((sector.bonusChain || 0) * 0.05),
+                        })
+                    );
+                    quotaRing.rotation.x = Math.PI / 2;
+                    quotaRing.scale.setScalar(0.92 + Math.min(0.4, (sector.bonusChain || 0) * 0.08));
+                    quotaRing.position.set(node.x, pos.y + 0.11, node.z);
+                    this.overlayGroup.add(quotaRing);
+                }
             }
 
             if ((node.buildingType === BuildingType.TRAIN_STATION || node.buildingType === BuildingType.DRONE_DEPOT) && (this.isRecentlyActive(node, factory.lastNetworkTick) || activeDroneStations.has(node.key) || activeRailNodes.has(node.key))) {
@@ -812,10 +865,35 @@ export class BuildingRenderSystem {
 
         Object.values(factory.nodes).forEach((node) => {
             const pos = this.getNodeWorldPosition(node, chunks);
+            const sector = node.sectorName ? sectorProfiles.get(node.sectorName) : undefined;
+
             if (overlayMode === 'FLOW' && this.isRecentlyActive(node, factory.lastNetworkTick)) {
                 const plate = new THREE.Mesh(this.overlayPlateGeo, this.overlayMats.flow);
                 plate.position.set(node.x, pos.y + 0.03, node.z);
                 this.overlayGroup.add(plate);
+            }
+
+            if (overlayMode === 'FLOW' && node.buildingType === BuildingType.TRAIN_STATION && sector) {
+                const routeLoad = routeLoadBySector.get(sector.name) || 0;
+                const flowPlate = new THREE.Mesh(
+                    this.overlayPlateGeo,
+                    new THREE.MeshBasicMaterial({
+                        color: this.getSectorFlowColor(sector),
+                        transparent: true,
+                        opacity: 0.24 + Math.min(0.18, routeLoad * 0.01),
+                    })
+                );
+                flowPlate.scale.set(1.1 + Math.min(1.2, sector.throughput / 18), 1, 1.1 + Math.min(1.2, routeLoad / 18));
+                flowPlate.position.set(node.x, pos.y + 0.04, node.z);
+                this.overlayGroup.add(flowPlate);
+
+                if ((sector.bonusChain || 0) > 0) {
+                    const streakRing = new THREE.Mesh(this.ringGeo, this.overlayMats.sectorBonus.clone());
+                    streakRing.rotation.x = Math.PI / 2;
+                    streakRing.scale.setScalar(1.1 + Math.min(0.55, (sector.bonusChain || 0) * 0.1));
+                    streakRing.position.set(node.x, pos.y + 0.22, node.z);
+                    this.overlayGroup.add(streakRing);
+                }
             }
 
             if (overlayMode === 'CONGESTION') {
@@ -830,6 +908,40 @@ export class BuildingRenderSystem {
                     const beacon = new THREE.Mesh(this.beaconGeo, this.overlayMats.beacon);
                     beacon.position.set(node.x, pos.y + 0.38, node.z);
                     this.overlayGroup.add(beacon);
+                }
+
+                if (node.buildingType === BuildingType.TRAIN_STATION && sector) {
+                    const pressure = this.getSectorPressure(sector);
+                    const sectorPlate = new THREE.Mesh(
+                        this.overlayPlateGeo,
+                        new THREE.MeshBasicMaterial({
+                            color: this.getSectorPressureColor(pressure),
+                            transparent: true,
+                            opacity: 0.2 + pressure * 0.28,
+                        })
+                    );
+                    sectorPlate.scale.set(1.25 + pressure * 1.5, 1, 1.25 + pressure * 1.5);
+                    sectorPlate.position.set(node.x, pos.y + 0.045, node.z);
+                    this.overlayGroup.add(sectorPlate);
+
+                    const quotaStress = new THREE.Mesh(
+                        this.ringGeo,
+                        pressure > 0.58 ? this.overlayMats.sectorStrain.clone() : this.overlayMats.congestionWarm.clone()
+                    );
+                    quotaStress.rotation.x = Math.PI / 2;
+                    quotaStress.scale.setScalar(1.02 + pressure * 0.55);
+                    quotaStress.position.set(node.x, pos.y + 0.18, node.z);
+                    this.overlayGroup.add(quotaStress);
+
+                    if ((sector.missedQuotaTicks || 0) >= 3 || (sector.satisfaction || 1) < 0.35) {
+                        const stressBadge = new THREE.Sprite(this.getSectorLabelMaterial(
+                            `${this.getSectorCode(sector.name)} ${Math.round(pressure * 100)}%`,
+                            this.getSectorPressureColor(pressure)
+                        ));
+                        stressBadge.scale.set(1.9, 0.42, 1);
+                        stressBadge.position.set(node.x, pos.y + 0.88, node.z);
+                        this.overlayGroup.add(stressBadge);
+                    }
                 }
             }
 
@@ -890,6 +1002,33 @@ export class BuildingRenderSystem {
         const palette = [0x38bdf8, 0xf59e0b, 0x2dd4bf, 0xc084fc, 0xf97316, 0xa3e635];
         const hash = Array.from(label).reduce((sum, char) => sum + char.charCodeAt(0), 0);
         return palette[hash % palette.length];
+    }
+
+    private getSectorPressure(sector: FactorySectorState | undefined): number {
+        if (!sector) return 0;
+        return Math.max(
+            sector.congestionLevel || 0,
+            Math.max(0, 1 - (sector.satisfaction || 1)),
+            Math.min(1, (sector.missedQuotaTicks || 0) / 6)
+        );
+    }
+
+    private getSectorPressureColor(pressure: number): number {
+        if (pressure > 0.72) return 0xef4444;
+        if (pressure > 0.48) return 0xf97316;
+        return 0xf59e0b;
+    }
+
+    private getSectorFlowColor(sector: FactorySectorState): number {
+        if ((sector.bonusChain || 0) >= 3) return 0x84cc16;
+        if ((sector.satisfaction || 1) < 0.42) return 0xf59e0b;
+        return 0x22d3ee;
+    }
+
+    private getSectorSatisfactionColor(sector: FactorySectorState): number {
+        if ((sector.satisfaction || 0) > 0.82) return 0x84cc16;
+        if ((sector.satisfaction || 0) < 0.38) return 0xef4444;
+        return 0x2dd4bf;
     }
 
     private getSectorCode(label: string): string {
