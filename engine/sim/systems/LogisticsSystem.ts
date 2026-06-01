@@ -499,7 +499,11 @@ export class LogisticsSystem extends BaseSimSystem {
 
         const pinnedKeys = this.getPinnedKeys(factory);
         const emergencyReliefSectors = this.getEmergencyReliefSectors(factory);
-        const recommendations = this.buildPlannerRecommendations(bottlenecks, pinnedKeys, emergencyReliefSectors);
+        const recommendations = this.buildPlannerRecommendations(bottlenecks, pinnedKeys, emergencyReliefSectors, {
+            routeDebt,
+            underfedProcessors,
+            hotspots: Math.max(hotspots, stalledNodes),
+        });
         const chronicDebt = Math.max(0, routeDebt - 10);
         const chronicUnderfed = Math.max(0, underfedProcessors - 1);
         const chronicHotspots = Math.max(0, hotspots - 1);
@@ -536,30 +540,73 @@ export class LogisticsSystem extends BaseSimSystem {
     private buildPlannerRecommendations(
         bottlenecks: FactoryPressurePoint[],
         pinnedKeys: string[],
-        emergencyReliefSectors: string[]
+        emergencyReliefSectors: string[],
+        metrics: { routeDebt: number; underfedProcessors: number; hotspots: number }
     ): FactoryPlannerRecommendation[] {
-        return bottlenecks.slice(0, 4).map((point) => {
-            const isPinned = pinnedKeys.includes(point.key);
-            const isRelief = point.sectorName ? emergencyReliefSectors.includes(point.sectorName) : false;
-            const suggestedBuilding = this.getSuggestedBuilding(point);
-            const title = point.reason === 'ROUTE_DEBT'
-                ? 'Open a stronger route'
-                : point.reason === 'UNDERFED'
-                    ? 'Feed the starved processor'
-                    : 'Bleed off congestion';
-            const flags = [isPinned ? 'pinned' : '', isRelief ? 'relief' : ''].filter(Boolean).join(' · ');
-            return {
-                id: `${point.key}:${point.reason}:${point.resource || 'none'}`,
-                title,
-                detail: `${point.detail}${flags ? ` · ${flags}` : ''}`,
-                reason: point.reason,
-                severity: point.severity,
-                targetKey: point.key,
-                sectorName: point.sectorName,
-                resource: point.resource,
-                suggestedBuilding,
-            };
-        });
+        const routeDebtPoint = bottlenecks.find((point) => point.reason === 'ROUTE_DEBT');
+        const underfedPoint = bottlenecks.find((point) => point.reason === 'UNDERFED');
+        const congestionPoint = bottlenecks.find((point) => point.reason === 'CONGESTION');
+        const recommendations: FactoryPlannerRecommendation[] = [];
+
+        if (routeDebtPoint) {
+            recommendations.push(this.buildScopedRecommendation(
+                routeDebtPoint,
+                'Reinforce rail corridor',
+                `Chronic route debt ${Math.round(metrics.routeDebt)} is choking ${routeDebtPoint.sectorName || 'the main transfer lane'}.`,
+                this.getSuggestedBuilding(routeDebtPoint),
+                pinnedKeys,
+                emergencyReliefSectors
+            ));
+        }
+
+        if (underfedPoint) {
+            recommendations.push(this.buildScopedRecommendation(
+                underfedPoint,
+                'Stabilize processor cluster',
+                `Processors are idling on ${underfedPoint.resource || 'critical inputs'} across ${metrics.underfedProcessors} stressed clusters.`,
+                this.getSuggestedBuilding(underfedPoint),
+                pinnedKeys,
+                emergencyReliefSectors
+            ));
+        }
+
+        if (congestionPoint) {
+            recommendations.push(this.buildScopedRecommendation(
+                congestionPoint,
+                'Expand depot relief',
+                `Buffers are pooling faster than the hub can clear them across ${metrics.hotspots} hotspot${metrics.hotspots === 1 ? '' : 's'}.`,
+                this.getSuggestedBuilding(congestionPoint),
+                pinnedKeys,
+                emergencyReliefSectors
+            ));
+        }
+
+        return recommendations.slice(0, 4);
+    }
+
+    private buildScopedRecommendation(
+        point: FactoryPressurePoint,
+        title: string,
+        lead: string,
+        suggestedBuilding: BuildingType,
+        pinnedKeys: string[],
+        emergencyReliefSectors: string[]
+    ): FactoryPlannerRecommendation {
+        const isPinned = pinnedKeys.includes(point.key);
+        const isRelief = point.sectorName ? emergencyReliefSectors.includes(point.sectorName) : false;
+        const flags = [isPinned ? 'pinned' : '', isRelief ? 'relief' : ''].filter(Boolean).join(' · ');
+
+        return {
+            id: `${point.reason}:${point.key}:${point.resource || 'none'}`,
+            title,
+            detail: `${lead} ${point.detail}${flags ? ` · ${flags}` : ''}`.trim(),
+            reason: point.reason,
+            severity: point.severity,
+            targetKey: point.key,
+            sectorName: point.sectorName,
+            resource: point.resource,
+            suggestedBuilding,
+        };
     }
 
     private getSuggestedBuilding(point: FactoryPressurePoint): BuildingType {
