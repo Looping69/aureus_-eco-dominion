@@ -343,6 +343,8 @@ export class LogisticsSystem extends BaseSimSystem {
         if (destinationSector?.flowMode === 'SURGE') score += 4;
         if (destinationSector?.flowMode === 'STABLE' && target === 'input') score += 2;
         if (originSector?.flowMode === 'SURGE') score += 2;
+        if ((destinationSector?.satisfaction || 1) < 0.35) score += 6;
+        if ((destinationSector?.bonusChain || 0) >= 3 && transportMode === 'RAIL') score += 2;
 
         const congestionPenalty = this.getCongestionPenalty(destinationSector, transportMode) + (originSector?.congestionLevel || 0) * 2;
         score -= congestionPenalty;
@@ -363,9 +365,10 @@ export class LogisticsSystem extends BaseSimSystem {
     private getCongestionPenalty(sector: FactorySectorState | undefined, mode: FactoryPacketTransportMode): number {
         if (!sector) return 0;
         const level = sector.congestionLevel || 0;
-        if (sector.congestionPolicy === 'SAFE') return level * (mode === 'DRONE' ? 11 : 9);
-        if (sector.congestionPolicy === 'AGGRESSIVE') return level * (mode === 'DRONE' ? 3 : 2.5);
-        return level * (mode === 'DRONE' ? 7 : 5.5);
+        const satisfactionPenalty = Math.max(0, 0.45 - (sector.satisfaction || 0.45)) * 8;
+        if (sector.congestionPolicy === 'SAFE') return level * (mode === 'DRONE' ? 11 : 9) + satisfactionPenalty;
+        if (sector.congestionPolicy === 'AGGRESSIVE') return level * (mode === 'DRONE' ? 3 : 2.5) + (satisfactionPenalty * 0.35);
+        return level * (mode === 'DRONE' ? 7 : 5.5) + (satisfactionPenalty * 0.7);
     }
 
     private getSectorContractPull(sector: FactorySectorState | undefined, resource: FactoryResourceType): number {
@@ -376,7 +379,8 @@ export class LogisticsSystem extends BaseSimSystem {
         const progress = Math.min(target, sector.contractProgress || 0);
         const unmetRatio = Math.max(0, 1 - (progress / target));
         const basePull = sector.importFocus === resource ? 16 : 9;
-        return unmetRatio * basePull;
+        const missedPressure = Math.min(6, (sector.missedQuotaTicks || 0) * 0.8);
+        return unmetRatio * (basePull + missedPressure);
     }
 
     private getSectorTransferBias(
@@ -399,6 +403,8 @@ export class LogisticsSystem extends BaseSimSystem {
             if (sector.flowMode === 'STABLE') bias -= 0.35;
             if (sector.congestionPolicy === 'AGGRESSIVE') bias += 0.6;
             if (sector.congestionPolicy === 'SAFE') bias -= 0.45;
+            if ((sector.satisfaction || 1) < 0.4) bias += 0.9;
+            if ((sector.bonusChain || 0) >= 2 && transportMode === 'RAIL') bias += 0.55;
         }
 
         return bias;
@@ -628,6 +634,32 @@ export class LogisticsSystem extends BaseSimSystem {
         const contractTarget = previous?.contractTarget || (18 + stationCount * 8 + Math.round(throughput * 0.35));
         const congestionLevel = Math.max(0, Math.min(1, (throughput / Math.max(18, stationCount * 18)) + (dronePressure * 0.55)));
         const cappedProgress = Math.min(contractTarget, contractProgress);
+        const completion = contractTarget > 0 ? cappedProgress / contractTarget : 0;
+        const previousSatisfaction = previous?.satisfaction ?? 0.72;
+        const previousBonusChain = previous?.bonusChain ?? 0;
+        const previousMissedTicks = previous?.missedQuotaTicks ?? 0;
+
+        let satisfaction = previousSatisfaction;
+        let bonusChain = previousBonusChain;
+        let missedQuotaTicks = previousMissedTicks;
+
+        if (completion >= 1) {
+            bonusChain = Math.min(5, previousBonusChain + 1);
+            missedQuotaTicks = 0;
+            satisfaction = Math.min(1, previousSatisfaction + 0.12 + (bonusChain * 0.01));
+        } else if (completion >= 0.7) {
+            bonusChain = Math.max(0, previousBonusChain - 0);
+            missedQuotaTicks = Math.max(0, previousMissedTicks - 1);
+            satisfaction = Math.min(1, Math.max(0.48, previousSatisfaction + 0.02));
+        } else if (completion >= 0.4) {
+            bonusChain = Math.max(0, previousBonusChain - 1);
+            missedQuotaTicks = previousMissedTicks + 1;
+            satisfaction = Math.max(0.18, previousSatisfaction - 0.08);
+        } else {
+            bonusChain = 0;
+            missedQuotaTicks = previousMissedTicks + 2;
+            satisfaction = Math.max(0.05, previousSatisfaction - 0.16);
+        }
 
         return {
             name,
@@ -646,7 +678,10 @@ export class LogisticsSystem extends BaseSimSystem {
             contractResource,
             contractTarget,
             contractProgress: cappedProgress,
-            contractReward: Math.round(contractTarget * (4 + ((hash % 3) * 0.5))),
+            contractReward: Math.round(contractTarget * (4 + ((hash % 3) * 0.5)) * (1 + (bonusChain * 0.08))),
+            satisfaction,
+            bonusChain,
+            missedQuotaTicks,
         };
     }
 
