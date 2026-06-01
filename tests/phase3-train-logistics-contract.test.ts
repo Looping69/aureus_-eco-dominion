@@ -11,6 +11,7 @@ const tradeTerminalPath = path.join(process.cwd(), 'components', 'TradeTerminal.
 const engineBridgePath = path.join(process.cwd(), 'game', 'useAureusEngine.ts');
 const economyPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'EconomySystem.ts');
 const buildingRenderPath = path.join(process.cwd(), 'game', 'render', 'systems', 'BuildingRenderSystem.ts');
+const productionPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'ProductionSystem.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -30,11 +31,17 @@ test('Phase 3 packet types expose explicit belt, rail, and drone transport modes
     'export interface FactoryPressurePoint {',
     'reason: FactoryPressureReason;',
     'detail: string;',
+    'export interface FactoryPlannerRecommendation {',
+    'suggestedBuilding?: BuildingType;',
     'export interface FactoryPressureState {',
     'routeDebt: number;',
     'underfedProcessors: number;',
     'hotspots: number;',
     'bottlenecks: FactoryPressurePoint[];',
+    'pinnedKeys: string[];',
+    'emergencyReliefSectors: string[];',
+    'recommendations: FactoryPlannerRecommendation[];',
+    'efficiencyPenalty: number;',
     'transportMode?: FactoryPacketTransportMode;',
     'sectorName?: string;',
     'sectorFrom?: string;',
@@ -110,7 +117,7 @@ test('Train stations act as regional sector anchors, drone depots extend local s
   }
 });
 
-test('Train packets now score routes with sector flow posture, congestion appetite, live quota pressure, and factory bottleneck diagnostics', () => {
+test('Train packets now score routes with sector flow posture, planner relief, pins, and live bottleneck diagnostics', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
@@ -121,6 +128,8 @@ test('Train packets now score routes with sector flow posture, congestion appeti
     'routeDebt += rawAmount;',
     "reason: 'ROUTE_DEBT',",
     'detail: `${resource} backed up with no route`,',
+    'if (destinationSectorName && this.getEmergencyReliefSectors(factory).includes(destinationSectorName)) {',
+    "if (this.getPinnedKeys(factory).includes(candidate.key) && target === 'input') {",
     'const transferBudget = Math.max(0.75, this.getTransferBudget(node) + this.getSectorTransferBias(factory, node, route.node, transportMode));',
     'const transportMode = this.getPacketTransportMode(node, route.node);',
     'const sectorFrom = this.getPacketSector(factory, node, route.node, transportMode);',
@@ -134,33 +143,43 @@ test('Train packets now score routes with sector flow posture, congestion appeti
     'factory.pressure = this.buildFactoryPressure(factory, routeDebt, stalledNodes, bottlenecks);',
     'private scoreRouteCandidate(',
     "if ((destinationSector?.satisfaction || 1) < 0.35) score += 6;",
-    "if ((destinationSector?.bonusChain || 0) >= 3 && transportMode === 'RAIL') score += 2;",
-    'const congestionPenalty = this.getCongestionPenalty(destinationSector, transportMode) + (originSector?.congestionLevel || 0) * 2;',
-    'score += this.getSectorContractPull(destinationSector, resource);',
-    'private getCongestionPenalty(sector: FactorySectorState | undefined, mode: FactoryPacketTransportMode): number {',
-    'const satisfactionPenalty = Math.max(0, 0.45 - (sector.satisfaction || 0.45)) * 8;',
-    'private getSectorContractPull(sector: FactorySectorState | undefined, resource: FactoryResourceType): number {',
-    'const missedPressure = Math.min(6, (sector.missedQuotaTicks || 0) * 0.8);',
     'private getSectorTransferBias(',
-    "if ((sector.satisfaction || 1) < 0.4) bias += 0.9;",
-    "if ((sector.bonusChain || 0) >= 2 && transportMode === 'RAIL') bias += 0.55;",
+    'if (this.getEmergencyReliefSectors(factory).includes(sector.name)) bias += 0.75;',
     'private buildFactoryPressure(',
-    'const totalBuffered = this.getNodeBufferAmount(node.buffer) + this.getNodeBufferAmount(node.inputBuffer);',
-    "reason: 'CONGESTION',",
-    'detail: `Buffer ${Math.round(totalBuffered)} · stalled ${node.stalledTicks}`',
-    'const missingInputs = requiredInputs.filter((resource) => (node.inputBuffer[resource] || 0) < 1);',
-    "reason: 'UNDERFED',",
-    "detail: `Waiting on ${missingInputs.join(', ')}`",
-    'private pushPressurePoint(bottlenecks: FactoryPressurePoint[], point: FactoryPressurePoint): void {',
-    'private getRequiredInputs(node: FactoryNodeState): FactoryResourceType[] {',
-    'private getNodeBufferAmount(buffer: Partial<Record<FactoryResourceType, number>>): number {',
-    'private getSectorProfile(factory: FactoryState, name: string): FactorySectorState | undefined {',
-    'private getDroneTransferBudget(factory: FactoryState, station: FactoryNodeState | null): number {',
-    'private countActiveDroneTrips(factory: FactoryState, station: FactoryNodeState | null): number {',
-    'private getDronePressure(factory: FactoryState, station: FactoryNodeState | null): number {',
-    'private countRechargePads(factory: FactoryState): number {',
-    'private getDroneCharge(rechargePads: number, droneTrips: number): number {',
-    'private getDroneUpkeep(droneTrips: number, rechargePads: number): number {',
+    'const pinnedKeys = this.getPinnedKeys(factory);',
+    'const emergencyReliefSectors = this.getEmergencyReliefSectors(factory);',
+    'const recommendations = this.buildPlannerRecommendations(bottlenecks, pinnedKeys, emergencyReliefSectors);',
+    'const efficiencyPenalty = Math.min(',
+    'pinnedKeys,',
+    'emergencyReliefSectors,',
+    'recommendations,',
+    'efficiencyPenalty:',
+    'private pushPressurePoint(factory: FactoryState, bottlenecks: FactoryPressurePoint[], point: FactoryPressurePoint): void {',
+    'severity: point.severity + (pinned ? 4 : 0) + (relief ? 2 : 0),',
+    'private buildPlannerRecommendations(',
+    'private getSuggestedBuilding(point: FactoryPressurePoint): BuildingType {',
+    'private getPinnedKeys(factory: FactoryState): string[] {',
+    'private getEmergencyReliefSectors(factory: FactoryState): string[] {',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Megafactory optimization loop turns chronic pressure into industrial efficiency penalties', () => {
+  assert.equal(existsSync(productionPath), true, 'ProductionSystem.ts is missing');
+
+  const source = readFileSync(productionPath, 'utf8');
+
+  for (const snippet of [
+    'const factoryPenalty = 1 - (state.factory?.pressure?.efficiencyPenalty || 0);',
+    'const plannerEfficiency = this.isFactoryPenaltyTarget(tile.buildingType) ? factoryPenalty : 1;',
+    'const effectiveFactoryEfficiency = utilityEfficiency * plannerEfficiency;',
+    'Math.max(0.5, (currentDef.production || 0) * 0.03 * effectiveFactoryEfficiency)',
+    'Math.max(0.5, (currentDef.production || 0) * 0.025 * effectiveFactoryEfficiency)',
+    'Math.max(0.35, ((currentDef.production || 18) * 0.02) * effectiveFactoryEfficiency)',
+    'Math.max(0.2, ((currentDef.production || 18) * 0.015) * effectiveFactoryEfficiency)',
+    'private isFactoryPenaltyTarget(type: BuildingType): boolean {',
+    'BuildingType.GREEN_TECH_LAB',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
@@ -258,65 +277,52 @@ test('Building definitions and HUD now describe visible regional personalities p
   }
 });
 
-test('Trade terminal includes visible throughput, congestion, quota, sector-health, and megafactory planning controls', () => {
+test('Trade terminal includes planner pins, emergency relief controls, and recommendation readouts', () => {
   assert.equal(existsSync(tradeTerminalPath), true, 'components/TradeTerminal.tsx is missing');
 
   const source = readFileSync(tradeTerminalPath, 'utf8');
 
   for (const snippet of [
-    'const sectors = [...(state.factory?.sectors || [])].sort',
     'const pressure = state.factory?.pressure;',
-    'const bottlenecks = pressure?.bottlenecks || [];',
-    "const SECTOR_DIRECTIVES: FactorySectorDirective[] = ['BALANCED', 'EXPORT', 'IMPORT'];",
-    "const FLOW_MODES: FactorySectorFlowMode[] = ['STABLE', 'SURGE'];",
-    "const CONGESTION_POLICIES: FactorySectorCongestionMode[] = ['SAFE', 'BALANCED', 'AGGRESSIVE'];",
-    'const CONTRACT_TARGETS = [16, 24, 32, 48, 64, 96];',
-    'const getNextFlowMode = (mode?: FactorySectorFlowMode): FactorySectorFlowMode => {',
-    'const getNextCongestionPolicy = (policy?: FactorySectorCongestionMode): FactorySectorCongestionMode => {',
-    'const getNextContractTarget = (target?: number): number => {',
+    'const pinnedKeys = new Set(pressure?.pinnedKeys || []);',
+    'const reliefSectors = new Set(pressure?.emergencyReliefSectors || []);',
+    'const recommendations = pressure?.recommendations || [];',
+    "const updatePlanner = (plannerAction: 'TOGGLE_PIN' | 'TOGGLE_RELIEF', payload: Record<string, unknown>) => {",
+    "type: 'UPDATE_FACTORY_PLANNER'",
+    'Regional export, congestion, quota control, and planner relief',
+    'Penalty',
     'Megafactory Planning',
-    'Whole-network bottlenecks, route debt, and starved processors',
-    'Route debt',
-    'Underfed',
-    'Hotspots',
-    'No active bottlenecks yet. Scale the network to start reading pressure.',
-    'Satisfaction',
-    'Chain',
-    'Sector Market',
-    'Regional export, congestion, and quota control',
-    'Build train stations to open regional trade lanes.',
-    'Demand contract',
-    'Throughput',
-    'Congestion',
-    'Contract',
-    'Quota',
-    "type: 'UPDATE_SECTOR_POLICY'",
-    'flowMode: getNextFlowMode(flowMode)',
-    'congestionPolicy: getNextCongestionPolicy(congestionPolicy)',
-    'contractResource: getNextPriorityResource(contractResource)',
-    'contractTarget: getNextContractTarget(contractTarget)',
+    'Pin bottlenecks, mark relief sectors, and follow the first upgrade loop',
+    'Recommendations',
+    'No upgrade recommendations yet.',
+    'Pinned',
+    'Emergency Relief',
+    'Clear Relief',
+    'Relief',
+    'ACTIVE',
+    'Suggest {rec.suggestedBuilding?.replace(/_/g, \' \\')}',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Engine dispatch bridge persists expanded sector policy updates back into engine-owned state', () => {
+test('Engine dispatch bridge persists sector policy and factory planner action updates back into engine-owned state', () => {
   assert.equal(existsSync(engineBridgePath), true, 'game/useAureusEngine.ts is missing');
 
   const source = readFileSync(engineBridgePath, 'utf8');
 
   for (const snippet of [
     "if (action?.type === 'UPDATE_SECTOR_POLICY') {",
-    'const state = world.getState();',
-    'if (!state.factory?.sectors) return;',
-    'factory: {',
-    'sectors: state.factory.sectors.map((sector) =>',
-    "directive: action.payload.directive ?? sector.directive ?? 'BALANCED'",
-    'priorityResource: action.payload.priorityResource ?? sector.priorityResource ?? sector.exportFocus,',
-    "flowMode: action.payload.flowMode ?? sector.flowMode ?? 'STABLE'",
-    "congestionPolicy: action.payload.congestionPolicy ?? sector.congestionPolicy ?? 'BALANCED'",
-    'contractResource: action.payload.contractResource ?? sector.contractResource ?? sector.importFocus,',
-    'contractTarget: action.payload.contractTarget ?? sector.contractTarget ?? 24,',
+    "if (action?.type === 'UPDATE_FACTORY_PLANNER') {",
+    'const currentPressure = state.factory.pressure || {',
+    'pinnedKeys: [],',
+    'emergencyReliefSectors: [],',
+    'recommendations: [],',
+    'efficiencyPenalty: 0,',
+    "if (action.payload?.plannerAction === 'TOGGLE_PIN' && action.payload?.targetKey) {",
+    "if (action.payload?.plannerAction === 'TOGGLE_RELIEF' && action.payload?.sectorName) {",
+    'pinnedKeys: Array.from(pinnedKeys),',
+    'emergencyReliefSectors: Array.from(emergencyReliefSectors),',
     'world.loadGame(JSON.stringify(updatedState));',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
