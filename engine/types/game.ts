@@ -155,6 +155,7 @@ export type FactoryPacketTransportMode = 'BELT' | 'RAIL' | 'DRONE';
 export type FactorySectorDirective = 'BALANCED' | 'EXPORT' | 'IMPORT';
 export type FactorySectorFlowMode = 'STABLE' | 'SURGE';
 export type FactorySectorCongestionMode = 'SAFE' | 'BALANCED' | 'AGGRESSIVE';
+export type FactoryPressureReason = 'ROUTE_DEBT' | 'UNDERFED' | 'CONGESTION';
 
 export interface FactorySectorState {
     name: string;
@@ -177,6 +178,23 @@ export interface FactorySectorState {
     satisfaction?: number;
     bonusChain?: number;
     missedQuotaTicks?: number;
+}
+
+export interface FactoryPressurePoint {
+    key: string;
+    buildingType: BuildingType;
+    reason: FactoryPressureReason;
+    severity: number;
+    detail: string;
+    resource?: FactoryResourceType;
+    sectorName?: string;
+}
+
+export interface FactoryPressureState {
+    routeDebt: number;
+    underfedProcessors: number;
+    hotspots: number;
+    bottlenecks: FactoryPressurePoint[];
 }
 
 export interface FactoryNodeState {
@@ -219,6 +237,7 @@ export interface FactoryState {
     droneCharge?: number;
     droneUpkeep?: number;
     rechargePads?: number;
+    pressure?: FactoryPressureState;
 }
 
 export interface IndustryState {
