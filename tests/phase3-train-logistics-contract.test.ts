@@ -26,6 +26,15 @@ test('Phase 3 packet types expose explicit belt, rail, and drone transport modes
     "export type FactorySectorDirective = 'BALANCED' | 'EXPORT' | 'IMPORT';",
     "export type FactorySectorFlowMode = 'STABLE' | 'SURGE';",
     "export type FactorySectorCongestionMode = 'SAFE' | 'BALANCED' | 'AGGRESSIVE';",
+    "export type FactoryPressureReason = 'ROUTE_DEBT' | 'UNDERFED' | 'CONGESTION';",
+    'export interface FactoryPressurePoint {',
+    'reason: FactoryPressureReason;',
+    'detail: string;',
+    'export interface FactoryPressureState {',
+    'routeDebt: number;',
+    'underfedProcessors: number;',
+    'hotspots: number;',
+    'bottlenecks: FactoryPressurePoint[];',
     'transportMode?: FactoryPacketTransportMode;',
     'sectorName?: string;',
     'sectorFrom?: string;',
@@ -51,6 +60,7 @@ test('Phase 3 packet types expose explicit belt, rail, and drone transport modes
     'droneCharge?: number;',
     'droneUpkeep?: number;',
     'rechargePads?: number;',
+    'pressure?: FactoryPressureState;',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
@@ -100,12 +110,17 @@ test('Train stations act as regional sector anchors, drone depots extend local s
   }
 });
 
-test('Train packets now score routes with sector flow posture, congestion appetite, and live quota pressure', () => {
+test('Train packets now score routes with sector flow posture, congestion appetite, live quota pressure, and factory bottleneck diagnostics', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
 
   for (const snippet of [
+    'let routeDebt = 0;',
+    'const bottlenecks: FactoryPressurePoint[] = [];',
+    'routeDebt += rawAmount;',
+    "reason: 'ROUTE_DEBT',",
+    'detail: `${resource} backed up with no route`,',
     'const transferBudget = Math.max(0.75, this.getTransferBudget(node) + this.getSectorTransferBias(factory, node, route.node, transportMode));',
     'const transportMode = this.getPacketTransportMode(node, route.node);',
     'const sectorFrom = this.getPacketSector(factory, node, route.node, transportMode);',
@@ -116,6 +131,7 @@ test('Train packets now score routes with sector flow posture, congestion appeti
     'factory.droneCharge = this.getDroneCharge(factory.rechargePads || 0, droneTrips);',
     'factory.droneUpkeep = this.getDroneUpkeep(droneTrips, factory.rechargePads || 0);',
     'factory.dronePressure = droneTrips > 0 ? dronePressureTotal / droneTrips : 0;',
+    'factory.pressure = this.buildFactoryPressure(factory, routeDebt, stalledNodes, bottlenecks);',
     'private scoreRouteCandidate(',
     "if ((destinationSector?.satisfaction || 1) < 0.35) score += 6;",
     "if ((destinationSector?.bonusChain || 0) >= 3 && transportMode === 'RAIL') score += 2;",
@@ -128,6 +144,16 @@ test('Train packets now score routes with sector flow posture, congestion appeti
     'private getSectorTransferBias(',
     "if ((sector.satisfaction || 1) < 0.4) bias += 0.9;",
     "if ((sector.bonusChain || 0) >= 2 && transportMode === 'RAIL') bias += 0.55;",
+    'private buildFactoryPressure(',
+    'const totalBuffered = this.getNodeBufferAmount(node.buffer) + this.getNodeBufferAmount(node.inputBuffer);',
+    "reason: 'CONGESTION',",
+    'detail: `Buffer ${Math.round(totalBuffered)} · stalled ${node.stalledTicks}`',
+    'const missingInputs = requiredInputs.filter((resource) => (node.inputBuffer[resource] || 0) < 1);',
+    "reason: 'UNDERFED',",
+    "detail: `Waiting on ${missingInputs.join(', ')}`",
+    'private pushPressurePoint(bottlenecks: FactoryPressurePoint[], point: FactoryPressurePoint): void {',
+    'private getRequiredInputs(node: FactoryNodeState): FactoryResourceType[] {',
+    'private getNodeBufferAmount(buffer: Partial<Record<FactoryResourceType, number>>): number {',
     'private getSectorProfile(factory: FactoryState, name: string): FactorySectorState | undefined {',
     'private getDroneTransferBudget(factory: FactoryState, station: FactoryNodeState | null): number {',
     'private countActiveDroneTrips(factory: FactoryState, station: FactoryNodeState | null): number {',
@@ -217,23 +243,30 @@ test('Building definitions and HUD now describe visible regional personalities p
 
   for (const snippet of [
     'const sectors = [...(state.factory?.sectors || [])].sort',
+    'const routeDebt = Math.round(state.factory?.pressure?.routeDebt || 0);',
+    'const underfed = state.factory?.pressure?.underfedProcessors || 0;',
+    'const hotspots = state.factory?.pressure?.hotspots || 0;',
     'Out {SECTOR_RESOURCE_LABELS[sector.exportFocus]} +{toPercent(sector.exportBonus)}',
     'In {SECTOR_RESOURCE_LABELS[sector.importFocus]} -{toPercent(sector.importDiscount)}',
     'Demand +{toPercent(sector.demandBonus)}',
+    'Sat {toPercent(satisfaction)}',
+    'Chain x{bonusChain}',
     'Build rail hubs to read regional demand.',
-    'Pads {rechargePads} · Rail {railFlow}',
+    'Pads {rechargePads} · Rail {railFlow} · Debt {routeDebt} · Feed {underfed} · Hot {hotspots}',
   ]) {
     assert.match(hudSource, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Trade terminal includes visible throughput, congestion, and quota controls on each sector card', () => {
+test('Trade terminal includes visible throughput, congestion, quota, sector-health, and megafactory planning controls', () => {
   assert.equal(existsSync(tradeTerminalPath), true, 'components/TradeTerminal.tsx is missing');
 
   const source = readFileSync(tradeTerminalPath, 'utf8');
 
   for (const snippet of [
     'const sectors = [...(state.factory?.sectors || [])].sort',
+    'const pressure = state.factory?.pressure;',
+    'const bottlenecks = pressure?.bottlenecks || [];',
     "const SECTOR_DIRECTIVES: FactorySectorDirective[] = ['BALANCED', 'EXPORT', 'IMPORT'];",
     "const FLOW_MODES: FactorySectorFlowMode[] = ['STABLE', 'SURGE'];",
     "const CONGESTION_POLICIES: FactorySectorCongestionMode[] = ['SAFE', 'BALANCED', 'AGGRESSIVE'];",
@@ -241,6 +274,14 @@ test('Trade terminal includes visible throughput, congestion, and quota controls
     'const getNextFlowMode = (mode?: FactorySectorFlowMode): FactorySectorFlowMode => {',
     'const getNextCongestionPolicy = (policy?: FactorySectorCongestionMode): FactorySectorCongestionMode => {',
     'const getNextContractTarget = (target?: number): number => {',
+    'Megafactory Planning',
+    'Whole-network bottlenecks, route debt, and starved processors',
+    'Route debt',
+    'Underfed',
+    'Hotspots',
+    'No active bottlenecks yet. Scale the network to start reading pressure.',
+    'Satisfaction',
+    'Chain',
     'Sector Market',
     'Regional export, congestion, and quota control',
     'Build train stations to open regional trade lanes.',
