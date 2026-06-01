@@ -96,6 +96,16 @@ const getRecommendationGoal = (rec: { reason?: string; sectorName?: string; reso
     return `Hold congestion under 45% in ${rec.sectorName || 'the stressed sector'} and protect satisfaction.`;
 };
 
+const getRecommendationChain = (rec: { reason?: string; suggestedBuilding?: string }) => {
+    if (rec.reason === 'ROUTE_DEBT') {
+        return `RAIL LINE -> TRAIN STATION -> ${formatSuggestedBuilding(rec.suggestedBuilding)}`;
+    }
+    if (rec.reason === 'UNDERFED') {
+        return `${formatSuggestedBuilding(rec.suggestedBuilding)} -> STORAGE DEPOT -> PROCESSOR`;
+    }
+    return `${formatSuggestedBuilding(rec.suggestedBuilding)} -> DRONE DEPOT -> TRAIN STATION`;
+};
+
 const getSectorPerformanceGoal = (sector: {
     name: string;
     satisfaction?: number;
@@ -117,6 +127,30 @@ const getSectorPerformanceGoal = (sector: {
     }
     return `Hold chain x${Math.max(1, sector.bonusChain || 1)} while keeping congestion stable.`;
 };
+
+const getCorridorTrendTone = (trend?: string) => {
+    if (trend === 'UP') return 'text-emerald-300';
+    if (trend === 'DOWN') return 'text-rose-300';
+    return 'text-sky-300';
+};
+
+const getCorridorTrendLabel = (trend?: string) => {
+    if (trend === 'UP') return 'Improving';
+    if (trend === 'DOWN') return 'Slipping';
+    return 'Holding';
+};
+
+const getCorridorTrendDelta = (corridor: { history?: number[]; throughput: number }) => {
+    const baseline = corridor.history?.[0] ?? corridor.throughput;
+    const latest = corridor.history?.[corridor.history.length - 1] ?? corridor.throughput;
+    const delta = Math.round((latest - baseline) * 10) / 10;
+    return `${delta >= 0 ? '+' : ''}${delta} vs ${Math.round(baseline)}`;
+};
+
+const getRecommendationCorridor = (
+    rec: { sectorName?: string; targetKey?: string },
+    corridors: Array<{ sectorName: string; anchorKey: string }>
+) => corridors.find((corridor) => (rec.sectorName && corridor.sectorName === rec.sectorName) || corridor.anchorKey === rec.targetKey);
 
 const getNextDirective = (directive?: FactorySectorDirective): FactorySectorDirective => {
     const current = directive || 'BALANCED';
@@ -188,6 +222,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
     const pinnedKeys = new Set(pressure?.pinnedKeys || []);
     const reliefSectors = new Set(pressure?.emergencyReliefSectors || []);
     const recommendations = pressure?.recommendations || [];
+    const corridors = pressure?.corridors || [];
 
     if (!market || !state.contracts) return null;
 
@@ -307,37 +342,85 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                 </div>
                             )}
                             <div className="mt-3 border-t border-slate-800 pt-3">
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                    <div className="text-slate-300 text-xs font-bold uppercase tracking-wider">Corridor Watch</div>
+                                    <div className="text-[10px] text-slate-500 font-mono">{corridors.length} tracked</div>
+                                </div>
+                                {corridors.length === 0 ? (
+                                    <div className="text-[10px] text-slate-500 font-mono">No corridor history yet. Keep the rail grid moving to start a before/after read.</div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {corridors.slice(0, 3).map((corridor) => (
+                                            <div key={corridor.id} className="bg-slate-900/60 border border-slate-800 rounded px-2 py-2">
+                                                <div className="flex items-center justify-between gap-2 mb-2">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <span className="text-[9px] font-black text-cyan-300 bg-cyan-950/70 border border-cyan-900 rounded-[3px] px-1.5 py-0.5 shrink-0">{getSectorBadge(corridor.sectorName)}</span>
+                                                        <div className="text-[10px] text-white font-bold truncate">{corridor.sectorName}</div>
+                                                    </div>
+                                                    <div className={`flex items-center gap-1 text-[10px] font-mono shrink-0 ${getCorridorTrendTone(corridor.trend)}`}>
+                                                        {corridor.trend === 'UP' && <TrendingUp size={10} />}
+                                                        {corridor.trend === 'DOWN' && <TrendingDown size={10} />}
+                                                        {corridor.trend !== 'UP' && corridor.trend !== 'DOWN' && <Minus size={10} />}
+                                                        {getCorridorTrendLabel(corridor.trend)}
+                                                    </div>
+                                                </div>
+                                                <PriceSparkline
+                                                    history={corridor.history}
+                                                    color={corridor.trend === 'DOWN' ? '#fb7185' : corridor.trend === 'UP' ? '#34d399' : '#38bdf8'}
+                                                />
+                                                <div className="grid grid-cols-1 gap-1 mt-2 text-[10px] font-mono">
+                                                    <div className="text-sky-300">Trend {getCorridorTrendLabel(corridor.trend)} · {getCorridorTrendDelta(corridor)}</div>
+                                                    <div className="text-cyan-300">Before / After {Math.round(corridor.baselineThroughput)} -> {Math.round(corridor.throughput)}</div>
+                                                    <div className="text-amber-300">Anchor {corridor.anchorKey}</div>
+                                                    <div className="text-rose-300">Debt {Math.round(corridor.routeDebtShare)} · Feed {corridor.underfedProcessors} · Hot {corridor.hotspots}</div>
+                                                    <div className="text-lime-300">Follow-through {corridor.followThrough}</div>
+                                                    <div className="text-slate-500">Upgrade chain {formatSuggestedBuilding(corridor.recommendedBuilding)}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="mt-3 border-t border-slate-800 pt-3">
                                 <div className="text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">Recommendations</div>
                                 {recommendations.length === 0 ? (
                                     <div className="text-[10px] text-slate-500 font-mono">No upgrade recommendations yet.</div>
                                 ) : (
                                     <div className="space-y-2">
-                                        {recommendations.map((rec) => (
-                                            <div key={rec.id} className="bg-slate-900/60 border border-slate-800 rounded px-2 py-2">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <div className="text-[10px] text-white font-bold">{rec.title}</div>
-                                                    <div className="text-[10px] text-slate-500 font-mono">{Math.round(rec.severity)}</div>
+                                        {recommendations.map((rec) => {
+                                            const corridor = getRecommendationCorridor(rec, corridors);
+                                            return (
+                                                <div key={rec.id} className="bg-slate-900/60 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="text-[10px] text-white font-bold">{rec.title}</div>
+                                                        <div className="text-[10px] text-slate-500 font-mono">{Math.round(rec.severity)}</div>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 gap-1 mt-2 text-[10px] font-mono">
+                                                        <div className="text-sky-300">Upgrade lane {getRecommendationScope(rec)}</div>
+                                                        <div className="text-slate-400">{rec.detail}</div>
+                                                        <div className="text-cyan-300">Suggest {formatSuggestedBuilding(rec.suggestedBuilding)}</div>
+                                                        <div className={`font-mono ${corridor ? getCorridorTrendTone(corridor.trend) : 'text-sky-300'}`}>Trend {corridor ? `${getCorridorTrendLabel(corridor.trend)} · ${getCorridorTrendDelta(corridor)}` : 'Watching live pressure'}</div>
+                                                        <div className="text-amber-300">Build hint {getRecommendationHint(rec)}</div>
+                                                        <div className="text-lime-300">Sector goal {getRecommendationGoal(rec)}</div>
+                                                        <div className="text-fuchsia-300">Upgrade chain {getRecommendationChain(rec)}</div>
+                                                        <div className="text-cyan-300">Anchor {corridor?.anchorKey || rec.targetKey || 'Network'}</div>
+                                                        <div className="text-slate-400">Before / After {corridor ? `${Math.round(corridor.baselineThroughput)} -> ${Math.round(corridor.throughput)}` : 'Live lane only'}</div>
+                                                        <div className="text-lime-300">Follow-through {corridor?.followThrough || 'Stabilize this node before scaling outward.'}</div>
+                                                        <div className="text-slate-500">World tag {rec.sectorName ? getSectorBadge(rec.sectorName) : rec.targetKey || 'Network'}</div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => updatePlanner('FOCUS_RECOMMENDATION', {
+                                                            targetKey: rec.targetKey,
+                                                            sectorName: rec.sectorName,
+                                                            suggestedBuilding: rec.suggestedBuilding,
+                                                        })}
+                                                        className="mt-2 w-full border border-cyan-700 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-200 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                                    >
+                                                        Frame & Preview
+                                                    </button>
                                                 </div>
-                                                <div className="grid grid-cols-1 gap-1 mt-2 text-[10px] font-mono">
-                                                    <div className="text-sky-300">Upgrade lane {getRecommendationScope(rec)}</div>
-                                                    <div className="text-slate-400">{rec.detail}</div>
-                                                    <div className="text-cyan-300">Suggest {formatSuggestedBuilding(rec.suggestedBuilding)}</div>
-                                                    <div className="text-amber-300">Build hint {getRecommendationHint(rec)}</div>
-                                                    <div className="text-lime-300">Sector goal {getRecommendationGoal(rec)}</div>
-                                                    <div className="text-slate-500">World tag {rec.sectorName ? getSectorBadge(rec.sectorName) : rec.targetKey || 'Network'}</div>
-                                                </div>
-                                                <button
-                                                    onClick={() => updatePlanner('FOCUS_RECOMMENDATION', {
-                                                        targetKey: rec.targetKey,
-                                                        sectorName: rec.sectorName,
-                                                        suggestedBuilding: rec.suggestedBuilding,
-                                                    })}
-                                                    className="mt-2 w-full border border-cyan-700 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-200 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors"
-                                                >
-                                                    Frame & Preview
-                                                </button>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
