@@ -8,7 +8,7 @@ import {
     FactorySectorFlowMode,
     FactorySectorCongestionMode,
 } from '../types';
-import { TrendingUp, TrendingDown, Minus, Briefcase, RefreshCw, Map, RadioTower, Zap, Gauge, Activity, ClipboardList } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Briefcase, RefreshCw, Map, RadioTower, Zap, Gauge, Activity, ClipboardList, Pin, Siren } from 'lucide-react';
 
 interface TradeTerminalProps {
     isOpen: boolean;
@@ -135,8 +135,22 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
     });
     const pressure = state.factory?.pressure;
     const bottlenecks = pressure?.bottlenecks || [];
+    const pinnedKeys = new Set(pressure?.pinnedKeys || []);
+    const reliefSectors = new Set(pressure?.emergencyReliefSectors || []);
+    const recommendations = pressure?.recommendations || [];
 
     if (!market || !state.contracts) return null;
+
+    const updatePlanner = (plannerAction: 'TOGGLE_PIN' | 'TOGGLE_RELIEF', payload: Record<string, unknown>) => {
+        dispatch({
+            type: 'UPDATE_FACTORY_PLANNER',
+            payload: {
+                plannerAction,
+                ...payload,
+            },
+        });
+        playSfx('UI_CLICK');
+    };
 
     return (
         <div
@@ -167,7 +181,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                     <Map className="text-cyan-400" size={16} />
                                     <h3 className="text-cyan-300 text-xs font-bold uppercase tracking-wider">Sector Market</h3>
                                 </div>
-                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Regional export, congestion, and quota control</p>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Regional export, congestion, quota control, and planner relief</p>
                             </div>
                             <div className="text-right text-[10px] font-mono text-slate-400">
                                 <div>{sectors.length} sectors</div>
@@ -175,7 +189,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2 mb-3 text-[10px] font-mono">
+                        <div className="grid grid-cols-4 gap-2 mb-3 text-[10px] font-mono">
                             <div className="bg-slate-950/80 border border-slate-800 rounded px-2 py-2">
                                 <div className="text-slate-500 font-bold uppercase tracking-wider">Route debt</div>
                                 <div className="text-rose-300 font-bold">{Math.round(pressure?.routeDebt || 0)}</div>
@@ -188,33 +202,79 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                 <div className="text-slate-500 font-bold uppercase tracking-wider">Hotspots</div>
                                 <div className="text-cyan-300 font-bold">{pressure?.hotspots || 0}</div>
                             </div>
+                            <div className="bg-slate-950/80 border border-slate-800 rounded px-2 py-2">
+                                <div className="text-slate-500 font-bold uppercase tracking-wider">Penalty</div>
+                                <div className="text-orange-300 font-bold">-{toPercent(pressure?.efficiencyPenalty || 0)}</div>
+                            </div>
                         </div>
 
                         <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-3 mb-3">
                             <div className="flex items-center justify-between gap-2 mb-2">
                                 <div>
                                     <div className="text-slate-300 text-xs font-bold uppercase tracking-wider">Megafactory Planning</div>
-                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Whole-network bottlenecks, route debt, and starved processors</div>
+                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Pin bottlenecks, mark relief sectors, and follow the first upgrade loop</div>
                                 </div>
+                                <div className="text-[10px] text-slate-500 font-mono">{pinnedKeys.size} pins · {reliefSectors.size} relief</div>
                             </div>
                             {bottlenecks.length === 0 ? (
                                 <div className="text-[10px] text-slate-500 font-mono">No active bottlenecks yet. Scale the network to start reading pressure.</div>
                             ) : (
                                 <div className="space-y-2">
-                                    {bottlenecks.slice(0, 4).map((point) => (
-                                        <div key={`${point.key}-${point.reason}-${point.resource || 'none'}`} className="flex items-start justify-between gap-2 border border-slate-800 rounded px-2 py-2 bg-slate-900/70">
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-[9px] font-black text-rose-300 bg-rose-950/70 border border-rose-900 rounded-[3px] px-1.5 py-0.5 shrink-0">{formatPressureReason(point.reason)}</span>
-                                                    <span className="text-[10px] text-white font-bold truncate">{point.sectorName || point.key}</span>
+                                    {bottlenecks.slice(0, 4).map((point) => {
+                                        const pinned = pinnedKeys.has(point.key);
+                                        return (
+                                            <div key={`${point.key}-${point.reason}-${point.resource || 'none'}`} className="border border-slate-800 rounded px-2 py-2 bg-slate-900/70">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-[9px] font-black text-rose-300 bg-rose-950/70 border border-rose-900 rounded-[3px] px-1.5 py-0.5 shrink-0">{formatPressureReason(point.reason)}</span>
+                                                            <span className="text-[10px] text-white font-bold truncate">{point.sectorName || point.key}</span>
+                                                            {pinned && <span className="text-[9px] font-black text-amber-300 bg-amber-950/70 border border-amber-900 rounded-[3px] px-1.5 py-0.5 shrink-0">Pinned</span>}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 font-mono truncate">{point.detail}</div>
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 font-mono shrink-0">{Math.round(point.severity)}</div>
                                                 </div>
-                                                <div className="text-[10px] text-slate-400 font-mono truncate">{point.detail}</div>
+                                                <div className="flex gap-2 mt-2">
+                                                    <button
+                                                        onClick={() => updatePlanner('TOGGLE_PIN', { targetKey: point.key })}
+                                                        className={`flex-1 border rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${pinned ? 'bg-amber-900/50 border-amber-700 text-amber-200' : 'bg-slate-950 border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                                                    >
+                                                        <span className="inline-flex items-center gap-1"><Pin size={10} />{pinned ? 'Unpin' : 'Pin'}</span>
+                                                    </button>
+                                                    {point.sectorName && (
+                                                        <button
+                                                            onClick={() => updatePlanner('TOGGLE_RELIEF', { sectorName: point.sectorName })}
+                                                            className={`flex-1 border rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${reliefSectors.has(point.sectorName) ? 'bg-rose-900/50 border-rose-700 text-rose-200' : 'bg-slate-950 border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                                                        >
+                                                            <span className="inline-flex items-center gap-1"><Siren size={10} />{reliefSectors.has(point.sectorName) ? 'Clear Relief' : 'Emergency Relief'}</span>
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div className="text-[10px] text-slate-500 font-mono shrink-0">{Math.round(point.severity)}</div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
+                            <div className="mt-3 border-t border-slate-800 pt-3">
+                                <div className="text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">Recommendations</div>
+                                {recommendations.length === 0 ? (
+                                    <div className="text-[10px] text-slate-500 font-mono">No upgrade recommendations yet.</div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {recommendations.map((rec) => (
+                                            <div key={rec.id} className="bg-slate-900/60 border border-slate-800 rounded px-2 py-2">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="text-[10px] text-white font-bold">{rec.title}</div>
+                                                    <div className="text-[10px] text-slate-500 font-mono">{Math.round(rec.severity)}</div>
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 font-mono mt-1">{rec.detail}</div>
+                                                <div className="text-[10px] text-cyan-300 font-mono mt-1">Suggest {rec.suggestedBuilding?.replace(/_/g, ' ')}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {sectors.length === 0 ? (
@@ -237,6 +297,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                     const congestionLevel = sector.congestionLevel || 0;
                                     const satisfaction = sector.satisfaction ?? 0.72;
                                     const bonusChain = sector.bonusChain ?? 0;
+                                    const inRelief = reliefSectors.has(sector.name);
 
                                     const updatePolicy = (payload: Record<string, unknown>) => {
                                         dispatch({
@@ -284,7 +345,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                                     <div className="text-violet-300">-{toPercent(sector.importDiscount)} cost</div>
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-2 mt-3 text-[10px] font-mono">
+                                            <div className="grid grid-cols-3 gap-2 mt-3 text-[10px] font-mono">
                                                 <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
                                                     <div className="text-slate-500 font-bold uppercase tracking-wider mb-1">Satisfaction</div>
                                                     <div className={`font-bold ${getSatisfactionTone(satisfaction)}`}>{toPercent(satisfaction)}</div>
@@ -293,6 +354,13 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                                     <div className="text-slate-500 font-bold uppercase tracking-wider mb-1">Chain</div>
                                                     <div className="text-lime-300 font-bold">x{bonusChain}</div>
                                                 </div>
+                                                <button
+                                                    onClick={() => updatePlanner('TOGGLE_RELIEF', { sectorName: sector.name })}
+                                                    className={`border rounded px-2 py-2 text-left transition-colors ${inRelief ? 'bg-rose-900/50 border-rose-700' : 'bg-slate-900 hover:bg-slate-800 border-slate-800'}`}
+                                                >
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1">Relief</div>
+                                                    <div className={`font-bold ${inRelief ? 'text-rose-200' : 'text-slate-300'}`}>{inRelief ? 'ACTIVE' : 'Standby'}</div>
+                                                </button>
                                             </div>
                                             <div className="grid grid-cols-3 gap-2 mt-3 text-[10px] font-mono">
                                                 <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
