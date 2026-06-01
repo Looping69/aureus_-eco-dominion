@@ -68,6 +68,50 @@ const formatPressureReason = (reason?: string) => {
     return 'Congestion';
 };
 
+const formatSuggestedBuilding = (value?: string) => value ? value.replace(/_/g, ' ') : 'Support Upgrade';
+
+const getRecommendationHint = (rec: { reason?: string; sectorName?: string; suggestedBuilding?: string }) => {
+    if (rec.reason === 'ROUTE_DEBT') {
+        return `Build ${formatSuggestedBuilding(rec.suggestedBuilding)} near ${rec.sectorName || 'the blocked lane'} to add transfer capacity.`;
+    }
+    if (rec.reason === 'UNDERFED') {
+        return `Upgrade feeder throughput with ${formatSuggestedBuilding(rec.suggestedBuilding)} so processors stop idling.`;
+    }
+    return `Use ${formatSuggestedBuilding(rec.suggestedBuilding)} to bleed congestion before the penalty grows.`;
+};
+
+const getRecommendationGoal = (rec: { reason?: string; sectorName?: string; resource?: FactoryResourceType }) => {
+    if (rec.reason === 'ROUTE_DEBT') {
+        return `Cut route debt below 10 and keep ${rec.sectorName || 'the lane'} moving.`;
+    }
+    if (rec.reason === 'UNDERFED') {
+        return `Keep ${SECTOR_RESOURCE_LABELS[rec.resource || 'MINERALS']} flowing until underfed processors fall back to zero.`;
+    }
+    return `Hold congestion under 45% in ${rec.sectorName || 'the stressed sector'} and protect satisfaction.`;
+};
+
+const getSectorPerformanceGoal = (sector: {
+    name: string;
+    satisfaction?: number;
+    contractTarget?: number;
+    contractProgress?: number;
+    contractResource?: FactoryResourceType;
+    bonusChain?: number;
+}) => {
+    const satisfaction = sector.satisfaction ?? 0.72;
+    const contractTarget = sector.contractTarget || 24;
+    const contractProgress = Math.min(contractTarget, sector.contractProgress || 0);
+    const contractResource = sector.contractResource || 'MINERALS';
+
+    if (satisfaction < 0.7) {
+        return `Lift satisfaction above 70% in ${sector.name}.`;
+    }
+    if (contractProgress < contractTarget) {
+        return `Deliver ${contractTarget - contractProgress} more ${SECTOR_RESOURCE_LABELS[contractResource]} for quota.`;
+    }
+    return `Hold chain x${Math.max(1, sector.bonusChain || 1)} while keeping congestion stable.`;
+};
+
 const getNextDirective = (directive?: FactorySectorDirective): FactorySectorDirective => {
     const current = directive || 'BALANCED';
     const index = SECTOR_DIRECTIVES.indexOf(current);
@@ -269,7 +313,12 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                                     <div className="text-[10px] text-slate-500 font-mono">{Math.round(rec.severity)}</div>
                                                 </div>
                                                 <div className="text-[10px] text-slate-400 font-mono mt-1">{rec.detail}</div>
-                                                <div className="text-[10px] text-cyan-300 font-mono mt-1">Suggest {rec.suggestedBuilding?.replace(/_/g, ' ')}</div>
+                                                <div className="grid grid-cols-1 gap-1 mt-2 text-[10px] font-mono">
+                                                    <div className="text-cyan-300">Suggest {formatSuggestedBuilding(rec.suggestedBuilding)}</div>
+                                                    <div className="text-amber-300">Build hint {getRecommendationHint(rec)}</div>
+                                                    <div className="text-lime-300">Sector goal {getRecommendationGoal(rec)}</div>
+                                                    <div className="text-slate-500">World tag {rec.sectorName ? getSectorBadge(rec.sectorName) : rec.targetKey || 'Network'}</div>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -387,6 +436,10 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                                 <div className="w-full h-2 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
                                                     <div className="h-full bg-gradient-to-r from-orange-500 to-amber-400" style={{ width: `${quotaCompletion * 100}%` }} />
                                                 </div>
+                                            </div>
+                                            <div className="mt-3 bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Performance goal</div>
+                                                <div className="text-[10px] text-lime-300 font-mono">{getSectorPerformanceGoal({ name: sector.name, satisfaction, contractTarget, contractProgress, contractResource, bonusChain })}</div>
                                             </div>
                                             <div className="grid grid-cols-2 gap-2 mt-3">
                                                 <button
