@@ -6,6 +6,8 @@ import {
     FactoryNodeState,
     FactoryPacketState,
     FactoryPacketTransportMode,
+    FactoryPressurePoint,
+    FactoryPressureState,
     FactoryResourceType,
     FactorySectorState,
     FactoryState,
@@ -72,6 +74,12 @@ export class LogisticsSystem extends BaseSimSystem {
                 droneCharge: 1,
                 droneUpkeep: 0,
                 rechargePads: 0,
+                pressure: {
+                    routeDebt: 0,
+                    underfedProcessors: 0,
+                    hotspots: 0,
+                    bottlenecks: [],
+                },
             };
         }
 
@@ -98,6 +106,14 @@ export class LogisticsSystem extends BaseSimSystem {
         }
         if (!state.factory.sectors) {
             state.factory.sectors = [];
+        }
+        if (!state.factory.pressure) {
+            state.factory.pressure = {
+                routeDebt: 0,
+                underfedProcessors: 0,
+                hotspots: 0,
+                bottlenecks: [],
+            };
         }
 
         return state.factory;
@@ -198,6 +214,8 @@ export class LogisticsSystem extends BaseSimSystem {
         let regionalThroughput = 0;
         let dronePressureTotal = 0;
         let droneTrips = 0;
+        let routeDebt = 0;
+        const bottlenecks: FactoryPressurePoint[] = [];
 
         for (const node of Object.values(factory.nodes)) {
             for (const [resource, rawAmount] of Object.entries(node.buffer) as Array<[FactoryResourceType, number]>) {
@@ -206,7 +224,17 @@ export class LogisticsSystem extends BaseSimSystem {
                 const route = this.findRoute(factory, node, resource);
                 if (!route) {
                     stalledNodes++;
+                    routeDebt += rawAmount;
                     node.stalledTicks += 1;
+                    this.pushPressurePoint(bottlenecks, {
+                        key: node.key,
+                        buildingType: node.buildingType,
+                        reason: 'ROUTE_DEBT',
+                        severity: rawAmount + (node.stalledTicks * 0.5),
+                        detail: `${resource} backed up with no route`,
+                        resource,
+                        sectorName: this.getNodeSector(factory, node),
+                    });
                     continue;
                 }
 
@@ -256,6 +284,8 @@ export class LogisticsSystem extends BaseSimSystem {
                     factory.packets.splice(0, factory.packets.length - 128);
                 }
 
+                node.stalledTicks = 0;
+                route.node.stalledTicks = Math.max(0, route.node.stalledTicks - 1);
                 node.lastActiveTick = state.tickCount;
                 route.node.lastActiveTick = state.tickCount;
                 throughput += amount;
@@ -281,6 +311,7 @@ export class LogisticsSystem extends BaseSimSystem {
             const input = Object.values(node.inputBuffer).reduce((acc, value) => acc + (value || 0), 0);
             return sum + out + input;
         }, 0);
+        factory.pressure = this.buildFactoryPressure(factory, routeDebt, stalledNodes, bottlenecks);
         factory.lastNetworkTick = state.tickCount;
     }
 
@@ -408,6 +439,85 @@ export class LogisticsSystem extends BaseSimSystem {
         }
 
         return bias;
+    }
+
+    private buildFactoryPressure(
+        factory: FactoryState,
+        routeDebt: number,
+        stalledNodes: number,
+        seedBottlenecks: FactoryPressurePoint[]
+    ): FactoryPressureState {
+        const bottlenecks = [...seedBottlenecks];
+        let underfedProcessors = 0;
+        let hotspots = 0;
+
+        for (const node of Object.values(factory.nodes)) {
+            const totalBuffered = this.getNodeBufferAmount(node.buffer) + this.getNodeBufferAmount(node.inputBuffer);
+            if (node.stalledTicks >= 2 || totalBuffered >= 14) {
+                hotspots += 1;
+                this.pushPressurePoint(bottlenecks, {
+                    key: node.key,
+                    buildingType: node.buildingType,
+                    reason: 'CONGESTION',
+                    severity: totalBuffered + (node.stalledTicks * 2),
+                    detail: `Buffer ${Math.round(totalBuffered)} · stalled ${node.stalledTicks}`,
+                    sectorName: this.getNodeSector(factory, node),
+                });
+            }
+
+            const requiredInputs = this.getRequiredInputs(node);
+            const missingInputs = requiredInputs.filter((resource) => (node.inputBuffer[resource] || 0) < 1);
+            if (missingInputs.length > 0) {
+                underfedProcessors += 1;
+                this.pushPressurePoint(bottlenecks, {
+                    key: node.key,
+                    buildingType: node.buildingType,
+                    reason: 'UNDERFED',
+                    severity: (missingInputs.length * 6) + node.stalledTicks + totalBuffered,
+                    detail: `Waiting on ${missingInputs.join(', ')}`,
+                    resource: missingInputs[0],
+                    sectorName: this.getNodeSector(factory, node),
+                });
+            }
+        }
+
+        return {
+            routeDebt: Math.round(routeDebt * 10) / 10,
+            underfedProcessors,
+            hotspots: Math.max(hotspots, stalledNodes),
+            bottlenecks: bottlenecks.slice(0, 6),
+        };
+    }
+
+    private pushPressurePoint(bottlenecks: FactoryPressurePoint[], point: FactoryPressurePoint): void {
+        bottlenecks.push(point);
+        bottlenecks.sort((a, b) => b.severity - a.severity);
+        if (bottlenecks.length > 6) {
+            bottlenecks.length = 6;
+        }
+    }
+
+    private getRequiredInputs(node: FactoryNodeState): FactoryResourceType[] {
+        if ([BuildingType.WASH_PLANT, BuildingType.RECYCLING_PLANT].includes(node.buildingType)) {
+            return ['ORE'];
+        }
+        if (node.buildingType === BuildingType.ORE_FOUNDRY) {
+            return ['CONCENTRATE', 'STONE'];
+        }
+        if (node.buildingType === BuildingType.GEM_REFINERY) {
+            return ['CONCENTRATE'];
+        }
+        if (node.buildingType === BuildingType.WORKSHOP) {
+            return ['REFINED_MATERIALS', 'WOOD', 'ALLOYS'];
+        }
+        if (node.buildingType === BuildingType.GREEN_TECH_LAB) {
+            return ['REFINED_MATERIALS', 'ALLOYS', 'MACHINE_PARTS'];
+        }
+        return [];
+    }
+
+    private getNodeBufferAmount(buffer: Partial<Record<FactoryResourceType, number>>): number {
+        return Object.values(buffer).reduce((sum, value) => sum + (value || 0), 0);
     }
 
     private getNeighbors(factory: FactoryState, node: FactoryNodeState): FactoryNodeState[] {
