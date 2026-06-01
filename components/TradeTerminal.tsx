@@ -56,6 +56,18 @@ const getSectorBadge = (name: string) =>
 
 const toPercent = (value: number) => `${Math.round(value * 100)}%`;
 
+const getSatisfactionTone = (value: number) => {
+    if (value >= 0.75) return 'text-emerald-300';
+    if (value >= 0.45) return 'text-amber-300';
+    return 'text-rose-300';
+};
+
+const formatPressureReason = (reason?: string) => {
+    if (reason === 'ROUTE_DEBT') return 'Route debt';
+    if (reason === 'UNDERFED') return 'Underfed';
+    return 'Congestion';
+};
+
 const getNextDirective = (directive?: FactorySectorDirective): FactorySectorDirective => {
     const current = directive || 'BALANCED';
     const index = SECTOR_DIRECTIVES.indexOf(current);
@@ -121,6 +133,8 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
         if (b.throughput !== a.throughput) return b.throughput - a.throughput;
         return b.stationCount - a.stationCount;
     });
+    const pressure = state.factory?.pressure;
+    const bottlenecks = pressure?.bottlenecks || [];
 
     if (!market || !state.contracts) return null;
 
@@ -161,6 +175,48 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                             </div>
                         </div>
 
+                        <div className="grid grid-cols-3 gap-2 mb-3 text-[10px] font-mono">
+                            <div className="bg-slate-950/80 border border-slate-800 rounded px-2 py-2">
+                                <div className="text-slate-500 font-bold uppercase tracking-wider">Route debt</div>
+                                <div className="text-rose-300 font-bold">{Math.round(pressure?.routeDebt || 0)}</div>
+                            </div>
+                            <div className="bg-slate-950/80 border border-slate-800 rounded px-2 py-2">
+                                <div className="text-slate-500 font-bold uppercase tracking-wider">Underfed</div>
+                                <div className="text-amber-300 font-bold">{pressure?.underfedProcessors || 0}</div>
+                            </div>
+                            <div className="bg-slate-950/80 border border-slate-800 rounded px-2 py-2">
+                                <div className="text-slate-500 font-bold uppercase tracking-wider">Hotspots</div>
+                                <div className="text-cyan-300 font-bold">{pressure?.hotspots || 0}</div>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-3 mb-3">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                                <div>
+                                    <div className="text-slate-300 text-xs font-bold uppercase tracking-wider">Megafactory Planning</div>
+                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Whole-network bottlenecks, route debt, and starved processors</div>
+                                </div>
+                            </div>
+                            {bottlenecks.length === 0 ? (
+                                <div className="text-[10px] text-slate-500 font-mono">No active bottlenecks yet. Scale the network to start reading pressure.</div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {bottlenecks.slice(0, 4).map((point) => (
+                                        <div key={`${point.key}-${point.reason}-${point.resource || 'none'}`} className="flex items-start justify-between gap-2 border border-slate-800 rounded px-2 py-2 bg-slate-900/70">
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-[9px] font-black text-rose-300 bg-rose-950/70 border border-rose-900 rounded-[3px] px-1.5 py-0.5 shrink-0">{formatPressureReason(point.reason)}</span>
+                                                    <span className="text-[10px] text-white font-bold truncate">{point.sectorName || point.key}</span>
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 font-mono truncate">{point.detail}</div>
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 font-mono shrink-0">{Math.round(point.severity)}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
                         {sectors.length === 0 ? (
                             <div className="text-center p-4 bg-slate-950/80 rounded-lg border border-dashed border-slate-800">
                                 <RadioTower className="mx-auto text-slate-600 mb-2" size={20} />
@@ -179,6 +235,8 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                     const contractProgress = Math.min(contractTarget, sector.contractProgress || 0);
                                     const quotaCompletion = contractTarget > 0 ? Math.min(1, contractProgress / contractTarget) : 0;
                                     const congestionLevel = sector.congestionLevel || 0;
+                                    const satisfaction = sector.satisfaction ?? 0.72;
+                                    const bonusChain = sector.bonusChain ?? 0;
 
                                     const updatePolicy = (payload: Record<string, unknown>) => {
                                         dispatch({
@@ -224,6 +282,16 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                                     <div className="text-violet-400 font-bold uppercase tracking-wider mb-1">Imports</div>
                                                     <div className="text-white font-bold">{SECTOR_RESOURCE_LABELS[sector.importFocus]}</div>
                                                     <div className="text-violet-300">-{toPercent(sector.importDiscount)} cost</div>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 mt-3 text-[10px] font-mono">
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1">Satisfaction</div>
+                                                    <div className={`font-bold ${getSatisfactionTone(satisfaction)}`}>{toPercent(satisfaction)}</div>
+                                                </div>
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1">Chain</div>
+                                                    <div className="text-lime-300 font-bold">x{bonusChain}</div>
                                                 </div>
                                             </div>
                                             <div className="grid grid-cols-3 gap-2 mt-3 text-[10px] font-mono">
