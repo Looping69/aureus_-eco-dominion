@@ -81,34 +81,25 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
         paused = false,
     } = options;
 
-    // Engine instances
     const [world, setWorld] = useState<AureusWorld | null>(null);
     const [runtime, setRuntime] = useState<Runtime | null>(null);
     const [debugHud, setDebugHud] = useState<DebugHud | null>(null);
     const [ready, setReady] = useState(false);
-
-    // Loading progress
     const [loading, setLoading] = useState<LoadingProgress>({ stage: 'Waiting for DOM...', percent: 0 });
-
-    // State subscription - React re-renders when engine state changes
     const [state, setState] = useState<GameState | null>(null);
     const stateRef = useRef<GameState | null>(null);
 
-    // Synchronous state access
     const getStateRef = useCallback(() => stateRef.current, []);
 
-    // Update ref when state changes
     useEffect(() => {
         stateRef.current = state;
     }, [state]);
 
-    // Callback refs - these capture the latest callbacks without triggering re-init
     const callbacksRef = useRef({ onTileClick, onTileRightClick, onAgentClick, onTileHover, onSfx });
     useEffect(() => {
         callbacksRef.current = { onTileClick, onTileRightClick, onAgentClick, onTileHover, onSfx };
     }, [onTileClick, onTileRightClick, onAgentClick, onTileHover, onSfx]);
 
-    // Initialize engine
     useEffect(() => {
         if (!container) {
             setLoading({ stage: 'Waiting for container...', percent: 5 });
@@ -119,11 +110,9 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
         let cancelled = false;
 
         const initializeEngine = async () => {
-            // Helper to add delays between stages for smoother loading experience
             const stageDelay = (ms: number = 500) => new Promise(r => setTimeout(r, ms));
 
             try {
-                // Stage 1: Create Render Adapter
                 setLoading({ stage: 'Initializing renderer...', percent: 10 });
                 console.log('[useAureusEngine] Creating render adapter...');
 
@@ -143,7 +132,6 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 setLoading({ stage: 'Creating game world...', percent: 20 });
                 console.log('[useAureusEngine] Creating AureusWorld...');
 
-                // Stage 2: Create World
                 const worldInstance = new AureusWorld(render);
 
                 if (cancelled) return;
@@ -152,7 +140,6 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 setLoading({ stage: 'Configuring input system...', percent: 30 });
                 console.log('[useAureusEngine] Configuring world...');
 
-                // Use refs for callbacks to avoid stale closures
                 const config: AureusWorldConfig = {
                     container,
                     onTileClick: (x, z, isTouch) => callbacksRef.current.onTileClick?.(x, z, isTouch),
@@ -174,13 +161,11 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 await stageDelay();
                 console.log('[useAureusEngine] Proceeding to state subscription...');
 
-                // Subscribe React to state changes
                 const unsubscribe = worldInstance.subscribeToState((newState) => {
                     setState(newState);
                 });
                 console.log('[useAureusEngine] ✓ State subscription set up');
 
-                // DON'T set state yet - wait until engine is fully ready
                 const initialState = worldInstance.getState();
                 console.log('[useAureusEngine] Initial state prepared:', initialState ? 'OK' : 'NULL');
 
@@ -196,11 +181,10 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 setLoading({ stage: 'Creating runtime...', percent: 40 });
                 console.log('[useAureusEngine] Creating WorldHost and Runtime...');
 
-                // Stage 4: Create runtime
                 const worldHost = new WorldHost();
                 const runtimeInstance = new Runtime(worldHost, {
-                    fixedTickRate: 30, // Reduced from 60 to prevent CPU overload
-                    maxSimStepsPerFrame: 3, // Reduced from 5
+                    fixedTickRate: 30,
+                    maxSimStepsPerFrame: 3,
                     profilerEnabled: true,
                 });
                 const qualityGovernor = new RuntimeQualityGovernor(runtimeInstance, render);
@@ -215,13 +199,6 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 setLoading({ stage: 'Initializing debug tools...', percent: 50 });
                 console.log('[useAureusEngine] Creating DebugHud...');
 
-                // Stage 5: Create debug HUD (Disabled to remove black square in top right)
-                /*
-                const debugHudInstance = new DebugHud({ position: 'top-right' });
-                debugHudInstance.init(container, runtimeInstance, () => render.getStats());
-                setDebugHud(debugHudInstance);
-                */
-
                 if (cancelled) {
                     unsubscribe();
                     return;
@@ -231,7 +208,6 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 setLoading({ stage: 'Loading world data...', percent: 60 });
                 console.log('[useAureusEngine] Setting world on host...');
 
-                // Stage 6: Load world (this calls world.init() internally)
                 try {
                     console.log('[useAureusEngine] Calling worldHost.setWorld...');
                     await worldHost.setWorld(worldInstance);
@@ -248,7 +224,6 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 await stageDelay();
 
                 setLoading({ stage: 'Starting simulation...', percent: 80 });
-                // Stage 7: Start runtime
                 runtimeInstance.start();
                 qualityGovernor.start();
 
@@ -265,12 +240,9 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 await stageDelay();
                 setLoading({ stage: 'Game Engine Running!', percent: 100 });
 
-                // Give user a moment to see 100% before transitioning
                 await new Promise(r => setTimeout(r, 1500));
 
                 setReady(true);
-
-                // NOW set state - this triggers the loading screen to hide
                 setState(worldInstance.getState());
 
                 if (import.meta.env.DEV) {
@@ -278,17 +250,6 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                     (window as any).__aureusGetState = () => worldInstance.getState();
                 }
 
-                /* 
-                // AUTO-LOAD: If a save exists, load it automatically
-                const savedGame = localStorage.getItem('aureus_save_v2');
-                if (savedGame) {
-                    console.log('[useAureusEngine] Found saved game, auto-loading...');
-                    worldInstance.loadGame(savedGame);
-                    setState(worldInstance.getState());
-                }
-                */
-
-                // Store cleanup function
                 (window as any).__aureusCleanup = () => {
                     if (import.meta.env.DEV) {
                         delete (window as any).__aureusWorld;
@@ -297,7 +258,6 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                     unsubscribe();
                     qualityGovernor.stop();
                     runtimeInstance.stop();
-                    // debugHudInstance.dispose();
                     worldInstance.teardown();
                     render.dispose();
                 };
@@ -314,7 +274,6 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
 
         initializeEngine();
 
-        // Cleanup
         return () => {
             console.log('[useAureusEngine] Cleaning up...');
             cancelled = true;
@@ -327,13 +286,10 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
 
             setWorld(null);
             setRuntime(null);
-            // setDebugHud(null);
             setState(null);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [container]); // Only re-run when container changes, not callbacks
+    }, [container]);
 
-    // Sync pause state
     useEffect(() => {
         if (world) {
             world.setGamePaused(paused);
@@ -383,6 +339,55 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                                 }
                                 : sector
                         ),
+                    },
+                };
+
+                world.loadGame(JSON.stringify(updatedState));
+                return;
+            }
+
+            if (action?.type === 'UPDATE_FACTORY_PLANNER') {
+                const state = world.getState();
+                if (!state.factory) return;
+
+                const currentPressure = state.factory.pressure || {
+                    routeDebt: 0,
+                    underfedProcessors: 0,
+                    hotspots: 0,
+                    bottlenecks: [],
+                    pinnedKeys: [],
+                    emergencyReliefSectors: [],
+                    recommendations: [],
+                    efficiencyPenalty: 0,
+                };
+                const pinnedKeys = new Set(currentPressure.pinnedKeys || []);
+                const emergencyReliefSectors = new Set(currentPressure.emergencyReliefSectors || []);
+
+                if (action.payload?.plannerAction === 'TOGGLE_PIN' && action.payload?.targetKey) {
+                    if (pinnedKeys.has(action.payload.targetKey)) {
+                        pinnedKeys.delete(action.payload.targetKey);
+                    } else {
+                        pinnedKeys.add(action.payload.targetKey);
+                    }
+                }
+
+                if (action.payload?.plannerAction === 'TOGGLE_RELIEF' && action.payload?.sectorName) {
+                    if (emergencyReliefSectors.has(action.payload.sectorName)) {
+                        emergencyReliefSectors.delete(action.payload.sectorName);
+                    } else {
+                        emergencyReliefSectors.add(action.payload.sectorName);
+                    }
+                }
+
+                const updatedState: GameState = {
+                    ...state,
+                    factory: {
+                        ...state.factory,
+                        pressure: {
+                            ...currentPressure,
+                            pinnedKeys: Array.from(pinnedKeys),
+                            emergencyReliefSectors: Array.from(emergencyReliefSectors),
+                        },
                     },
                 };
 
