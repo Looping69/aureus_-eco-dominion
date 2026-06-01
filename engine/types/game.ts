@@ -156,6 +156,7 @@ export type FactorySectorDirective = 'BALANCED' | 'EXPORT' | 'IMPORT';
 export type FactorySectorFlowMode = 'STABLE' | 'SURGE';
 export type FactorySectorCongestionMode = 'SAFE' | 'BALANCED' | 'AGGRESSIVE';
 export type FactoryPressureReason = 'ROUTE_DEBT' | 'UNDERFED' | 'CONGESTION';
+export type FactoryCorridorTrend = 'UP' | 'DOWN' | 'FLAT';
 
 export interface FactorySectorState {
     name: string;
@@ -202,6 +203,25 @@ export interface FactoryPlannerRecommendation {
     suggestedBuilding?: BuildingType;
 }
 
+export interface FactoryCorridorState {
+    id: string;
+    sectorName: string;
+    anchorKey: string;
+    throughput: number;
+    baselineThroughput: number;
+    history: number[];
+    trend: FactoryCorridorTrend;
+    improvement: number;
+    routeDebtShare: number;
+    underfedProcessors: number;
+    hotspots: number;
+    congestionLevel: number;
+    satisfaction: number;
+    bonusChain: number;
+    recommendedBuilding: BuildingType;
+    followThrough: string;
+}
+
 export interface FactoryPressureState {
     routeDebt: number;
     underfedProcessors: number;
@@ -211,6 +231,7 @@ export interface FactoryPressureState {
     emergencyReliefSectors: string[];
     recommendations: FactoryPlannerRecommendation[];
     efficiencyPenalty: number;
+    corridors?: FactoryCorridorState[];
 }
 
 export interface FactoryNodeState {
