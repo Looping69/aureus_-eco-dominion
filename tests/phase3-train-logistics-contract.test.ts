@@ -117,7 +117,7 @@ test('Train stations act as regional sector anchors, drone depots extend local s
   }
 });
 
-test('Train packets now score routes with sector flow posture, planner relief, pins, and live bottleneck diagnostics', () => {
+test('Train packets now score routes with sector flow posture, planner relief, pins, live bottleneck diagnostics, and scoped upgrade guidance', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
@@ -148,7 +148,10 @@ test('Train packets now score routes with sector flow posture, planner relief, p
     'private buildFactoryPressure(',
     'const pinnedKeys = this.getPinnedKeys(factory);',
     'const emergencyReliefSectors = this.getEmergencyReliefSectors(factory);',
-    'const recommendations = this.buildPlannerRecommendations(bottlenecks, pinnedKeys, emergencyReliefSectors);',
+    'const recommendations = this.buildPlannerRecommendations(bottlenecks, pinnedKeys, emergencyReliefSectors, {',
+    'routeDebt,',
+    'underfedProcessors,',
+    'hotspots: Math.max(hotspots, stalledNodes),',
     'const efficiencyPenalty = Math.min(',
     'pinnedKeys,',
     'emergencyReliefSectors,',
@@ -157,6 +160,13 @@ test('Train packets now score routes with sector flow posture, planner relief, p
     'private pushPressurePoint(factory: FactoryState, bottlenecks: FactoryPressurePoint[], point: FactoryPressurePoint): void {',
     'severity: point.severity + (pinned ? 4 : 0) + (relief ? 2 : 0),',
     'private buildPlannerRecommendations(',
+    'private buildScopedRecommendation(',
+    'Reinforce rail corridor',
+    'Stabilize processor cluster',
+    'Expand depot relief',
+    'Chronic route debt',
+    'Processors are idling on',
+    'Buffers are pooling faster than the hub can clear them',
     'private getSuggestedBuilding(point: FactoryPressurePoint): BuildingType {',
     'private getPinnedKeys(factory: FactoryState): string[] {',
     'private getEmergencyReliefSectors(factory: FactoryState): string[] {',
@@ -299,9 +309,10 @@ test('Trade terminal includes planner pins, emergency relief controls, and actio
     'const pinnedKeys = new Set(pressure?.pinnedKeys || []);',
     'const reliefSectors = new Set(pressure?.emergencyReliefSectors || []);',
     'const recommendations = pressure?.recommendations || [];',
-    "const updatePlanner = (plannerAction: 'TOGGLE_PIN' | 'TOGGLE_RELIEF', payload: Record<string, unknown>) => {",
+    "const updatePlanner = (plannerAction: 'TOGGLE_PIN' | 'TOGGLE_RELIEF' | 'FOCUS_RECOMMENDATION', payload: Record<string, unknown>) => {",
     "type: 'UPDATE_FACTORY_PLANNER'",
     'const formatSuggestedBuilding = (value?: string) => value ? value.replace(/_/g, \' \\') : \'Support Upgrade\';',
+    'const getRecommendationScope = (rec: { reason?: string; sectorName?: string }) => {',
     'const getRecommendationHint = (rec: { reason?: string; sectorName?: string; suggestedBuilding?: string }) => {',
     'const getRecommendationGoal = (rec: { reason?: string; sectorName?: string; resource?: FactoryResourceType }) => {',
     'const getSectorPerformanceGoal = (sector: {',
@@ -321,20 +332,33 @@ test('Trade terminal includes planner pins, emergency relief controls, and actio
     'World tag',
     'Performance goal',
     'Suggest {formatSuggestedBuilding(rec.suggestedBuilding)}',
+    'Upgrade lane {getRecommendationScope(rec)}',
+    "updatePlanner('FOCUS_RECOMMENDATION', {",
+    'Frame & Preview',
     'getSectorPerformanceGoal({ name: sector.name, satisfaction, contractTarget, contractProgress, contractResource, bonusChain })',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Engine dispatch bridge persists sector policy and factory planner action updates back into engine-owned state', () => {
+test('Engine dispatch bridge persists sector policy and factory planner action updates back into engine-owned state and can frame recommendations on the map', () => {
   assert.equal(existsSync(engineBridgePath), true, 'game/useAureusEngine.ts is missing');
 
   const source = readFileSync(engineBridgePath, 'utf8');
 
   for (const snippet of [
+    'function findPlannerTargetNode(state: GameState, payload: Record<string, any>) {',
+    'function findPlannerPreviewPosition(state: GameState, x: number, z: number, buildingType?: BuildingType) {',
     "if (action?.type === 'UPDATE_SECTOR_POLICY') {",
     "if (action?.type === 'UPDATE_FACTORY_PLANNER') {",
+    "if (action.payload?.plannerAction === 'FOCUS_RECOMMENDATION') {",
+    'const targetNode = findPlannerTargetNode(state, action.payload);',
+    'world.selectBuilding(action.payload.suggestedBuilding);',
+    'const preview = findPlannerPreviewPosition(state, targetNode.x, targetNode.z, action.payload.suggestedBuilding);',
+    'world.pinBuildingForConfirmation(preview.x, preview.z);',
+    'const tile = ChunkStore.getTile(state.chunks, targetNode.x, targetNode.z);',
+    '(world as any).cameraSystem?.setTargetHeight?.(focusY);',
+    '(world as any).cameraSystem?.zoomToPosition?.(targetNode.x, targetNode.z, 2);',
     'const currentPressure = state.factory.pressure || {',
     'pinnedKeys: [],',
     'emergencyReliefSectors: [],',
