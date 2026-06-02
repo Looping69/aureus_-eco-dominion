@@ -2,7 +2,7 @@
  * Deterministic Linear Congruential Generator
  */
 export class Random {
-    private seed: number;
+    seed: number;
 
     constructor(seed: number) {
         this.seed = seed;
