@@ -182,7 +182,7 @@ const getNextContractTarget = (target?: number): number => {
     return CONTRACT_TARGETS[(index + 1 + CONTRACT_TARGETS.length) % CONTRACT_TARGETS.length];
 };
 
-const PriceSparkline: React.FC<{ history: number[]; color: string }> = ({ history, color }) => {
+const PriceSparkline: React.FC<{ history: number[]; color: string; heightClass?: string }> = ({ history, color, heightClass = 'h-16' }) => {
     if (!history || history.length < 2) return null;
     const min = Math.min(...history);
     const max = Math.max(...history);
@@ -195,7 +195,7 @@ const PriceSparkline: React.FC<{ history: number[]; color: string }> = ({ histor
     }).join(' ');
 
     return (
-        <div className="w-full h-16 bg-slate-900/50 rounded-lg border border-slate-700 relative overflow-hidden">
+        <div className={`w-full ${heightClass} bg-slate-900/50 rounded-lg border border-slate-700 relative overflow-hidden`}>
             <svg className="w-full h-full p-1" viewBox="0 0 100 100" preserveAspectRatio="none">
                 <polyline
                     fill="none"
@@ -239,7 +239,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
 
     return (
         <div
-            className={`fixed top-0 right-0 h-full w-96 bg-slate-950 border-l border-slate-700 shadow-2xl z-50 transform transition-transform duration-300 pointer-events-auto ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+            className={`fixed top-0 right-0 h-full w-[30rem] max-w-[94vw] bg-slate-950 border-l border-slate-700 shadow-2xl z-50 transform transition-transform duration-300 pointer-events-auto ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
             onClick={(e) => e.stopPropagation()}
         >
             <div className="p-6 h-full flex flex-col">
@@ -297,7 +297,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                             <div className="flex items-center justify-between gap-2 mb-2">
                                 <div>
                                     <div className="text-slate-300 text-xs font-bold uppercase tracking-wider">Megafactory Planning</div>
-                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Pin bottlenecks, mark relief sectors, and follow the first upgrade loop</div>
+                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Late-game network control, not just warnings</div>
                                 </div>
                                 <div className="text-[10px] text-slate-500 font-mono">{pinnedKeys.size} pins · {reliefSectors.size} relief</div>
                             </div>
@@ -305,7 +305,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                 <div className="text-[10px] text-slate-500 font-mono">No active bottlenecks yet. Scale the network to start reading pressure.</div>
                             ) : (
                                 <div className="space-y-2">
-                                    {bottlenecks.slice(0, 4).map((point) => {
+                                    {bottlenecks.slice(0, 3).map((point) => {
                                         const pinned = pinnedKeys.has(point.key);
                                         return (
                                             <div key={`${point.key}-${point.reason}-${point.resource || 'none'}`} className="border border-slate-800 rounded px-2 py-2 bg-slate-900/70">
@@ -350,7 +350,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                     <div className="text-[10px] text-slate-500 font-mono">No corridor history yet. Keep the rail grid moving to start a before/after read.</div>
                                 ) : (
                                     <div className="space-y-2">
-                                        {corridors.slice(0, 3).map((corridor) => (
+                                        {corridors.slice(0, 2).map((corridor) => (
                                             <div key={corridor.id} className="bg-slate-900/60 border border-slate-800 rounded px-2 py-2">
                                                 <div className="flex items-center justify-between gap-2 mb-2">
                                                     <div className="flex items-center gap-2 min-w-0">
@@ -367,6 +367,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                                 <PriceSparkline
                                                     history={corridor.history}
                                                     color={corridor.trend === 'DOWN' ? '#fb7185' : corridor.trend === 'UP' ? '#34d399' : '#38bdf8'}
+                                                    heightClass="h-12"
                                                 />
                                                 <div className="grid grid-cols-1 gap-1 mt-2 text-[10px] font-mono">
                                                     <div className="text-sky-300">Trend {getCorridorTrendLabel(corridor.trend)} · {getCorridorTrendDelta(corridor)}</div>
@@ -387,7 +388,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                     <div className="text-[10px] text-slate-500 font-mono">No upgrade recommendations yet.</div>
                                 ) : (
                                     <div className="space-y-2">
-                                        {recommendations.map((rec) => {
+                                        {recommendations.slice(0, 2).map((rec) => {
                                             const corridor = getRecommendationCorridor(rec, corridors);
                                             return (
                                                 <div key={rec.id} className="bg-slate-900/60 border border-slate-800 rounded px-2 py-2">
@@ -398,25 +399,24 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                                     <div className="grid grid-cols-1 gap-1 mt-2 text-[10px] font-mono">
                                                         <div className="text-sky-300">Upgrade lane {getRecommendationScope(rec)}</div>
                                                         <div className="text-slate-400">{rec.detail}</div>
-                                                        <div className="text-cyan-300">Suggest {formatSuggestedBuilding(rec.suggestedBuilding)}</div>
                                                         <div className={`font-mono ${corridor ? getCorridorTrendTone(corridor.trend) : 'text-sky-300'}`}>Trend {corridor ? `${getCorridorTrendLabel(corridor.trend)} · ${getCorridorTrendDelta(corridor)}` : 'Watching live pressure'}</div>
+                                                        <div className="text-cyan-300">Anchor {corridor?.anchorKey || rec.targetKey || 'Network'} · {formatSuggestedBuilding(rec.suggestedBuilding)}</div>
+                                                        <div className="text-fuchsia-300">Upgrade chain {getRecommendationChain(rec)}</div>
                                                         <div className="text-amber-300">Build hint {getRecommendationHint(rec)}</div>
                                                         <div className="text-lime-300">Sector goal {getRecommendationGoal(rec)}</div>
-                                                        <div className="text-fuchsia-300">Upgrade chain {getRecommendationChain(rec)}</div>
-                                                        <div className="text-cyan-300">Anchor {corridor?.anchorKey || rec.targetKey || 'Network'}</div>
                                                         <div className="text-slate-400">Before / After {corridor ? `${Math.round(corridor.baselineThroughput)} -> ${Math.round(corridor.throughput)}` : 'Live lane only'}</div>
                                                         <div className="text-lime-300">Follow-through {corridor?.followThrough || 'Stabilize this node before scaling outward.'}</div>
-                                                        <div className="text-slate-500">World tag {rec.sectorName ? getSectorBadge(rec.sectorName) : rec.targetKey || 'Network'}</div>
                                                     </div>
                                                     <button
                                                         onClick={() => updatePlanner('FOCUS_RECOMMENDATION', {
                                                             targetKey: rec.targetKey,
                                                             sectorName: rec.sectorName,
                                                             suggestedBuilding: rec.suggestedBuilding,
+                                                            reason: rec.reason,
                                                         })}
                                                         className="mt-2 w-full border border-cyan-700 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-200 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors"
                                                     >
-                                                        Frame & Preview
+                                                        Frame, Preview & Overlay
                                                     </button>
                                                 </div>
                                             );
