@@ -31,7 +31,7 @@ export class GameStateManager {
         try {
             const parsed = JSON.parse(data);
             this.stateManager.loadState(parsed);
-            this.workerPool.broadcast({ type: 'SYNC_GRID', payload: parsed.grid });
+            this.workerPool.broadcast({ type: 'SYNC_CHUNKS', payload: parsed.chunks });
         } catch (e) {
             console.error('[GameStateManager] Failed to load game:', e);
         }
