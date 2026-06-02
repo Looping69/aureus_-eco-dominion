@@ -6,6 +6,9 @@ export interface PacketInstanceSpec {
     material: THREE.Material;
     position: THREE.Vector3;
     scale: number;
+    scaleX?: number;
+    scaleY?: number;
+    scaleZ?: number;
     rotationX?: number;
     rotationY?: number;
     rotationZ?: number;
@@ -55,7 +58,11 @@ export class PacketInstancedLayer {
                 const spec = specs[i];
                 this.dummy.position.copy(spec.position);
                 this.dummy.rotation.set(spec.rotationX || 0, spec.rotationY || 0, spec.rotationZ || 0);
-                this.dummy.scale.setScalar(spec.scale);
+                this.dummy.scale.set(
+                    spec.scaleX ?? spec.scale,
+                    spec.scaleY ?? spec.scale,
+                    spec.scaleZ ?? spec.scale,
+                );
                 this.dummy.updateMatrix();
                 mesh.setMatrixAt(i, this.dummy.matrix);
             }
