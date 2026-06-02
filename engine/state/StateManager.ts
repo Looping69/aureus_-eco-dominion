@@ -1,48 +1,146 @@
-import { GameState, Agent, BuildingType, Era, ResourceNode, NewsType, TechId, CommandResultStatus, TimeOfDay, PowerGridState, InteractionMode, LogisticsOverlayMode } from '../../types';
-import { INITIAL_RESOURCES, INITIAL_PERMITS, INITIAL_NPCS, INITIAL_AMBIENT_NPCS, DAY_NIGHT, STARTING_AGENTS, TECH_TREE } from '../data/VoxelConstants';
-import { generateTerrainSeeded } from '../worldgen/Core';
+import { Agent, BuildingType, Era, GameState, GameStep } from '../../types';
+import { INITIAL_PERMITS, INITIAL_NPCS } from '../data/bureaucracy';
+import { INITIAL_RESOURCES } from '../data/resources';
+import { DAY_NIGHT } from '../sim/dayNightCycle';
 import { ChunkStore } from '../space/ChunkStore';
-import { createRNG } from '../utils/RNG';
-import { createWeatherState } from '../weather/weatherModel';
 import { normalizeUndergroundState } from '../underground/UndergroundGenerator';
+import { createWeatherState } from '../weather/weatherModel';
 
-export type StateListener = () => void;
+export type StateListener = (newState: GameState) => void;
+
+type MutableContext = 'none' | 'command' | 'simTick';
+type LegacyCommandResultStatus = string | boolean;
+
+type SeededRandom = {
+    next: () => number;
+};
+
+function createSeededRandom(seed: number): SeededRandom {
+    let value = (seed >>> 0) || 1;
+    return {
+        next: () => {
+            value = (value * 1664525 + 1013904223) >>> 0;
+            return value / 0x100000000;
+        },
+    };
+}
+
+function createStarterAgents(spawnX: number, spawnZ: number): Agent[] {
+    const names = ['Mira', 'Juno', 'Tebogo'];
+    return names.map((name, index) => ({
+        id: `agent-${index + 1}`,
+        name,
+        type: 'WORKER',
+        x: spawnX + index,
+        z: spawnZ,
+        targetX: null,
+        targetZ: null,
+        path: null,
+        visualX: spawnX + index,
+        visualZ: spawnZ,
+        state: 'IDLE',
+        energy: 100,
+        hunger: 100,
+        mood: 75,
+        skills: {
+            mining: 1,
+            construction: 1,
+            plants: 1,
+            intelligence: 1,
+        },
+        currentJobId: null,
+        inventory: {
+            type: null,
+            amount: 0,
+            capacity: 25,
+        },
+        layer: 0,
+        workEfficiency: 1,
+        moveSpeed: 1,
+        shift: 'DAY',
+        consecutiveWorkTicks: 0,
+        lastBreakTick: 0,
+        profession: null,
+        workPlaceX: null,
+        workPlaceZ: null,
+    }));
+}
+
+function clonePermits() {
+    return Object.fromEntries(
+        Object.entries(INITIAL_PERMITS).map(([id, permit]) => [id, { ...permit }]),
+    );
+}
+
+function cloneNpcs() {
+    return Object.fromEntries(
+        Object.entries(INITIAL_NPCS).map(([id, npc]) => [
+            id,
+            {
+                ...npc,
+                vulnerability: { ...npc.vulnerability },
+                rivals: [...npc.rivals],
+                allies: [...npc.allies],
+                workHours: { ...npc.workHours },
+            },
+        ]),
+    );
+}
+
+function normalizeLastCommandResult(
+    result: any,
+): GameState['ui']['lastCommandResult'] {
+    if (!result) return null;
+    if (
+        typeof result.commandId === 'string' &&
+        typeof result.type === 'string' &&
+        typeof result.ok === 'boolean'
+    ) {
+        return result;
+    }
+
+    const status = typeof result.status === 'string' ? result.status : undefined;
+    return {
+        commandId: 'legacy-result',
+        type: 'LEGACY',
+        ok: status ? ['SUCCESS', 'OK', 'ACCEPTED'].includes(status) : false,
+        code: status,
+        reason: typeof result.message === 'string' ? result.message : undefined,
+    };
+}
 
 export class StateManager {
     private state: GameState;
     private listeners = new Set<StateListener>();
     private dirtyKeys = new Set<keyof GameState>();
-    private pendingCommands: Array<{ type: string; payload?: any }> = [];
-    private mutableContext: 'none' | 'command' | 'simTick' = 'none';
-    private commandResult: { status: CommandResultStatus; message: string } | null = null;
-    private rng = createRNG();
+    private mutableContext: MutableContext = 'none';
+    private rng: SeededRandom;
 
-    constructor() {
-        this.state = this.createInitialState();
-        this.rng = createRNG(this.state.seed);
+    constructor(overrides?: Partial<GameState>) {
+        this.state = this.createInitialState(overrides);
+        this.rng = createSeededRandom(this.state.seed);
+    }
+
+    private createInitialChunks(seed: number, chunks?: GameState['chunks']): GameState['chunks'] {
+        if (chunks && Object.keys(chunks).length > 0) {
+            return chunks;
+        }
+
+        const initialChunks: GameState['chunks'] = {};
+        for (let cx = -1; cx <= 1; cx += 1) {
+            for (let cz = -1; cz <= 1; cz += 1) {
+                ChunkStore.ensureChunk(initialChunks, cx, cz, seed);
+            }
+        }
+        return initialChunks;
     }
 
     private createInitialState(overrides?: Partial<GameState>): GameState {
-        const seed = overrides?.seed || Math.floor(Math.random() * 1000000);
-        const terrain = generateTerrainSeeded(seed);
-        const chunks = ChunkStore.fromGrid(terrain.grid);
-        const spawnX = terrain.startingPoints?.[0]?.x || 0;
-        const spawnZ = terrain.startingPoints?.[0]?.z || 0;
+        const seed = overrides?.seed ?? Math.floor(Math.random() * 1000000);
+        const spawnX = overrides?.spawnX ?? 0;
+        const spawnZ = overrides?.spawnZ ?? 0;
 
-        return {
-            chunks,
-            agents: STARTING_AGENTS.map((agent, index) => ({
-                ...agent,
-                id: `agent-${index + 1}`,
-                x: spawnX + index,
-                z: spawnZ,
-                homeX: spawnX + index,
-                homeZ: spawnZ,
-            })),
-            ambientNpcs: INITIAL_AMBIENT_NPCS.map((npc, index) => ({
-                ...npc,
-                id: `ambient-${index + 1}`,
-            })),
+        const baseState: GameState = {
             resources: {
                 agt: INITIAL_RESOURCES.agt,
                 minerals: INITIAL_RESOURCES.minerals,
@@ -53,13 +151,53 @@ export class StateManager {
                 trust: INITIAL_RESOURCES.trust,
                 income: 0,
                 maintenance: 0,
-                maxCapacity: 1000,
+                maxCapacity: INITIAL_RESOURCES.maxCapacity,
             },
-
+            industry: {
+                refinedMaterials: 0,
+                alloys: 0,
+                machineParts: 0,
+                automationKits: 0,
+                automatedChains: 0,
+                gridLoad: 0,
+            },
+            chunks: this.createInitialChunks(seed, overrides?.chunks),
+            agents: createStarterAgents(spawnX, spawnZ),
+            ambientNpcs: [],
+            jobs: [],
+            inventory: {},
             selectedBuilding: null,
             selectedAgentId: null,
             interactionMode: 'INSPECT',
             step: GameStep.INTRO,
+            gameOver: false,
+            tickCount: 0,
+            idCounter: 0,
+            seed,
+            spawnX,
+            spawnZ,
+            logistics: {
+                autoSell: false,
+                sellThreshold: 100,
+                overlayMode: 'FLOW',
+            },
+            factory: undefined,
+            activeGoal: null,
+            newsFeed: [],
+            activeEvents: [],
+            research: { unlocked: [] },
+            debugMode: false,
+            cheatsEnabled: false,
+            pendingEffects: [],
+            market: {
+                minerals: { basePrice: 10, currentPrice: 10, trend: 'STABLE', history: [10], volatility: 0.1 },
+                gems: { basePrice: 50, currentPrice: 50, trend: 'STABLE', history: [50], volatility: 0.05 },
+                wood: { basePrice: 5, currentPrice: 5, trend: 'STABLE', history: [5], volatility: 0.08 },
+                stone: { basePrice: 8, currentPrice: 8, trend: 'STABLE', history: [8], volatility: 0.06 },
+                eventDuration: 0,
+            },
+            contracts: [],
+            weather: createWeatherState('CLEAR', 0.2, 180),
             activeView: 'SURFACE',
             isFPS: false,
             dungeon: {
@@ -73,97 +211,140 @@ export class StateManager {
                 logs: [],
                 voxelData: null,
                 revealedData: null,
-                gridSize: { x: 32, y: 8, z: 32 }
+                gridSize: { x: 32, y: 8, z: 32 },
             },
-
-            gameOver: false,
-            debugMode: false,
-            cheatsEnabled: false,
-            tickCount: 0,
-            idCounter: 0,
-            seed,
-            spawnX,
-            spawnZ,
-
-            market: {
-                minerals: { basePrice: 10, currentPrice: 10, trend: 'STABLE', history: [10], volatility: 0.1 },
-                gems: { basePrice: 50, currentPrice: 50, trend: 'STABLE', history: [50], volatility: 0.05 },
-                wood: { basePrice: 5, currentPrice: 5, trend: 'STABLE', history: [5], volatility: 0.08 },
-                stone: { basePrice: 8, currentPrice: 8, trend: 'STABLE', history: [8], volatility: 0.06 },
-                eventDuration: 0,
+            underground: normalizeUndergroundState(overrides?.underground),
+            dayNightCycle: {
+                timeOfDay: DAY_NIGHT.INITIAL_TIME_OF_DAY,
+                dayCount: 1,
+                isDaytime: true,
             },
-
-            weather: createWeatherState('CLEAR', 0.2, 180),
-            activeEvents: [],
-            newsFeed: [],
-            activeGoal: null,
-            inventory: {},
-            research: { unlocked: [] },
-            contracts: [],
-            pendingEffects: [],
-
+            currentEra: Era.SETTLEMENT,
+            unlockedEras: [Era.SETTLEMENT],
+            eraUnlockedPopup: null,
+            powerGrid: {
+                totalProduced: 0,
+                totalConsumed: 0,
+                industrialDemand: 0,
+                strandedDemand: 0,
+                deficit: 0,
+            },
+            waterNetwork: {
+                totalProduced: 0,
+                totalConsumed: 0,
+                deficit: 0,
+            },
+            agentRequests: [],
             experiments: {
                 BIOLUMINESCENCE: true,
                 GREEDY_MESHING_V2: false,
                 HIERARCHICAL_PATHFINDING: false,
                 SHARED_BUFFER_TRANSFER: false,
             },
-
-            dayNightCycle: {
-                timeOfDay: DAY_NIGHT.INITIAL_TIME_OF_DAY,
-                dayCount: 1,
-                isDaytime: true,
+            commandQueue: [],
+            isLoading: false,
+            loadingMessage: '',
+            debug: {
+                commandTrace: [],
             },
-
-            agentRequests: [],
-            currentEra: Era.SETTLEMENT,
-            unlockedEras: [Era.SETTLEMENT],
-            eraUnlockedPopup: null,
-
-            waterNetwork: { totalProduced: 0, totalConsumed: 0, deficit: 0 },
-
+            ui: {
+                lastCommandResult: null,
+            },
             bureaucracy: {
-                permits: { ...INITIAL_PERMITS },
-                npcs: { ...INITIAL_NPCS },
+                permits: clonePermits(),
+                npcs: cloneNpcs(),
                 knownNpcIds: ['licensing', 'union'],
                 dirtItems: [],
                 activeNPCId: null,
                 activePermitId: null,
                 activeMiniGame: null,
                 pendingPermitAction: null,
-                tutorialStep: 0,
                 activeDialogue: null,
-                dialogueTree: null
+                dialogueTree: {},
+                tutorialStep: 0,
             },
+        };
 
-            isLoading: false,
-            loadingMessage: '',
-            debug: { commandTrace: [] },
-            ui: { lastCommandResult: null },
-
+        return {
+            ...baseState,
             ...overrides,
-            logistics: {
-                autoSell: overrides?.logistics?.autoSell ?? false,
-                sellThreshold: overrides?.logistics?.sellThreshold ?? 100,
-                overlayMode: overrides?.logistics?.overlayMode ?? 'FLOW',
-            },
-            powerGrid: {
-                totalProduced: overrides?.powerGrid?.totalProduced ?? 0,
-                totalConsumed: overrides?.powerGrid?.totalConsumed ?? 0,
-                industrialDemand: overrides?.powerGrid?.industrialDemand ?? 0,
-                strandedDemand: overrides?.powerGrid?.strandedDemand ?? 0,
-                deficit: overrides?.powerGrid?.deficit ?? 0,
+            resources: {
+                ...baseState.resources,
+                ...overrides?.resources,
             },
             industry: {
-                refinedMaterials: overrides?.industry?.refinedMaterials ?? 0,
-                alloys: overrides?.industry?.alloys ?? 0,
-                machineParts: overrides?.industry?.machineParts ?? 0,
-                automationKits: overrides?.industry?.automationKits ?? 0,
-                automatedChains: overrides?.industry?.automatedChains ?? 0,
-                gridLoad: overrides?.industry?.gridLoad ?? 0,
+                ...baseState.industry,
+                ...overrides?.industry,
+            },
+            chunks: this.createInitialChunks(seed, overrides?.chunks),
+            agents: overrides?.agents ?? baseState.agents,
+            ambientNpcs: overrides?.ambientNpcs ?? baseState.ambientNpcs,
+            jobs: overrides?.jobs ?? baseState.jobs,
+            inventory: overrides?.inventory ?? baseState.inventory,
+            logistics: {
+                ...baseState.logistics,
+                ...overrides?.logistics,
+            },
+            research: {
+                ...baseState.research,
+                ...overrides?.research,
+                unlocked: overrides?.research?.unlocked ?? baseState.research.unlocked,
+            },
+            pendingEffects: overrides?.pendingEffects ?? baseState.pendingEffects,
+            contracts: overrides?.contracts ?? baseState.contracts,
+            newsFeed: overrides?.newsFeed ?? baseState.newsFeed,
+            activeEvents: overrides?.activeEvents ?? baseState.activeEvents,
+            weather: overrides?.weather ? createWeatherState(overrides.weather.current, overrides.weather.intensity, overrides.weather.timeLeft) : baseState.weather,
+            dungeon: {
+                ...baseState.dungeon,
+                ...overrides?.dungeon,
             },
             underground: normalizeUndergroundState(overrides?.underground),
-        } as GameState;
+            dayNightCycle: {
+                ...baseState.dayNightCycle,
+                ...overrides?.dayNightCycle,
+            },
+            unlockedEras: overrides?.unlockedEras ?? baseState.unlockedEras,
+            powerGrid: {
+                ...baseState.powerGrid,
+                ...overrides?.powerGrid,
+            },
+            waterNetwork: {
+                ...baseState.waterNetwork,
+                ...overrides?.waterNetwork,
+            },
+            agentRequests: overrides?.agentRequests ?? baseState.agentRequests,
+            experiments: {
+                ...baseState.experiments,
+                ...overrides?.experiments,
+            },
+            commandQueue: overrides?.commandQueue ?? baseState.commandQueue,
+            debug: {
+                ...baseState.debug,
+                ...overrides?.debug,
+                commandTrace: overrides?.debug?.commandTrace ?? baseState.debug.commandTrace,
+            },
+            ui: {
+                ...baseState.ui,
+                ...overrides?.ui,
+                lastCommandResult: normalizeLastCommandResult(overrides?.ui?.lastCommandResult),
+            },
+            bureaucracy: {
+                ...baseState.bureaucracy,
+                ...overrides?.bureaucracy,
+                permits: {
+                    ...baseState.bureaucracy.permits,
+                    ...overrides?.bureaucracy?.permits,
+                },
+                npcs: {
+                    ...baseState.bureaucracy.npcs,
+                    ...overrides?.bureaucracy?.npcs,
+                },
+                knownNpcIds: overrides?.bureaucracy?.knownNpcIds ?? baseState.bureaucracy.knownNpcIds,
+                dirtItems: overrides?.bureaucracy?.dirtItems ?? baseState.bureaucracy.dirtItems,
+                dialogueTree: overrides?.bureaucracy?.dialogueTree ?? baseState.bureaucracy.dialogueTree,
+            },
+        };
     }
 
     getState(): GameState {
@@ -174,11 +355,11 @@ export class StateManager {
         return this.state;
     }
 
-    setMutableContext(context: 'none' | 'command' | 'simTick') {
+    setMutableContext(context: MutableContext): void {
         this.mutableContext = context;
     }
 
-    getRandom() {
+    getRandom(): SeededRandom {
         return this.rng;
     }
 
@@ -193,64 +374,75 @@ export class StateManager {
         return () => this.listeners.delete(listener);
     }
 
-    notifyIfDirty() {
+    notifyIfDirty(): void {
         if (this.dirtyKeys.size === 0) return;
-        this.listeners.forEach(listener => listener());
+        this.listeners.forEach((listener) => listener(this.state));
         this.dirtyKeys.clear();
     }
 
-    markDirty(...keys: (keyof GameState)[]) {
-        keys.forEach(key => this.dirtyKeys.add(key));
+    markDirty(...keys: (keyof GameState)[]): void {
+        keys.forEach((key) => this.dirtyKeys.add(key));
     }
 
     getDirtyKeys(): Set<keyof GameState> {
         return new Set(this.dirtyKeys);
     }
 
-    mutate<K extends keyof GameState>(key: K, value: GameState[K]) {
+    mutate<K extends keyof GameState>(key: K, value: GameState[K]): void {
         if (this.mutableContext === 'none') {
             console.warn(`[StateManager] Direct mutation of '${String(key)}' outside sim/command context. Use update() for UI actions.`);
         }
-        (this.state as any)[key] = value;
+        this.state[key] = value;
         this.markDirty(key);
     }
 
-    update(partial: Partial<GameState>) {
+    update(partial: Partial<GameState>): void {
         Object.assign(this.state, partial);
-        this.markDirty(...Object.keys(partial) as (keyof GameState)[]);
+        this.markDirty(...(Object.keys(partial) as (keyof GameState)[]));
     }
 
-    loadState(newState: GameState) {
-        this.state = newState;
-        this.rng = createRNG(this.state.seed);
-        this.markDirty(...Object.keys(newState) as (keyof GameState)[]);
+    loadState(newState: GameState): void {
+        this.state = this.createInitialState(newState);
+        this.rng = createSeededRandom(this.state.seed);
+        this.markDirty(...(Object.keys(this.state) as (keyof GameState)[]));
         this.notifyIfDirty();
     }
 
-    pushCommand(type: string, payload?: any) {
-        this.pendingCommands.push({ type, payload });
+    serializeState(): string {
+        return JSON.stringify(this.state);
+    }
+
+    pushCommand(type: string, payload?: any): void {
+        this.state.commandQueue.push({
+            id: this.getNextId('cmd'),
+            type: type as any,
+            payload,
+            issuedAtTick: this.state.tickCount,
+        });
+        this.markDirty('commandQueue');
     }
 
     drainCommands(): Array<{ type: string; payload?: any }> {
-        const commands = [...this.pendingCommands];
-        this.pendingCommands.length = 0;
+        const commands = this.state.commandQueue.map(({ type, payload }) => ({ type, payload }));
+        this.state.commandQueue = [];
+        this.markDirty('commandQueue');
         return commands;
     }
 
-    pushEffect(effect: any) {
+    pushEffect(effect: any): void {
         this.state.pendingEffects.push(effect);
         this.markDirty('pendingEffects');
     }
 
-    setCommandResult(status: CommandResultStatus, message: string) {
-        this.commandResult = { status, message };
-        this.state.ui.lastCommandResult = this.commandResult;
+    setCommandResult(status: LegacyCommandResultStatus, message: string): void {
+        const statusText = typeof status === 'string' ? status : status ? 'SUCCESS' : 'ERROR';
+        this.state.ui.lastCommandResult = {
+            commandId: this.getNextId('result'),
+            type: 'LEGACY',
+            ok: typeof status === 'boolean' ? status : ['SUCCESS', 'OK', 'ACCEPTED'].includes(status),
+            code: statusText,
+            reason: message || undefined,
+        };
         this.markDirty('ui');
     }
-}
-
-enum GameStep {
-    INTRO = 'INTRO',
-    RUNNING = 'RUNNING',
-    GAME_OVER = 'GAME_OVER',
 }
