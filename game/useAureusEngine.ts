@@ -14,7 +14,7 @@ import { WorldHost, Runtime } from '../engine';
 import { RuntimeQualityGovernor, ThreeRenderAdapter, getRecommendedRenderQuality } from '../engine/render';
 import { DebugHud } from '../engine/tools';
 import { AureusWorld, AureusWorldConfig } from './AureusWorld';
-import { BuildingType, GameState, SfxType } from '../types';
+import { BuildingType, GameState, LogisticsOverlayMode, SfxType } from '../types';
 import { ChunkStore } from '../engine/space/ChunkStore';
 
 export interface LoadingProgress {
@@ -84,8 +84,44 @@ function findPlannerTargetNode(state: GameState, payload: Record<string, any>) {
     return null;
 }
 
-function findPlannerPreviewPosition(state: GameState, x: number, z: number, buildingType?: BuildingType) {
-    const offsets: Array<[number, number]> = [
+function getPlannerPreviewOffsets(buildingType?: BuildingType): Array<[number, number]> {
+    if (buildingType === BuildingType.RAIL_LINE) {
+        return [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+            [2, 0],
+            [-2, 0],
+            [0, 2],
+            [0, -2],
+            [1, 1],
+            [-1, 1],
+            [1, -1],
+            [-1, -1],
+            [0, 0],
+        ];
+    }
+
+    if (buildingType === BuildingType.DRONE_DEPOT) {
+        return [
+            [0, 0],
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+            [1, 1],
+            [-1, 1],
+            [1, -1],
+            [-1, -1],
+            [2, 0],
+            [-2, 0],
+            [0, 2],
+            [0, -2],
+        ];
+    }
+
+    return [
         [0, 0],
         [1, 0],
         [-1, 0],
@@ -100,6 +136,10 @@ function findPlannerPreviewPosition(state: GameState, x: number, z: number, buil
         [0, 2],
         [0, -2],
     ];
+}
+
+function findPlannerPreviewPosition(state: GameState, x: number, z: number, buildingType?: BuildingType) {
+    const offsets = getPlannerPreviewOffsets(buildingType);
 
     for (const [dx, dz] of offsets) {
         const tile = ChunkStore.getTile(state.chunks, x + dx, z + dz);
@@ -110,6 +150,27 @@ function findPlannerPreviewPosition(state: GameState, x: number, z: number, buil
     }
 
     return { x, z };
+}
+
+function getPlannerOverlayMode(reason?: string, suggestedBuilding?: BuildingType): LogisticsOverlayMode {
+    if (reason === 'ROUTE_DEBT' || suggestedBuilding === BuildingType.RAIL_LINE) {
+        return 'FLOW';
+    }
+    if (reason === 'CONGESTION') {
+        return 'CONGESTION';
+    }
+    if (reason === 'UNDERFED') {
+        return suggestedBuilding === BuildingType.DRONE_DEPOT ? 'JUNCTIONS' : 'FLOW';
+    }
+    return 'FLOW';
+}
+
+function getPlannerZoom(buildingType?: BuildingType): number {
+    if (buildingType === BuildingType.RAIL_LINE) return 3.1;
+    if (buildingType === BuildingType.TRAIN_STATION) return 2.6;
+    if (buildingType === BuildingType.DRONE_DEPOT) return 2.35;
+    if (buildingType === BuildingType.DISTRIBUTION_HUB) return 2.25;
+    return 2;
 }
 
 /**
@@ -407,6 +468,17 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                         world.toggleViewMode();
                     }
 
+                    const overlayMode = getPlannerOverlayMode(action.payload?.reason, action.payload?.suggestedBuilding);
+                    if (state.logistics.overlayMode !== overlayMode) {
+                        world.loadGame(JSON.stringify({
+                            ...state,
+                            logistics: {
+                                ...state.logistics,
+                                overlayMode,
+                            },
+                        }));
+                    }
+
                     if (action.payload?.suggestedBuilding) {
                         world.selectBuilding(action.payload.suggestedBuilding);
                         const preview = findPlannerPreviewPosition(state, targetNode.x, targetNode.z, action.payload.suggestedBuilding);
@@ -415,8 +487,9 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
 
                     const tile = ChunkStore.getTile(state.chunks, targetNode.x, targetNode.z);
                     const focusY = tile ? tile.terrainHeight * 0.5 : 0;
+                    const zoomLevel = getPlannerZoom(action.payload?.suggestedBuilding);
                     (world as any).cameraSystem?.setTargetHeight?.(focusY);
-                    (world as any).cameraSystem?.zoomToPosition?.(targetNode.x, targetNode.z, 2);
+                    (world as any).cameraSystem?.zoomToPosition?.(targetNode.x, targetNode.z, zoomLevel);
                     return;
                 }
 
@@ -429,6 +502,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                     emergencyReliefSectors: [],
                     recommendations: [],
                     efficiencyPenalty: 0,
+                    corridors: [],
                 };
                 const pinnedKeys = new Set(currentPressure.pinnedKeys || []);
                 const emergencyReliefSectors = new Set(currentPressure.emergencyReliefSectors || []);
