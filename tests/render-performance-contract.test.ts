@@ -108,17 +108,25 @@ test('PacketInstancedLayer now supports pooled bucketed instancing with render-o
   }
 });
 
-test('Engine worker stitches macro terrain tops and only emits cliff walls for meaningful height drops', () => {
+test('Engine worker now renders terrain as a tile-scale smooth heightfield while keeping foliage throttled by lod', () => {
   assert.equal(existsSync(engineWorkerPath), true, 'engine.worker.ts is missing');
 
   const source = readFileSync(engineWorkerPath, 'utf8');
 
   for (const snippet of [
     'const CLIFF_FACE_THRESHOLD = 0.76;',
+    'const macroStep = getTerrainMacroStep(lod);',
+    'const surfaceStep = 1;',
+    'const foliageStep = Math.max(1, macroStep);',
     'const addTopSurface = (',
     'const addCliffBand = (',
     'const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {',
     'const getCornerHeights = (worldX: number, worldZ: number, cellWidth: number, cellDepth: number) => ({',
+    'for (let z = 0; z < CHUNK_SIZE; z += surfaceStep) {',
+    'for (let x = 0; x < CHUNK_SIZE; x += surfaceStep) {',
+    'if (x % foliageStep === 0 && z % foliageStep === 0 && macro.foliageType',
+    '[-surfaceStep, 0, 1],',
+    '[0, -surfaceStep, 5]',
     'if (Math.max(topA - bottomA, topB - bottomB) <= CLIFF_FACE_THRESHOLD) {',
     'addTopSurface(',
     'addCliffBand(solid, type, macro.localCenterX, macro.localCenterZ, cellWidth * 0.5, cellDepth * 0.5, cornerHeights.ne, cornerHeights.se, neighborCorners.nw, neighborCorners.sw, color);',
@@ -126,5 +134,7 @@ test('Engine worker stitches macro terrain tops and only emits cliff walls for m
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 
+  assert.doesNotMatch(source, /for \(let z = 0; z < CHUNK_SIZE; z \+= macroStep\)/);
+  assert.doesNotMatch(source, /for \(let x = 0; x < CHUNK_SIZE; x \+= macroStep\)/);
   assert.doesNotMatch(source, /for \(let y = topY; y > nTop; y--\)/);
 });
