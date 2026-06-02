@@ -5,6 +5,7 @@ import test from 'node:test';
 
 const worldPath = path.join(process.cwd(), 'game', 'AureusWorld.ts');
 const rendererPath = path.join(process.cwd(), 'game', 'render', 'systems', 'BuildingRenderSystem.ts');
+const overlayPresentationPath = path.join(process.cwd(), 'game', 'render', 'systems', 'LogisticsOverlayPresentation.ts');
 const era4IndexPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'era4', 'index.ts');
 const droneDepotFactoryPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'era4', 'DroneDepot.ts');
 
@@ -82,6 +83,28 @@ test('Renderer exposes named sector labels, regional bulk-load markers, drone-pr
     'const launchRing = new THREE.Mesh(',
     'const controlSpire = new THREE.Mesh(',
     'const padOffsets: Array<[number, number]> = [',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Logistics overlay presentation helpers are split into a dedicated module for sector and planner labels', () => {
+  assert.equal(existsSync(overlayPresentationPath), true, 'LogisticsOverlayPresentation.ts is missing');
+
+  const source = readFileSync(overlayPresentationPath, 'utf8');
+
+  for (const snippet of [
+    "import { BuildingType, FactorySectorState } from '../../../types';",
+    'const SECTOR_COLOR_PALETTE = [0x38bdf8, 0xf59e0b, 0x2dd4bf, 0xc084fc, 0xf97316, 0xa3e635];',
+    'export function getSectorColor(label: string): number {',
+    'export function getSectorPressure(sector: FactorySectorState | undefined): number {',
+    'export function getSectorPressureColor(pressure: number): number {',
+    'export function getSectorFlowColor(sector: FactorySectorState): number {',
+    'export function getSectorSatisfactionColor(sector: FactorySectorState): number {',
+    'export function getSectorCode(label: string): string {',
+    'export function getPlannerColor(reason?: string): number {',
+    'export function getSuggestedBuildingCode(type?: BuildingType): string {',
+    'export function getSectorGoalLabel(sector: FactorySectorState): string {',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
