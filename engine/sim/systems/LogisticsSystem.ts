@@ -582,16 +582,16 @@ export class LogisticsSystem extends BaseSimSystem {
                 };
             })
             .sort((a, b) => this.getCorridorPriorityScore(b) - this.getCorridorPriorityScore(a))
-            .slice(0, 4);
+            .slice(0, 3);
     }
 
     private getCorridorTrend(history: number[]): FactoryCorridorState['trend'] {
-        if (!history || history.length < 2) return 'FLAT';
+        if (!history || history.length < 3) return 'FLAT';
         const latest = history[history.length - 1];
         const previousAverage = history.slice(0, -1).reduce((sum, value) => sum + value, 0) / (history.length - 1);
         const delta = latest - previousAverage;
-        if (delta > 1.5) return 'UP';
-        if (delta < -1.5) return 'DOWN';
+        if (delta > 2.5) return 'UP';
+        if (delta < -2.5) return 'DOWN';
         return 'FLAT';
     }
 
@@ -634,21 +634,21 @@ export class LogisticsSystem extends BaseSimSystem {
         improvement: number
     ): string {
         if (routeDebtShare >= 8) {
-            return `Anchor fresh rail in ${sectorName} until route debt falls back under the lane budget.`;
+            return `Lay fresh rail in ${sectorName} until debt drops under lane budget.`;
         }
         if (underfedProcessors > 0) {
-            return `Chain depot relief into hungry processors until ${underfedProcessors} cluster${underfedProcessors === 1 ? '' : 's'} clear.`;
+            return `Add depot relief until ${underfedProcessors} hungry cluster${underfedProcessors === 1 ? '' : 's'} recover.`;
         }
         if (hotspots > 0) {
-            return `Bleed buffer pressure before ${sectorName} drops into another satisfaction dip.`;
+            return `Bleed pooled buffers before ${sectorName} loses its quota rhythm.`;
         }
         if (trend === 'UP') {
-            return `Flow is improving by ${improvement >= 0 ? '+' : ''}${improvement.toFixed(1)}. Hold the lane steady and protect the quota streak.`;
+            return `Lane is recovering at ${improvement >= 0 ? '+' : ''}${improvement.toFixed(1)}. Hold steady and protect the streak.`;
         }
         if (trend === 'DOWN') {
-            return `Throughput is sliding by ${improvement.toFixed(1)}. Re-center capacity here before the next miss lands.`;
+            return `Lane is slipping ${improvement.toFixed(1)}. Re-center capacity before the next miss lands.`;
         }
-        return `Keep ${sectorName} balanced and only intervene if debt or underfed pressure returns.`;
+        return `Keep ${sectorName} balanced and only intervene if pressure returns.`;
     }
 
     private buildPlannerRecommendations(
@@ -666,11 +666,15 @@ export class LogisticsSystem extends BaseSimSystem {
         const congestionCorridor = this.findRecommendationCorridor(corridors, congestionPoint);
         const recommendations: FactoryPlannerRecommendation[] = [];
 
-        if (routeDebtPoint) {
+        if (routeDebtPoint && (
+            metrics.routeDebt >= 10
+            || (routeDebtCorridor?.routeDebtShare || 0) >= 8
+            || routeDebtCorridor?.trend === 'DOWN'
+        )) {
             recommendations.push(this.buildScopedRecommendation(
                 routeDebtPoint,
                 'Reinforce rail corridor',
-                `Chronic route debt ${Math.round(metrics.routeDebt)} is choking ${routeDebtPoint.sectorName || 'the main transfer lane'} while corridor flow is ${this.getCorridorTrendLabel(routeDebtCorridor?.trend)}.`,
+                `Route debt ${Math.round(metrics.routeDebt)} is still choking ${routeDebtPoint.sectorName || 'the main transfer lane'} while the corridor is ${this.getCorridorTrendLabel(routeDebtCorridor?.trend)}.`,
                 routeDebtCorridor?.recommendedBuilding || this.getSuggestedBuilding(routeDebtPoint),
                 pinnedKeys,
                 emergencyReliefSectors,
@@ -678,11 +682,15 @@ export class LogisticsSystem extends BaseSimSystem {
             ));
         }
 
-        if (underfedPoint) {
+        if (underfedPoint && (
+            metrics.underfedProcessors >= 2
+            || (underfedCorridor?.underfedProcessors || 0) >= 2
+            || underfedPoint.severity >= 14
+        )) {
             recommendations.push(this.buildScopedRecommendation(
                 underfedPoint,
                 'Stabilize processor cluster',
-                `Processors are idling on ${underfedPoint.resource || 'critical inputs'} across ${metrics.underfedProcessors} stressed clusters, and the feeder lane is ${this.getCorridorTrendLabel(underfedCorridor?.trend)}.`,
+                `Processors are still idling on ${underfedPoint.resource || 'critical inputs'} across ${metrics.underfedProcessors} stressed clusters, and the feeder lane is ${this.getCorridorTrendLabel(underfedCorridor?.trend)}.`,
                 underfedCorridor?.recommendedBuilding || this.getSuggestedBuilding(underfedPoint),
                 pinnedKeys,
                 emergencyReliefSectors,
@@ -690,11 +698,15 @@ export class LogisticsSystem extends BaseSimSystem {
             ));
         }
 
-        if (congestionPoint) {
+        if (congestionPoint && (
+            metrics.hotspots >= 2
+            || (congestionCorridor?.congestionLevel || 0) >= 0.58
+            || (congestionCorridor?.hotspots || 0) >= 2
+        )) {
             recommendations.push(this.buildScopedRecommendation(
                 congestionPoint,
                 'Expand depot relief',
-                `Buffers are pooling faster than the hub can clear them across ${metrics.hotspots} hotspot${metrics.hotspots === 1 ? '' : 's'}, and the lane is ${this.getCorridorTrendLabel(congestionCorridor?.trend)}.`,
+                `Buffers are still pooling faster than the hub can clear them across ${metrics.hotspots} hotspot${metrics.hotspots === 1 ? '' : 's'}, and the lane is ${this.getCorridorTrendLabel(congestionCorridor?.trend)}.`,
                 congestionCorridor?.recommendedBuilding || this.getSuggestedBuilding(congestionPoint),
                 pinnedKeys,
                 emergencyReliefSectors,
@@ -702,7 +714,7 @@ export class LogisticsSystem extends BaseSimSystem {
             ));
         }
 
-        return recommendations.slice(0, 4);
+        return recommendations.slice(0, 3);
     }
 
     private findRecommendationCorridor(
