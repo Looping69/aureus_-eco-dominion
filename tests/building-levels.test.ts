@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { Era, BuildingType } from '../types.ts';
 import { BUILDINGS } from '../engine/data/VoxelConstants.ts';
 import { StateManager } from '../engine/state/StateManager.ts';
+import { ChunkStore } from '../engine/space/ChunkStore.ts';
 import { ConstructionSystem } from '../engine/sim/systems/ConstructionSystem.ts';
 import { getVisualBuildingLevel, resolveBuildingDefinition } from '../engine/utils/buildingLevels.ts';
 
@@ -12,11 +13,13 @@ test('placeBuilding initializes upgradeable buildings at level 1', () => {
     const state = stateManager.getMutableState();
     const constructionSystem = new ConstructionSystem();
 
-    constructionSystem.placeBuilding(100, BuildingType.STAFF_QUARTERS, state, false);
+    ChunkStore.ensureChunk(state.chunks, 0, 0, state.seed);
+    constructionSystem.placeBuilding(4, 4, BuildingType.STAFF_QUARTERS, state, false, 1);
+    const tile = ChunkStore.getTile(state.chunks, 4, 4);
 
-    assert.equal(state.grid[100].level, 1);
-    assert.equal(state.grid[100].buildingType, BuildingType.STAFF_QUARTERS);
-    assert.equal(state.grid[100].isUnderConstruction, true);
+    assert.equal(tile?.level, 1);
+    assert.equal(tile?.buildingType, BuildingType.STAFF_QUARTERS);
+    assert.equal(tile?.isUnderConstruction, true);
 });
 
 test('upgradeBuilding advances the building level and syncs multi-tile footprints', () => {
@@ -29,13 +32,14 @@ test('upgradeBuilding advances the building level and syncs multi-tile footprint
     state.resources.gems = 100;
     state.unlockedEras = [Era.SETTLEMENT, Era.GROWTH, Era.INDUSTRY, Era.SUSTAINABILITY];
 
-    constructionSystem.placeBuilding(100, BuildingType.STAFF_QUARTERS, state, true);
-    constructionSystem.upgradeBuilding(100, state);
+    ChunkStore.ensureChunk(state.chunks, 0, 0, state.seed);
+    constructionSystem.placeBuilding(4, 4, BuildingType.STAFF_QUARTERS, state, true, 1);
+    constructionSystem.upgradeBuilding({ fixedDt: 1 / 60, stepIndex: 0, time: 0 }, 4, 4, state);
 
-    assert.equal(state.grid[100].level, 2);
-    assert.equal(state.grid[101].level, 2);
-    assert.equal(state.grid[145].level, 2);
-    assert.equal(state.grid[146].level, 2);
+    assert.equal(ChunkStore.getTile(state.chunks, 4, 4)?.level, 2);
+    assert.equal(ChunkStore.getTile(state.chunks, 5, 4)?.level, 2);
+    assert.equal(ChunkStore.getTile(state.chunks, 4, 5)?.level, 2);
+    assert.equal(ChunkStore.getTile(state.chunks, 5, 5)?.level, 2);
 });
 
 test('resolveBuildingDefinition returns the upgrade stats for the current level', () => {

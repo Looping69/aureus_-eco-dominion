@@ -1,6 +1,7 @@
 /**
  * Engine Kernel - Runtime
  * The main loop controller - orchestrates the entire frame sequence
+ * (|/) Klaasvaakie
  */
 
 import { Clock } from './Clock';
@@ -9,6 +10,7 @@ import { EventBus, engineEvents } from './EventBus';
 import { FrameContext, FixedContext, EngineConfig, DEFAULT_ENGINE_CONFIG } from './Types';
 import { WorldHost } from '../world/WorldHost';
 import { Benchmark } from './Benchmark';
+import { telemetry } from '../utils/Telemetry';
 
 export class Runtime {
     readonly clock: Clock;
@@ -20,6 +22,9 @@ export class Runtime {
     private paused = false;
     private rafId: number | null = null;
     private config: EngineConfig;
+    private readonly telemetryLoggingEnabled =
+        typeof window !== 'undefined'
+        && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
     constructor(
         private worldHost: WorldHost,
@@ -174,12 +179,12 @@ export class Runtime {
         this.worldHost.frameEnd(frameCtx);
         this.benchmark.update(frameCtx.time);
 
+        // Telemetry Reporting
+        telemetry.record('frame', frameCtx.dt * 1000);
+
         // Log telemetry every 5 seconds (debug mode)
-        if (Math.floor(frameCtx.time) % 5 === 0 && Math.abs(frameCtx.time % 1) < frameCtx.dt * 2) {
-            const jobStats = this.worldHost.world?.jobStats || { queued: 0, pending: 0, completed: 0 };
-            // Push to benchmark (it doesn't have a push method for this, so just construct report)
-            const report = this.benchmark.getReport(jobStats.queued, 0); // Entity count 0 for now
-            console.log(`[Telemetry] FPS: ${report.fps.toFixed(1)} | Frame: ${report.frameTime.p95.toFixed(2)}ms (p95) | Jobs Q: ${report.jobs.queueDepth}`);
+        if (this.telemetryLoggingEnabled && Math.floor(frameCtx.time) % 5 === 0 && Math.abs(frameCtx.time % 1) < frameCtx.dt * 2) {
+            console.log(telemetry.getSummary());
         }
 
         this.profiler.end('frameEnd');

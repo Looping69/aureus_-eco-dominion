@@ -1,7 +1,14 @@
 
 import React from 'react';
-import { GameState, Action } from '../types';
-import { TrendingUp, TrendingDown, Minus, Briefcase, RefreshCw, DollarSign } from 'lucide-react';
+import {
+    GameState,
+    Action,
+    FactoryResourceType,
+    FactorySectorDirective,
+    FactorySectorFlowMode,
+    FactorySectorCongestionMode,
+} from '../types';
+import { TrendingUp, TrendingDown, Minus, Briefcase, RefreshCw, Map, RadioTower, Zap, Gauge, Activity, ClipboardList, Pin, Siren } from 'lucide-react';
 
 interface TradeTerminalProps {
     isOpen: boolean;
@@ -11,13 +18,176 @@ interface TradeTerminalProps {
     playSfx: (sfx: any) => void;
 }
 
-const PriceSparkline: React.FC<{ history: number[]; color: string }> = ({ history, color }) => {
+const SECTOR_RESOURCE_LABELS: Record<FactoryResourceType, string> = {
+    ORE: 'Ore',
+    CONCENTRATE: 'Conc.',
+    MINERALS: 'Minerals',
+    WOOD: 'Wood',
+    STONE: 'Stone',
+    GEMS: 'Gems',
+    REFINED_MATERIALS: 'Refined',
+    ALLOYS: 'Alloys',
+    MACHINE_PARTS: 'Parts',
+    AUTOMATION_KITS: 'Kits',
+};
+
+const SECTOR_DIRECTIVES: FactorySectorDirective[] = ['BALANCED', 'EXPORT', 'IMPORT'];
+const FLOW_MODES: FactorySectorFlowMode[] = ['STABLE', 'SURGE'];
+const CONGESTION_POLICIES: FactorySectorCongestionMode[] = ['SAFE', 'BALANCED', 'AGGRESSIVE'];
+const CONTRACT_TARGETS = [16, 24, 32, 48, 64, 96];
+const PRIORITY_RESOURCE_ORDER: FactoryResourceType[] = [
+    'MINERALS',
+    'WOOD',
+    'STONE',
+    'GEMS',
+    'REFINED_MATERIALS',
+    'ALLOYS',
+    'MACHINE_PARTS',
+    'AUTOMATION_KITS',
+];
+
+const getSectorBadge = (name: string) =>
+    name
+        .split(/\s+/)
+        .map((part) => part[0])
+        .join('')
+        .slice(0, 3)
+        .toUpperCase();
+
+const toPercent = (value: number) => `${Math.round(value * 100)}%`;
+
+const getSatisfactionTone = (value: number) => {
+    if (value >= 0.75) return 'text-emerald-300';
+    if (value >= 0.45) return 'text-amber-300';
+    return 'text-rose-300';
+};
+
+const formatPressureReason = (reason?: string) => {
+    if (reason === 'ROUTE_DEBT') return 'Route debt';
+    if (reason === 'UNDERFED') return 'Underfed';
+    return 'Congestion';
+};
+
+const formatSuggestedBuilding = (value?: string) => value ? value.replace(/_/g, ' ') : 'Support Upgrade';
+
+const getRecommendationScope = (rec: { reason?: string; sectorName?: string }) => {
+    if (rec.reason === 'ROUTE_DEBT') return rec.sectorName ? 'Rail corridor' : 'Transfer lane';
+    if (rec.reason === 'UNDERFED') return 'Processor cluster';
+    return 'Depot relief';
+};
+
+const getRecommendationHint = (rec: { reason?: string; sectorName?: string; suggestedBuilding?: string }) => {
+    if (rec.reason === 'ROUTE_DEBT') {
+        return `Build ${formatSuggestedBuilding(rec.suggestedBuilding)} near ${rec.sectorName || 'the blocked lane'} to add transfer capacity.`;
+    }
+    if (rec.reason === 'UNDERFED') {
+        return `Upgrade feeder throughput with ${formatSuggestedBuilding(rec.suggestedBuilding)} so processors stop idling.`;
+    }
+    return `Use ${formatSuggestedBuilding(rec.suggestedBuilding)} to bleed congestion before the penalty grows.`;
+};
+
+const getRecommendationGoal = (rec: { reason?: string; sectorName?: string; resource?: FactoryResourceType }) => {
+    if (rec.reason === 'ROUTE_DEBT') {
+        return `Cut route debt below 10 and keep ${rec.sectorName || 'the lane'} moving.`;
+    }
+    if (rec.reason === 'UNDERFED') {
+        return `Keep ${SECTOR_RESOURCE_LABELS[rec.resource || 'MINERALS']} flowing until underfed processors fall back to zero.`;
+    }
+    return `Hold congestion under 45% in ${rec.sectorName || 'the stressed sector'} and protect satisfaction.`;
+};
+
+const getRecommendationChain = (rec: { reason?: string; suggestedBuilding?: string }) => {
+    if (rec.reason === 'ROUTE_DEBT') {
+        return `RAIL LINE -> TRAIN STATION -> ${formatSuggestedBuilding(rec.suggestedBuilding)}`;
+    }
+    if (rec.reason === 'UNDERFED') {
+        return `${formatSuggestedBuilding(rec.suggestedBuilding)} -> STORAGE DEPOT -> PROCESSOR`;
+    }
+    return `${formatSuggestedBuilding(rec.suggestedBuilding)} -> DRONE DEPOT -> TRAIN STATION`;
+};
+
+const getSectorPerformanceGoal = (sector: {
+    name: string;
+    satisfaction?: number;
+    contractTarget?: number;
+    contractProgress?: number;
+    contractResource?: FactoryResourceType;
+    bonusChain?: number;
+}) => {
+    const satisfaction = sector.satisfaction ?? 0.72;
+    const contractTarget = sector.contractTarget || 24;
+    const contractProgress = Math.min(contractTarget, sector.contractProgress || 0);
+    const contractResource = sector.contractResource || 'MINERALS';
+
+    if (satisfaction < 0.7) {
+        return `Lift satisfaction above 70% in ${sector.name}.`;
+    }
+    if (contractProgress < contractTarget) {
+        return `Deliver ${contractTarget - contractProgress} more ${SECTOR_RESOURCE_LABELS[contractResource]} for quota.`;
+    }
+    return `Hold chain x${Math.max(1, sector.bonusChain || 1)} while keeping congestion stable.`;
+};
+
+const getCorridorTrendTone = (trend?: string) => {
+    if (trend === 'UP') return 'text-emerald-300';
+    if (trend === 'DOWN') return 'text-rose-300';
+    return 'text-sky-300';
+};
+
+const getCorridorTrendLabel = (trend?: string) => {
+    if (trend === 'UP') return 'Improving';
+    if (trend === 'DOWN') return 'Slipping';
+    return 'Holding';
+};
+
+const getCorridorTrendDelta = (corridor: { history?: number[]; throughput: number }) => {
+    const baseline = corridor.history?.[0] ?? corridor.throughput;
+    const latest = corridor.history?.[corridor.history.length - 1] ?? corridor.throughput;
+    const delta = Math.round((latest - baseline) * 10) / 10;
+    return `${delta >= 0 ? '+' : ''}${delta} vs ${Math.round(baseline)}`;
+};
+
+const getRecommendationCorridor = (
+    rec: { sectorName?: string; targetKey?: string },
+    corridors: Array<{ sectorName: string; anchorKey: string; followThrough?: string }>
+) => corridors.find((corridor) => (rec.sectorName && corridor.sectorName === rec.sectorName) || corridor.anchorKey === rec.targetKey);
+
+const getNextDirective = (directive?: FactorySectorDirective): FactorySectorDirective => {
+    const current = directive || 'BALANCED';
+    const index = SECTOR_DIRECTIVES.indexOf(current);
+    return SECTOR_DIRECTIVES[(index + 1) % SECTOR_DIRECTIVES.length];
+};
+
+const getNextFlowMode = (mode?: FactorySectorFlowMode): FactorySectorFlowMode => {
+    const current = mode || 'STABLE';
+    const index = FLOW_MODES.indexOf(current);
+    return FLOW_MODES[(index + 1) % FLOW_MODES.length];
+};
+
+const getNextCongestionPolicy = (policy?: FactorySectorCongestionMode): FactorySectorCongestionMode => {
+    const current = policy || 'BALANCED';
+    const index = CONGESTION_POLICIES.indexOf(current);
+    return CONGESTION_POLICIES[(index + 1) % CONGESTION_POLICIES.length];
+};
+
+const getNextPriorityResource = (resource?: FactoryResourceType): FactoryResourceType => {
+    const current = resource || PRIORITY_RESOURCE_ORDER[0];
+    const index = PRIORITY_RESOURCE_ORDER.indexOf(current);
+    return PRIORITY_RESOURCE_ORDER[(index + 1) % PRIORITY_RESOURCE_ORDER.length];
+};
+
+const getNextContractTarget = (target?: number): number => {
+    const current = target || CONTRACT_TARGETS[1];
+    const index = CONTRACT_TARGETS.indexOf(current);
+    return CONTRACT_TARGETS[(index + 1 + CONTRACT_TARGETS.length) % CONTRACT_TARGETS.length];
+};
+
+const PriceSparkline: React.FC<{ history: number[]; color: string; heightClass?: string }> = ({ history, color, heightClass = 'h-16' }) => {
     if (!history || history.length < 2) return null;
     const min = Math.min(...history);
     const max = Math.max(...history);
     const range = max - min || 1;
 
-    // SVG points
     const points = history.map((val, i) => {
         const x = (i / (history.length - 1)) * 100;
         const y = 100 - ((val - min) / range) * 100;
@@ -25,7 +195,7 @@ const PriceSparkline: React.FC<{ history: number[]; color: string }> = ({ histor
     }).join(' ');
 
     return (
-        <div className="w-full h-16 bg-slate-900/50 rounded-lg border border-slate-700 relative overflow-hidden">
+        <div className={`w-full ${heightClass} bg-slate-900/50 rounded-lg border border-slate-700 relative overflow-hidden`}>
             <svg className="w-full h-full p-1" viewBox="0 0 100 100" preserveAspectRatio="none">
                 <polyline
                     fill="none"
@@ -41,11 +211,37 @@ const PriceSparkline: React.FC<{ history: number[]; color: string }> = ({ histor
 
 export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, state, dispatch, playSfx }) => {
     const { market, resources } = state;
+    const [walletAddress, setWalletAddress] = React.useState('');
+    const sectors = [...(state.factory?.sectors || [])].sort((a, b) => {
+        if ((b.contractTarget || 0) !== (a.contractTarget || 0)) return (b.contractTarget || 0) - (a.contractTarget || 0);
+        if (b.throughput !== a.throughput) return b.throughput - a.throughput;
+        return b.stationCount - a.stationCount;
+    });
+    const pressure = state.factory?.pressure;
+    const bottlenecks = pressure?.bottlenecks || [];
+    const pinnedKeys = new Set(pressure?.pinnedKeys || []);
+    const reliefSectors = new Set(pressure?.emergencyReliefSectors || []);
+    const recommendations = pressure?.recommendations || [];
+    const corridors = pressure?.corridors || [];
 
     if (!market || !state.contracts) return null;
 
+    const updatePlanner = (plannerAction: 'TOGGLE_PIN' | 'TOGGLE_RELIEF' | 'FOCUS_RECOMMENDATION', payload: Record<string, unknown>) => {
+        dispatch({
+            type: 'UPDATE_FACTORY_PLANNER',
+            payload: {
+                plannerAction,
+                ...payload,
+            },
+        });
+        playSfx('UI_CLICK');
+    };
+
     return (
-        <div className={`fixed top-0 right-0 h-full w-96 bg-slate-950 border-l border-slate-700 shadow-2xl z-50 transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div
+            className={`fixed top-0 right-0 h-full w-[30rem] max-w-[94vw] bg-slate-950 border-l border-slate-700 shadow-2xl z-50 transform transition-transform duration-300 pointer-events-auto ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+            onClick={(e) => e.stopPropagation()}
+        >
             <div className="p-6 h-full flex flex-col">
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-3">
@@ -63,7 +259,325 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-6">
-                    {/* MINERALS MARKET */}
+                    <div className="bg-slate-900 border border-cyan-900/60 rounded-xl p-4">
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Map className="text-cyan-400" size={16} />
+                                    <h3 className="text-cyan-300 text-xs font-bold uppercase tracking-wider">Sector Market</h3>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Regional export, congestion, quota control, and planner relief</p>
+                            </div>
+                            <div className="text-right text-[10px] font-mono text-slate-400">
+                                <div>{sectors.length} sectors</div>
+                                <div>{Math.floor(state.factory?.regionalThroughput || 0)} rail</div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-4 gap-2 mb-3 text-[10px] font-mono">
+                            <div className="bg-slate-950/80 border border-slate-800 rounded px-2 py-2">
+                                <div className="text-slate-500 font-bold uppercase tracking-wider">Route debt</div>
+                                <div className="text-rose-300 font-bold">{Math.round(pressure?.routeDebt || 0)}</div>
+                            </div>
+                            <div className="bg-slate-950/80 border border-slate-800 rounded px-2 py-2">
+                                <div className="text-slate-500 font-bold uppercase tracking-wider">Underfed</div>
+                                <div className="text-amber-300 font-bold">{pressure?.underfedProcessors || 0}</div>
+                            </div>
+                            <div className="bg-slate-950/80 border border-slate-800 rounded px-2 py-2">
+                                <div className="text-slate-500 font-bold uppercase tracking-wider">Hotspots</div>
+                                <div className="text-cyan-300 font-bold">{pressure?.hotspots || 0}</div>
+                            </div>
+                            <div className="bg-slate-950/80 border border-slate-800 rounded px-2 py-2">
+                                <div className="text-slate-500 font-bold uppercase tracking-wider">Penalty</div>
+                                <div className="text-orange-300 font-bold">-{toPercent(pressure?.efficiencyPenalty || 0)}</div>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-3 mb-3">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                                <div>
+                                    <div className="text-slate-300 text-xs font-bold uppercase tracking-wider">Megafactory Planning</div>
+                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Late-game network control, not just warnings</div>
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono">{pinnedKeys.size} pins · {reliefSectors.size} relief</div>
+                            </div>
+                            {bottlenecks.length === 0 ? (
+                                <div className="text-[10px] text-slate-500 font-mono">No active bottlenecks yet. Scale the network to start reading pressure.</div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {bottlenecks.slice(0, 3).map((point) => {
+                                        const pinned = pinnedKeys.has(point.key);
+                                        return (
+                                            <div key={`${point.key}-${point.reason}-${point.resource || 'none'}`} className="border border-slate-800 rounded px-2 py-2 bg-slate-900/70">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-[9px] font-black text-rose-300 bg-rose-950/70 border border-rose-900 rounded-[3px] px-1.5 py-0.5 shrink-0">{formatPressureReason(point.reason)}</span>
+                                                            <span className="text-[10px] text-white font-bold truncate">{point.sectorName || point.key}</span>
+                                                            {pinned && <span className="text-[9px] font-black text-amber-300 bg-amber-950/70 border border-amber-900 rounded-[3px] px-1.5 py-0.5 shrink-0">Pinned</span>}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 font-mono truncate">{point.detail}</div>
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 font-mono shrink-0">{Math.round(point.severity)}</div>
+                                                </div>
+                                                <div className="flex gap-2 mt-2">
+                                                    <button
+                                                        onClick={() => updatePlanner('TOGGLE_PIN', { targetKey: point.key })}
+                                                        className={`flex-1 border rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${pinned ? 'bg-amber-900/50 border-amber-700 text-amber-200' : 'bg-slate-950 border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                                                    >
+                                                        <span className="inline-flex items-center gap-1"><Pin size={10} />{pinned ? 'Unpin' : 'Pin'}</span>
+                                                    </button>
+                                                    {point.sectorName && (
+                                                        <button
+                                                            onClick={() => updatePlanner('TOGGLE_RELIEF', { sectorName: point.sectorName })}
+                                                            className={`flex-1 border rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${reliefSectors.has(point.sectorName) ? 'bg-rose-900/50 border-rose-700 text-rose-200' : 'bg-slate-950 border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                                                        >
+                                                            <span className="inline-flex items-center gap-1"><Siren size={10} />{reliefSectors.has(point.sectorName) ? 'Clear Relief' : 'Emergency Relief'}</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            <div className="mt-3 border-t border-slate-800 pt-3">
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                    <div className="text-slate-300 text-xs font-bold uppercase tracking-wider">Corridor Watch</div>
+                                    <div className="text-[10px] text-slate-500 font-mono">{corridors.length} tracked</div>
+                                </div>
+                                {corridors.length === 0 ? (
+                                    <div className="text-[10px] text-slate-500 font-mono">No corridor history yet. Keep the rail grid moving to start a before/after read.</div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {corridors.slice(0, 2).map((corridor) => (
+                                            <div key={corridor.id} className="bg-slate-900/60 border border-slate-800 rounded px-2 py-2">
+                                                <div className="flex items-center justify-between gap-2 mb-2">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <span className="text-[9px] font-black text-cyan-300 bg-cyan-950/70 border border-cyan-900 rounded-[3px] px-1.5 py-0.5 shrink-0">{getSectorBadge(corridor.sectorName)}</span>
+                                                        <div className="text-[10px] text-white font-bold truncate">{corridor.sectorName}</div>
+                                                    </div>
+                                                    <div className={`flex items-center gap-1 text-[10px] font-mono shrink-0 ${getCorridorTrendTone(corridor.trend)}`}>
+                                                        {corridor.trend === 'UP' && <TrendingUp size={10} />}
+                                                        {corridor.trend === 'DOWN' && <TrendingDown size={10} />}
+                                                        {corridor.trend !== 'UP' && corridor.trend !== 'DOWN' && <Minus size={10} />}
+                                                        {getCorridorTrendLabel(corridor.trend)}
+                                                    </div>
+                                                </div>
+                                                <PriceSparkline
+                                                    history={corridor.history}
+                                                    color={corridor.trend === 'DOWN' ? '#fb7185' : corridor.trend === 'UP' ? '#34d399' : '#38bdf8'}
+                                                    heightClass="h-12"
+                                                />
+                                                <div className="grid grid-cols-1 gap-1 mt-2 text-[10px] font-mono">
+                                                    <div className="text-sky-300">Trend {getCorridorTrendLabel(corridor.trend)} · {getCorridorTrendDelta(corridor)}</div>
+                                                    <div className="text-cyan-300">Before / After {Math.round(corridor.baselineThroughput)} → {Math.round(corridor.throughput)}</div>
+                                                    <div className="text-amber-300">Anchor {corridor.anchorKey}</div>
+                                                    <div className="text-rose-300">Debt {Math.round(corridor.routeDebtShare)} · Feed {corridor.underfedProcessors} · Hot {corridor.hotspots}</div>
+                                                    <div className="text-lime-300">Follow-through {corridor.followThrough}</div>
+                                                    <div className="text-slate-500">Upgrade chain {formatSuggestedBuilding(corridor.recommendedBuilding)}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="mt-3 border-t border-slate-800 pt-3">
+                                <div className="text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">Recommendations</div>
+                                {recommendations.length === 0 ? (
+                                    <div className="text-[10px] text-slate-500 font-mono">No upgrade recommendations yet.</div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {recommendations.slice(0, 2).map((rec) => {
+                                            const corridor = getRecommendationCorridor(rec, corridors);
+                                            return (
+                                                <div key={rec.id} className="border border-slate-800 rounded px-2 py-2 bg-slate-900/70">
+                                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                                        <div>
+                                                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Upgrade lane {getRecommendationScope(rec)}</div>
+                                                            <div className="text-xs font-bold text-cyan-200">{rec.label}</div>
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-500 font-mono">{Math.round(rec.severity)}</div>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 gap-1 text-[10px] font-mono">
+                                                        <div className="text-slate-300">Anchor {corridor?.anchorKey || rec.targetKey || 'Network'} · {formatSuggestedBuilding(rec.suggestedBuilding)}</div>
+                                                        <div className="text-slate-400">Follow-through {corridor?.followThrough || 'Stabilize this node before scaling outward.'}</div>
+                                                        <div className="text-amber-300">{getRecommendationHint(rec)}</div>
+                                                        <div className="text-lime-300">Goal {getRecommendationGoal(rec)}</div>
+                                                        <div className="text-cyan-300">Chain {getRecommendationChain(rec)}</div>
+                                                    </div>
+                                                    <div className="flex gap-2 mt-3">
+                                                        <button
+                                                            onClick={() => updatePlanner('FOCUS_RECOMMENDATION', {
+                                                                targetKey: rec.targetKey,
+                                                                sectorName: rec.sectorName,
+                                                                suggestedBuilding: rec.suggestedBuilding,
+                                                                reason: rec.reason,
+                                                            })}
+                                                            className="flex-1 bg-cyan-950/60 hover:bg-cyan-900/70 border border-cyan-800 text-cyan-200 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                                        >
+                                                            Frame, Preview & Overlay
+                                                        </button>
+                                                        <button
+                                                            onClick={() => updatePlanner('TOGGLE_PIN', { targetKey: rec.targetKey })}
+                                                            className={`flex-1 border rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${pinnedKeys.has(rec.targetKey) ? 'bg-amber-900/50 border-amber-700 text-amber-200' : 'bg-slate-950 border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                                                        >
+                                                            {pinnedKeys.has(rec.targetKey) ? 'Pinned' : 'Pin Upgrade'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {sectors.length === 0 ? (
+                            <div className="text-[10px] text-slate-500 font-mono">No train sectors yet. Build regional rail to activate regional trade identities.</div>
+                        ) : (
+                            <div className="space-y-3">
+                                {sectors.map((sector) => {
+                                    const exportResource = sector.exportResource || 'MINERALS';
+                                    const importResource = sector.importResource || 'WOOD';
+                                    const directive = sector.directive || 'BALANCED';
+                                    const priorityResource = sector.priorityResource || exportResource;
+                                    const flowMode = sector.flowMode || 'STABLE';
+                                    const congestionPolicy = sector.congestionPolicy || 'BALANCED';
+                                    const contractResource = sector.contractResource || exportResource;
+                                    const contractTarget = sector.contractTarget || CONTRACT_TARGETS[1];
+                                    const contractProgress = sector.contractProgress || 0;
+                                    const quotaCompletion = Math.min(1, contractTarget > 0 ? contractProgress / contractTarget : 0);
+                                    const congestion = sector.congestionLevel || 0;
+                                    const satisfaction = sector.satisfaction || 0;
+                                    const bonusChain = sector.bonusChain || 0;
+                                    const inRelief = reliefSectors.has(sector.name);
+
+                                    const updatePolicy = (updates: Partial<Pick<typeof sector, 'directive' | 'priorityResource' | 'flowMode' | 'congestionPolicy' | 'contractResource' | 'contractTarget'>>) => {
+                                        dispatch({
+                                            type: 'UPDATE_SECTOR_POLICY',
+                                            payload: {
+                                                sectorName: sector.name,
+                                                ...updates,
+                                            },
+                                        });
+                                        playSfx('UI_CLICK');
+                                    };
+
+                                    return (
+                                        <div key={sector.name} className={`border rounded-xl p-3 ${inRelief ? 'bg-rose-950/20 border-rose-800' : 'bg-slate-950/60 border-slate-800'}`}>
+                                            <div className="flex items-start justify-between gap-3 mb-3">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-[9px] font-black text-slate-200 bg-slate-800 border border-slate-700 rounded-[3px] px-1.5 py-0.5">{getSectorBadge(sector.name)}</span>
+                                                        <h4 className="text-sm font-black text-white uppercase tracking-wide">{sector.name}</h4>
+                                                        {inRelief && <span className="text-[9px] font-black text-rose-300 bg-rose-950/70 border border-rose-900 rounded-[3px] px-1.5 py-0.5">Emergency Relief</span>}
+                                                    </div>
+                                                    <div className="text-[10px] font-mono text-slate-500">Export {SECTOR_RESOURCE_LABELS[exportResource]} · Import {SECTOR_RESOURCE_LABELS[importResource]} · Priority {SECTOR_RESOURCE_LABELS[priorityResource]}</div>
+                                                </div>
+                                                <button
+                                                    onClick={() => updatePlanner('TOGGLE_RELIEF', { sectorName: sector.name })}
+                                                    className={`border rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${inRelief ? 'bg-rose-900/50 border-rose-700 text-rose-200' : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                                                >
+                                                    {inRelief ? 'Clear Relief' : 'Mark Relief'}
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2 text-[10px] font-mono">
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><RadioTower size={10} />Throughput</div>
+                                                    <div className="text-cyan-300 font-bold">{Math.round(sector.throughput)}</div>
+                                                    <div className="text-slate-400">{sector.stationCount} hubs · {Math.round((sector.demandBonus || 0) * 100)}% bonus</div>
+                                                </div>
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Gauge size={10} />Flow</div>
+                                                    <div className="text-sky-300 font-bold">{flowMode}</div>
+                                                    <div className="text-slate-400">{directive} · {SECTOR_RESOURCE_LABELS[priorityResource]}</div>
+                                                </div>
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={10} />Congestion</div>
+                                                    <div className="text-rose-300 font-bold">{Math.round(congestion * 100)}%</div>
+                                                    <div className="text-slate-400">{congestionPolicy} · {Math.round(sector.droneLoad || 0)} drone</div>
+                                                </div>
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Zap size={10} />Satisfaction</div>
+                                                    <div className={`${getSatisfactionTone(satisfaction)} font-bold`}>{toPercent(satisfaction)}</div>
+                                                    <div className="text-slate-400">Chain x{Math.max(1, bonusChain)} · Miss {sector.missedQuotaTicks || 0}</div>
+                                                </div>
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Map size={10} />Market</div>
+                                                    <div className="text-lime-300 font-bold">+{Math.round((sector.exportPremium || 0) * 100)}%</div>
+                                                    <div className="text-slate-400">-{Math.round((sector.importDiscount || 0) * 100)}% import</div>
+                                                </div>
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><ClipboardList size={10} />Quota</div>
+                                                    <div className="text-orange-300 font-bold">{SECTOR_RESOURCE_LABELS[contractResource]}</div>
+                                                    <div className="text-slate-400">{Math.round(contractProgress)} / {contractTarget}</div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-3">
+                                                <div className="flex items-center justify-between text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">
+                                                    <span>Demand contract</span>
+                                                    <span>{Math.round(quotaCompletion * 100)}% · +{sector.contractReward || 0} AGT</span>
+                                                </div>
+                                                <div className="w-full h-2 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
+                                                    <div className="h-full bg-gradient-to-r from-orange-500 to-amber-400" style={{ width: `${quotaCompletion * 100}%` }} />
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Performance goal</div>
+                                                <div className="text-[10px] text-lime-300 font-mono">{getSectorPerformanceGoal({ name: sector.name, satisfaction, contractTarget, contractProgress, contractResource, bonusChain })}</div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 mt-3">
+                                                <button
+                                                    onClick={() => updatePolicy({ directive: getNextDirective(directive) })}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Dispatch</div>
+                                                    <div className="text-xs font-bold text-cyan-300">{directive}</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => updatePolicy({ priorityResource: getNextPriorityResource(priorityResource) })}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Priority</div>
+                                                    <div className="text-xs font-bold text-amber-300">{SECTOR_RESOURCE_LABELS[priorityResource]}</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => updatePolicy({ flowMode: getNextFlowMode(flowMode) })}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Throughput</div>
+                                                    <div className="text-xs font-bold text-sky-300">{flowMode}</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => updatePolicy({ congestionPolicy: getNextCongestionPolicy(congestionPolicy) })}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Congestion</div>
+                                                    <div className="text-xs font-bold text-rose-300">{congestionPolicy}</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => updatePolicy({ contractResource: getNextPriorityResource(contractResource) })}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Contract</div>
+                                                    <div className="text-xs font-bold text-orange-300">{SECTOR_RESOURCE_LABELS[contractResource]}</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => updatePolicy({ contractTarget: getNextContractTarget(contractTarget) })}
+                                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded px-2 py-2 text-left transition-colors"
+                                                >
+                                                    <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Quota</div>
+                                                    <div className="text-xs font-bold text-lime-300">{contractTarget}</div>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                         <div className="flex justify-between items-start mb-4">
                             <div>
@@ -82,42 +596,130 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                 {market.minerals.trend}
                             </div>
                         </div>
-
                         <PriceSparkline history={market.minerals.history} color={market.minerals.trend === 'FALLING' ? '#fb7185' : '#34d399'} />
-
                         <div className="mt-4 flex gap-2">
                             <button
-                                onClick={() => { dispatch({ type: 'SELL_MINERALS' }); }}
+                                onClick={() => { dispatch({ type: 'SELL_MINERALS' }); playSfx('UI_COIN'); }}
                                 disabled={resources.minerals <= 0}
-                                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg text-xs transition-all flex items-center justify-center gap-1"
                             >
-                                <DollarSign size={16} /> SELL ALL ({Math.floor(resources.minerals)})
+                                SELL ({Math.floor(resources.minerals)})
+                            </button>
+                            <button
+                                onClick={() => { dispatch({ type: 'BUY_RESOURCE', payload: { resource: 'minerals', amount: 100 } }); }}
+                                disabled={resources.agt < Math.floor(market.minerals.currentPrice * 1.25 * 100)}
+                                className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-blue-400 font-bold py-2 rounded-lg text-xs border border-blue-500/30"
+                            >
+                                BUY 100 ({(market.minerals.currentPrice * 1.25 * 100).toFixed(0)})
                             </button>
                         </div>
                     </div>
 
-                    {/* GEMS MARKET */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 opacity-50 relative">
-                        <div className="absolute inset-0 flex items-center justify-center z-10">
-                            <div className="bg-black/80 px-4 py-2 rounded border border-slate-700 text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                Market Offline (Alpha)
-                            </div>
-                        </div>
-                        <div className="flex justify-between items-start mb-4 blur-sm">
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                        <div className="flex justify-between items-start mb-4">
                             <div>
-                                <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Precious Gems Index</h3>
+                                <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Thundergems Index</h3>
                                 <div className="flex items-end gap-2">
                                     <span className="text-3xl font-mono text-white">{market.gems.currentPrice.toFixed(1)}</span>
-                                    <span className="text-xs font-bold text-slate-500 mb-1">AGT / ct</span>
+                                    <span className="text-xs font-bold text-slate-500 mb-1">AGT / Gem</span>
                                 </div>
                             </div>
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${market.gems.trend === 'RISING' ? 'bg-emerald-500/20 text-emerald-400' :
+                                market.gems.trend === 'FALLING' ? 'bg-rose-500/20 text-rose-400' :
+                                    'bg-slate-800 text-slate-400'
+                                }`}>
+                                {market.gems.trend === 'RISING' && <TrendingUp size={12} />}
+                                {market.gems.trend === 'FALLING' && <TrendingDown size={12} />}
+                                {market.gems.trend}
+                            </div>
                         </div>
-                        <div className="blur-sm">
-                            <PriceSparkline history={market.gems.history} color="#a78bfa" />
+                        <PriceSparkline history={market.gems.history} color="#a78bfa" />
+                        <div className="mt-4 space-y-3">
+                            <div>
+                                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1 block">Recipient Wallet Address</label>
+                                <input
+                                    type="text"
+                                    placeholder="Enter 0x..."
+                                    className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-purple-500 focus:outline-none placeholder-slate-600"
+                                    value={walletAddress}
+                                    onChange={(e) => setWalletAddress(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => {
+                                        dispatch({ type: 'SELL_GEMS', payload: { address: walletAddress } });
+                                        playSfx('UI_COIN');
+                                        setWalletAddress('');
+                                    }}
+                                    disabled={resources.gems <= 0 || !walletAddress.trim()}
+                                    className="flex-1 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg text-xs"
+                                >
+                                    DEPOSIT ({Math.floor(resources.gems)})
+                                </button>
+                                <button
+                                    onClick={() => { dispatch({ type: 'BUY_RESOURCE', payload: { resource: 'gems', amount: 10 } }); }}
+                                    disabled={resources.agt < Math.floor(market.gems.currentPrice * 1.25 * 10)}
+                                    className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-purple-400 font-bold py-2 rounded-lg text-xs border border-purple-500/30"
+                                >
+                                    BUY 10 ({(market.gems.currentPrice * 1.25 * 10).toFixed(0)})
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    {/* CONTRACTS (Placeholder for now) */}
+                    <div className="grid grid-cols-1 gap-4">
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                            <h3 className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Wood Market</h3>
+                            <div className="flex justify-between items-center mb-4">
+                                <span className="text-2xl font-mono text-white">{market.wood.currentPrice.toFixed(1)} <span className="text-xs text-slate-500">AGT</span></span>
+                                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{market.wood.trend}</div>
+                            </div>
+                            <PriceSparkline history={market.wood.history} color="#92400e" />
+                            <div className="flex gap-2 mt-4">
+                                <button
+                                    onClick={() => { dispatch({ type: 'SELL_WOOD' }); playSfx('UI_COIN'); }}
+                                    disabled={resources.wood <= 0}
+                                    className="flex-1 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-2 rounded-lg text-[10px]"
+                                >
+                                    SELL
+                                </button>
+                                <button
+                                    onClick={() => { dispatch({ type: 'BUY_RESOURCE', payload: { resource: 'wood', amount: 50 } }); }}
+                                    disabled={resources.agt < Math.floor(market.wood.currentPrice * 1.25 * 50)}
+                                    className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-amber-500 font-bold py-2 rounded-lg text-[10px] border border-amber-500/30"
+                                >
+                                    BUY 50 ({(market.wood.currentPrice * 1.25 * 50).toFixed(0)})
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                            <h3 className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">Stone Market</h3>
+                            <div className="flex justify-between items-center mb-4">
+                                <span className="text-2xl font-mono text-white">{market.stone.currentPrice.toFixed(1)} <span className="text-xs text-slate-500">AGT</span></span>
+                                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{market.stone.trend}</div>
+                            </div>
+                            <PriceSparkline history={market.stone.history} color="#64748b" />
+                            <div className="flex gap-2 mt-4">
+                                <button
+                                    onClick={() => { dispatch({ type: 'SELL_STONE' }); playSfx('UI_COIN'); }}
+                                    disabled={resources.stone <= 0}
+                                    className="flex-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white font-bold py-2 rounded-lg text-[10px]"
+                                >
+                                    SELL
+                                </button>
+                                <button
+                                    onClick={() => { dispatch({ type: 'BUY_RESOURCE', payload: { resource: 'stone', amount: 50 } }); }}
+                                    disabled={resources.agt < Math.floor(market.stone.currentPrice * 1.25 * 50)}
+                                    className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-400 font-bold py-2 rounded-lg text-[10px] border border-slate-500/30"
+                                >
+                                    BUY 50 ({(market.stone.currentPrice * 1.25 * 50).toFixed(0)})
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="border-t border-slate-800 pt-6">
                         <div className="flex items-center gap-2 mb-4">
                             <Briefcase className="text-amber-500" size={18} />
@@ -133,12 +735,11 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                         ) : (
                             <div className="space-y-3">
                                 {state.contracts.map(contract => {
-                                    const resType = contract.resource.toLowerCase() as 'minerals' | 'gems';
+                                    const resType = contract.resource.toLowerCase() as 'minerals' | 'gems' | 'wood' | 'stone';
                                     const canAfford = resources[resType] >= contract.amount;
 
                                     return (
                                         <div key={contract.id} className="bg-slate-900 border border-slate-700 rounded-lg p-3 relative overflow-hidden group">
-                                            {/* Progress Bar Background for Timer */}
                                             <div
                                                 className="absolute bottom-0 left-0 h-1 bg-amber-500 transition-all duration-1000"
                                                 style={{ width: `${(contract.timeLeft / 120) * 100}%` }}
@@ -169,7 +770,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                             <button
                                                 onClick={() => {
                                                     if (canAfford) {
-                                                        dispatch({ type: 'COMPLETE_CONTRACT', payload: contract.id });
+                                                        dispatch({ type: 'DELIVER_CONTRACT', payload: contract.id });
                                                         playSfx('UI_COIN');
                                                     } else {
                                                         playSfx('UI_ERROR');
@@ -193,6 +794,6 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };

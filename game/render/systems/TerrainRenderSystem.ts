@@ -2,31 +2,41 @@
  * Terrain Render System
  * Manages terrain chunk lifecycle, meshing, and rendering.
  * Uses a simple 2D chunk grid matching the game's heightmap-based terrain.
+ * (|/) Klaasvaakie
  */
 
 import * as THREE from 'three';
-import { JobSystem, MeshChunkResult, MeshChunkJob } from '../../../engine/jobs';
+import { JobSystem, MeshChunkResult, MeshChunkJob, ENGINE_SCHEMA_VERSION, createJob } from '../../../engine/jobs';
 import { GridTile } from '../../../types';
-import { matMaster, mats } from '../../../engine/render/materials/VoxelMaterials';
-import { CHUNK_SIZE, getChunkId, getChunkKey } from '../../../engine/utils/ChunkUtils';
+import { terrainSurfaceMaterial, mats } from '../../../engine/render/materials/VoxelMaterials';
+import { getTerrainChunkLod } from '../../../engine/render/utils/TerrainLod';
+import { CHUNK_SIZE, worldToChunk, worldToLocal, toChunkKey } from '../../../engine/utils/coords';
 
 interface ChunkRenderData {
     mesh: THREE.Mesh | null;
     waterMesh: THREE.Mesh | null;
+    ghostMesh: THREE.Mesh | null;
     dirty: boolean;
     loading: boolean;
+    revision: number;
+    loadingRevision: number;
 }
 
 export class TerrainRenderSystem {
     private scene: THREE.Scene;
-    private gridSize: number;
     private jobSystem: JobSystem;
 
     private chunks: Map<string, ChunkRenderData & { lod: number }> = new Map();
     private tileCache: Map<string, GridTile[]> = new Map();
+    private viewMode: 'SURFACE' | 'FIRST_PERSON' = 'SURFACE';
+    private terrainMeshPool: THREE.Mesh[] = [];
+    private waterMeshPool: THREE.Mesh[] = [];
+    private ghostMeshPool: THREE.Mesh[] = [];
+    private readonly maxPoolSizePerType = 12;
 
-    // View radius in chunks (Reduced for optimization)
-    private viewRadius = 5;
+    // View radius in chunks.
+    // The previous radius was simply too expensive for a mobile target.
+    private viewRadius = ('ontouchstart' in window) ? 4 : 6;
 
     // Track last camera chunk to avoid redundant updates
     private lastCameraCx = -999;
@@ -37,10 +47,27 @@ export class TerrainRenderSystem {
     public onFoliageUpdate?: (key: string, items: any[]) => void;
     public onChunkDispose?: (key: string) => void;
 
-    constructor(scene: THREE.Scene, gridSize: number, jobSystem: JobSystem) {
+    constructor(scene: THREE.Scene, jobSystem: JobSystem) {
         this.scene = scene;
-        this.gridSize = gridSize;
         this.jobSystem = jobSystem;
+    }
+
+    public setViewMode(mode: 'SURFACE' | 'FIRST_PERSON'): void {
+        if (this.viewMode === mode) return;
+        this.viewMode = mode;
+        // Invalidate all chunks to force rebuild with new view mode
+        for (const [key, chunk] of this.chunks) {
+            this.markChunkDirty(key, chunk);
+        }
+    }
+
+    /**
+     * Forces a complete reload of all chunks
+     */
+    public forceReload(): void {
+        this.dispose();
+        this.lastCameraCx = -999;
+        this.lastCameraCz = -999;
     }
 
     /**
@@ -49,18 +76,19 @@ export class TerrainRenderSystem {
     update(cameraFocus: THREE.Vector3, camera?: THREE.Camera): void {
         // Convert world position to grid position, then to chunk coordinates
         // World (0,0) = center of grid. Grid tile (64,64) for 128x128.
-        const offset = (this.gridSize - 1) / 2;
-        const gridX = cameraFocus.x + offset;
-        const gridZ = cameraFocus.z + offset;
-
-        const cameraCx = Math.floor(gridX / CHUNK_SIZE);
-        const cameraCz = Math.floor(gridZ / CHUNK_SIZE);
-
+        const cameraCx = Math.floor(cameraFocus.x / CHUNK_SIZE);
+        const cameraCz = Math.floor(cameraFocus.z / CHUNK_SIZE);
 
         const now = Date.now();
+        const hasDirtyVisibleChunks = (() => {
+            for (const chunk of this.chunks.values()) {
+                if (chunk.dirty || chunk.loading) return true;
+            }
+            return false;
+        })();
         // Only recalculate if camera moved or periodically (every 200ms) for frustum updates
         if (cameraCx === this.lastCameraCx && cameraCz === this.lastCameraCz && (now - this.lastFrustumCheck < 200)) {
-            // return; // Skip for now, need strict updates
+            if (!hasDirtyVisibleChunks) return;
         }
 
         this.lastCameraCx = cameraCx;
@@ -79,7 +107,6 @@ export class TerrainRenderSystem {
 
         // Reuse box for checks
         const box = new THREE.Box3();
-        const chunkOffset = (this.gridSize - 1) / 2;
 
         for (let dx = -this.viewRadius; dx <= this.viewRadius; dx++) {
             for (let dz = -this.viewRadius; dz <= this.viewRadius; dz++) {
@@ -88,32 +115,45 @@ export class TerrainRenderSystem {
 
                 // Frustum Check
                 if (camera) {
-                    const xPos = (cx * CHUNK_SIZE) - chunkOffset;
-                    const zPos = (cz * CHUNK_SIZE) - chunkOffset;
+                    const xPos = cx * CHUNK_SIZE;
+                    const zPos = cz * CHUNK_SIZE;
+                    const margin = 16; // Add one chunk of margin to prevent foliage clipping at edges
 
-                    // Define chunk bounds (Height -10 to 60 approximation)
-                    box.min.set(xPos, -10, zPos);
-                    box.max.set(xPos + CHUNK_SIZE, 60, zPos + CHUNK_SIZE);
+                    // Define chunk bounds with margin for overlapping foliage
+                    box.min.set(xPos - margin, -20, zPos - margin);
+                    box.max.set(xPos + CHUNK_SIZE + margin, 100, zPos + CHUNK_SIZE + margin);
 
                     if (!frustum.intersectsBox(box)) {
                         continue; // Skip off-screen chunks
                     }
                 }
 
-                const key = getChunkKey(cx, cz);
+                const key = toChunkKey(cx, cz);
                 visibleChunks.add(key);
 
                 const dist = Math.max(Math.abs(dx), Math.abs(dz));
-                // Simplified LOD: only LOD 1 for now to prevent thrashing
-                // Future: add proper LOD hysteresis
-                const lod = 1;
+                const lod = getTerrainChunkLod(dist, this.viewRadius);
 
                 // Load chunk if not already present
                 if (!this.chunks.has(key)) {
-                    this.chunks.set(key, { mesh: null, waterMesh: null, dirty: true, loading: false, lod });
+                    this.chunks.set(key, {
+                        mesh: null,
+                        waterMesh: null,
+                        ghostMesh: null,
+                        dirty: true,
+                        loading: false,
+                        lod,
+                        revision: 0,
+                        loadingRevision: -1,
+                    });
                 }
 
                 const chunk = this.chunks.get(key)!;
+                if (chunk.lod !== lod) {
+                    chunk.lod = lod;
+                    this.markChunkDirty(key, chunk);
+                }
+
                 // Only rebuild if dirty AND not already loading
                 if (chunk.dirty && !chunk.loading) {
                     this.requestChunkBuild(cx, cz, lod);
@@ -137,36 +177,40 @@ export class TerrainRenderSystem {
         for (const res of results) {
             if (res.success) {
                 this.applyChunkUpdate(res);
+            } else {
+                console.error(`[TerrainRenderSystem] Chunk build failed for ${res.chunkId}:`, res.error);
+                const chunk = this.chunks.get(res.chunkId);
+                if (chunk) {
+                    chunk.loading = false;
+                    chunk.dirty = true;
+                }
             }
         }
     }
 
     /**
-     * Sync grid state from game state
+     * Sync grid state from game state (now accepts all tiles or chunks)
      */
-    public syncGrid(grid: GridTile[]): void {
-        const newCache = new Map<string, GridTile[]>();
+    public syncGrid(tiles: GridTile[]): void {
+        this.tileCache.clear();
+        const affected = new Set<string>();
 
-        for (const tile of grid) {
-            const { x: cx, z: cz } = getChunkId(tile.id);
-            const key = getChunkKey(cx, cz);
+        for (const tile of tiles) {
+            const { cx, cz } = worldToChunk(tile.x, tile.z, CHUNK_SIZE);
+            const key = toChunkKey(cx, cz);
 
-            if (!newCache.has(key)) {
-                newCache.set(key, []);
+            if (!this.tileCache.has(key)) {
+                this.tileCache.set(key, []);
             }
-            newCache.get(key)!.push(tile);
+            this.tileCache.get(key)!.push(tile);
+            affected.add(key);
         }
 
-        // Update tile cache and mark affected chunks dirty
-        for (const [key, tiles] of newCache) {
-            this.tileCache.set(key, tiles);
-            const chunk = this.chunks.get(key);
-            if (chunk) {
-                chunk.dirty = true;
-            }
+        // Mark affected chunks dirty
+        for (const key of affected) {
+            this.markChunkDirty(key);
         }
 
-        // Force rebuild of all loaded chunks
         this.lastCameraCx = -999;
         this.lastCameraCz = -999;
     }
@@ -174,12 +218,12 @@ export class TerrainRenderSystem {
     /**
      * Handle partial tile updates
      */
-    public updateTiles(updates: GridTile[]): void {
+    public updateTiles(updates: GridTile[]): Set<string> {
         const affected = new Set<string>();
 
         for (const tile of updates) {
-            const { x: cx, z: cz } = getChunkId(tile.id);
-            const key = getChunkKey(cx, cz);
+            const { cx, cz } = worldToChunk(tile.x, tile.z, CHUNK_SIZE);
+            const key = toChunkKey(cx, cz);
 
             let chunkTiles = this.tileCache.get(key);
             if (!chunkTiles) {
@@ -194,44 +238,82 @@ export class TerrainRenderSystem {
                 chunkTiles.push(tile);
             }
 
-            affected.add(key);
+            this.collectAffectedChunkKeys(affected, tile.x, tile.z);
         }
 
         // Mark affected chunks as dirty
         for (const key of affected) {
-            const chunk = this.chunks.get(key);
-            if (chunk) {
-                chunk.dirty = true;
-            }
+            this.markChunkDirty(key);
         }
+
+        return affected;
+    }
+
+    /**
+     * Implements targeted chunk update from Effect
+     */
+    public updateChunk(cx: number, cz: number, updates: GridTile[]): Set<string> {
+        const key = toChunkKey(cx, cz);
+        this.tileCache.set(key, updates);
+
+        const affected = this.getAffectedChunkKeys(cx, cz, updates);
+        for (const affectedKey of affected) {
+            this.markChunkDirty(affectedKey);
+        }
+        return affected;
+    }
+
+    public getAffectedChunkKeys(cx: number, cz: number, updates: GridTile[]): Set<string> {
+        const affected = new Set<string>([toChunkKey(cx, cz)]);
+        for (const tile of updates) {
+            this.collectAffectedChunkKeys(affected, tile.x, tile.z);
+        }
+        return affected;
+    }
+
+    private collectAffectedChunkKeys(affected: Set<string>, x: number, z: number): void {
+        const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
+        const { lx, lz } = worldToLocal(x, z, CHUNK_SIZE);
+        affected.add(toChunkKey(cx, cz));
+
+        if (lx === 0) affected.add(toChunkKey(cx - 1, cz));
+        if (lx === CHUNK_SIZE - 1) affected.add(toChunkKey(cx + 1, cz));
+        if (lz === 0) affected.add(toChunkKey(cx, cz - 1));
+        if (lz === CHUNK_SIZE - 1) affected.add(toChunkKey(cx, cz + 1));
+    }
+
+    private markChunkDirty(key: string, chunk = this.chunks.get(key)): void {
+        if (!chunk) {
+            return;
+        }
+        chunk.dirty = true;
+        chunk.revision += 1;
     }
 
     private requestChunkBuild(cx: number, cz: number, lod: number = 1): void {
-        const key = getChunkKey(cx, cz);
+        const key = toChunkKey(cx, cz);
         const tiles = this.tileCache.get(key) || [];
+        const chunk = this.chunks.get(key);
+        if (!chunk) {
+            return;
+        }
 
-        const job: MeshChunkJob = {
-            id: `mesh_${key}_${Date.now()}`,
-            kind: 'MESH_CHUNK',
+        const job = createJob<MeshChunkJob>('MESH_CHUNK', {
             priority: 10,
-            queuedAt: Date.now(),
             payload: {
                 chunkId: key,
                 cx,
                 cz,
                 tiles,
-                gridSize: this.gridSize,
-                lod
+                viewMode: 'SURFACE',
+                lod,
             }
-        };
+        });
 
         this.jobSystem.enqueue(job);
-
-        const chunk = this.chunks.get(key);
-        if (chunk) {
-            chunk.loading = true;
-            chunk.dirty = false;
-        }
+        chunk.loading = true;
+        chunk.dirty = false;
+        chunk.loadingRevision = chunk.revision;
     }
 
     private applyChunkUpdate(res: MeshChunkResult): void {
@@ -239,51 +321,36 @@ export class TerrainRenderSystem {
         if (!chunk) return; // Chunk was unloaded while building
 
         chunk.loading = false;
-
-        // Dispose old meshes
-        if (chunk.mesh) {
-            this.scene.remove(chunk.mesh);
-            chunk.mesh.geometry.dispose();
+        if (chunk.loadingRevision !== chunk.revision) {
+            chunk.dirty = true;
+            return;
         }
-        if (chunk.waterMesh) {
-            this.scene.remove(chunk.waterMesh);
-            chunk.waterMesh.geometry.dispose();
+        if (chunk.lod !== (res.lod ?? 1)) {
+            chunk.dirty = true;
+            return;
         }
 
         // Calculate world position for chunk
-        const offset = (this.gridSize - 1) / 2;
-        const xPos = (res.cx * CHUNK_SIZE) - offset;
-        const zPos = (res.cz * CHUNK_SIZE) - offset;
+        const xPos = res.cx * CHUNK_SIZE;
+        const zPos = res.cz * CHUNK_SIZE;
 
-        // Helper to create mesh from buffer data
-        const createMesh = (data: any, mat: THREE.Material, castShadow: boolean): THREE.Mesh | null => {
-            if (!data || !data.p || data.p.length === 0) return null;
-
-            const geo = new THREE.BufferGeometry();
-            geo.setAttribute('position', new THREE.BufferAttribute(data.p, 3));
-            geo.setAttribute('normal', new THREE.BufferAttribute(data.n, 3));
-            geo.setAttribute('color', new THREE.BufferAttribute(data.c, 3));
-            geo.setAttribute('uv', new THREE.BufferAttribute(data.u, 2));
-            geo.computeBoundingSphere();
-            geo.computeBoundingBox();
-
-            const mesh = new THREE.Mesh(geo, mat);
-            mesh.position.set(xPos, 0, zPos);
-            mesh.castShadow = castShadow;
-            mesh.receiveShadow = true;
-            mesh.frustumCulled = true;
-            return mesh;
-        };
-
-        chunk.mesh = createMesh(res.solid, matMaster, true);
+        // Terrain should receive shadows from buildings/foliage, but not cast its own
+        // broad self-shadow bands back onto itself.
+        chunk.mesh = this.upsertChunkMesh(chunk.mesh, res.solid, terrainSurfaceMaterial, false, xPos, zPos, this.terrainMeshPool);
         if (chunk.mesh) {
-            this.scene.add(chunk.mesh);
+            chunk.mesh.receiveShadow = true;
+        } else {
+            console.warn(`[TerrainRenderSystem] Mesh IS NULL for ${res.chunkId}`);
         }
 
-        chunk.waterMesh = createMesh(res.water, mats.reservoirWater, false);
+        chunk.waterMesh = this.upsertChunkMesh(chunk.waterMesh, res.water, mats.waterSurface, false, xPos, zPos, this.waterMeshPool);
         if (chunk.waterMesh) {
             chunk.waterMesh.receiveShadow = false;
-            this.scene.add(chunk.waterMesh);
+        }
+
+        chunk.ghostMesh = this.upsertChunkMesh(chunk.ghostMesh, res.ghost, mats.ghost, false, xPos, zPos, this.ghostMeshPool);
+        if (chunk.ghostMesh) {
+            chunk.ghostMesh.receiveShadow = false;
         }
 
         // Foliage callback
@@ -292,14 +359,81 @@ export class TerrainRenderSystem {
         }
     }
 
+    private upsertChunkMesh(
+        existing: THREE.Mesh | null,
+        data: any,
+        material: THREE.Material,
+        castShadow: boolean,
+        xPos: number,
+        zPos: number,
+        pool: THREE.Mesh[]
+    ): THREE.Mesh | null {
+        if (!data || !data.p || data.p.length === 0) {
+            if (existing) {
+                this.releaseChunkMesh(existing, pool);
+            }
+            return null;
+        }
+
+        const mesh = existing || this.acquirePooledMesh(material, castShadow, pool);
+        this.applyMeshGeometry(mesh, data);
+        mesh.position.set(xPos, 0, zPos);
+        mesh.castShadow = castShadow;
+        mesh.receiveShadow = true;
+        mesh.frustumCulled = true;
+        mesh.visible = true;
+        return mesh;
+    }
+
+    private acquirePooledMesh(material: THREE.Material, castShadow: boolean, pool: THREE.Mesh[]): THREE.Mesh {
+        const mesh = pool.pop() || new THREE.Mesh(new THREE.BufferGeometry(), material);
+        if (!this.scene.children.includes(mesh)) {
+            this.scene.add(mesh);
+        }
+        mesh.material = material;
+        mesh.castShadow = castShadow;
+        mesh.receiveShadow = true;
+        mesh.frustumCulled = true;
+        mesh.visible = true;
+        return mesh;
+    }
+
+    private releaseChunkMesh(mesh: THREE.Mesh, pool: THREE.Mesh[]): void {
+        this.scene.remove(mesh);
+        if (mesh.geometry) {
+            mesh.geometry.dispose();
+            mesh.geometry = new THREE.BufferGeometry();
+        }
+        mesh.visible = false;
+        if (pool.length < this.maxPoolSizePerType) {
+            pool.push(mesh);
+        }
+    }
+
+    private applyMeshGeometry(mesh: THREE.Mesh, data: any): void {
+        if (mesh.geometry) {
+            mesh.geometry.dispose();
+        }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(data.p, 3));
+        geo.setAttribute('normal', new THREE.BufferAttribute(data.n, 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(data.c, 3));
+        geo.setAttribute('uv', new THREE.BufferAttribute(data.u, 2));
+        geo.computeBoundingSphere();
+        geo.computeBoundingBox();
+        mesh.geometry = geo;
+    }
+
     private disposeChunk(key: string, chunk: ChunkRenderData): void {
         if (chunk.mesh) {
-            this.scene.remove(chunk.mesh);
-            chunk.mesh.geometry.dispose();
+            this.releaseChunkMesh(chunk.mesh, this.terrainMeshPool);
         }
         if (chunk.waterMesh) {
-            this.scene.remove(chunk.waterMesh);
-            chunk.waterMesh.geometry.dispose();
+            this.releaseChunkMesh(chunk.waterMesh, this.waterMeshPool);
+        }
+        if (chunk.ghostMesh) {
+            this.releaseChunkMesh(chunk.ghostMesh, this.ghostMeshPool);
         }
         if (this.onChunkDispose) {
             this.onChunkDispose(key);
@@ -312,5 +446,17 @@ export class TerrainRenderSystem {
         }
         this.chunks.clear();
         this.tileCache.clear();
+        this.disposeMeshPool(this.terrainMeshPool);
+        this.disposeMeshPool(this.waterMeshPool);
+        this.disposeMeshPool(this.ghostMeshPool);
+    }
+
+    private disposeMeshPool(pool: THREE.Mesh[]): void {
+        while (pool.length > 0) {
+            const mesh = pool.pop();
+            if (!mesh) continue;
+            this.scene.remove(mesh);
+            mesh.geometry.dispose();
+        }
     }
 }

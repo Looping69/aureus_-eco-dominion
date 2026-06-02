@@ -8,7 +8,9 @@ import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
 import { GameState, BuildingType } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
-import { resolveBuildingDefinition } from '../../utils/buildingLevels';
+import { ChunkStore } from '../../space/ChunkStore';
+import { getSolarEfficiency } from '../dayNightCycle';
+import { getWeatherGameplayEffects } from '../../weather/weatherModel';
 
 export class PowerGridSystem extends BaseSimSystem {
     readonly id = 'powerGrid';
@@ -21,73 +23,132 @@ export class PowerGridSystem extends BaseSimSystem {
         if (ctx.time - this.lastUpdate < this.INTERVAL) return;
         this.lastUpdate = ctx.time;
 
-        // Ensure powerGrid exists (handles old saves)
-        if (!state.powerGrid) {
-            state.powerGrid = { totalProduced: 0, totalConsumed: 0, deficit: 0 };
-        }
-
-        // Safety check for grid
-        if (!state.grid || !Array.isArray(state.grid)) return;
-
         let totalProduced = 0;
         let totalConsumed = 0;
+        let industrialDemand = 0;
+        let strandedDemand = 0;
+
+        // 1. Identify Sources and reset network state
+        const openSet: { x: number, z: number }[] = [];
+        const empoweredTiles = new Set<string>(); // Use "x,z" as key
 
         const isDaytime = state.dayNightCycle?.isDaytime ?? true;
         const timeOfDay = state.dayNightCycle?.timeOfDay ?? 12000;
+        const weatherEffects = getWeatherGameplayEffects(state.weather);
 
-        for (const tile of state.grid) {
-            if (!tile) continue; // Skip undefined tiles
+        for (const chunk of Object.values(state.chunks)) {
+            for (const tile of chunk.tiles) {
+                if (!tile) continue;
 
-            // Skip empty or under construction
-            if (tile.buildingType === BuildingType.EMPTY || tile.isUnderConstruction) continue;
+                const def = BUILDINGS[tile.buildingType];
+                if (!def) continue;
 
-            // Skip multi-tile tails (only process head)
-            if (tile.structureHeadIndex !== undefined && tile.id !== tile.structureHeadIndex) continue;
+                // Sources
+                if (def.power?.produces) {
+                    let production = def.power.produces;
 
-            const def = resolveBuildingDefinition(BUILDINGS[tile.buildingType], tile.level || 1);
-            if (!def) continue;
+                    // Solar Logic
+                    if (tile.buildingType === BuildingType.SOLAR_ARRAY) {
+                        if (!isDaytime) {
+                            production = 0;
+                        } else {
+                            const solarEfficiency = getSolarEfficiency(timeOfDay);
+                            production = Math.floor(def.power.produces * solarEfficiency * weatherEffects.solarMult);
+                        }
+                    }
 
-            // Power Production
-            if (def.power?.produces) {
-                let production = def.power.produces;
+                    // Wind turbines should meaningfully respond to gust fronts and storms.
+                    if (tile.buildingType === BuildingType.WIND_TURBINE) {
+                        production = Math.floor(def.power.produces * weatherEffects.windMult);
+                    }
 
-                // Solar panels produce less at night
-                if (tile.buildingType === BuildingType.SOLAR_ARRAY) {
-                    if (!isDaytime) {
-                        // Night: 0% production
-                        production = 0;
+                    totalProduced += production;
+
+                    // If producing power, it pushes to grid
+                    if (production > 0) {
+                        openSet.push({ x: tile.x, z: tile.z });
+                        empoweredTiles.add(`${tile.x},${tile.z}`);
+                        tile.powerStatus = 'CONNECTED';
                     } else {
-                        // Day: Scale based on time (peak at noon = 12000)
-                        const distFromNoon = Math.abs(timeOfDay - 12000);
-                        const dayHalfWidth = 6000; // 6AM to 6PM
-                        const solarEfficiency = Math.max(0.3, 1 - (distFromNoon / dayHalfWidth) * 0.5);
-                        production = Math.floor(def.power.produces * solarEfficiency);
+                        tile.powerStatus = 'DISCONNECTED'; // Generator off/night
                     }
+                } else if (tile.buildingType === BuildingType.POWER_LINE || def.power?.consumes) {
+                    // Default to disconnected
+                    tile.powerStatus = 'DISCONNECTED';
                 }
-
-                // Wind turbines affected by weather
-                if (tile.buildingType === BuildingType.WIND_TURBINE) {
-                    if (state.weather?.current === 'STORM' || state.weather?.current === 'DUST_STORM') {
-                        production = Math.floor(def.power.produces * 1.5); // More wind!
-                    } else if (state.weather?.current === 'CLEAR') {
-                        production = Math.floor(def.power.produces * 0.7); // Less wind
-                    }
-                }
-
-                totalProduced += production;
-            }
-
-            // Power Consumption
-            if (def.power?.consumes) {
-                totalConsumed += def.power.consumes;
             }
         }
 
-        // Update state
+        // 2. BFS Propagation
+        let head = 0;
+        while (head < openSet.length) {
+            const { x, z } = openSet[head++];
+
+            const neighbors = [
+                { nx: x + 1, nz: z },
+                { nx: x - 1, nz: z },
+                { nx: x, nz: z + 1 },
+                { nx: x, nz: z - 1 }
+            ];
+
+            for (const { nx, nz } of neighbors) {
+                const key = `${nx},${nz}`;
+                if (empoweredTiles.has(key)) continue;
+
+                // Look up tile in chunks
+                const neighbor = ChunkStore.getTile(state.chunks, nx, nz);
+                if (!neighbor) continue;
+
+                const nDef = BUILDINGS[neighbor.buildingType];
+                if (!nDef) continue;
+
+                if (neighbor.buildingType === BuildingType.POWER_LINE) {
+                    neighbor.powerStatus = 'CONNECTED';
+                    empoweredTiles.add(key);
+                    openSet.push({ x: nx, z: nz });
+                } else if (nDef.power?.consumes) {
+                    neighbor.powerStatus = 'CONNECTED';
+                    empoweredTiles.add(key);
+                    // Do not propagate through buildings to avoid daisy-chaining without wires
+                }
+            }
+        }
+
+        // 3. Calculate connected and stranded demand separately
+        for (const chunk of Object.values(state.chunks)) {
+            for (const tile of chunk.tiles) {
+                if (!tile) continue;
+                const def = BUILDINGS[tile.buildingType];
+                if (!def?.power?.consumes) continue;
+
+                if (tile.powerStatus === 'CONNECTED') {
+                    totalConsumed += def.power.consumes;
+                    if (this.isIndustrialConsumer(tile.buildingType)) {
+                        industrialDemand += def.power.consumes;
+                    }
+                } else {
+                    strandedDemand += def.power.consumes;
+                }
+            }
+        }
+
         state.powerGrid = {
             totalProduced,
             totalConsumed,
+            industrialDemand,
+            strandedDemand,
             deficit: Math.max(0, totalConsumed - totalProduced)
         };
+    }
+
+    private isIndustrialConsumer(type: BuildingType): boolean {
+        return [
+            BuildingType.WASH_PLANT,
+            BuildingType.RECYCLING_PLANT,
+            BuildingType.ORE_FOUNDRY,
+            BuildingType.GEM_REFINERY,
+            BuildingType.WORKSHOP,
+            BuildingType.GREEN_TECH_LAB,
+        ].includes(type);
     }
 }

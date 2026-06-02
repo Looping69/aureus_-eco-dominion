@@ -5,118 +5,368 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
-import { GameState, BuildingType, SfxType } from '../../../types';
+import { BuildingType, FactoryNodeState, FactoryResourceType, FactoryState, GameState, IndustryState, SfxType } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
-import { resolveBuildingDefinition } from '../../utils/buildingLevels';
-import { getEcoMultiplier } from '../../utils/GameUtils';
+import { getEcoMultiplier, HARVESTABLE_TREES, HARVESTABLE_ROCKS } from '../../utils/GameUtils';
+import { BASE_STORAGE_CAPACITY, DEPOT_CAPACITY_BONUS, STOCKPILE_CAPACITY_BONUS } from '../logic/SimulationLogic';
+import { ChunkStore } from '../../space/ChunkStore';
+import { worldToChunk, CHUNK_SIZE } from '../../utils/coords';
+import { getEventEnvironmentModifiers, getWeatherGameplayEffects } from '../../weather/weatherModel';
 
 export class ProductionSystem extends BaseSimSystem {
     readonly id = 'production';
     readonly priority = 25;
 
     private lastUpdate = 0;
-    private readonly INTERVAL = 1.0; // Seconds
+    private readonly INTERVAL = 1.0;
+    private readonly FACTORY_OUTPUT_CAP = 20;
 
     tick(ctx: FixedContext, state: GameState): void {
         if (ctx.time - this.lastUpdate < this.INTERVAL) return;
         const dt = ctx.time - this.lastUpdate;
         this.lastUpdate = ctx.time;
 
-        const grid = state.grid;
-        if (!grid) return;
-
         let mineralProd = 0;
+        let woodProd = 0;
+        let stoneProd = 0;
+        let gemProd = 0;
+        let trustProd = 0;
         let ecoChange = 0;
         let totalMaintenance = 0;
+        let automatedChains = 0;
 
         const ecoMult = getEcoMultiplier(state.resources.eco);
         const trustMult = 1 + (state.resources.trust / 200);
         const modifiers = this.getModifiers(state);
         let totalIncome = 0;
+        const factory = this.getFactoryState(state);
+        const factoryPenalty = 1 - (state.factory?.pressure?.efficiencyPenalty || 0);
 
-        for (const tile of grid) {
-            // Illegal camps penalize income
-            if (tile.foliage === 'ILLEGAL_CAMP') {
-                totalIncome -= 5;
-            }
+        let hasSpaceport = false;
+        let hasWasteTreatment = false;
 
-            if (tile.buildingType === BuildingType.EMPTY || tile.isUnderConstruction) {
-                // Passive foliage effects
-                if (tile.foliage === 'MINE_HOLE') ecoChange += 0.01;
-                continue;
-            }
+        for (const chunk of Object.values(state.chunks)) {
+            for (const tile of chunk.tiles) {
+                if (tile.foliage === 'ILLEGAL_CAMP') {
+                    totalIncome -= 5;
+                }
 
-            // Multi-tile building optimization: only process head
-            if (tile.structureHeadIndex !== undefined && tile.id !== tile.structureHeadIndex) continue;
+                if (tile.buildingType === BuildingType.EMPTY || tile.isUnderConstruction) {
+                    if (tile.foliage === 'MINE_HOLE') ecoChange += 0.01;
+                    continue;
+                }
 
-            const def = resolveBuildingDefinition(BUILDINGS[tile.buildingType], tile.level || 1);
-            if (!def) continue;
+                if (tile.structureHeadX !== undefined && (tile.x !== tile.structureHeadX || tile.z !== tile.structureHeadZ)) continue;
 
-            // Maintenance (Cost per second)
-            totalMaintenance += def.maintenance * modifiers.upkeep;
+                const def = BUILDINGS[tile.buildingType];
+                if (!def) continue;
 
-            // Pollution (Eco impact)
-            ecoChange += (def.pollution > 0 ? (def.pollution * 0.05 / 10) : (def.pollution / 10));
+                let currentDef: any = def;
+                if (def.upgrades && (tile.level || 1) > 1) {
+                    const upgrade = def.upgrades.find((u) => u.level === tile.level);
+                    if (upgrade) {
+                        currentDef = { ...def, ...upgrade };
+                    }
+                }
 
-            // Power/Water efficiency
-            let powerEfficiency = 1.0;
-            let waterEfficiency = 1.0;
+                if (tile.buildingType === BuildingType.SPACEPORT) hasSpaceport = true;
+                if (tile.buildingType === BuildingType.WASTE_TREATMENT) hasWasteTreatment = true;
 
-            // Buildings with power consumption operate at 25% if grid has deficit
-            if (def.power?.consumes && state.powerGrid?.deficit > 0) {
-                powerEfficiency = 0.25;
-            }
+                totalMaintenance += (currentDef.maintenance || 0) * modifiers.upkeep;
+                ecoChange += (currentDef.pollution > 0 ? (currentDef.pollution * 0.05 / 10) : (currentDef.pollution / 10));
 
-            // Buildings with water consumption operate at 50% if network has deficit
-            if (def.water?.consumes && state.waterNetwork?.deficit > 0) {
-                waterEfficiency = 0.5;
-            }
+                let powerEfficiency = 1.0;
+                let waterEfficiency = 1.0;
 
-            const utilityEfficiency = powerEfficiency * waterEfficiency;
+                if (currentDef.power?.consumes) {
+                    if (tile.powerStatus !== 'CONNECTED') {
+                        powerEfficiency = 0.1;
+                    } else if (state.powerGrid?.deficit > 0) {
+                        powerEfficiency = 0.25;
+                    }
+                }
 
-            // Production
-            if (def.productionType === 'MINERALS') {
-                mineralProd += (def.production || 0) * modifiers.production * utilityEfficiency * 0.05;
-            } else if (def.productionType === 'AGT') {
-                totalIncome += (def.production || 0) * ecoMult * trustMult * utilityEfficiency;
+                if (currentDef.water?.consumes) {
+                    if (tile.waterStatus !== 'CONNECTED') {
+                        waterEfficiency = 0.1;
+                    } else if (state.waterNetwork?.deficit > 0) {
+                        waterEfficiency = 0.5;
+                    }
+                }
+
+                const utilityEfficiency = powerEfficiency * waterEfficiency;
+                const plannerEfficiency = this.isFactoryPenaltyTarget(tile.buildingType) ? factoryPenalty : 1;
+                const effectiveFactoryEfficiency = utilityEfficiency * plannerEfficiency;
+
+                let productionMult = 1.0;
+                if (tile.buildingType === BuildingType.SAWMILL || tile.buildingType === BuildingType.STONE_QUARRY) {
+                    const consumed = this.consumeEnvironment(state, tile, dt);
+                    if (!consumed) {
+                        productionMult = 0;
+                    }
+                }
+
+                if (tile.buildingType === BuildingType.MINING_HEADFRAME) {
+                    const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'SOURCE', state.tickCount);
+                    this.pushOutput(node, 'ORE', (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.05);
+                } else if (tile.buildingType === BuildingType.SAWMILL) {
+                    const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'SOURCE', state.tickCount);
+                    if (productionMult > 0) {
+                        this.pushOutput(node, 'WOOD', (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.05);
+                    }
+                } else if (tile.buildingType === BuildingType.STONE_QUARRY) {
+                    const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'SOURCE', state.tickCount);
+                    if (productionMult > 0) {
+                        this.pushOutput(node, 'STONE', (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.05);
+                    }
+                } else if (tile.buildingType === BuildingType.WASH_PLANT || tile.buildingType === BuildingType.RECYCLING_PLANT) {
+                    const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'PROCESSOR', state.tickCount);
+                    const ore = this.pullInput(node, 'ORE', Math.max(0.5, (currentDef.production || 0) * 0.03 * effectiveFactoryEfficiency));
+                    if (ore > 0) {
+                        this.pushOutput(node, 'CONCENTRATE', ore * 0.85);
+                        automatedChains += 1;
+                    } else {
+                        node.stalledTicks += 1;
+                    }
+                } else if (tile.buildingType === BuildingType.ORE_FOUNDRY) {
+                    const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'PROCESSOR', state.tickCount);
+                    const concentrateAvailable = node.inputBuffer.CONCENTRATE || 0;
+                    const stoneAvailable = node.inputBuffer.STONE || 0;
+                    const batch = Math.min(concentrateAvailable, stoneAvailable * 3, Math.max(0.5, (currentDef.production || 0) * 0.025 * effectiveFactoryEfficiency));
+                    if (batch > 0) {
+                        this.pullInput(node, 'CONCENTRATE', batch);
+                        this.pullInput(node, 'STONE', batch / 3);
+                        this.pushOutput(node, 'MINERALS', batch * 0.7);
+                        this.pushOutput(node, 'REFINED_MATERIALS', batch * 0.45);
+                        this.pushOutput(node, 'ALLOYS', batch * 0.2);
+                        automatedChains += 1;
+                    } else {
+                        node.stalledTicks += 1;
+                    }
+                } else if (tile.buildingType === BuildingType.WORKSHOP) {
+                    const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'PROCESSOR', state.tickCount);
+                    const refinedAvailable = node.inputBuffer.REFINED_MATERIALS || 0;
+                    const woodAvailable = node.inputBuffer.WOOD || 0;
+                    const alloyAvailable = node.inputBuffer.ALLOYS || 0;
+                    const batch = Math.min(
+                        refinedAvailable,
+                        woodAvailable,
+                        alloyAvailable * 2,
+                        Math.max(0.35, ((currentDef.production || 18) * 0.02) * effectiveFactoryEfficiency)
+                    );
+                    if (batch > 0) {
+                        this.pullInput(node, 'REFINED_MATERIALS', batch);
+                        this.pullInput(node, 'WOOD', batch);
+                        this.pullInput(node, 'ALLOYS', batch / 2);
+                        this.pushOutput(node, 'MACHINE_PARTS', batch * 0.75);
+                        automatedChains += 1;
+                    } else if (refinedAvailable > 0 || woodAvailable > 0 || alloyAvailable > 0) {
+                        node.stalledTicks += 1;
+                    }
+                } else if (tile.buildingType === BuildingType.GREEN_TECH_LAB) {
+                    const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'PROCESSOR', state.tickCount);
+                    const refinedAvailable = node.inputBuffer.REFINED_MATERIALS || 0;
+                    const alloyAvailable = node.inputBuffer.ALLOYS || 0;
+                    const partsAvailable = node.inputBuffer.MACHINE_PARTS || 0;
+                    const batch = Math.min(
+                        refinedAvailable / 2,
+                        alloyAvailable,
+                        partsAvailable,
+                        Math.max(0.2, ((currentDef.production || 18) * 0.015) * effectiveFactoryEfficiency)
+                    );
+                    if (batch > 0) {
+                        this.pullInput(node, 'REFINED_MATERIALS', batch * 2);
+                        this.pullInput(node, 'ALLOYS', batch);
+                        this.pullInput(node, 'MACHINE_PARTS', batch);
+                        this.pushOutput(node, 'AUTOMATION_KITS', batch * 0.7);
+                        automatedChains += 1;
+                    } else if (refinedAvailable > 0 || alloyAvailable > 0 || partsAvailable > 0) {
+                        node.stalledTicks += 1;
+                    }
+                } else if (tile.buildingType === BuildingType.GEM_REFINERY) {
+                    const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'PROCESSOR', state.tickCount);
+                    const concentrate = this.pullInput(node, 'CONCENTRATE', Math.max(0.2, (currentDef.production || 0) * 0.02 * effectiveFactoryEfficiency));
+                    if (concentrate > 0) {
+                        this.pushOutput(node, 'GEMS', concentrate * 0.25);
+                        automatedChains += 1;
+                    } else {
+                        node.stalledTicks += 1;
+                    }
+                } else if (currentDef.productionType === 'TRUST') {
+                    trustProd += (currentDef.production || 0) * utilityEfficiency * 0.05;
+                } else if (currentDef.productionType === 'ECO') {
+                    ecoChange -= (currentDef.production || 0) * utilityEfficiency * 0.05;
+                } else if (currentDef.productionType === 'AGT') {
+                    totalIncome += (currentDef.production || 0) * ecoMult * trustMult * utilityEfficiency;
+                } else if (currentDef.productionType === 'MINERALS') {
+                    mineralProd += (currentDef.production || 0) * modifiers.production * utilityEfficiency * 0.02;
+                } else if (currentDef.productionType === 'WOOD') {
+                    woodProd += (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.02 * productionMult;
+                } else if (currentDef.productionType === 'STONE') {
+                    stoneProd += (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.02 * productionMult;
+                } else if (currentDef.productionType === 'GEMS') {
+                    gemProd += (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.01;
+                }
             }
         }
 
-        // Apply Results
-        state.resources.agt += (totalIncome - totalMaintenance) * dt;
-        state.resources.eco = Math.max(0, Math.min(100, state.resources.eco - (ecoChange / 8) * dt));
-        state.resources.minerals += mineralProd * dt;
+        if (hasSpaceport) modifiers.sellPrice *= 10;
+        if (hasWasteTreatment && ecoChange > 0) ecoChange *= 0.8;
 
-        // Cache summary for UI
+        const allTiles = Object.values(state.chunks).flatMap((c) => c.tiles);
+        let totalCapacity = BASE_STORAGE_CAPACITY;
+
+        for (const t of allTiles) {
+            if (t.isUnderConstruction) continue;
+            if (t.structureHeadX !== undefined && (t.x !== t.structureHeadX || t.z !== t.structureHeadZ)) continue;
+
+            if (t.buildingType === BuildingType.STORAGE_DEPOT || t.buildingType === BuildingType.STOCKPILE) {
+                const def = BUILDINGS[t.buildingType];
+                if (!def) continue;
+
+                let addedStorage = t.buildingType === BuildingType.STORAGE_DEPOT ? DEPOT_CAPACITY_BONUS : STOCKPILE_CAPACITY_BONUS;
+                if (def.upgrades && (t.level || 1) > 1) {
+                    const upgrade = def.upgrades.find((u) => u.level === t.level);
+                    if (upgrade && upgrade.statsDiff) {
+                        const match = upgrade.statsDiff.match(/\+?(\d+)\s*Storage/);
+                        if (match && match[1]) {
+                            addedStorage = parseInt(match[1], 10);
+                        }
+                    }
+                }
+                totalCapacity += addedStorage;
+            }
+        }
+
+        state.resources.agt += (totalIncome - totalMaintenance) * dt;
+
+        let ecoDelta = -(ecoChange / 8) * dt;
+        if (ecoDelta > 0) {
+            ecoDelta *= modifiers.ecoRegen;
+        }
+        state.resources.eco = Math.max(0, Math.min(100, state.resources.eco + ecoDelta));
+        state.resources.trust = Math.min(100, state.resources.trust + (trustProd * dt * modifiers.trustGain));
+
+        state.resources.minerals = Math.min(totalCapacity, state.resources.minerals + (mineralProd * dt));
+        state.resources.wood = Math.min(totalCapacity, state.resources.wood + (woodProd * dt));
+        state.resources.stone = Math.min(totalCapacity, state.resources.stone + (stoneProd * dt));
+        state.resources.gems = Math.max(0, state.resources.gems + (gemProd * dt));
+
         state.resources.income = totalIncome;
         state.resources.maintenance = totalMaintenance;
+        state.resources.maxCapacity = totalCapacity;
 
-        // Auto-Sell Logic
+        const industry = this.getIndustryState(state);
+        industry.automatedChains = automatedChains;
+        industry.gridLoad = state.powerGrid?.industrialDemand || 0;
+
         if (state.logistics.autoSell && state.resources.minerals >= state.logistics.sellThreshold) {
-            this.executeAutoSell(state, modifiers);
+            this.executeAutoSell(ctx, state, modifiers);
         }
     }
 
-    private getModifiers(state: GameState) {
-        const mods = { production: 1, sellPrice: 1, upkeep: 1 };
-
-        // Weather
-        if (state.weather.current === 'DUST_STORM') {
-            mods.upkeep *= 1.5;
-            mods.production *= 0.7;
-        } else if (state.weather.current === 'STORM' || state.weather.current === 'RAINY') {
-            mods.production *= 0.5; // Solar panels etc
+    private getFactoryState(state: GameState): FactoryState {
+        if (!state.factory) {
+            state.factory = {
+                nodes: {},
+                packets: [],
+                throughput: 0,
+                backlog: 0,
+                stalledNodes: 0,
+                lastNetworkTick: 0,
+            };
         }
 
-        // Events
-        state.activeEvents.forEach(e => {
-            if (e.modifiers) {
-                if (e.modifiers.productionMult) mods.production *= e.modifiers.productionMult;
-                if (e.modifiers.sellPriceMult) mods.sellPrice *= e.modifiers.sellPriceMult;
-            }
-        });
+        return state.factory;
+    }
 
-        // Research / Technology
+    private getIndustryState(state: GameState): IndustryState {
+        if (!state.industry) {
+            state.industry = {
+                refinedMaterials: 0,
+                alloys: 0,
+                machineParts: 0,
+                automationKits: 0,
+                automatedChains: 0,
+                gridLoad: 0,
+            };
+        }
+
+        return state.industry;
+    }
+
+    private getFactoryNode(
+        factory: FactoryState,
+        x: number,
+        z: number,
+        buildingType: BuildingType,
+        mode: FactoryNodeState['mode'],
+        tickCount: number,
+    ): FactoryNodeState {
+        const key = `${x},${z}`;
+        const existing = factory.nodes[key];
+        if (existing) {
+            existing.buildingType = buildingType;
+            existing.mode = mode;
+            return existing;
+        }
+
+        factory.nodes[key] = {
+            key,
+            x,
+            z,
+            buildingType,
+            mode,
+            buffer: {},
+            inputBuffer: {},
+            stalledTicks: 0,
+            lastActiveTick: tickCount,
+        };
+
+        return factory.nodes[key];
+    }
+
+    private pushOutput(node: FactoryNodeState, resource: FactoryResourceType, amount: number): void {
+        if (amount <= 0) return;
+        const current = node.buffer[resource] || 0;
+        node.buffer[resource] = Math.min(this.FACTORY_OUTPUT_CAP, current + amount);
+    }
+
+    private pullInput(node: FactoryNodeState, resource: FactoryResourceType, amount: number): number {
+        const current = node.inputBuffer[resource] || 0;
+        const taken = Math.min(current, amount);
+        node.inputBuffer[resource] = current - taken;
+        if (node.inputBuffer[resource]! <= 0.001) {
+            delete node.inputBuffer[resource];
+        }
+        return taken;
+    }
+
+    private isFactoryPenaltyTarget(type: BuildingType): boolean {
+        return [
+            BuildingType.MINING_HEADFRAME,
+            BuildingType.SAWMILL,
+            BuildingType.STONE_QUARRY,
+            BuildingType.WASH_PLANT,
+            BuildingType.RECYCLING_PLANT,
+            BuildingType.ORE_FOUNDRY,
+            BuildingType.WORKSHOP,
+            BuildingType.GREEN_TECH_LAB,
+            BuildingType.GEM_REFINERY,
+        ].includes(type);
+    }
+
+    private getModifiers(state: GameState) {
+        const weatherEffects = getWeatherGameplayEffects(state.weather);
+        const eventEffects = getEventEnvironmentModifiers(state.activeEvents);
+        const mods = {
+            production: weatherEffects.productionMult * eventEffects.productionMult,
+            sellPrice: eventEffects.sellPriceMult,
+            upkeep: weatherEffects.upkeepMult * eventEffects.upkeepMult,
+            ecoRegen: weatherEffects.ecoRegenMult * eventEffects.ecoRegenMult,
+            trustGain: weatherEffects.trustGainMult * eventEffects.trustGainMult,
+        };
+
         const unlocked = state.research.unlocked;
         if (unlocked.includes('ADVANCED_DRILLING')) mods.production *= 1.2;
         if (unlocked.includes('MARKET_ANALYTICS')) mods.sellPrice *= 1.1;
@@ -125,7 +375,66 @@ export class ProductionSystem extends BaseSimSystem {
         return mods;
     }
 
-    private executeAutoSell(state: GameState, modifiers: any) {
+    private consumeEnvironment(state: GameState, buildingTile: any, dt: number): boolean {
+        const radius = 10;
+        const isWood = buildingTile.buildingType === BuildingType.SAWMILL;
+        const targetFoliage = isWood ? HARVESTABLE_TREES : HARVESTABLE_ROCKS;
+
+        for (let dz = -radius; dz <= radius; dz++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                const tx = buildingTile.x + dx;
+                const tz = buildingTile.z + dz;
+                const tile = ChunkStore.getTile(state.chunks, tx, tz);
+
+                if (tile && tile.foliage && targetFoliage.includes(tile.foliage as any)) {
+                    if (tile.integrity === undefined || tile.integrity <= 0) tile.integrity = 100;
+
+                    const consumptionRate = 5.0;
+                    const prevIntegrity = tile.integrity;
+                    tile.integrity -= consumptionRate * dt;
+
+                    let changed = false;
+                    if (isWood) {
+                        if (tile.foliage.startsWith('TREE_') && tile.integrity < 50 && prevIntegrity >= 50) {
+                            tile.foliage = 'BUSH_OAK' as any;
+                            changed = true;
+                        } else if (tile.foliage === 'BUSH_OAK' && tile.integrity < 20 && prevIntegrity >= 20) {
+                            tile.foliage = 'TREE_STUMP' as any;
+                            changed = true;
+                        }
+                    } else if (tile.foliage === 'ROCK_BOULDER' && tile.integrity < 50 && prevIntegrity >= 50) {
+                        tile.foliage = 'ROCK_PEBBLE' as any;
+                        changed = true;
+                    }
+
+                    if (tile.integrity <= 0 || changed) {
+                        if (tile.integrity <= 0) {
+                            tile.foliage = 'NONE' as any;
+                            tile.markedForHarvest = false;
+                            tile.integrity = 100;
+                        }
+
+                        const { cx, cz } = worldToChunk(tx, tz, CHUNK_SIZE);
+                        const chunk = state.chunks[`${cx},${cz}`];
+                        if (chunk) {
+                            chunk.meshDirty = true;
+                            chunk.simDirty = true;
+                        }
+                        state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
+
+                        if (changed) {
+                            state.pendingEffects.push({ type: 'FX', fxType: isWood ? 'FARM' : 'MINING', x: tx, z: tz });
+                        }
+                    }
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private executeAutoSell(ctx: FixedContext, state: GameState, modifiers: any) {
         const ecoMult = getEcoMultiplier(state.resources.eco);
         const trustMult = 1 + (state.resources.trust / 200);
         const price = state.market.minerals.currentPrice;
@@ -137,10 +446,10 @@ export class ProductionSystem extends BaseSimSystem {
 
         state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.SELL });
         state.newsFeed.push({
-            id: `sell_${Date.now()}`,
+            id: ctx.getNextId?.('sell') || `sell_${Date.now()}`,
             headline: `Logistics: Auto-sold minerals for ${value} AGT.`,
             type: 'POSITIVE',
-            timestamp: Date.now()
+            timestamp: state.tickCount
         });
     }
 }
