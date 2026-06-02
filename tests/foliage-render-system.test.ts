@@ -39,3 +39,24 @@ test('updating one foliage chunk leaves other chunk meshes intact', () => {
     assert.equal(updatedSecondChunkMesh, secondChunkMesh);
     assert.equal(updatedFirstChunkMesh?.count, 2);
 });
+
+test('foliage mesh is reused when the chunk stays within pooled capacity', () => {
+    const scene = new THREE.Scene();
+    const system = new FoliageRenderSystem(scene);
+
+    system.updateChunk('0,0', [
+        { x: 0, y: 0, z: 0, type: 'TREE_OAK' },
+        { x: 1, y: 0, z: 0, type: 'TREE_OAK' },
+    ]);
+
+    const initialMesh = (system.getInteractables() as THREE.InstancedMesh[])[0];
+    assert.ok(initialMesh);
+
+    system.updateChunk('0,0', [
+        { x: 0, y: 0, z: 0, type: 'TREE_OAK' },
+    ]);
+
+    const updatedMesh = (system.getInteractables() as THREE.InstancedMesh[])[0];
+    assert.equal(updatedMesh, initialMesh);
+    assert.equal(updatedMesh.count, 1);
+});
