@@ -22,6 +22,8 @@ export class FoliageRenderSystem {
     private scene: THREE.Scene;
     private chunkMeshes: Map<string, Map<string, THREE.InstancedMesh>> = new Map();
     private geometryCache: Map<string, THREE.BufferGeometry> = new Map();
+    private meshPools: Map<string, THREE.InstancedMesh[]> = new Map();
+    private readonly maxPoolSizePerType = 6;
     private readonly dummy = new THREE.Object3D();
     private readonly markedColor = new THREE.Color(1, 0.3, 0.3);
     private readonly defaultColor = new THREE.Color(1, 1, 1);
@@ -34,9 +36,10 @@ export class FoliageRenderSystem {
      * Update foliage for a specific chunk
      */
     public updateChunk(key: string, items: FoliageItem[]) {
-        this.disposeChunkMeshes(key);
-
+        const existingMeshes = this.chunkMeshes.get(key) || new Map();
         if (items.length === 0) {
+            this.releaseChunkMeshes(key, existingMeshes);
+            this.chunkMeshes.delete(key);
             return;
         }
 
@@ -50,7 +53,7 @@ export class FoliageRenderSystem {
             }
         }
 
-        const chunkTypeMeshes = new Map<string, THREE.InstancedMesh>();
+        const nextMeshes = new Map<string, THREE.InstancedMesh>();
 
         for (const [type, bucket] of buckets) {
             const geometry = this.getGeometry(type);
@@ -58,46 +61,21 @@ export class FoliageRenderSystem {
                 continue;
             }
 
-            const mesh = new THREE.InstancedMesh(geometry, foliageInstancedMaterial, bucket.length);
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            mesh.frustumCulled = true;
-            mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-            mesh.userData.chunkKey = key;
-            mesh.userData.foliageType = type;
-
-            for (let idx = 0; idx < bucket.length; idx++) {
-                const item = bucket[idx];
-
-                // Deterministic rotation and scale based on position.
-                const rotSeed = Math.abs(item.x * 31 + item.z * 17);
-                const rotY = (rotSeed % 4) * (Math.PI / 2);
-
-                const scaleSeed = Math.abs(item.x * 7.11 + item.z * 3.45);
-                const scale = 0.85 + (scaleSeed % 10) * 0.03;
-
-                this.dummy.position.set(item.x, item.y, item.z);
-                this.dummy.rotation.set(0, rotY, 0);
-                this.dummy.scale.setScalar(scale);
-                this.dummy.updateMatrix();
-
-                mesh.setMatrixAt(idx, this.dummy.matrix);
-                mesh.setColorAt(idx, item.marked ? this.markedColor : this.defaultColor);
-            }
-
-            mesh.instanceMatrix.needsUpdate = true;
-            if (mesh.instanceColor) {
-                mesh.instanceColor.needsUpdate = true;
-            }
-            mesh.computeBoundingBox();
-            mesh.computeBoundingSphere();
-
-            this.scene.add(mesh);
-            chunkTypeMeshes.set(type, mesh);
+            const existing = existingMeshes.get(type);
+            const mesh = this.prepareChunkMesh(key, type, geometry, bucket.length, existing);
+            this.populateMesh(mesh, bucket);
+            nextMeshes.set(type, mesh);
+            existingMeshes.delete(type);
         }
 
-        if (chunkTypeMeshes.size > 0) {
-            this.chunkMeshes.set(key, chunkTypeMeshes);
+        for (const mesh of existingMeshes.values()) {
+            this.releaseMesh(mesh);
+        }
+
+        if (nextMeshes.size > 0) {
+            this.chunkMeshes.set(key, nextMeshes);
+        } else {
+            this.chunkMeshes.delete(key);
         }
     }
 
@@ -105,13 +83,28 @@ export class FoliageRenderSystem {
      * Remove foliage for a chunk (unloaded)
      */
     public removeChunk(key: string) {
-        this.disposeChunkMeshes(key);
+        const existingMeshes = this.chunkMeshes.get(key);
+        if (!existingMeshes) {
+            return;
+        }
+        this.releaseChunkMeshes(key, existingMeshes);
+        this.chunkMeshes.delete(key);
     }
 
     public dispose() {
-        for (const key of this.chunkMeshes.keys()) {
-            this.disposeChunkMeshes(key);
+        for (const [key, meshes] of this.chunkMeshes) {
+            this.releaseChunkMeshes(key, meshes);
         }
+        this.chunkMeshes.clear();
+
+        for (const pool of this.meshPools.values()) {
+            for (const mesh of pool) {
+                this.scene.remove(mesh);
+                mesh.dispose();
+            }
+        }
+        this.meshPools.clear();
+
         for (const geometry of this.geometryCache.values()) {
             geometry.dispose();
         }
@@ -135,18 +128,122 @@ export class FoliageRenderSystem {
         return geometry;
     }
 
-    private disposeChunkMeshes(key: string) {
-        const meshes = this.chunkMeshes.get(key);
-        if (!meshes) {
+    private prepareChunkMesh(
+        key: string,
+        type: string,
+        geometry: THREE.BufferGeometry,
+        count: number,
+        existing?: THREE.InstancedMesh
+    ): THREE.InstancedMesh {
+        const existingCapacity = this.getMeshCapacity(existing);
+        let mesh = existing;
+
+        if (!mesh || existingCapacity < count) {
+            if (mesh) {
+                this.releaseMesh(mesh);
+            }
+            mesh = this.acquireMesh(type, geometry, count);
+        }
+
+        mesh.geometry = geometry;
+        mesh.count = count;
+        mesh.visible = true;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.frustumCulled = true;
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.userData.chunkKey = key;
+        mesh.userData.foliageType = type;
+        mesh.userData.capacity = this.getMeshCapacity(mesh);
+        return mesh;
+    }
+
+    private acquireMesh(type: string, geometry: THREE.BufferGeometry, count: number): THREE.InstancedMesh {
+        const pool = this.meshPools.get(type) || [];
+        this.meshPools.set(type, pool);
+
+        const pooledIndex = pool.findIndex((mesh) => this.getMeshCapacity(mesh) >= count);
+        const mesh = pooledIndex >= 0
+            ? pool.splice(pooledIndex, 1)[0]
+            : new THREE.InstancedMesh(geometry, foliageInstancedMaterial, this.getCapacity(count));
+
+        mesh.geometry = geometry;
+        mesh.visible = true;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.frustumCulled = true;
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.userData.capacity = this.getMeshCapacity(mesh);
+        this.scene.add(mesh);
+        return mesh;
+    }
+
+    private releaseMesh(mesh: THREE.InstancedMesh) {
+        this.scene.remove(mesh);
+        mesh.visible = false;
+        mesh.count = 0;
+
+        const type = mesh.userData.foliageType;
+        if (!type) {
+            mesh.dispose();
             return;
         }
 
-        for (const mesh of meshes.values()) {
-            this.scene.remove(mesh);
-            mesh.dispose();
+        const pool = this.meshPools.get(type) || [];
+        this.meshPools.set(type, pool);
+        if (pool.length < this.maxPoolSizePerType) {
+            pool.push(mesh);
+            return;
         }
 
+        mesh.dispose();
+    }
+
+    private releaseChunkMeshes(key: string, meshes: Map<string, THREE.InstancedMesh>) {
+        for (const mesh of meshes.values()) {
+            this.releaseMesh(mesh);
+        }
         this.chunkMeshes.delete(key);
+    }
+
+    private populateMesh(mesh: THREE.InstancedMesh, items: FoliageItem[]) {
+        for (let idx = 0; idx < items.length; idx++) {
+            const item = items[idx];
+
+            // Deterministic rotation and scale based on position.
+            const rotSeed = Math.abs(item.x * 31 + item.z * 17);
+            const rotY = (rotSeed % 4) * (Math.PI / 2);
+
+            const scaleSeed = Math.abs(item.x * 7.11 + item.z * 3.45);
+            const scale = 0.85 + (scaleSeed % 10) * 0.03;
+
+            this.dummy.position.set(item.x, item.y, item.z);
+            this.dummy.rotation.set(0, rotY, 0);
+            this.dummy.scale.setScalar(scale);
+            this.dummy.updateMatrix();
+
+            mesh.setMatrixAt(idx, this.dummy.matrix);
+            mesh.setColorAt(idx, item.marked ? this.markedColor : this.defaultColor);
+        }
+
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) {
+            mesh.instanceColor.needsUpdate = true;
+        }
+        mesh.computeBoundingBox();
+        mesh.computeBoundingSphere();
+    }
+
+    private getCapacity(count: number): number {
+        let capacity = 1;
+        while (capacity < count) {
+            capacity *= 2;
+        }
+        return capacity;
+    }
+
+    private getMeshCapacity(mesh?: THREE.InstancedMesh): number {
+        return mesh ? (mesh.userData.capacity || mesh.instanceMatrix.count || mesh.count || 0) : 0;
     }
 
     /**
