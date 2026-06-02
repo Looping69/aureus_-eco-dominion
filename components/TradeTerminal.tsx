@@ -149,7 +149,7 @@ const getCorridorTrendDelta = (corridor: { history?: number[]; throughput: numbe
 
 const getRecommendationCorridor = (
     rec: { sectorName?: string; targetKey?: string },
-    corridors: Array<{ sectorName: string; anchorKey: string }>
+    corridors: Array<{ sectorName: string; anchorKey: string; followThrough?: string }>
 ) => corridors.find((corridor) => (rec.sectorName && corridor.sectorName === rec.sectorName) || corridor.anchorKey === rec.targetKey);
 
 const getNextDirective = (directive?: FactorySectorDirective): FactorySectorDirective => {
