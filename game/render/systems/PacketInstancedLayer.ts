@@ -6,7 +6,9 @@ export interface PacketInstanceSpec {
     material: THREE.Material;
     position: THREE.Vector3;
     scale: number;
+    rotationX?: number;
     rotationY?: number;
+    rotationZ?: number;
 }
 
 interface PacketInstanceBucket {
@@ -52,7 +54,7 @@ export class PacketInstancedLayer {
             for (let i = 0; i < specs.length; i++) {
                 const spec = specs[i];
                 this.dummy.position.copy(spec.position);
-                this.dummy.rotation.set(0, spec.rotationY || 0, 0);
+                this.dummy.rotation.set(spec.rotationX || 0, spec.rotationY || 0, spec.rotationZ || 0);
                 this.dummy.scale.setScalar(spec.scale);
                 this.dummy.updateMatrix();
                 mesh.setMatrixAt(i, this.dummy.matrix);
