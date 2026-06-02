@@ -18,7 +18,7 @@ export class InputSystem {
     private dragStartScreen = new THREE.Vector2();
     private isDragging = false;
     private isRightClick = false;
-    private activePointers: Map<number, PointerEvent> = new Map();
+    private activePointers: Set<number> = new Set();
     private lastHoverCheckTime = 0;
     private hadMultiTouchGesture = false;
 
@@ -93,7 +93,7 @@ export class InputSystem {
     }
 
     private handlePointerDown(e: PointerEvent) {
-        this.activePointers.set(e.pointerId, e);
+        this.activePointers.add(e.pointerId);
         if (e.pointerType === 'touch' && this.activePointers.size > 1) {
             this.hadMultiTouchGesture = true;
         }
@@ -108,7 +108,7 @@ export class InputSystem {
     private lastClientY = 0;
 
     private handlePointerMove(e: PointerEvent) {
-        this.activePointers.set(e.pointerId, e);
+        this.activePointers.add(e.pointerId);
         this.lastClientX = e.clientX;
         this.lastClientY = e.clientY;
 

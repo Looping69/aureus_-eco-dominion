@@ -104,6 +104,7 @@ export const mats = {
   solar: new THREE.MeshStandardMaterial({ color: 0x1e3a8a, metalness: 0.8, roughness: 0.2, emissive: 0x1e3a8a, emissiveIntensity: 0.2 }),
   wood: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x92400e, 30), roughness: 0.8 }),
   leaf: new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.8 }),
+  leafDark: new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.8 }),
   grass: new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 1.0 }),
   pine: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x14532d), roughness: 0.9 }),
   water: new THREE.MeshStandardMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.85, roughness: 0.1 }),
@@ -121,6 +122,7 @@ export const mats = {
   emissiveRed: new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 2.0 }),
   emissiveCyan: new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 1.0 }),
   emissiveGreen: new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 2.0 }),
+  emissiveOrange: new THREE.MeshStandardMaterial({ color: 0xff7a18, emissive: 0xff7a18, emissiveIntensity: 1.5 }),
   pit: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 1.0 }),
 
   // Specific Tree Mats
@@ -142,6 +144,7 @@ export const mats = {
 
   // New Water System Mats
   sandWet: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xe6c288, 15), roughness: 0.6 }),
+  sand: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xe6c288, 15), roughness: 0.8 }),
   waterDeep: new THREE.MeshStandardMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.9, roughness: 0.1 }),
   waterSurface: waterFlowMaterial,
   waterSeaweed: new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 0.8 }),
