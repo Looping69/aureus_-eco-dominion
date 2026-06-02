@@ -371,7 +371,7 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                                 />
                                                 <div className="grid grid-cols-1 gap-1 mt-2 text-[10px] font-mono">
                                                     <div className="text-sky-300">Trend {getCorridorTrendLabel(corridor.trend)} · {getCorridorTrendDelta(corridor)}</div>
-                                                    <div className="text-cyan-300">Before / After {Math.round(corridor.baselineThroughput)} -> {Math.round(corridor.throughput)}</div>
+                                                    <div className="text-cyan-300">Before / After {Math.round(corridor.baselineThroughput)} → {Math.round(corridor.throughput)}</div>
                                                     <div className="text-amber-300">Anchor {corridor.anchorKey}</div>
                                                     <div className="text-rose-300">Debt {Math.round(corridor.routeDebtShare)} · Feed {corridor.underfedProcessors} · Hot {corridor.hotspots}</div>
                                                     <div className="text-lime-300">Follow-through {corridor.followThrough}</div>
@@ -391,33 +391,40 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                                         {recommendations.slice(0, 2).map((rec) => {
                                             const corridor = getRecommendationCorridor(rec, corridors);
                                             return (
-                                                <div key={rec.id} className="bg-slate-900/60 border border-slate-800 rounded px-2 py-2">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <div className="text-[10px] text-white font-bold">{rec.title}</div>
+                                                <div key={rec.id} className="border border-slate-800 rounded px-2 py-2 bg-slate-900/70">
+                                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                                        <div>
+                                                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Upgrade lane {getRecommendationScope(rec)}</div>
+                                                            <div className="text-xs font-bold text-cyan-200">{rec.label}</div>
+                                                        </div>
                                                         <div className="text-[10px] text-slate-500 font-mono">{Math.round(rec.severity)}</div>
                                                     </div>
-                                                    <div className="grid grid-cols-1 gap-1 mt-2 text-[10px] font-mono">
-                                                        <div className="text-sky-300">Upgrade lane {getRecommendationScope(rec)}</div>
-                                                        <div className="text-slate-400">{rec.detail}</div>
-                                                        <div className={`font-mono ${corridor ? getCorridorTrendTone(corridor.trend) : 'text-sky-300'}`}>Trend {corridor ? `${getCorridorTrendLabel(corridor.trend)} · ${getCorridorTrendDelta(corridor)}` : 'Watching live pressure'}</div>
-                                                        <div className="text-cyan-300">Anchor {corridor?.anchorKey || rec.targetKey || 'Network'} · {formatSuggestedBuilding(rec.suggestedBuilding)}</div>
-                                                        <div className="text-fuchsia-300">Upgrade chain {getRecommendationChain(rec)}</div>
-                                                        <div className="text-amber-300">Build hint {getRecommendationHint(rec)}</div>
-                                                        <div className="text-lime-300">Sector goal {getRecommendationGoal(rec)}</div>
-                                                        <div className="text-slate-400">Before / After {corridor ? `${Math.round(corridor.baselineThroughput)} -> ${Math.round(corridor.throughput)}` : 'Live lane only'}</div>
-                                                        <div className="text-lime-300">Follow-through {corridor?.followThrough || 'Stabilize this node before scaling outward.'}</div>
+                                                    <div className="grid grid-cols-1 gap-1 text-[10px] font-mono">
+                                                        <div className="text-slate-300">Anchor {corridor?.anchorKey || rec.targetKey || 'Network'} · {formatSuggestedBuilding(rec.suggestedBuilding)}</div>
+                                                        <div className="text-slate-400">Follow-through {corridor?.followThrough || 'Stabilize this node before scaling outward.'}</div>
+                                                        <div className="text-amber-300">{getRecommendationHint(rec)}</div>
+                                                        <div className="text-lime-300">Goal {getRecommendationGoal(rec)}</div>
+                                                        <div className="text-cyan-300">Chain {getRecommendationChain(rec)}</div>
                                                     </div>
-                                                    <button
-                                                        onClick={() => updatePlanner('FOCUS_RECOMMENDATION', {
-                                                            targetKey: rec.targetKey,
-                                                            sectorName: rec.sectorName,
-                                                            suggestedBuilding: rec.suggestedBuilding,
-                                                            reason: rec.reason,
-                                                        })}
-                                                        className="mt-2 w-full border border-cyan-700 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-200 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors"
-                                                    >
-                                                        Frame, Preview & Overlay
-                                                    </button>
+                                                    <div className="flex gap-2 mt-3">
+                                                        <button
+                                                            onClick={() => updatePlanner('FOCUS_RECOMMENDATION', {
+                                                                targetKey: rec.targetKey,
+                                                                sectorName: rec.sectorName,
+                                                                suggestedBuilding: rec.suggestedBuilding,
+                                                                reason: rec.reason,
+                                                            })}
+                                                            className="flex-1 bg-cyan-950/60 hover:bg-cyan-900/70 border border-cyan-800 text-cyan-200 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                                        >
+                                                            Frame, Preview & Overlay
+                                                        </button>
+                                                        <button
+                                                            onClick={() => updatePlanner('TOGGLE_PIN', { targetKey: rec.targetKey })}
+                                                            className={`flex-1 border rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${pinnedKeys.has(rec.targetKey) ? 'bg-amber-900/50 border-amber-700 text-amber-200' : 'bg-slate-950 border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                                                        >
+                                                            {pinnedKeys.has(rec.targetKey) ? 'Pinned' : 'Pin Upgrade'}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             );
                                         })}
@@ -427,100 +434,79 @@ export const TradeTerminal: React.FC<TradeTerminalProps> = ({ isOpen, onClose, s
                         </div>
 
                         {sectors.length === 0 ? (
-                            <div className="text-center p-4 bg-slate-950/80 rounded-lg border border-dashed border-slate-800">
-                                <RadioTower className="mx-auto text-slate-600 mb-2" size={20} />
-                                <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">No active sectors</p>
-                                <p className="text-slate-600 text-[10px] mt-1">Build train stations to open regional trade lanes.</p>
-                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono">No train sectors yet. Build regional rail to activate regional trade identities.</div>
                         ) : (
                             <div className="space-y-3">
                                 {sectors.map((sector) => {
+                                    const exportResource = sector.exportResource || 'MINERALS';
+                                    const importResource = sector.importResource || 'WOOD';
                                     const directive = sector.directive || 'BALANCED';
+                                    const priorityResource = sector.priorityResource || exportResource;
                                     const flowMode = sector.flowMode || 'STABLE';
                                     const congestionPolicy = sector.congestionPolicy || 'BALANCED';
-                                    const priorityResource = sector.priorityResource || (directive === 'IMPORT' ? sector.importFocus : sector.exportFocus);
-                                    const contractResource = sector.contractResource || (directive === 'EXPORT' ? sector.exportFocus : sector.importFocus);
-                                    const contractTarget = sector.contractTarget || 24;
-                                    const contractProgress = Math.min(contractTarget, sector.contractProgress || 0);
-                                    const quotaCompletion = contractTarget > 0 ? Math.min(1, contractProgress / contractTarget) : 0;
-                                    const congestionLevel = sector.congestionLevel || 0;
-                                    const satisfaction = sector.satisfaction ?? 0.72;
-                                    const bonusChain = sector.bonusChain ?? 0;
+                                    const contractResource = sector.contractResource || exportResource;
+                                    const contractTarget = sector.contractTarget || CONTRACT_TARGETS[1];
+                                    const contractProgress = sector.contractProgress || 0;
+                                    const quotaCompletion = Math.min(1, contractTarget > 0 ? contractProgress / contractTarget : 0);
+                                    const congestion = sector.congestionLevel || 0;
+                                    const satisfaction = sector.satisfaction || 0;
+                                    const bonusChain = sector.bonusChain || 0;
                                     const inRelief = reliefSectors.has(sector.name);
 
-                                    const updatePolicy = (payload: Record<string, unknown>) => {
+                                    const updatePolicy = (updates: Partial<Pick<typeof sector, 'directive' | 'priorityResource' | 'flowMode' | 'congestionPolicy' | 'contractResource' | 'contractTarget'>>) => {
                                         dispatch({
                                             type: 'UPDATE_SECTOR_POLICY',
                                             payload: {
                                                 sectorName: sector.name,
-                                                directive,
-                                                priorityResource,
-                                                flowMode,
-                                                congestionPolicy,
-                                                contractResource,
-                                                contractTarget,
-                                                ...payload,
+                                                ...updates,
                                             },
                                         });
                                         playSfx('UI_CLICK');
                                     };
 
                                     return (
-                                        <div key={sector.name} className="bg-slate-950/80 border border-slate-800 rounded-lg p-3">
-                                            <div className="flex items-center justify-between gap-3 mb-2">
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <span className="text-[9px] font-black text-cyan-300 bg-cyan-950/80 border border-cyan-800 rounded-[3px] px-1.5 py-1 shrink-0">
-                                                        {getSectorBadge(sector.name)}
-                                                    </span>
-                                                    <div className="min-w-0">
-                                                        <div className="text-sm font-bold text-white truncate">{sector.name}</div>
-                                                        <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">{sector.stationCount} hubs · {Math.round(sector.throughput)} flow</div>
+                                        <div key={sector.name} className={`border rounded-xl p-3 ${inRelief ? 'bg-rose-950/20 border-rose-800' : 'bg-slate-950/60 border-slate-800'}`}>
+                                            <div className="flex items-start justify-between gap-3 mb-3">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-[9px] font-black text-slate-200 bg-slate-800 border border-slate-700 rounded-[3px] px-1.5 py-0.5">{getSectorBadge(sector.name)}</span>
+                                                        <h4 className="text-sm font-black text-white uppercase tracking-wide">{sector.name}</h4>
+                                                        {inRelief && <span className="text-[9px] font-black text-rose-300 bg-rose-950/70 border border-rose-900 rounded-[3px] px-1.5 py-0.5">Emergency Relief</span>}
                                                     </div>
-                                                </div>
-                                                <div className="text-right text-[10px] font-mono text-slate-400 shrink-0">
-                                                    <div className="flex items-center justify-end gap-1"><Zap size={10} className="text-emerald-400" />{toPercent(sector.demandBonus)}</div>
-                                                    <div>{directive.toLowerCase()}</div>
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
-                                                <div className="bg-emerald-950/30 border border-emerald-900/40 rounded px-2 py-2">
-                                                    <div className="text-emerald-400 font-bold uppercase tracking-wider mb-1">Exports</div>
-                                                    <div className="text-white font-bold">{SECTOR_RESOURCE_LABELS[sector.exportFocus]}</div>
-                                                    <div className="text-emerald-300">+{toPercent(sector.exportBonus)} price</div>
-                                                </div>
-                                                <div className="bg-violet-950/30 border border-violet-900/40 rounded px-2 py-2">
-                                                    <div className="text-violet-400 font-bold uppercase tracking-wider mb-1">Imports</div>
-                                                    <div className="text-white font-bold">{SECTOR_RESOURCE_LABELS[sector.importFocus]}</div>
-                                                    <div className="text-violet-300">-{toPercent(sector.importDiscount)} cost</div>
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-3 gap-2 mt-3 text-[10px] font-mono">
-                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
-                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1">Satisfaction</div>
-                                                    <div className={`font-bold ${getSatisfactionTone(satisfaction)}`}>{toPercent(satisfaction)}</div>
-                                                </div>
-                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
-                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1">Chain</div>
-                                                    <div className="text-lime-300 font-bold">x{bonusChain}</div>
+                                                    <div className="text-[10px] font-mono text-slate-500">Export {SECTOR_RESOURCE_LABELS[exportResource]} · Import {SECTOR_RESOURCE_LABELS[importResource]} · Priority {SECTOR_RESOURCE_LABELS[priorityResource]}</div>
                                                 </div>
                                                 <button
                                                     onClick={() => updatePlanner('TOGGLE_RELIEF', { sectorName: sector.name })}
-                                                    className={`border rounded px-2 py-2 text-left transition-colors ${inRelief ? 'bg-rose-900/50 border-rose-700' : 'bg-slate-900 hover:bg-slate-800 border-slate-800'}`}
+                                                    className={`border rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${inRelief ? 'bg-rose-900/50 border-rose-700 text-rose-200' : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'}`}
                                                 >
-                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1">Relief</div>
-                                                    <div className={`font-bold ${inRelief ? 'text-rose-200' : 'text-slate-300'}`}>{inRelief ? 'ACTIVE' : 'Standby'}</div>
+                                                    {inRelief ? 'Clear Relief' : 'Mark Relief'}
                                                 </button>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-2 mt-3 text-[10px] font-mono">
+                                            <div className="grid grid-cols-3 gap-2 text-[10px] font-mono">
                                                 <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
-                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Gauge size={10} />Flow</div>
-                                                    <div className="text-cyan-300 font-bold">{flowMode}</div>
-                                                    <div className="text-slate-400">{Math.round(sector.throughput)} / tick</div>
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><RadioTower size={10} />Throughput</div>
+                                                    <div className="text-cyan-300 font-bold">{Math.round(sector.throughput)}</div>
+                                                    <div className="text-slate-400">{sector.stationCount} hubs · {Math.round((sector.demandBonus || 0) * 100)}% bonus</div>
                                                 </div>
                                                 <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
-                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={10} />Congest</div>
-                                                    <div className="text-amber-300 font-bold">{congestionPolicy}</div>
-                                                    <div className="text-slate-400">{toPercent(congestionLevel)}</div>
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Gauge size={10} />Flow</div>
+                                                    <div className="text-sky-300 font-bold">{flowMode}</div>
+                                                    <div className="text-slate-400">{directive} · {SECTOR_RESOURCE_LABELS[priorityResource]}</div>
+                                                </div>
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={10} />Congestion</div>
+                                                    <div className="text-rose-300 font-bold">{Math.round(congestion * 100)}%</div>
+                                                    <div className="text-slate-400">{congestionPolicy} · {Math.round(sector.droneLoad || 0)} drone</div>
+                                                </div>
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Zap size={10} />Satisfaction</div>
+                                                    <div className={`${getSatisfactionTone(satisfaction)} font-bold`}>{toPercent(satisfaction)}</div>
+                                                    <div className="text-slate-400">Chain x{Math.max(1, bonusChain)} · Miss {sector.missedQuotaTicks || 0}</div>
+                                                </div>
+                                                <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
+                                                    <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Map size={10} />Market</div>
+                                                    <div className="text-lime-300 font-bold">+{Math.round((sector.exportPremium || 0) * 100)}%</div>
+                                                    <div className="text-slate-400">-{Math.round((sector.importDiscount || 0) * 100)}% import</div>
                                                 </div>
                                                 <div className="bg-slate-900 border border-slate-800 rounded px-2 py-2">
                                                     <div className="text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><ClipboardList size={10} />Quota</div>
