@@ -162,6 +162,8 @@ export interface FactorySectorState {
     name: string;
     exportFocus: FactoryResourceType;
     importFocus: FactoryResourceType;
+    exportResource?: FactoryResourceType;
+    importResource?: FactoryResourceType;
     exportBonus: number;
     importDiscount: number;
     demandBonus: number;
@@ -172,6 +174,8 @@ export interface FactorySectorState {
     flowMode?: FactorySectorFlowMode;
     congestionPolicy?: FactorySectorCongestionMode;
     congestionLevel?: number;
+    droneLoad?: number;
+    exportPremium?: number;
     contractResource?: FactoryResourceType;
     contractTarget?: number;
     contractProgress?: number;
@@ -194,6 +198,7 @@ export interface FactoryPressurePoint {
 export interface FactoryPlannerRecommendation {
     id: string;
     title: string;
+    label?: string;
     detail: string;
     reason: FactoryPressureReason;
     severity: number;
