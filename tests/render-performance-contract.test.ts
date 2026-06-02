@@ -67,7 +67,7 @@ test('FoliageRenderSystem reuses instanced chunk meshes through per-type pools',
   }
 });
 
-test('PacketInstancedLayer provides reusable bucketed instancing for future logistics packet migration', () => {
+test('PacketInstancedLayer now supports pooled bucketed instancing with render-order, rotation, and non-uniform scale control', () => {
   assert.equal(existsSync(packetLayerPath), true, 'PacketInstancedLayer.ts is missing');
 
   const source = readFileSync(packetLayerPath, 'utf8');
@@ -79,12 +79,24 @@ test('PacketInstancedLayer provides reusable bucketed instancing for future logi
     'material: THREE.Material;',
     'position: THREE.Vector3;',
     'scale: number;',
+    'scaleX?: number;',
+    'scaleY?: number;',
+    'scaleZ?: number;',
+    'rotationX?: number;',
+    'rotationY?: number;',
+    'rotationZ?: number;',
     'export class PacketInstancedLayer {',
     'private root = new THREE.Group();',
     'private buckets = new Map<string, PacketInstanceBucket>();',
     'private pool = new Map<string, THREE.InstancedMesh[]>();',
+    'constructor(scene: THREE.Scene, renderOrder: number = 9) {',
     'public sync(instances: PacketInstanceSpec[]): void {',
     'const grouped = new Map<string, PacketInstanceSpec[]>();',
+    'mesh.renderOrder = this.root.renderOrder;',
+    'this.dummy.rotation.set(spec.rotationX || 0, spec.rotationY || 0, spec.rotationZ || 0);',
+    'spec.scaleX ?? spec.scale,',
+    'spec.scaleY ?? spec.scale,',
+    'spec.scaleZ ?? spec.scale,',
     'const bucket = this.ensureBucket(bucketKey, first.geometry, first.material, specs.length);',
     'mesh.setMatrixAt(i, this.dummy.matrix);',
     'private ensureBucket(bucketKey: string, geometry: THREE.BufferGeometry, material: THREE.Material, count: number): PacketInstanceBucket {',
