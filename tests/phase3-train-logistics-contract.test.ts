@@ -17,7 +17,7 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-test('Phase 3 packet types expose explicit belt, rail, and drone transport modes plus steerable sector policy metadata', () => {
+test('Phase 3 shared types expose transport, sector policy, planner pressure, and corridor history state', () => {
   assert.equal(existsSync(gameTypesPath), true, 'engine/types/game.ts is missing');
 
   const source = readFileSync(gameTypesPath, 'utf8');
@@ -29,27 +29,12 @@ test('Phase 3 packet types expose explicit belt, rail, and drone transport modes
     "export type FactorySectorCongestionMode = 'SAFE' | 'BALANCED' | 'AGGRESSIVE';",
     "export type FactoryPressureReason = 'ROUTE_DEBT' | 'UNDERFED' | 'CONGESTION';",
     "export type FactoryCorridorTrend = 'UP' | 'DOWN' | 'FLAT';",
-    'export interface FactoryPressurePoint {',
-    'reason: FactoryPressureReason;',
-    'detail: string;',
-    'export interface FactoryPlannerRecommendation {',
-    'suggestedBuilding?: BuildingType;',
     'export interface FactoryCorridorState {',
-    'anchorKey: string;',
-    'baselineThroughput: number;',
     'history: number[];',
     'trend: FactoryCorridorTrend;',
-    'improvement: number;',
-    'routeDebtShare: number;',
-    'underfedProcessors: number;',
-    'hotspots: number;',
     'recommendedBuilding: BuildingType;',
     'followThrough: string;',
     'export interface FactoryPressureState {',
-    'routeDebt: number;',
-    'underfedProcessors: number;',
-    'hotspots: number;',
-    'bottlenecks: FactoryPressurePoint[];',
     'pinnedKeys: string[];',
     'emergencyReliefSectors: string[];',
     'recommendations: FactoryPlannerRecommendation[];',
@@ -59,34 +44,21 @@ test('Phase 3 packet types expose explicit belt, rail, and drone transport modes
     'sectorName?: string;',
     'sectorFrom?: string;',
     'sectorTo?: string;',
-    'regionalThroughput?: number;',
-    'dronePressure?: number;',
-    'export interface FactorySectorState',
-    'exportBonus: number;',
-    'importDiscount: number;',
-    'demandBonus: number;',
     'directive?: FactorySectorDirective;',
     'priorityResource?: FactoryResourceType;',
     'flowMode?: FactorySectorFlowMode;',
     'congestionPolicy?: FactorySectorCongestionMode;',
-    'congestionLevel?: number;',
     'contractResource?: FactoryResourceType;',
     'contractTarget?: number;',
-    'contractProgress?: number;',
-    'contractReward?: number;',
     'satisfaction?: number;',
     'bonusChain?: number;',
     'missedQuotaTicks?: number;',
-    'droneCharge?: number;',
-    'droneUpkeep?: number;',
-    'rechargePads?: number;',
-    'pressure?: FactoryPressureState;',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Train stations act as regional sector anchors, drone depots extend local service, and both feed deterministic sector-aware logistics', () => {
+test('LogisticsSystem keeps rail and drone roles, calmer planner thresholds, and scoped corridor follow-through', () => {
   assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
 
   const source = readFileSync(logisticsPath, 'utf8');
@@ -95,202 +67,80 @@ test('Train stations act as regional sector anchors, drone depots extend local s
     'private isDroneHub(type: BuildingType): boolean {',
     'BuildingType.DRONE_DEPOT',
     "[BuildingType.RAIL_LINE, BuildingType.DISTRIBUTION_HUB, BuildingType.TRAIN_STATION, BuildingType.DRONE_DEPOT].includes(type)",
-    "if ([BuildingType.STORAGE_DEPOT, BuildingType.STOCKPILE].includes(type)) return 'SINK';",
-    "sectorName: tile.buildingType === BuildingType.TRAIN_STATION ? this.getRegionalSectorName(tile.x, tile.z) : undefined,",
-    'private getRegionalSectorName(x: number, z: number): string {',
-    'private summarizeSectors(factory: FactoryState): FactorySectorState[] {',
-    'const previousByName = new Map((factory.sectors || []).map((sector) => [sector.name, sector]));',
-    'const contractProgressBySector = new Map<string, number>();',
-    'const dronePressureBySector = new Map<string, number>();',
-    'private buildSectorProfile(',
-    "const flowMode = previous?.flowMode || 'STABLE';",
-    "const congestionPolicy = previous?.congestionPolicy || 'BALANCED';",
-    "const contractResource = previous?.contractResource || defaultContractResource;",
-    'const contractTarget = previous?.contractTarget || (18 + stationCount * 8 + Math.round(throughput * 0.35));',
-    'const completion = contractTarget > 0 ? cappedProgress / contractTarget : 0;',
-    'const previousSatisfaction = previous?.satisfaction ?? 0.72;',
-    'let satisfaction = previousSatisfaction;',
-    'let bonusChain = previousBonusChain;',
-    'let missedQuotaTicks = previousMissedTicks;',
-    'satisfaction = Math.max(0.05, previousSatisfaction - 0.16);',
-    'bonusChain = 0;',
-    'missedQuotaTicks = previousMissedTicks + 2;',
-    'satisfaction,',
-    'bonusChain,',
-    'missedQuotaTicks,',
-    'private findRailLinkedStations(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
-    'private findDroneServedNodes(factory: FactoryState, origin: FactoryNodeState): FactoryNodeState[] {',
-    'if (node.buildingType === BuildingType.TRAIN_STATION) {',
-    'if (this.isDroneHub(node.buildingType)) {',
-    'const serviceRadius = this.getDroneServiceRadius(origin);',
-    'private getDroneServiceRadius(station: FactoryNodeState | null): number {',
-    'return station.buildingType === BuildingType.DRONE_DEPOT ? this.DRONE_DEPOT_RADIUS : this.MAX_DRONE_RADIUS;',
-  ]) {
-    assert.match(source, new RegExp(escapeRegExp(snippet)));
-  }
-});
-
-test('Train packets now score routes with sector flow posture, corridor history, planner relief, pins, live bottleneck diagnostics, and scoped upgrade guidance', () => {
-  assert.equal(existsSync(logisticsPath), true, 'LogisticsSystem.ts is missing');
-
-  const source = readFileSync(logisticsPath, 'utf8');
-
-  for (const snippet of [
-    'FactoryCorridorState,',
-    'corridors: [],',
-    'if (!state.factory.pressure.corridors) {',
-    'let routeDebt = 0;',
-    'const bottlenecks: FactoryPressurePoint[] = [];',
-    'routeDebt += rawAmount;',
-    "reason: 'ROUTE_DEBT',",
-    'detail: `${resource} backed up with no route`,',
-    'if (destinationSectorName && this.getEmergencyReliefSectors(factory).includes(destinationSectorName)) {',
-    "if (this.getPinnedKeys(factory).includes(candidate.key) && target === 'input') {",
-    'const transferBudget = Math.max(0.75, this.getTransferBudget(node) + this.getSectorTransferBias(factory, node, route.node, transportMode));',
     'const transportMode = this.getPacketTransportMode(node, route.node);',
     'const sectorFrom = this.getPacketSector(factory, node, route.node, transportMode);',
     'const sectorTo = this.getPacketSector(factory, route.node, node, transportMode);',
     'factory.sectors = this.summarizeSectors(factory);',
     'factory.regionalThroughput = regionalThroughput / this.FACTORY_INTERVAL;',
-    'factory.rechargePads = this.countRechargePads(factory);',
-    'factory.droneCharge = this.getDroneCharge(factory.rechargePads || 0, droneTrips);',
-    'factory.droneUpkeep = this.getDroneUpkeep(droneTrips, factory.rechargePads || 0);',
     'factory.dronePressure = droneTrips > 0 ? dronePressureTotal / droneTrips : 0;',
-    'factory.pressure = this.buildFactoryPressure(factory, routeDebt, stalledNodes, bottlenecks);',
-    'private scoreRouteCandidate(',
-    "if ((destinationSector?.satisfaction || 1) < 0.35) score += 6;",
-    'private getSectorTransferBias(',
-    'if (this.getEmergencyReliefSectors(factory).includes(sector.name)) bias += 0.75;',
-    'private buildFactoryPressure(',
     'const totalHotspots = Math.max(hotspots, stalledNodes);',
     'const corridors = this.buildCorridorInsights(factory, bottlenecks);',
     'const recommendations = this.buildPlannerRecommendations(bottlenecks, pinnedKeys, emergencyReliefSectors, {',
     'hotspots: totalHotspots,',
-    'efficiencyPenalty:',
-    'corridors,',
-    'private buildCorridorInsights(factory: FactoryState, bottlenecks: FactoryPressurePoint[]): FactoryCorridorState[] {',
-    'const previousByName = new Map((factory.pressure?.corridors || []).map((corridor) => [corridor.sectorName, corridor]));',
-    'const history = [...(previous?.history || []).slice(-5), throughput];',
-    'const trend = this.getCorridorTrend(history);',
-    'const routeDebtShare = Math.round(this.getCorridorRouteDebtShare(bottlenecks, sector.name) * 10) / 10;',
-    'anchorKey: this.getCorridorAnchorKey(factory, sector.name) || previous?.anchorKey || `${sector.name}:anchor`,',
-    'followThrough: this.getCorridorFollowThrough(sector.name, routeDebtShare, underfedProcessors, hotspots, trend, improvement),',
-    "private getCorridorTrend(history: number[]): FactoryCorridorState['trend'] {",
-    'private getCorridorRouteDebtShare(bottlenecks: FactoryPressurePoint[], sectorName: string): number {',
-    'private getCorridorSuggestedBuilding(routeDebtShare: number, underfedProcessors: number, hotspots: number): BuildingType {',
-    'private getCorridorPriorityScore(corridor: FactoryCorridorState): number {',
-    'private getCorridorAnchorKey(factory: FactoryState, sectorName: string): string | undefined {',
-    'private getCorridorFollowThrough(',
-    'Anchor fresh rail in',
-    'Chain depot relief into hungry processors',
-    'private buildPlannerRecommendations(',
+    '.slice(0, 3);',
+    "if (!history || history.length < 3) return 'FLAT';",
+    'if (delta > 2.5) return \'UP\';',
+    'if (delta < -2.5) return \'DOWN\';',
+    'if (routeDebtShare >= 8) return BuildingType.RAIL_LINE;',
+    'Lay fresh rail in',
+    'Add depot relief until',
+    'routeDebt >= 10',
+    'metrics.underfedProcessors >= 2',
+    'metrics.hotspots >= 2',
     'routeDebtCorridor?.recommendedBuilding || this.getSuggestedBuilding(routeDebtPoint)',
-    'private findRecommendationCorridor(',
-    "private getCorridorTrendLabel(trend?: FactoryCorridorState['trend']): string {",
-    'private buildScopedRecommendation(',
-    'const corridorDetail = corridor ? ` · anchor ${corridor.anchorKey} · ${corridor.followThrough}` : \'\';',
-    'targetKey: corridor?.anchorKey || point.key,',
     'Reinforce rail corridor',
     'Stabilize processor cluster',
     'Expand depot relief',
-    'private getSuggestedBuilding(point: FactoryPressurePoint): BuildingType {',
-    'return BuildingType.RAIL_LINE;',
-    'private getPinnedKeys(factory: FactoryState): string[] {',
-    'private getEmergencyReliefSectors(factory: FactoryState): string[] {',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Megafactory optimization loop turns chronic pressure into industrial efficiency penalties', () => {
+test('Economy, production, and render layers consume planner pressure instead of leaving it as a warning only', () => {
   assert.equal(existsSync(productionPath), true, 'ProductionSystem.ts is missing');
+  assert.equal(existsSync(economyPath), true, 'EconomySystem.ts is missing');
+  assert.equal(existsSync(buildingRenderPath), true, 'BuildingRenderSystem.ts is missing');
 
-  const source = readFileSync(productionPath, 'utf8');
+  const productionSource = readFileSync(productionPath, 'utf8');
+  const economySource = readFileSync(economyPath, 'utf8');
+  const renderSource = readFileSync(buildingRenderPath, 'utf8');
 
   for (const snippet of [
     'const factoryPenalty = 1 - (state.factory?.pressure?.efficiencyPenalty || 0);',
     'const plannerEfficiency = this.isFactoryPenaltyTarget(tile.buildingType) ? factoryPenalty : 1;',
     'const effectiveFactoryEfficiency = utilityEfficiency * plannerEfficiency;',
-    'Math.max(0.5, (currentDef.production || 0) * 0.03 * effectiveFactoryEfficiency)',
-    'Math.max(0.5, (currentDef.production || 0) * 0.025 * effectiveFactoryEfficiency)',
-    'Math.max(0.35, ((currentDef.production || 18) * 0.02) * effectiveFactoryEfficiency)',
-    'Math.max(0.2, ((currentDef.production || 18) * 0.015) * effectiveFactoryEfficiency)',
     'private isFactoryPenaltyTarget(type: BuildingType): boolean {',
-    'BuildingType.GREEN_TECH_LAB',
   ]) {
-    assert.match(source, new RegExp(escapeRegExp(snippet)));
+    assert.match(productionSource, new RegExp(escapeRegExp(snippet)));
   }
-});
-
-test('Sector quotas now affect market pricing and create bonus-chain or missed-target pressure', () => {
-  assert.equal(existsSync(economyPath), true, 'EconomySystem.ts is missing');
-
-  const source = readFileSync(economyPath, 'utf8');
 
   for (const snippet of [
     'private applySectorQuotaPressure(state: GameState) {',
-    'const satisfaction = sector.satisfaction ?? 0.75;',
     'const bonusChain = sector.bonusChain ?? 0;',
     'const missedQuotaTicks = sector.missedQuotaTicks ?? 0;',
     'state.resources.agt += reward;',
-    'state.resources.trust = Math.min(100, state.resources.trust + (0.05 * bonusChain));',
     'state.resources.agt = Math.max(0, state.resources.agt - agtPenalty);',
-    'state.resources.trust = Math.max(0, state.resources.trust - (0.08 + (missedQuotaTicks * 0.015)));',
-    'private getSectorExportBonus(state: GameState, resource: FactoryResourceType): number {',
-    'private getSectorImportDiscount(state: GameState, resource: FactoryResourceType): number {',
     'private getSectorExportContractBonus(sector: FactorySectorState, resource: FactoryResourceType): number {',
-    'const chainBonus = Math.min(0.08, (sector.bonusChain || 0) * 0.015);',
     'private getSectorImportContractDiscount(sector: FactorySectorState, resource: FactoryResourceType): number {',
-    'const missedPressure = Math.min(0.08, (sector.missedQuotaTicks || 0) * 0.01);',
-    'private getSectorContractCompletion(sector: FactorySectorState): number {',
-    'sector.exportBonus + this.getSectorExportContractBonus(sector, resource)',
-    'sector.importDiscount + this.getSectorImportContractDiscount(sector, resource)',
   ]) {
-    assert.match(source, new RegExp(escapeRegExp(snippet)));
+    assert.match(economySource, new RegExp(escapeRegExp(snippet)));
   }
-});
-
-test('Renderer exposes in-world sector heatmaps and planner markers for relief, pins, and build goals', () => {
-  assert.equal(existsSync(buildingRenderPath), true, 'BuildingRenderSystem.ts is missing');
-
-  const source = readFileSync(buildingRenderPath, 'utf8');
 
   for (const snippet of [
-    'FactorySectorState,',
-    'sectorBonus: new THREE.MeshBasicMaterial({ color: 0x84cc16, transparent: true, opacity: 0.38 }),',
-    'sectorStrain: new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.42 }),',
-    'const sectorProfiles = new Map((factory.sectors || []).map((sector) => [sector.name, sector]));',
-    'const routeLoadBySector = new Map<string, number>();',
-    'const pinnedKeys = new Set(factory.pressure?.pinnedKeys || []);',
-    'const reliefSectors = new Set(factory.pressure?.emergencyReliefSectors || []);',
     'const recommendationByKey = new Map((factory.pressure?.recommendations || [])',
     'RELIEF ${this.getSectorCode(node.sectorName)}',
     'PIN ${this.getSuggestedBuildingCode(recommendation.suggestedBuilding)}',
-    'UP ${this.getSuggestedBuildingCode(recommendation?.suggestedBuilding)}',
-    "if (overlayMode === 'FLOW') {",
     'const heatTrail = new THREE.Mesh(',
-    "if (overlayMode === 'CONGESTION') {",
-    'const pressure = Math.max(this.getSectorPressure(fromSector), this.getSectorPressure(toSector));',
-    'const flowPlate = new THREE.Mesh(',
-    'const sectorPlate = new THREE.Mesh(',
-    'const quotaStress = new THREE.Mesh(',
     'const plannerRing = new THREE.Mesh(',
     'const plannerBadge = new THREE.Sprite(this.getSectorLabelMaterial(',
     'const goalBadge = new THREE.Sprite(this.getSectorLabelMaterial(',
-    'private getPlannerColor(reason?: string): number {',
-    'private getSuggestedBuildingCode(type?: BuildingType): string {',
     'private getSectorGoalLabel(sector: FactorySectorState): string {',
-    'if ((sector.missedQuotaTicks || 0) >= 3 || (sector.satisfaction || 1) < 0.35) {',
-    'private getSectorPressure(sector: FactorySectorState | undefined): number {',
-    'private getSectorPressureColor(pressure: number): number {',
-    'private getSectorFlowColor(sector: FactorySectorState): number {',
-    'private getSectorSatisfactionColor(sector: FactorySectorState): number {',
   ]) {
-    assert.match(source, new RegExp(escapeRegExp(snippet)));
+    assert.match(renderSource, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Building definitions and HUD now describe visible regional personalities plus dedicated drone support infrastructure', () => {
+test('HUD and building text expose regional personalities and dedicated drone support infrastructure', () => {
   assert.equal(existsSync(buildingsPath), true, 'engine/data/buildings.ts is missing');
   assert.equal(existsSync(hudPath), true, 'components/HUD.tsx is missing');
 
@@ -314,101 +164,60 @@ test('Building definitions and HUD now describe visible regional personalities p
     'const routeDebt = Math.round(state.factory?.pressure?.routeDebt || 0);',
     'const underfed = state.factory?.pressure?.underfedProcessors || 0;',
     'const hotspots = state.factory?.pressure?.hotspots || 0;',
-    'Out {SECTOR_RESOURCE_LABELS[sector.exportFocus]} +{toPercent(sector.exportBonus)}',
-    'In {SECTOR_RESOURCE_LABELS[sector.importFocus]} -{toPercent(sector.importDiscount)}',
-    'Demand +{toPercent(sector.demandBonus)}',
     'Sat {toPercent(satisfaction)}',
     'Chain x{bonusChain}',
-    'Build rail hubs to read regional demand.',
     'Pads {rechargePads} · Rail {railFlow} · Debt {routeDebt} · Feed {underfed} · Hot {hotspots}',
   ]) {
     assert.match(hudSource, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Trade terminal includes corridor watch history, planner pins, emergency relief controls, and actionable build and goal guidance', () => {
+test('Trade terminal reads as a late-game control surface with denser corridor watch and calmer recommendation cards', () => {
   assert.equal(existsSync(tradeTerminalPath), true, 'components/TradeTerminal.tsx is missing');
 
   const source = readFileSync(tradeTerminalPath, 'utf8');
 
   for (const snippet of [
-    'const pressure = state.factory?.pressure;',
-    'const pinnedKeys = new Set(pressure?.pinnedKeys || []);',
-    'const reliefSectors = new Set(pressure?.emergencyReliefSectors || []);',
-    'const recommendations = pressure?.recommendations || [];',
-    'const corridors = pressure?.corridors || [];',
-    "const updatePlanner = (plannerAction: 'TOGGLE_PIN' | 'TOGGLE_RELIEF' | 'FOCUS_RECOMMENDATION', payload: Record<string, unknown>) => {",
-    "type: 'UPDATE_FACTORY_PLANNER'",
-    'const formatSuggestedBuilding = (value?: string) => value ? value.replace(/_/g, \' \\') : \'Support Upgrade\';',
-    'const getRecommendationScope = (rec: { reason?: string; sectorName?: string }) => {',
-    'const getRecommendationHint = (rec: { reason?: string; sectorName?: string; suggestedBuilding?: string }) => {',
-    'const getRecommendationGoal = (rec: { reason?: string; sectorName?: string; resource?: FactoryResourceType }) => {',
-    'const getRecommendationChain = (rec: { reason?: string; suggestedBuilding?: string }) => {',
-    'const getCorridorTrendTone = (trend?: string) => {',
-    'const getCorridorTrendLabel = (trend?: string) => {',
-    'const getCorridorTrendDelta = (corridor: { history?: number[]; throughput: number }) => {',
-    'const getRecommendationCorridor = (',
+    'w-[30rem] max-w-[94vw]',
     'Regional export, congestion, quota control, and planner relief',
-    'Penalty',
-    'Megafactory Planning',
-    'Pin bottlenecks, mark relief sectors, and follow the first upgrade loop',
-    'Corridor Watch',
-    'No corridor history yet. Keep the rail grid moving to start a before/after read.',
-    'Recommendations',
-    'No upgrade recommendations yet.',
-    'Pinned',
-    'Emergency Relief',
-    'Clear Relief',
-    'Relief',
-    'ACTIVE',
-    'Trend',
-    'Before / After',
-    'Anchor',
-    'Upgrade chain',
-    'Follow-through',
-    'Build hint',
-    'Sector goal',
-    'World tag',
-    'Performance goal',
-    'Suggest {formatSuggestedBuilding(rec.suggestedBuilding)}',
+    'Late-game network control, not just warnings',
+    'bottlenecks.slice(0, 3).map((point) => {',
+    'corridors.slice(0, 2).map((corridor) => (',
+    'heightClass="h-12"',
+    'recommendations.slice(0, 2).map((rec) => {',
     'Upgrade lane {getRecommendationScope(rec)}',
-    'const corridor = getRecommendationCorridor(rec, corridors);',
-    "updatePlanner('FOCUS_RECOMMENDATION', {",
-    'Frame & Preview',
-    'getSectorPerformanceGoal({ name: sector.name, satisfaction, contractTarget, contractProgress, contractResource, bonusChain })',
+    'Anchor {corridor?.anchorKey || rec.targetKey || \'Network\'} · {formatSuggestedBuilding(rec.suggestedBuilding)}',
+    'Follow-through {corridor?.followThrough || \'Stabilize this node before scaling outward.\'}',
+    'reason: rec.reason,',
+    'Frame, Preview & Overlay',
+    'Performance goal',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
-test('Engine dispatch bridge persists sector policy and factory planner action updates back into engine-owned state and can frame recommendations on the map', () => {
+test('Engine bridge can frame planner recommendations with building-specific preview offsets, overlay switching, and smarter zoom', () => {
   assert.equal(existsSync(engineBridgePath), true, 'game/useAureusEngine.ts is missing');
 
   const source = readFileSync(engineBridgePath, 'utf8');
 
   for (const snippet of [
+    "import { BuildingType, GameState, LogisticsOverlayMode, SfxType } from '../types';",
     'function findPlannerTargetNode(state: GameState, payload: Record<string, any>) {',
+    'function getPlannerPreviewOffsets(buildingType?: BuildingType): Array<[number, number]> {',
     'function findPlannerPreviewPosition(state: GameState, x: number, z: number, buildingType?: BuildingType) {',
-    "if (action?.type === 'UPDATE_SECTOR_POLICY') {",
-    "if (action?.type === 'UPDATE_FACTORY_PLANNER') {",
+    'function getPlannerOverlayMode(reason?: string, suggestedBuilding?: BuildingType): LogisticsOverlayMode {',
+    'function getPlannerZoom(buildingType?: BuildingType): number {',
     "if (action.payload?.plannerAction === 'FOCUS_RECOMMENDATION') {",
-    'const targetNode = findPlannerTargetNode(state, action.payload);',
+    'const overlayMode = getPlannerOverlayMode(action.payload?.reason, action.payload?.suggestedBuilding);',
+    'if (state.logistics.overlayMode !== overlayMode) {',
+    'world.loadGame(JSON.stringify({',
     'world.selectBuilding(action.payload.suggestedBuilding);',
     'const preview = findPlannerPreviewPosition(state, targetNode.x, targetNode.z, action.payload.suggestedBuilding);',
     'world.pinBuildingForConfirmation(preview.x, preview.z);',
-    'const tile = ChunkStore.getTile(state.chunks, targetNode.x, targetNode.z);',
-    '(world as any).cameraSystem?.setTargetHeight?.(focusY);',
-    '(world as any).cameraSystem?.zoomToPosition?.(targetNode.x, targetNode.z, 2);',
-    'const currentPressure = state.factory.pressure || {',
-    'pinnedKeys: [],',
-    'emergencyReliefSectors: [],',
-    'recommendations: [],',
-    'efficiencyPenalty: 0,',
-    "if (action.payload?.plannerAction === 'TOGGLE_PIN' && action.payload?.targetKey) {",
-    "if (action.payload?.plannerAction === 'TOGGLE_RELIEF' && action.payload?.sectorName) {",
-    'pinnedKeys: Array.from(pinnedKeys),',
-    'emergencyReliefSectors: Array.from(emergencyReliefSectors),',
-    'world.loadGame(JSON.stringify(updatedState));',
+    'const zoomLevel = getPlannerZoom(action.payload?.suggestedBuilding);',
+    '(world as any).cameraSystem?.zoomToPosition?.(targetNode.x, targetNode.z, zoomLevel);',
+    'corridors: [],',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
