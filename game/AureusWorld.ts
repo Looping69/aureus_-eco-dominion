@@ -592,6 +592,7 @@ export class AureusWorld extends BaseWorld {
             state.factory,
             state.logistics.overlayMode,
             new Set(),
+            undefined,
             'SURFACE',
             this.cameraSystem.cameraZoom,
             this.render.getRuntimeQuality().smoothDetail
@@ -761,6 +762,7 @@ export class AureusWorld extends BaseWorld {
      */
     draw(ctx: FrameContext): void {
         const state = this.stateManager.getState();
+        const affectedBuildingChunks = new Set<string>();
 
         // 0. Update Water Animation Time
         waterFlowMaterial.uniforms.time.value = ctx.time;
@@ -776,7 +778,8 @@ export class AureusWorld extends BaseWorld {
                 } else if (effect.type === 'FX') {
                     this.buildingRenderSystem.triggerEffect(effect.x, effect.z, effect.fxType, 0);
                 } else if (effect.type === 'CHUNK_UPDATE') {
-                    this.terrainRenderSystem.updateChunk(effect.cx, effect.cz, effect.updates);
+                    const affectedChunks = this.terrainRenderSystem.updateChunk(effect.cx, effect.cz, effect.updates);
+                    affectedChunks.forEach((key) => affectedBuildingChunks.add(key));
 
                     // FIX: Sync chunk to worker
                     const key = `${effect.cx},${effect.cz}`;
@@ -826,6 +829,7 @@ export class AureusWorld extends BaseWorld {
                 state.factory,
                 state.logistics.overlayMode,
                 this.stateManager.getDirtyKeys(),
+                affectedBuildingChunks,
                 'FIRST_PERSON',
                 0.1,
                 this.render.getRuntimeQuality().smoothDetail
@@ -853,6 +857,7 @@ export class AureusWorld extends BaseWorld {
                 state.factory,
                 state.logistics.overlayMode,
                 this.stateManager.getDirtyKeys(),
+                affectedBuildingChunks,
                 'SURFACE',
                 zoomLevel,
                 this.render.getRuntimeQuality().smoothDetail
