@@ -1,62 +1,51 @@
-/**
- * StateManager
- * The engine's authoritative game state container.
- * React subscribes to changes; engine systems mutate directly.
- */
-
-import {
-    GameState, BuildingType, Agent, GridTile, GameStep,
-    SfxType, GameCommand, Era, Chunk
-} from '../../types';
-import { INITIAL_RESOURCES } from '../data/VoxelConstants';
+import { GameState, Agent, BuildingType, Era, ResourceNode, NewsType, TechId, CommandResultStatus, TimeOfDay, PowerGridState, InteractionMode, LogisticsOverlayMode } from '../../types';
+import { INITIAL_RESOURCES, INITIAL_PERMITS, INITIAL_NPCS, INITIAL_AMBIENT_NPCS, DAY_NIGHT, STARTING_AGENTS, TECH_TREE } from '../data/VoxelConstants';
+import { generateTerrainSeeded } from '../worldgen/Core';
 import { ChunkStore } from '../space/ChunkStore';
-import { CHUNK_SIZE } from '../space/ChunkStore';
-import { worldToChunk } from '../utils/coords';
-
-import { Random } from '../kernel/Random';
-import { INITIAL_NPCS, INITIAL_PERMITS } from '../data/bureaucracy';
-import { DAY_NIGHT } from '../sim/dayNightCycle';
+import { createRNG } from '../utils/RNG';
 import { createWeatherState } from '../weather/weatherModel';
 import { normalizeUndergroundState } from '../underground/UndergroundGenerator';
 
-export type StateListener = (state: GameState) => void;
+export type StateListener = () => void;
 
 export class StateManager {
     private state: GameState;
-    private listeners: Set<StateListener> = new Set();
-    private dirtyFlag = false;
+    private listeners = new Set<StateListener>();
     private dirtyKeys = new Set<keyof GameState>();
-    private mutableContext: "simTick" | "none" = "none";
-    private random: Random;
+    private pendingCommands: Array<{ type: string; payload?: any }> = [];
+    private mutableContext: 'none' | 'command' | 'simTick' = 'none';
+    private commandResult: { status: CommandResultStatus; message: string } | null = null;
+    private rng = createRNG();
 
-    constructor(initialState?: Partial<GameState>) {
-        this.state = this.createInitialState(initialState);
-        this.random = new Random(this.state.seed);
+    constructor() {
+        this.state = this.createInitialState();
+        this.rng = createRNG(this.state.seed);
     }
 
     private createInitialState(overrides?: Partial<GameState>): GameState {
-        const chunks: Record<string, Chunk> = {};
         const seed = overrides?.seed || Math.floor(Math.random() * 1000000);
-        const spawnX = overrides?.spawnX ?? Math.floor(Math.sin(seed * 0.7123) * 200);
-        const spawnZ = overrides?.spawnZ ?? Math.floor(Math.cos(seed * 0.3456) * 200);
-
-        const { cx: spawnCX, cz: spawnCZ } = worldToChunk(spawnX, spawnZ, CHUNK_SIZE);
-        for (let dz = -1; dz <= 1; dz++) {
-            for (let dx = -1; dx <= 1; dx++) {
-                ChunkStore.ensureChunk(chunks, spawnCX + dx, spawnCZ + dz, seed);
-            }
-        }
+        const terrain = generateTerrainSeeded(seed);
+        const chunks = ChunkStore.fromGrid(terrain.grid);
+        const spawnX = terrain.startingPoints?.[0]?.x || 0;
+        const spawnZ = terrain.startingPoints?.[0]?.z || 0;
 
         return {
             chunks,
-            agents: this.createInitialAgents(spawnX, spawnZ),
-            ambientNpcs: [],
-            jobs: [],
-            commandQueue: [],
-
+            agents: STARTING_AGENTS.map((agent, index) => ({
+                ...agent,
+                id: `agent-${index + 1}`,
+                x: spawnX + index,
+                z: spawnZ,
+                homeX: spawnX + index,
+                homeZ: spawnZ,
+            })),
+            ambientNpcs: INITIAL_AMBIENT_NPCS.map((npc, index) => ({
+                ...npc,
+                id: `ambient-${index + 1}`,
+            })),
             resources: {
-                agt: 5000,
-                minerals: 0,
+                agt: INITIAL_RESOURCES.agt,
+                minerals: INITIAL_RESOURCES.minerals,
                 gems: INITIAL_RESOURCES.gems,
                 wood: INITIAL_RESOURCES.wood,
                 stone: INITIAL_RESOURCES.stone,
@@ -92,7 +81,7 @@ export class StateManager {
             cheatsEnabled: false,
             tickCount: 0,
             idCounter: 0,
-            seed: overrides?.seed || Math.floor(Math.random() * 1000000),
+            seed,
             spawnX,
             spawnZ,
 
@@ -131,13 +120,6 @@ export class StateManager {
             unlockedEras: [Era.SETTLEMENT],
             eraUnlockedPopup: null,
 
-            powerGrid: {
-                totalProduced: 0,
-                totalConsumed: 0,
-                industrialDemand: 0,
-                strandedDemand: 0,
-                deficit: 0,
-            },
             waterNetwork: { totalProduced: 0, totalConsumed: 0, deficit: 0 },
 
             bureaucracy: {
@@ -184,91 +166,26 @@ export class StateManager {
         } as GameState;
     }
 
-    private createInitialAgents(spawnX: number, spawnZ: number): Agent[] {
-        const names = ['Marcus', 'Elena', 'Kofi'];
-
-        return names.map((name, i): Agent => ({
-            id: `agent_${i}`,
-            name,
-            type: 'WORKER',
-            x: spawnX + (i - 1),
-            z: spawnZ,
-            visualX: spawnX + (i - 1),
-            visualZ: spawnZ,
-            layer: 0,
-            state: 'IDLE',
-            energy: 80 + Math.random() * 20,
-            hunger: 80 + Math.random() * 20,
-            mood: 80 + Math.random() * 20,
-            skills: {
-                mining: 1,
-                construction: 1,
-                plants: 1,
-                intelligence: 1,
-            },
-            currentJobId: null,
-            targetX: null,
-            targetZ: null,
-            path: null,
-            inventory: { type: null, amount: 0, capacity: 10 }
-        }));
-    }
-
-    getNextId(prefix: string): string {
-        const id = `${prefix}_${this.state.idCounter++}`;
-        this.dirtyFlag = true;
-        this.dirtyKeys.add('idCounter');
-        return id;
-    }
-
-    getRandom(): Random {
-        return this.random;
-    }
-
-    getDirtyKeys(): Set<keyof GameState> {
-        return this.dirtyKeys;
-    }
-
     getState(): GameState {
         return this.state;
     }
 
-    mutate<K extends keyof GameState>(key: K, value: GameState[K]): void {
-        this.state[key] = value;
-        this.dirtyFlag = true;
-        this.dirtyKeys.add(key);
+    getMutableState(): GameState {
+        return this.state;
     }
 
-    update(partial: Partial<GameState>): void {
-        Object.assign(this.state, partial);
-        this.dirtyFlag = true;
-        for (const key in partial) {
-            this.dirtyKeys.add(key as keyof GameState);
-        }
-    }
-
-    markDirty(...keys: Array<keyof GameState>): void {
-        this.dirtyFlag = true;
-        for (const key of keys) {
-            this.dirtyKeys.add(key);
-        }
-    }
-
-    setMutableContext(context: "simTick" | "none"): void {
+    setMutableContext(context: 'none' | 'command' | 'simTick') {
         this.mutableContext = context;
     }
 
-    private assertMutableContext(target: "simTick"): void {
-        if (this.mutableContext !== target && !this.state.debugMode) {
-            throw new Error(`CRITICAL: Mutable state accessed outside of ${target} context. Current context: ${this.mutableContext}`);
-        }
+    getRandom() {
+        return this.rng;
     }
 
-    getMutableState(dirtyKey?: keyof GameState): GameState {
-        this.assertMutableContext("simTick");
-        this.dirtyFlag = true;
-        this.dirtyKeys.add(dirtyKey ?? 'chunks');
-        return this.state;
+    getNextId(prefix: string): string {
+        this.state.idCounter += 1;
+        this.markDirty('idCounter');
+        return `${prefix}_${this.state.idCounter}`;
     }
 
     subscribe(listener: StateListener): () => void {
@@ -276,61 +193,64 @@ export class StateManager {
         return () => this.listeners.delete(listener);
     }
 
-    notifyIfDirty(): void {
-        if (this.dirtyFlag) {
-            this.dirtyFlag = false;
-            const snapshot = { ...this.state };
-            this.listeners.forEach(listener => listener(snapshot));
-            this.dirtyKeys.clear();
-        }
-    }
-
-    private deepFreeze(obj: any): any {
-        if (obj === null || typeof obj !== 'object') return obj;
-        Object.freeze(obj);
-        Object.getOwnPropertyNames(obj).forEach(prop => {
-            const value = obj[prop];
-            if (value !== null && (typeof value === 'object' || typeof value === 'function') && !Object.isFrozen(value)) {
-                this.deepFreeze(value);
-            }
-        });
-        return obj;
-    }
-
-    forceNotify(): void {
-        const snapshot = { ...this.state };
-        this.listeners.forEach(listener => listener(snapshot));
+    notifyIfDirty() {
+        if (this.dirtyKeys.size === 0) return;
+        this.listeners.forEach(listener => listener());
         this.dirtyKeys.clear();
     }
 
-    loadState(saved: Partial<GameState>): void {
-        this.state = this.createInitialState(saved);
-        this.forceNotify();
+    markDirty(...keys: (keyof GameState)[]) {
+        keys.forEach(key => this.dirtyKeys.add(key));
     }
 
-    serializeState(): string {
-        return JSON.stringify(this.state);
+    getDirtyKeys(): Set<keyof GameState> {
+        return new Set(this.dirtyKeys);
     }
 
-    pushCommand(type: GameCommand['type'], payload: any): void {
-        this.state.commandQueue.push({
-            id: this.getNextId('cmd'),
-            type,
-            payload
-        });
-        this.dirtyFlag = true;
-        this.dirtyKeys.add('commandQueue');
+    mutate<K extends keyof GameState>(key: K, value: GameState[K]) {
+        if (this.mutableContext === 'none') {
+            console.warn(`[StateManager] Direct mutation of '${String(key)}' outside sim/command context. Use update() for UI actions.`);
+        }
+        (this.state as any)[key] = value;
+        this.markDirty(key);
     }
 
-    pushEffect(effect: any): void {
+    update(partial: Partial<GameState>) {
+        Object.assign(this.state, partial);
+        this.markDirty(...Object.keys(partial) as (keyof GameState)[]);
+    }
+
+    loadState(newState: GameState) {
+        this.state = newState;
+        this.rng = createRNG(this.state.seed);
+        this.markDirty(...Object.keys(newState) as (keyof GameState)[]);
+        this.notifyIfDirty();
+    }
+
+    pushCommand(type: string, payload?: any) {
+        this.pendingCommands.push({ type, payload });
+    }
+
+    drainCommands(): Array<{ type: string; payload?: any }> {
+        const commands = [...this.pendingCommands];
+        this.pendingCommands.length = 0;
+        return commands;
+    }
+
+    pushEffect(effect: any) {
         this.state.pendingEffects.push(effect);
-        this.dirtyFlag = true;
-        this.dirtyKeys.add('pendingEffects');
+        this.markDirty('pendingEffects');
     }
 
-    incrementTick(): void {
-        this.state.tickCount++;
-        this.dirtyFlag = true;
-        this.dirtyKeys.add('tickCount');
+    setCommandResult(status: CommandResultStatus, message: string) {
+        this.commandResult = { status, message };
+        this.state.ui.lastCommandResult = this.commandResult;
+        this.markDirty('ui');
     }
+}
+
+enum GameStep {
+    INTRO = 'INTRO',
+    RUNNING = 'RUNNING',
+    GAME_OVER = 'GAME_OVER',
 }
