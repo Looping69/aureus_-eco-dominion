@@ -11,9 +11,9 @@ import { getTerrainMacroStep } from '../render/utils/TerrainLod';
 import { getBiomeAt as getBiomeAtImpl, getFoliageAt as getFoliageAtImpl } from '../worldgen/Core';
 import { Job, PathfindJob, PathfindResult, MeshChunkJob, MeshChunkResult, ENGINE_SCHEMA_VERSION } from './jobs.types';
 import { findPath } from '../sim/algorithms/Pathfinding';
-import { worldToChunk, worldToLocal } from '../utils/coords';
 
 let localChunks: Record<string, Chunk> = {};
+const CLIFF_FACE_THRESHOLD = 0.76;
 
 const PALETTE: Record<string, number[]> = {
     'grass': [0.36, 0.62, 0.27],
@@ -38,19 +38,16 @@ const PALETTE: Record<string, number[]> = {
     'gold': [1.0, 0.84, 0.0]
 };
 
-
-
 self.onmessage = (e: MessageEvent) => {
     const msg = e.data;
 
     if (msg.type === 'SYNC_CHUNKS') {
-        localChunks = msg.payload; // Record<string, Chunk>
+        localChunks = msg.payload;
         return;
     }
 
     if (msg.type === 'UPDATE_CHUNK') {
         const { key, chunk } = msg.payload;
-        // console.log('[Worker] Updating chunk', key);
         localChunks[key] = chunk;
         return;
     }
@@ -58,7 +55,6 @@ self.onmessage = (e: MessageEvent) => {
     const job = msg as Job;
     if (!job.id || !job.kind) return;
 
-    // Protocol validation
     if (job.schemaVersion !== ENGINE_SCHEMA_VERSION) {
         console.warn(`[EngineWorker] Schema version mismatch. Job: ${job.schemaVersion}, Internal: ${ENGINE_SCHEMA_VERSION}. This is normal during hmr/build.`);
     }
@@ -104,15 +100,14 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
     const startX = cx * CHUNK_SIZE;
     const startZ = cz * CHUNK_SIZE;
 
-    // FIX: Update localChunks with this fresh data so neighbors can see it later
     const chunkKey = `${cx},${cz}`;
     if (!localChunks[chunkKey]) {
         localChunks[chunkKey] = {
             id: job.payload.chunkId,
             x: cx,
             z: cz,
-            tiles: tiles || [], // Ensure tiles is array
-            buildings: {}, // Placeholder if needed
+            tiles: tiles || [],
+            buildings: {},
         } as any;
     } else {
         localChunks[chunkKey].tiles = tiles || [];
@@ -126,9 +121,44 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
     const tileMap = new Map<string, GridTile>();
     if (tiles) tiles.forEach(t => tileMap.set(`${t.x},${t.z}`, t));
 
-    function pRand(x: number, z: number) {
-        return Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
-    }
+    const pushVertex = (dest: any, vertex: [number, number, number], normal: [number, number, number], color: number[], uv: [number, number]) => {
+        dest.p.push(vertex[0], vertex[1], vertex[2]);
+        dest.n.push(normal[0], normal[1], normal[2]);
+        dest.c.push(color[0], color[1], color[2]);
+        dest.u.push(uv[0], uv[1]);
+    };
+
+    const computeNormal = (a: [number, number, number], b: [number, number, number], c: [number, number, number]): [number, number, number] => {
+        const abx = b[0] - a[0];
+        const aby = b[1] - a[1];
+        const abz = b[2] - a[2];
+        const acx = c[0] - a[0];
+        const acy = c[1] - a[1];
+        const acz = c[2] - a[2];
+        const nx = aby * acz - abz * acy;
+        const ny = abz * acx - abx * acz;
+        const nz = abx * acy - aby * acx;
+        const length = Math.hypot(nx, ny, nz) || 1;
+        return [nx / length, ny / length, nz / length];
+    };
+
+    const addQuad = (
+        dest: any,
+        a: [number, number, number],
+        b: [number, number, number],
+        c: [number, number, number],
+        d: [number, number, number],
+        color: number[]
+    ) => {
+        const n1 = computeNormal(a, b, c);
+        const n2 = computeNormal(a, c, d);
+        pushVertex(dest, a, n1, color, [0, 0]);
+        pushVertex(dest, b, n1, color, [1, 0]);
+        pushVertex(dest, c, n1, color, [1, 1]);
+        pushVertex(dest, a, n2, color, [0, 0]);
+        pushVertex(dest, c, n2, color, [1, 1]);
+        pushVertex(dest, d, n2, color, [0, 1]);
+    };
 
     const addFace = (
         dest: any,
@@ -141,38 +171,82 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
         hy: number = 0.5,
         hz: number = 0.5
     ) => {
-        let v1, v2, v3, v4, nx, ny, nz;
-        // 0: +X, 1: -X, 2: +Y (Top), 3: -Y (Bottom), 4: +Z, 5: -Z
-        if (type === 0) { v1 = [hx, -hy, hz]; v2 = [hx, -hy, -hz]; v3 = [hx, hy, -hz]; v4 = [hx, hy, hz]; nx = 1; ny = 0; nz = 0; }
-        else if (type === 1) { v1 = [-hx, -hy, -hz]; v2 = [-hx, -hy, hz]; v3 = [-hx, hy, hz]; v4 = [-hx, hy, -hz]; nx = -1; ny = 0; nz = 0; }
-        else if (type === 2) { v1 = [-hx, hy, hz]; v2 = [hx, hy, hz]; v3 = [hx, hy, -hz]; v4 = [-hx, hy, -hz]; nx = 0; ny = 1; nz = 0; }
-        else if (type === 3) { v1 = [-hx, -hy, -hz]; v2 = [hx, -hy, -hz]; v3 = [hx, -hy, hz]; v4 = [-hx, -hy, hz]; nx = 0; ny = -1; nz = 0; }
-        else if (type === 4) { v1 = [-hx, -hy, hz]; v2 = [hx, -hy, hz]; v3 = [hx, hy, hz]; v4 = [-hx, hy, hz]; nx = 0; ny = 0; nz = 1; }
-        else { v1 = [hx, -hy, -hz]; v2 = [-hx, -hy, -hz]; v3 = [-hx, hy, -hz]; v4 = [hx, hy, -hz]; nx = 0; ny = 0; nz = -1; }
+        let v1: [number, number, number], v2: [number, number, number], v3: [number, number, number], v4: [number, number, number];
+        if (type === 0) { v1 = [sx + hx, sy - hy, sz + hz]; v2 = [sx + hx, sy - hy, sz - hz]; v3 = [sx + hx, sy + hy, sz - hz]; v4 = [sx + hx, sy + hy, sz + hz]; }
+        else if (type === 1) { v1 = [sx - hx, sy - hy, sz - hz]; v2 = [sx - hx, sy - hy, sz + hz]; v3 = [sx - hx, sy + hy, sz + hz]; v4 = [sx - hx, sy + hy, sz - hz]; }
+        else if (type === 2) { v1 = [sx - hx, sy + hy, sz + hz]; v2 = [sx + hx, sy + hy, sz + hz]; v3 = [sx + hx, sy + hy, sz - hz]; v4 = [sx - hx, sy + hy, sz - hz]; }
+        else if (type === 3) { v1 = [sx - hx, sy - hy, sz - hz]; v2 = [sx + hx, sy - hy, sz - hz]; v3 = [sx + hx, sy - hy, sz + hz]; v4 = [sx - hx, sy - hy, sz + hz]; }
+        else if (type === 4) { v1 = [sx - hx, sy - hy, sz + hz]; v2 = [sx + hx, sy - hy, sz + hz]; v3 = [sx + hx, sy + hy, sz + hz]; v4 = [sx - hx, sy + hy, sz + hz]; }
+        else { v1 = [sx + hx, sy - hy, sz - hz]; v2 = [sx - hx, sy - hy, sz - hz]; v3 = [sx - hx, sy + hy, sz - hz]; v4 = [sx + hx, sy + hy, sz - hz]; }
+        addQuad(dest, v1, v2, v3, v4, color);
+    };
 
-        dest.p.push(sx + v1[0], sy + v1[1], sz + v1[2]);
-        dest.p.push(sx + v2[0], sy + v2[1], sz + v2[2]);
-        dest.p.push(sx + v3[0], sy + v3[1], sz + v3[2]);
-        dest.p.push(sx + v1[0], sy + v1[1], sz + v1[2]);
-        dest.p.push(sx + v3[0], sy + v3[1], sz + v3[2]);
-        dest.p.push(sx + v4[0], sy + v4[1], sz + v4[2]);
+    const addTopSurface = (
+        dest: any,
+        centerX: number,
+        centerZ: number,
+        hx: number,
+        hz: number,
+        corners: { nw: number; ne: number; se: number; sw: number },
+        color: number[]
+    ) => {
+        const nw: [number, number, number] = [centerX - hx, corners.nw, centerZ + hz];
+        const ne: [number, number, number] = [centerX + hx, corners.ne, centerZ + hz];
+        const se: [number, number, number] = [centerX + hx, corners.se, centerZ - hz];
+        const sw: [number, number, number] = [centerX - hx, corners.sw, centerZ - hz];
+        addQuad(dest, nw, ne, se, sw, color);
+    };
 
-        for (let k = 0; k < 6; k++) {
-            dest.n.push(nx, ny, nz);
-            dest.c.push(color[0], color[1], color[2]);
+    const addCliffBand = (
+        dest: any,
+        edgeType: number,
+        centerX: number,
+        centerZ: number,
+        hx: number,
+        hz: number,
+        topA: number,
+        topB: number,
+        bottomA: number,
+        bottomB: number,
+        color: number[]
+    ) => {
+        if (Math.max(topA - bottomA, topB - bottomB) <= CLIFF_FACE_THRESHOLD) {
+            return;
         }
-        dest.u.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
+
+        let v1: [number, number, number], v2: [number, number, number], v3: [number, number, number], v4: [number, number, number];
+        if (edgeType === 0) {
+            v1 = [centerX + hx, bottomA, centerZ + hz];
+            v2 = [centerX + hx, bottomB, centerZ - hz];
+            v3 = [centerX + hx, topB, centerZ - hz];
+            v4 = [centerX + hx, topA, centerZ + hz];
+        } else if (edgeType === 1) {
+            v1 = [centerX - hx, bottomB, centerZ - hz];
+            v2 = [centerX - hx, bottomA, centerZ + hz];
+            v3 = [centerX - hx, topA, centerZ + hz];
+            v4 = [centerX - hx, topB, centerZ - hz];
+        } else if (edgeType === 4) {
+            v1 = [centerX - hx, bottomA, centerZ + hz];
+            v2 = [centerX + hx, bottomB, centerZ + hz];
+            v3 = [centerX + hx, topB, centerZ + hz];
+            v4 = [centerX - hx, topA, centerZ + hz];
+        } else {
+            v1 = [centerX + hx, bottomA, centerZ - hz];
+            v2 = [centerX - hx, bottomB, centerZ - hz];
+            v3 = [centerX - hx, topB, centerZ - hz];
+            v4 = [centerX + hx, topA, centerZ - hz];
+        }
+        addQuad(dest, v1, v2, v3, v4, color);
     };
 
     const getTile = (gx: number, gz: number): GridTile | null => {
         const key = `${gx},${gz}`;
         if (tileMap.has(key)) return tileMap.get(key)!;
 
-        // Fallback to localChunks
         const chunkX = Math.floor(gx / CHUNK_SIZE);
         const chunkZ = Math.floor(gz / CHUNK_SIZE);
-        const chunkKey = `${chunkX},${chunkZ}`;
-        const chunk = localChunks[chunkKey];
+        const neighborChunkKey = `${chunkX},${chunkZ}`;
+        const chunk = localChunks[neighborChunkKey];
         if (chunk) {
             return chunk.tiles.find(t => t.x === gx && t.z === gz) || null;
         }
@@ -187,6 +261,13 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
 
         const data = getBiomeAtImpl(gx, gz);
         return { h: data.height, b: data.biome, bt: 'EMPTY', f: 'NONE', in: false, marked: false };
+    };
+
+    const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {
+        let topY = (data.h * 0.5) - 0.5;
+        if (data.bt === 'POND' || data.bt === 'RESERVOIR') topY -= 1;
+        else if (!data.in && data.h === 0) topY = -2;
+        return topY;
     };
 
     const getMacroData = (worldX: number, worldZ: number, cellWidth: number, cellDepth: number) => {
@@ -217,6 +298,13 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
         };
     };
 
+    const getCornerHeights = (worldX: number, worldZ: number, cellWidth: number, cellDepth: number) => ({
+        nw: getTopSurfaceY(getData(worldX, worldZ)),
+        ne: getTopSurfaceY(getData(worldX + cellWidth, worldZ)),
+        se: getTopSurfaceY(getData(worldX + cellWidth, worldZ + cellDepth)),
+        sw: getTopSurfaceY(getData(worldX, worldZ + cellDepth)),
+    });
+
     for (let z = 0; z < CHUNK_SIZE; z += macroStep) {
         for (let x = 0; x < CHUNK_SIZE; x += macroStep) {
             const worldX = startX + x;
@@ -225,8 +313,10 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
             const cellDepth = Math.min(macroStep, CHUNK_SIZE - z);
             const macro = getMacroData(worldX, worldZ, cellWidth, cellDepth);
             const data = macro.data;
+            const isWater = data.bt === 'POND' || data.bt === 'RESERVOIR' || (!data.in && data.h === 0);
+            const topY = getTopSurfaceY(data);
+            const cornerHeights = getCornerHeights(worldX, worldZ, cellWidth, cellDepth);
 
-            // Foliage Logic (Infinite)
             if (macro.foliageType && macro.foliageType !== 'NONE' && macro.foliageType !== 'GOLD_VEIN') {
                 foliageItems.push({
                     x: macro.sampleX,
@@ -241,62 +331,42 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
             if (data.b === 'GRASS' && data.h > 2) matKey = 'grassLight';
             const color = PALETTE[matKey] || [1, 1, 1];
 
-            const surfaceY = (data.h * 0.5) - 0.5;
-            let topY = surfaceY;
-            const isWater = data.bt === 'POND' || data.bt === 'RESERVOIR' || (!data.in && data.h === 0);
-
-            if (data.bt === 'POND') topY = (data.h * 0.5) - 1.5;
-            else if (data.bt === 'RESERVOIR') topY = (data.h * 0.5) - 1.5;
-            else if (!data.in && data.h === 0) topY = -2;
-
-            // Surface
-            addFace(
+            addTopSurface(
                 solid,
                 macro.localCenterX,
-                topY,
                 macro.localCenterZ,
-                2,
-                color,
                 cellWidth * 0.5,
-                0.5,
-                cellDepth * 0.5
+                cellDepth * 0.5,
+                cornerHeights,
+                color,
             );
 
-            // Sides (cliff edges)
             [
                 [cellWidth, 0, 0],
                 [-macroStep, 0, 1],
                 [0, cellDepth, 4],
                 [0, -macroStep, 5]
             ].forEach(([dx, dz, type]) => {
-                const neighbor = getMacroData(
+                const neighborCorners = getCornerHeights(
                     worldX + dx,
                     worldZ + dz,
                     cellWidth,
                     cellDepth
-                ).data;
-                let nTop = (neighbor.h * 0.5) - 0.5;
-                if (neighbor.bt === 'POND' || neighbor.bt === 'RESERVOIR') nTop -= 1;
-                else if (!neighbor.in && neighbor.h === 0) nTop = -2;
+                );
 
-                for (let y = topY; y > nTop; y--) {
-                    addFace(
-                        solid,
-                        macro.localCenterX,
-                        y,
-                        macro.localCenterZ,
-                        type,
-                        color,
-                        cellWidth * 0.5,
-                        0.5,
-                        cellDepth * 0.5
-                    );
+                if (type === 0) {
+                    addCliffBand(solid, type, macro.localCenterX, macro.localCenterZ, cellWidth * 0.5, cellDepth * 0.5, cornerHeights.ne, cornerHeights.se, neighborCorners.nw, neighborCorners.sw, color);
+                } else if (type === 1) {
+                    addCliffBand(solid, type, macro.localCenterX, macro.localCenterZ, cellWidth * 0.5, cellDepth * 0.5, cornerHeights.sw, cornerHeights.nw, neighborCorners.se, neighborCorners.ne, color);
+                } else if (type === 4) {
+                    addCliffBand(solid, type, macro.localCenterX, macro.localCenterZ, cellWidth * 0.5, cellDepth * 0.5, cornerHeights.nw, cornerHeights.ne, neighborCorners.sw, neighborCorners.se, color);
+                } else {
+                    addCliffBand(solid, type, macro.localCenterX, macro.localCenterZ, cellWidth * 0.5, cellDepth * 0.5, cornerHeights.se, cornerHeights.sw, neighborCorners.ne, neighborCorners.nw, color);
                 }
             });
 
-            // Water
             if (isWater) {
-                const waterY = data.h === 0 ? 0 : surfaceY;
+                const waterY = data.h === 0 ? 0 : (data.h * 0.5) - 0.5;
                 addFace(
                     water,
                     macro.localCenterX,
