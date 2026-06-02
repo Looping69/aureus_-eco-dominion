@@ -6,6 +6,7 @@ import test from 'node:test';
 const worldPath = path.join(process.cwd(), 'game', 'AureusWorld.ts');
 const rendererPath = path.join(process.cwd(), 'game', 'render', 'systems', 'BuildingRenderSystem.ts');
 const overlayPresentationPath = path.join(process.cwd(), 'game', 'render', 'systems', 'LogisticsOverlayPresentation.ts');
+const overlayLabelMaterialFactoryPath = path.join(process.cwd(), 'game', 'render', 'systems', 'OverlayLabelMaterialFactory.ts');
 const era4IndexPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'era4', 'index.ts');
 const droneDepotFactoryPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'era4', 'DroneDepot.ts');
 
@@ -105,6 +106,26 @@ test('Logistics overlay presentation helpers are split into a dedicated module f
     'export function getPlannerColor(reason?: string): number {',
     'export function getSuggestedBuildingCode(type?: BuildingType): string {',
     'export function getSectorGoalLabel(sector: FactorySectorState): string {',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Overlay label material construction is split into a dedicated canvas helper', () => {
+  assert.equal(existsSync(overlayLabelMaterialFactoryPath), true, 'OverlayLabelMaterialFactory.ts is missing');
+
+  const source = readFileSync(overlayLabelMaterialFactoryPath, 'utf8');
+
+  for (const snippet of [
+    "import * as THREE from 'three';",
+    'export function createOverlayLabelMaterial(text: string, color: number): THREE.SpriteMaterial {',
+    "const canvas = document.createElement('canvas');",
+    "ctx.fillStyle = 'rgba(8, 15, 25, 0.82)';",
+    "ctx.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;",
+    "ctx.font = '700 24px sans-serif';",
+    "ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 1);",
+    'const texture = new THREE.CanvasTexture(canvas);',
+    'return new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false });',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
