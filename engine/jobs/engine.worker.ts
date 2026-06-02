@@ -96,6 +96,8 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
     const { cx, cz, tiles, lod = 1 } = job.payload;
     const CHUNK_SIZE = 16;
     const macroStep = getTerrainMacroStep(lod);
+    const surfaceStep = 1;
+    const foliageStep = Math.max(1, macroStep);
 
     const startX = cx * CHUNK_SIZE;
     const startZ = cz * CHUNK_SIZE;
@@ -305,19 +307,18 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
         sw: getTopSurfaceY(getData(worldX, worldZ + cellDepth)),
     });
 
-    for (let z = 0; z < CHUNK_SIZE; z += macroStep) {
-        for (let x = 0; x < CHUNK_SIZE; x += macroStep) {
+    for (let z = 0; z < CHUNK_SIZE; z += surfaceStep) {
+        for (let x = 0; x < CHUNK_SIZE; x += surfaceStep) {
             const worldX = startX + x;
             const worldZ = startZ + z;
-            const cellWidth = Math.min(macroStep, CHUNK_SIZE - x);
-            const cellDepth = Math.min(macroStep, CHUNK_SIZE - z);
+            const cellWidth = Math.min(surfaceStep, CHUNK_SIZE - x);
+            const cellDepth = Math.min(surfaceStep, CHUNK_SIZE - z);
             const macro = getMacroData(worldX, worldZ, cellWidth, cellDepth);
             const data = macro.data;
             const isWater = data.bt === 'POND' || data.bt === 'RESERVOIR' || (!data.in && data.h === 0);
-            const topY = getTopSurfaceY(data);
             const cornerHeights = getCornerHeights(worldX, worldZ, cellWidth, cellDepth);
 
-            if (macro.foliageType && macro.foliageType !== 'NONE' && macro.foliageType !== 'GOLD_VEIN') {
+            if (x % foliageStep === 0 && z % foliageStep === 0 && macro.foliageType && macro.foliageType !== 'NONE' && macro.foliageType !== 'GOLD_VEIN') {
                 foliageItems.push({
                     x: macro.sampleX,
                     y: data.h * 0.5,
@@ -343,9 +344,9 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
 
             [
                 [cellWidth, 0, 0],
-                [-macroStep, 0, 1],
+                [-surfaceStep, 0, 1],
                 [0, cellDepth, 4],
-                [0, -macroStep, 5]
+                [0, -surfaceStep, 5]
             ].forEach(([dx, dz, type]) => {
                 const neighborCorners = getCornerHeights(
                     worldX + dx,
