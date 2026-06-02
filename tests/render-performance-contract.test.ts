@@ -6,6 +6,7 @@ import test from 'node:test';
 const terrainPath = path.join(process.cwd(), 'game', 'render', 'systems', 'TerrainRenderSystem.ts');
 const foliagePath = path.join(process.cwd(), 'game', 'render', 'systems', 'FoliageRenderSystem.ts');
 const packetLayerPath = path.join(process.cwd(), 'game', 'render', 'systems', 'PacketInstancedLayer.ts');
+const engineWorkerPath = path.join(process.cwd(), 'engine', 'jobs', 'engine.worker.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -105,4 +106,25 @@ test('PacketInstancedLayer now supports pooled bucketed instancing with render-o
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
+});
+
+test('Engine worker stitches macro terrain tops and only emits cliff walls for meaningful height drops', () => {
+  assert.equal(existsSync(engineWorkerPath), true, 'engine.worker.ts is missing');
+
+  const source = readFileSync(engineWorkerPath, 'utf8');
+
+  for (const snippet of [
+    'const CLIFF_FACE_THRESHOLD = 0.76;',
+    'const addTopSurface = (',
+    'const addCliffBand = (',
+    'const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {',
+    'const getCornerHeights = (worldX: number, worldZ: number, cellWidth: number, cellDepth: number) => ({',
+    'if (Math.max(topA - bottomA, topB - bottomB) <= CLIFF_FACE_THRESHOLD) {',
+    'addTopSurface(',
+    'addCliffBand(solid, type, macro.localCenterX, macro.localCenterZ, cellWidth * 0.5, cellDepth * 0.5, cornerHeights.ne, cornerHeights.se, neighborCorners.nw, neighborCorners.sw, color);',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+
+  assert.doesNotMatch(source, /for \(let y = topY; y > nTop; y--\)/);
 });
