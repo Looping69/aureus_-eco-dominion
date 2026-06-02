@@ -10,7 +10,7 @@ import { JobSystem, MeshChunkResult, MeshChunkJob, ENGINE_SCHEMA_VERSION, create
 import { GridTile } from '../../../types';
 import { terrainSurfaceMaterial, mats } from '../../../engine/render/materials/VoxelMaterials';
 import { getTerrainChunkLod } from '../../../engine/render/utils/TerrainLod';
-import { CHUNK_SIZE, worldToChunk, toChunkKey } from '../../../engine/utils/coords';
+import { CHUNK_SIZE, worldToChunk, worldToLocal, toChunkKey } from '../../../engine/utils/coords';
 
 interface ChunkRenderData {
     mesh: THREE.Mesh | null;
@@ -218,7 +218,7 @@ export class TerrainRenderSystem {
     /**
      * Handle partial tile updates
      */
-    public updateTiles(updates: GridTile[]): void {
+    public updateTiles(updates: GridTile[]): Set<string> {
         const affected = new Set<string>();
 
         for (const tile of updates) {
@@ -238,22 +238,48 @@ export class TerrainRenderSystem {
                 chunkTiles.push(tile);
             }
 
-            affected.add(key);
+            this.collectAffectedChunkKeys(affected, tile.x, tile.z);
         }
 
         // Mark affected chunks as dirty
         for (const key of affected) {
             this.markChunkDirty(key);
         }
+
+        return affected;
     }
 
     /**
      * Implements targeted chunk update from Effect
      */
-    public updateChunk(cx: number, cz: number, updates: GridTile[]): void {
+    public updateChunk(cx: number, cz: number, updates: GridTile[]): Set<string> {
         const key = toChunkKey(cx, cz);
         this.tileCache.set(key, updates);
-        this.markChunkDirty(key);
+
+        const affected = this.getAffectedChunkKeys(cx, cz, updates);
+        for (const affectedKey of affected) {
+            this.markChunkDirty(affectedKey);
+        }
+        return affected;
+    }
+
+    public getAffectedChunkKeys(cx: number, cz: number, updates: GridTile[]): Set<string> {
+        const affected = new Set<string>([toChunkKey(cx, cz)]);
+        for (const tile of updates) {
+            this.collectAffectedChunkKeys(affected, tile.x, tile.z);
+        }
+        return affected;
+    }
+
+    private collectAffectedChunkKeys(affected: Set<string>, x: number, z: number): void {
+        const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
+        const { lx, lz } = worldToLocal(x, z, CHUNK_SIZE);
+        affected.add(toChunkKey(cx, cz));
+
+        if (lx === 0) affected.add(toChunkKey(cx - 1, cz));
+        if (lx === CHUNK_SIZE - 1) affected.add(toChunkKey(cx + 1, cz));
+        if (lz === 0) affected.add(toChunkKey(cx, cz - 1));
+        if (lz === CHUNK_SIZE - 1) affected.add(toChunkKey(cx, cz + 1));
     }
 
     private markChunkDirty(key: string, chunk = this.chunks.get(key)): void {
