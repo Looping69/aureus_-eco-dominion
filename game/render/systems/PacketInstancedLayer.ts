@@ -22,9 +22,9 @@ export class PacketInstancedLayer {
     private readonly dummy = new THREE.Object3D();
     private readonly maxPoolSizePerBucket = 4;
 
-    constructor(scene: THREE.Scene) {
+    constructor(scene: THREE.Scene, renderOrder: number = 9) {
         this.scene = scene;
-        this.root.renderOrder = 9;
+        this.root.renderOrder = renderOrder;
         this.scene.add(this.root);
     }
 
@@ -47,6 +47,7 @@ export class PacketInstancedLayer {
             mesh.material = first.material;
             mesh.count = specs.length;
             mesh.visible = specs.length > 0;
+            mesh.renderOrder = this.root.renderOrder;
 
             for (let i = 0; i < specs.length; i++) {
                 const spec = specs[i];
@@ -118,6 +119,7 @@ export class PacketInstancedLayer {
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.frustumCulled = true;
         mesh.visible = true;
+        mesh.renderOrder = this.root.renderOrder;
         if (!this.root.children.includes(mesh)) {
             this.root.add(mesh);
         }
