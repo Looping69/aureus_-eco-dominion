@@ -124,7 +124,7 @@ function createLayeredTerrainTexture(
 
   for (let i = 0; i < 48; i++) {
     const detailHex = detailHexes[i % detailHexes.length];
-    paintSoftBlob(ctx, width, height, detailHex, 0.06 + Math.random() * 0.08, width * 0.04, width * 0.18);
+    paintSoftBlob(ctx, width, height, detailHex, 0.04 + Math.random() * 0.06, width * 0.04, width * 0.18);
   }
 
   // Keep the breakup non-directional. Thin stroke overlays shimmer badly when
@@ -134,21 +134,21 @@ function createLayeredTerrainTexture(
     width,
     height,
     detailHexes,
-    36,
-    width * 0.012,
-    width * 0.035,
-    0.025,
-    0.05
+    32,
+    width * 0.014,
+    width * 0.036,
+    0.018,
+    0.038
   );
 
   const imgData = ctx.getImageData(0, 0, width, height);
   const data = imgData.data;
   for (let i = 0; i < data.length; i += 4) {
     const grain = (Math.random() - 0.5) * grainScale;
-    const secondary = (Math.random() - 0.5) * grainScale * 0.55;
+    const secondary = (Math.random() - 0.5) * grainScale * 0.45;
     data[i] = varyChannel(data[i], grain);
     data[i + 1] = varyChannel(data[i + 1], secondary);
-    data[i + 2] = varyChannel(data[i + 2], grain * 0.75);
+    data[i + 2] = varyChannel(data[i + 2], grain * 0.6);
   }
   ctx.putImageData(imgData, 0, 0);
 
@@ -158,7 +158,7 @@ function createLayeredTerrainTexture(
 function createTerrainSurfaceMaterial(): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
-    roughness: 0.98,
+    roughness: 0.96,
     vertexColors: true,
     side: THREE.DoubleSide,
     clipShadows: true
@@ -212,41 +212,38 @@ function createTerrainSurfaceMaterial(): THREE.MeshStandardMaterial {
       #include <color_fragment>
 
       vec2 terrainUv = vWorldPos.xz;
-      float broadNoise = terrainNoise(terrainUv * 0.12);
-      float fineNoise = terrainNoise(terrainUv * 0.55);
-      float pebbleNoise = terrainNoise(terrainUv * 1.65);
-      float stripe = abs(fract((terrainUv.x + terrainUv.y * 0.6) * 0.22) - 0.5);
+      float broadNoise = terrainNoise(terrainUv * 0.08);
+      float fineNoise = terrainNoise(terrainUv * 0.42);
+      float pebbleNoise = terrainNoise(terrainUv * 1.15);
 
-      float grassMask = smoothstep(0.34, 0.6, vBaseColor.g) * (1.0 - smoothstep(0.5, 0.78, vBaseColor.r));
-      float sandMask = smoothstep(0.68, 0.92, vBaseColor.r) * smoothstep(0.48, 0.78, vBaseColor.g) * (1.0 - smoothstep(0.2, 0.35, vBaseColor.b));
-      float dirtMask = smoothstep(0.24, 0.52, vBaseColor.r) * (1.0 - smoothstep(0.24, 0.42, vBaseColor.g));
+      float grassMask = smoothstep(0.30, 0.58, vBaseColor.g) * (1.0 - smoothstep(0.50, 0.74, vBaseColor.r));
+      float sandMask = smoothstep(0.58, 0.82, vBaseColor.r) * smoothstep(0.46, 0.74, vBaseColor.g) * (1.0 - smoothstep(0.40, 0.55, vBaseColor.b));
+      float dirtMask = smoothstep(0.26, 0.50, vBaseColor.r) * (1.0 - smoothstep(0.36, 0.54, vBaseColor.g));
       float stoneMask = clamp(1.0 - max(grassMask, max(sandMask, dirtMask)), 0.0, 1.0);
 
       vec3 albedo = diffuseColor.rgb;
 
-      vec3 grassTint = vec3(0.92, 1.04, 0.9);
-      grassTint *= 0.94 + broadNoise * 0.16;
-      grassTint *= 0.96 + step(0.56, stripe) * 0.07;
-      grassTint *= 0.93 + fineNoise * 0.12;
+      vec3 grassTint = vec3(0.96, 1.02, 0.94);
+      grassTint *= 0.96 + broadNoise * 0.10;
+      grassTint *= 0.97 + fineNoise * 0.07;
 
-      vec3 sandTint = vec3(1.05, 0.99, 0.9);
-      sandTint *= 0.9 + broadNoise * 0.12;
-      sandTint *= 0.9 + smoothstep(0.12, 0.48, stripe) * 0.14;
-      sandTint *= 0.96 + pebbleNoise * 0.08;
+      vec3 sandTint = vec3(1.02, 0.99, 0.92);
+      sandTint *= 0.95 + broadNoise * 0.08;
+      sandTint *= 0.98 + pebbleNoise * 0.04;
 
-      vec3 dirtTint = vec3(1.0, 0.9, 0.82);
-      dirtTint *= 0.9 + broadNoise * 0.15;
-      dirtTint *= 0.94 + fineNoise * 0.11;
-      dirtTint *= 0.93 + smoothstep(0.65, 0.92, pebbleNoise) * 0.08;
+      vec3 dirtTint = vec3(0.98, 0.92, 0.86);
+      dirtTint *= 0.94 + broadNoise * 0.10;
+      dirtTint *= 0.97 + fineNoise * 0.07;
 
-      vec3 stoneTint = vec3(0.96, 0.99, 1.04);
-      stoneTint *= 0.88 + broadNoise * 0.18;
-      stoneTint *= 0.9 + fineNoise * 0.16;
+      vec3 stoneTint = vec3(0.98, 0.99, 1.0);
+      stoneTint *= 0.92 + broadNoise * 0.12;
+      stoneTint *= 0.96 + fineNoise * 0.07;
 
       albedo *= mix(vec3(1.0), grassTint, grassMask);
       albedo *= mix(vec3(1.0), sandTint, sandMask);
       albedo *= mix(vec3(1.0), dirtTint, dirtMask);
       albedo *= mix(vec3(1.0), stoneTint, stoneMask);
+      albedo = mix(albedo, vBaseColor, 0.18);
 
       diffuseColor.rgb = albedo;
       `
@@ -258,37 +255,39 @@ function createTerrainSurfaceMaterial(): THREE.MeshStandardMaterial {
 
 function createFoliageInstancedMaterial(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
-    color: 0xffffff,
+    color: 0xf4f7ed,
     vertexColors: true,
-    roughness: 0.9,
-    metalness: 0.02,
+    roughness: 0.86,
+    metalness: 0.0,
+    emissive: 0x142414,
+    emissiveIntensity: 0.08,
     side: THREE.DoubleSide,
     clipShadows: true,
   });
 }
 
 // Universal terrain texture for chunk solids: neutral, layered, and mip-smoothed.
-const texMaster = createLayeredTerrainTexture(128, 128, 0xb6b6b6, [0xe4e4e4, 0x8c8c8c, 0xc9c9c9], 18);
-const texConcrete = createLayeredTerrainTexture(96, 96, 0x9aa4b2, [0xd4dbe4, 0x7b8794, 0xadb8c7], 16);
-const texMetal = createLayeredTerrainTexture(96, 96, 0x64748b, [0xa1afc4, 0x495768, 0x7b8ba1], 18);
-const texWood = createLayeredTerrainTexture(96, 96, 0x8b5e34, [0xb67843, 0x6f431e, 0xa97346], 20);
-const texSand = createLayeredTerrainTexture(128, 128, 0xe2bf84, [0xf0d9a9, 0xcda664, 0xd8b578], 14);
-const texGrass = createLayeredTerrainTexture(128, 128, 0x5f8a41, [0x84b55e, 0x476a2d, 0x729e51], 16);
-const texRock = createLayeredTerrainTexture(128, 128, 0x586371, [0x8993a1, 0x3f4855, 0x697585], 20);
-const texAsphalt = createLayeredTerrainTexture(128, 128, 0x3a4654, [0x5d6d7f, 0x27303b, 0x475566], 14);
-const texDirt = createLayeredTerrainTexture(128, 128, 0x7d5127, [0xa06a3a, 0x5d3816, 0x8d5d2d], 18);
-const texPine = createLayeredTerrainTexture(96, 96, 0x25461f, [0x3d6c35, 0x183015, 0x2f5928], 18);
-const texDriedGrass = createLayeredTerrainTexture(96, 96, 0xba9d6d, [0xd6be8d, 0x93764d, 0xc3a877], 14);
-const texSavanna = createLayeredTerrainTexture(96, 96, 0x5d6c34, [0x7e914c, 0x455027, 0x6a7f3e], 14);
-const texSandWet = createLayeredTerrainTexture(96, 96, 0xcfb07d, [0xe1c08e, 0xa88758, 0xc69d66], 10);
+const texMaster = createLayeredTerrainTexture(128, 128, 0xa8aaa0, [0xd4d2c2, 0x777d70, 0xb8b7a8], 12);
+const texConcrete = createLayeredTerrainTexture(96, 96, 0x939aa2, [0xc4c9cf, 0x747c83, 0xa5adb4], 12);
+const texMetal = createLayeredTerrainTexture(96, 96, 0x626f7d, [0x9aa5b0, 0x4b5660, 0x74808a], 14);
+const texWood = createLayeredTerrainTexture(96, 96, 0x7b5534, [0xa17049, 0x5e3d24, 0x8d6543], 14);
+const texSand = createLayeredTerrainTexture(128, 128, 0xcbb681, [0xe0d0a0, 0xa99263, 0xd0bc8c], 10);
+const texGrass = createLayeredTerrainTexture(128, 128, 0x6d8a45, [0x8ea85d, 0x526b37, 0x7e9852], 12);
+const texRock = createLayeredTerrainTexture(128, 128, 0x68706f, [0x8f9794, 0x4c5554, 0x747d7b], 14);
+const texAsphalt = createLayeredTerrainTexture(128, 128, 0x343b42, [0x535d66, 0x272d33, 0x444d55], 10);
+const texDirt = createLayeredTerrainTexture(128, 128, 0x684b32, [0x8a6846, 0x4c3422, 0x76583a], 12);
+const texPine = createLayeredTerrainTexture(96, 96, 0x253a22, [0x395836, 0x1b2918, 0x2f472d], 12);
+const texDriedGrass = createLayeredTerrainTexture(96, 96, 0xa89468, [0xc3b080, 0x7f704e, 0xb29f70], 10);
+const texSavanna = createLayeredTerrainTexture(96, 96, 0x606f3d, [0x7f8f55, 0x46532d, 0x6e7d48], 10);
+const texSandWet = createLayeredTerrainTexture(96, 96, 0xbca879, [0xd0bd8e, 0x9a865e, 0xc2aa78], 8);
 
 function createWaterMaterial(baseColorHex: number, foamColorHex: number): THREE.ShaderMaterial {
     const mat = new THREE.MeshStandardMaterial({
         color: baseColorHex,
         transparent: true,
-        opacity: 0.85,
-        roughness: 0.05,
-        metalness: 0.8,
+        opacity: 0.74,
+        roughness: 0.22,
+        metalness: 0.08,
         side: THREE.FrontSide,
         depthWrite: false
     }) as unknown as THREE.ShaderMaterial;
@@ -363,11 +362,11 @@ function createWaterMaterial(baseColorHex: number, foamColorHex: number): THREE.
             `
             #include <color_fragment>
             
-            float pattern = sin((vWorldPos.x + vWorldPos.z) * 4.0 - time * 2.0) * 0.5 + 0.5;
-            pattern += sin((vWorldPos.x - vWorldPos.z) * 2.0 + time) * 0.2;
+            float pattern = sin((vWorldPos.x + vWorldPos.z) * 3.0 - time * 1.3) * 0.5 + 0.5;
+            pattern += sin((vWorldPos.x - vWorldPos.z) * 1.4 + time * 0.8) * 0.14;
             
             float wavePeak = smoothstep(0.0, 0.1, vWaveHeight); 
-            float foam = smoothstep(0.88, 1.0, pattern) * wavePeak;
+            float foam = smoothstep(0.92, 1.0, pattern) * wavePeak * 0.65;
             
             vec3 finalMix = mix(waterColor, foamColor, foam);
             diffuseColor.rgb = finalMix;
@@ -378,13 +377,13 @@ function createWaterMaterial(baseColorHex: number, foamColorHex: number): THREE.
     return mat;
 }
 
-export const waterFlowMaterial = createWaterMaterial(0x06b6d4, 0xa5f3fc);
+export const waterFlowMaterial = createWaterMaterial(0x2f8fa3, 0xb9dde2);
 
 export const bioLumeMaterial = new THREE.ShaderMaterial({
   uniforms: {
     time: { value: 0 },
-    color: { value: new THREE.Color(0x22d3ee) }, // Cyan
-    glowColor: { value: new THREE.Color(0x00ffff) }
+    color: { value: new THREE.Color(0x2f9faf) },
+    glowColor: { value: new THREE.Color(0x7dd3d8) }
   },
   vertexShader: `
         varying vec3 vWorldPosition;
@@ -407,7 +406,7 @@ export const bioLumeMaterial = new THREE.ShaderMaterial({
             vec3 finalColor = mix(color, glowColor, pulse);
             // Fresnel-like effect for soft edges
             float fresnel = pow(1.0 - max(0.0, vNormal.z), 2.0);
-            gl_FragColor = vec4(finalColor, 0.8 + fresnel * 0.2);
+            gl_FragColor = vec4(finalColor, 0.72 + fresnel * 0.18);
         }
     `,
   transparent: true,
@@ -415,10 +414,10 @@ export const bioLumeMaterial = new THREE.ShaderMaterial({
 });
 
 // Murky/Oil water material for unpowered reservoirs or industrial waste
-export const oilWaterMaterial = createWaterMaterial(0x1a365d, 0x2d3748);
+export const oilWaterMaterial = createWaterMaterial(0x24384a, 0x41515c);
 
 // Deep turquoise water for reservoirs and basins
-export const reservoirWaterMaterial = createWaterMaterial(0x0e7490, 0x22d3ee);
+export const reservoirWaterMaterial = createWaterMaterial(0x2d7888, 0x7fc2cc);
 
 // Shared terrain material, but with biome-aware breakup so grass, sand, dirt,
 // and stone no longer read like the same grey texture with different tinting.
@@ -429,68 +428,68 @@ export const matMaster = terrainSurfaceMaterial;
 // Base Materials (Still used for specific Buildings/UI/Particles)
 export const mats: Record<string, THREE.Material> = {
   concrete: new THREE.MeshStandardMaterial({ map: texConcrete, roughness: 0.88 }),
-  metal: new THREE.MeshStandardMaterial({ map: texMetal, metalness: 0.6, roughness: 0.3 }),
-  metalLight: new THREE.MeshStandardMaterial({ map: texConcrete, metalness: 0.5, roughness: 0.4 }),
-  blueMetal: new THREE.MeshStandardMaterial({ map: texMetal, color: 0x4f8ff5, metalness: 0.45, roughness: 0.42 }),
-  greenMetal: new THREE.MeshStandardMaterial({ color: 0x22c55e, metalness: 0.4, roughness: 0.5 }),
-  darkPipe: new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.5, roughness: 0.5 }),
-  solar: new THREE.MeshStandardMaterial({ color: 0x1e3a8a, metalness: 0.8, roughness: 0.2, emissive: 0x1e3a8a, emissiveIntensity: 0.2 }),
-  wood: new THREE.MeshStandardMaterial({ map: texWood, roughness: 0.8 }),
-  leaf: new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.8 }),
-  leafDark: new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.9 }),
-  sand: new THREE.MeshStandardMaterial({ map: texSand, color: 0xe6c288, roughness: 0.9 }),
-  grass: new THREE.MeshStandardMaterial({ map: texGrass, color: 0x72b35f, roughness: 1.0 }),
-  pine: new THREE.MeshStandardMaterial({ map: texPine, color: 0x1f5a1a, roughness: 0.9 }),
-  water: new THREE.MeshStandardMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.85, roughness: 0.1, side: THREE.FrontSide, depthWrite: false }),
-  brick: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xb91c1c, 40, 'smooth'), roughness: 0.9 }),
-  white: new THREE.MeshStandardMaterial({ map: createNoiseTexture(128, 128, 0xf8fafc, 35, 'smooth'), roughness: 0.5 }),
-  concreteLight: new THREE.MeshStandardMaterial({ map: createNoiseTexture(128, 128, 0xe2e8f0, 40, 'smooth'), roughness: 0.75 }),
+  metal: new THREE.MeshStandardMaterial({ map: texMetal, metalness: 0.42, roughness: 0.42 }),
+  metalLight: new THREE.MeshStandardMaterial({ map: texConcrete, metalness: 0.32, roughness: 0.48 }),
+  blueMetal: new THREE.MeshStandardMaterial({ map: texMetal, color: 0x5f89b9, metalness: 0.35, roughness: 0.48 }),
+  greenMetal: new THREE.MeshStandardMaterial({ color: 0x3f8f62, metalness: 0.28, roughness: 0.56 }),
+  darkPipe: new THREE.MeshStandardMaterial({ color: 0x2f3a40, metalness: 0.35, roughness: 0.55 }),
+  solar: new THREE.MeshStandardMaterial({ color: 0x263f66, metalness: 0.65, roughness: 0.28, emissive: 0x172944, emissiveIntensity: 0.16 }),
+  wood: new THREE.MeshStandardMaterial({ map: texWood, roughness: 0.82 }),
+  leaf: new THREE.MeshStandardMaterial({ color: 0x2f7a3b, roughness: 0.86, emissive: 0x0f220f, emissiveIntensity: 0.06 }),
+  leafDark: new THREE.MeshStandardMaterial({ color: 0x183c25, roughness: 0.9, emissive: 0x0c1a0f, emissiveIntensity: 0.08 }),
+  sand: new THREE.MeshStandardMaterial({ map: texSand, color: 0xd0bc83, roughness: 0.92 }),
+  grass: new THREE.MeshStandardMaterial({ map: texGrass, color: 0x739455, roughness: 1.0 }),
+  pine: new THREE.MeshStandardMaterial({ map: texPine, color: 0x284b2d, roughness: 0.92, emissive: 0x0b1d0e, emissiveIntensity: 0.08 }),
+  water: new THREE.MeshStandardMaterial({ color: 0x2f8fa3, transparent: true, opacity: 0.74, roughness: 0.22, side: THREE.FrontSide, depthWrite: false }),
+  brick: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x9f2b24, 28, 'smooth'), roughness: 0.9 }),
+  white: new THREE.MeshStandardMaterial({ map: createNoiseTexture(128, 128, 0xe8e5d8, 24, 'smooth'), roughness: 0.55 }),
+  concreteLight: new THREE.MeshStandardMaterial({ map: createNoiseTexture(128, 128, 0xd3d7d2, 26, 'smooth'), roughness: 0.78 }),
   ghost: new THREE.MeshStandardMaterial({ color: 0x64748b, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }),
-  gold: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xffe135, 10), color: 0xffe135, metalness: 0.9, roughness: 0.1, emissive: 0xffaa00, emissiveIntensity: 0.4 }),
-  glass: new THREE.MeshStandardMaterial({ color: 0xa5f3fc, transparent: true, opacity: 0.4, metalness: 0.9, roughness: 0.0 }),
-  hazard: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xfacc15), color: 0xfacc15, roughness: 0.5 }),
-  cactus: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x65a30d, 25), color: 0x65a30d, roughness: 0.8 }),
-  cactusFlower: new THREE.MeshStandardMaterial({ color: 0xff4bb0, emissive: 0xff4bb0, emissiveIntensity: 0.3 }),
-  driedGrass: new THREE.MeshStandardMaterial({ map: texDriedGrass, color: 0xba9d6d, roughness: 1.0 }),
-  savannaGreen: new THREE.MeshStandardMaterial({ map: texSavanna, color: 0x4d5d30, roughness: 0.9 }),
-  rock: new THREE.MeshStandardMaterial({ map: texRock, color: 0x475569, roughness: 0.9 }),
-  stone: new THREE.MeshStandardMaterial({ map: texRock, color: 0x7b8794, roughness: 0.95 }),
-  tarp: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x991b1b, 20), roughness: 0.9, side: THREE.DoubleSide }),
-  asphalt: new THREE.MeshStandardMaterial({ map: texAsphalt, roughness: 0.92 }),
+  gold: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xd9ad35, 8), color: 0xd9ad35, metalness: 0.7, roughness: 0.18, emissive: 0x9a6f12, emissiveIntensity: 0.22 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0x9ecfd6, transparent: true, opacity: 0.36, metalness: 0.45, roughness: 0.04 }),
+  hazard: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xd6b73d), color: 0xd6b73d, roughness: 0.55 }),
+  cactus: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x5f8f45, 18), color: 0x5f8f45, roughness: 0.84 }),
+  cactusFlower: new THREE.MeshStandardMaterial({ color: 0xc75a8a, emissive: 0x8d315e, emissiveIntensity: 0.18 }),
+  driedGrass: new THREE.MeshStandardMaterial({ map: texDriedGrass, color: 0xa89468, roughness: 1.0 }),
+  savannaGreen: new THREE.MeshStandardMaterial({ map: texSavanna, color: 0x627445, roughness: 0.92 }),
+  rock: new THREE.MeshStandardMaterial({ map: texRock, color: 0x68706f, roughness: 0.92 }),
+  stone: new THREE.MeshStandardMaterial({ map: texRock, color: 0x868b87, roughness: 0.96 }),
+  tarp: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x7f2525, 14), roughness: 0.9, side: THREE.DoubleSide }),
+  asphalt: new THREE.MeshStandardMaterial({ map: texAsphalt, roughness: 0.94 }),
   dirt: new THREE.MeshStandardMaterial({ map: texDirt, roughness: 1.0 }),
-  progressGreen: new THREE.MeshStandardMaterial({ map: texGrass, color: 0x58a84a, roughness: 0.95 }),
-  emissiveOrange: new THREE.MeshStandardMaterial({ color: 0xfb923c, emissive: 0xfb923c, emissiveIntensity: 1.6 }),
-  emissiveRed: new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 2.0 }),
-  emissiveCyan: new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 1.0 }),
-  emissiveGreen: new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 2.0 }),
-  pit: new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 1.0 }),
+  progressGreen: new THREE.MeshStandardMaterial({ map: texGrass, color: 0x668a50, roughness: 0.96 }),
+  emissiveOrange: new THREE.MeshStandardMaterial({ color: 0xd8833e, emissive: 0xd8833e, emissiveIntensity: 1.1 }),
+  emissiveRed: new THREE.MeshStandardMaterial({ color: 0xcf4444, emissive: 0xcf4444, emissiveIntensity: 1.35 }),
+  emissiveCyan: new THREE.MeshStandardMaterial({ color: 0x57b7c4, emissive: 0x57b7c4, emissiveIntensity: 0.75 }),
+  emissiveGreen: new THREE.MeshStandardMaterial({ color: 0x55b66f, emissive: 0x55b66f, emissiveIntensity: 1.2 }),
+  pit: new THREE.MeshStandardMaterial({ color: 0x20201d, roughness: 1.0 }),
 
   // Specific Tree Mats
-  birchWood: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xf5f5dc, 20), roughness: 0.9 }),
-  birchLeaf: new THREE.MeshStandardMaterial({ color: 0x84cc16, roughness: 0.8 }),
-  willowLeaf: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x3f6212, 30), roughness: 0.8 }),
-  appleFruit: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 }),
-  snowLeaf: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xffffff, 10), roughness: 0.6 }),
-  palmTrunk: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xa16207, 35), color: 0xa16207, roughness: 0.8 }),
-  palmLeaf: new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.8 }),
-  deadWood: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x525252, 40), color: 0x525252, roughness: 1.0 }),
-  deadWoodLight: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x71717a, 30), color: 0x71717a, roughness: 1.0 }),
-  mushroomStem: new THREE.MeshStandardMaterial({ color: 0xf5f5f4, roughness: 0.9 }),
-  mushroomCap: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xdc2626, 10), color: 0xdc2626, roughness: 0.7 }),
-  bone: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xe5e5e5, 5), roughness: 0.6 }),
-  flowerPurple: new THREE.MeshStandardMaterial({ color: 0xa855f7, emissive: 0xa855f7, emissiveIntensity: 0.2 }),
-  flowerYellow: new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xfacc15, emissiveIntensity: 0.2 }),
-  crystalCyan: new THREE.MeshStandardMaterial({ color: 0x22d3ee, metalness: 0.9, roughness: 0.1, emissive: 0x22d3ee, emissiveIntensity: 0.5 }),
-  sandStone: new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 1.0 }),
+  birchWood: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xd9d2bd, 14), roughness: 0.9 }),
+  birchLeaf: new THREE.MeshStandardMaterial({ color: 0x7f9b35, roughness: 0.84, emissive: 0x1a260c, emissiveIntensity: 0.05 }),
+  willowLeaf: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x425b25, 20), roughness: 0.84, emissive: 0x0f1a09, emissiveIntensity: 0.06 }),
+  appleFruit: new THREE.MeshStandardMaterial({ color: 0xb8453f, roughness: 0.5 }),
+  snowLeaf: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xe9ece2, 8), roughness: 0.7 }),
+  palmTrunk: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x8f6c37, 24), color: 0x8f6c37, roughness: 0.82 }),
+  palmLeaf: new THREE.MeshStandardMaterial({ color: 0x557a2f, roughness: 0.84, emissive: 0x102008, emissiveIntensity: 0.05 }),
+  deadWood: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x4f4b45, 26), color: 0x4f4b45, roughness: 1.0 }),
+  deadWoodLight: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0x68665d, 18), color: 0x68665d, roughness: 1.0 }),
+  mushroomStem: new THREE.MeshStandardMaterial({ color: 0xe4dccb, roughness: 0.9 }),
+  mushroomCap: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xa9443f, 8), color: 0xa9443f, roughness: 0.74 }),
+  bone: new THREE.MeshStandardMaterial({ map: createNoiseTexture(64, 64, 0xd6d1c3, 4), roughness: 0.65 }),
+  flowerPurple: new THREE.MeshStandardMaterial({ color: 0x9860b8, emissive: 0x4b235f, emissiveIntensity: 0.14 }),
+  flowerYellow: new THREE.MeshStandardMaterial({ color: 0xd8b83b, emissive: 0x6f5512, emissiveIntensity: 0.12 }),
+  crystalCyan: new THREE.MeshStandardMaterial({ color: 0x4daeb8, metalness: 0.58, roughness: 0.18, emissive: 0x2f8f99, emissiveIntensity: 0.28 }),
+  sandStone: new THREE.MeshStandardMaterial({ color: 0xb87b35, roughness: 1.0 }),
 
   // New Water System Mats
-  sandWet: new THREE.MeshStandardMaterial({ map: texSandWet, roughness: 0.6 }),
-  waterDeep: new THREE.MeshStandardMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.9, roughness: 0.1, side: THREE.FrontSide, depthWrite: false }),
+  sandWet: new THREE.MeshStandardMaterial({ map: texSandWet, roughness: 0.7 }),
+  waterDeep: new THREE.MeshStandardMaterial({ color: 0x2c7585, transparent: true, opacity: 0.78, roughness: 0.24, side: THREE.FrontSide, depthWrite: false }),
   waterSurface: waterFlowMaterial,
   waterMaterial: waterFlowMaterial,
-  waterSeaweed: new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 0.8 }),
-  waterCoral: new THREE.MeshStandardMaterial({ color: 0xf44336, roughness: 0.8 }),
-  waterGold: new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.2 }),
+  waterSeaweed: new THREE.MeshStandardMaterial({ color: 0x2b6638, roughness: 0.85 }),
+  waterCoral: new THREE.MeshStandardMaterial({ color: 0xbd5a4f, roughness: 0.82 }),
+  waterGold: new THREE.MeshStandardMaterial({ color: 0xd0a336, metalness: 0.65, roughness: 0.24 }),
   oilWater: oilWaterMaterial,
   reservoirWater: reservoirWaterMaterial,
   biolume: bioLumeMaterial
