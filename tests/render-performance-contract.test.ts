@@ -108,17 +108,18 @@ test('PacketInstancedLayer now supports pooled bucketed instancing with render-o
   }
 });
 
-test('Engine worker now renders terrain as a tile-scale smooth heightfield while keeping foliage throttled by lod', () => {
+test('Engine worker renders terrain as a smooth heightfield while reserving side bands for true cliffs', () => {
   assert.equal(existsSync(engineWorkerPath), true, 'engine.worker.ts is missing');
 
   const source = readFileSync(engineWorkerPath, 'utf8');
 
   for (const snippet of [
-    'const CLIFF_FACE_THRESHOLD = 0.76;',
+    'const CLIFF_FACE_THRESHOLD = 1.45;',
     'const macroStep = getTerrainMacroStep(lod);',
     'const surfaceStep = 1;',
     'const foliageStep = Math.max(1, macroStep);',
     'const addTopSurface = (',
+    'const getCliffFaceColor = (color: number[]) => color.map',
     'const addCliffBand = (',
     'const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {',
     'const getCornerHeights = (worldX: number, worldZ: number, cellWidth: number, cellDepth: number) => ({',
@@ -129,12 +130,15 @@ test('Engine worker now renders terrain as a tile-scale smooth heightfield while
     '[0, -surfaceStep, 5]',
     'if (Math.max(topA - bottomA, topB - bottomB) <= CLIFF_FACE_THRESHOLD) {',
     'addTopSurface(',
-    'addCliffBand(solid, type, macro.localCenterX, macro.localCenterZ, cellWidth * 0.5, cellDepth * 0.5, cornerHeights.ne, cornerHeights.se, neighborCorners.nw, neighborCorners.sw, color);',
+    'addQuad(dest, v1, v2, v3, v4, getCliffFaceColor(color));',
+    'const path = findPath(job.startX, job.startZ, job.endX, job.endZ, localChunks);',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 
+  assert.doesNotMatch(source, /const CLIFF_FACE_THRESHOLD = 0\.76;/);
   assert.doesNotMatch(source, /for \(let z = 0; z < CHUNK_SIZE; z \+= macroStep\)/);
   assert.doesNotMatch(source, /for \(let x = 0; x < CHUNK_SIZE; x \+= macroStep\)/);
   assert.doesNotMatch(source, /for \(let y = topY; y > nTop; y--\)/);
+  assert.doesNotMatch(source, /const path = findPath\(job\.startX, job\.startZ, localChunks\);/);
 });
