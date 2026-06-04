@@ -412,7 +412,7 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
 }
 
 function processPathfind(job: PathfindJob): PathfindResult {
-    const path = findPath(job.startX, job.startZ, localChunks);
+    const path = findPath(job.startX, job.startZ, job.endX, job.endZ, localChunks);
     return {
         jobId: job.id,
         kind: 'PATHFIND',
