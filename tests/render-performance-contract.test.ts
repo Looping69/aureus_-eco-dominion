@@ -108,17 +108,22 @@ test('PacketInstancedLayer now supports pooled bucketed instancing with render-o
   }
 });
 
-test('Engine worker renders terrain as a smooth heightfield with cliff side bands disabled', () => {
+test('Engine worker renders terrain as a smooth heightfield with stable top-surface lighting and cliff side bands disabled', () => {
   assert.equal(existsSync(engineWorkerPath), true, 'engine.worker.ts is missing');
 
   const source = readFileSync(engineWorkerPath, 'utf8');
 
   for (const snippet of [
     'const CLIFF_FACE_THRESHOLD = Number.POSITIVE_INFINITY;',
+    'const TERRAIN_SURFACE_NORMAL: [number, number, number] = [0, 1, 0];',
     'const macroStep = getTerrainMacroStep(lod);',
     'const surfaceStep = 1;',
     'const foliageStep = Math.max(1, macroStep);',
     'const addTopSurface = (',
+    'pushVertex(dest, nw, TERRAIN_SURFACE_NORMAL, color, [0, 0]);',
+    'pushVertex(dest, ne, TERRAIN_SURFACE_NORMAL, color, [1, 0]);',
+    'pushVertex(dest, se, TERRAIN_SURFACE_NORMAL, color, [1, 1]);',
+    'pushVertex(dest, sw, TERRAIN_SURFACE_NORMAL, color, [0, 1]);',
     'const addCliffBand = (',
     'const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {',
     'const getCornerHeights = (worldX: number, worldZ: number, cellWidth: number, cellDepth: number) => ({',
@@ -136,6 +141,7 @@ test('Engine worker renders terrain as a smooth heightfield with cliff side band
 
   assert.doesNotMatch(source, /const CLIFF_FACE_THRESHOLD = 0\.76;/);
   assert.doesNotMatch(source, /const CLIFF_FACE_THRESHOLD = 1\.45;/);
+  assert.doesNotMatch(source, /addQuad\(dest, nw, ne, se, sw, color\);/);
   assert.doesNotMatch(source, /for \(let z = 0; z < CHUNK_SIZE; z \+= macroStep\)/);
   assert.doesNotMatch(source, /for \(let x = 0; x < CHUNK_SIZE; x \+= macroStep\)/);
   assert.doesNotMatch(source, /for \(let y = topY; y > nTop; y--\)/);
