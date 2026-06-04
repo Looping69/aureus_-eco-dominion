@@ -24,6 +24,7 @@ test('TerrainRenderSystem tracks chunk ownership revisions, border-aware dirty r
     'private waterMeshPool: THREE.Mesh[] = [];',
     'private ghostMeshPool: THREE.Mesh[] = [];',
     'private readonly maxPoolSizePerType = 12;',
+    "private viewRadius = ('ontouchstart' in window) ? 3 : 5;",
     'import { CHUNK_SIZE, worldToChunk, worldToLocal, toChunkKey }',
     'public updateTiles(updates: GridTile[]): Set<string> {',
     'public updateChunk(cx: number, cz: number, updates: GridTile[]): Set<string> {',
@@ -44,6 +45,8 @@ test('TerrainRenderSystem tracks chunk ownership revisions, border-aware dirty r
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
+
+  assert.doesNotMatch(source, /private viewRadius = \('ontouchstart' in window\) \? 4 : 6;/);
 });
 
 test('FoliageRenderSystem reuses instanced chunk meshes through per-type pools', () => {
@@ -108,7 +111,7 @@ test('PacketInstancedLayer now supports pooled bucketed instancing with render-o
   }
 });
 
-test('Engine worker renders terrain with restored voxel block tops and axis-aligned step faces', () => {
+test('Engine worker renders voxel terrain with LOD-limited block tops and axis-aligned step faces', () => {
   assert.equal(existsSync(engineWorkerPath), true, 'engine.worker.ts is missing');
 
   const source = readFileSync(engineWorkerPath, 'utf8');
@@ -117,7 +120,7 @@ test('Engine worker renders terrain with restored voxel block tops and axis-alig
     'const VOXEL_SIDE_EPSILON = 0.01;',
     'const BLOCK_TOP_NORMAL: [number, number, number] = [0, 1, 0];',
     'const macroStep = getTerrainMacroStep(lod);',
-    'const surfaceStep = 1;',
+    'const surfaceStep = Math.max(1, macroStep);',
     'const foliageStep = Math.max(1, macroStep);',
     'const addBlockTop = (',
     'pushVertex(dest, nw, BLOCK_TOP_NORMAL, color, [0, 0]);',
@@ -130,6 +133,7 @@ test('Engine worker renders terrain with restored voxel block tops and axis-alig
     'const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {',
     'for (let z = 0; z < CHUNK_SIZE; z += surfaceStep) {',
     'for (let x = 0; x < CHUNK_SIZE; x += surfaceStep) {',
+    'const cellWidth = Math.min(surfaceStep, CHUNK_SIZE - x);',
     'const topY = getTopSurfaceY(data);',
     'addBlockTop(',
     'const neighborTopY = getTopSurfaceY(getData(worldX + dx, worldZ + dz));',
@@ -139,6 +143,7 @@ test('Engine worker renders terrain with restored voxel block tops and axis-alig
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 
+  assert.doesNotMatch(source, /const surfaceStep = 1;/);
   assert.doesNotMatch(source, /const CLIFF_FACE_THRESHOLD/);
   assert.doesNotMatch(source, /const TERRAIN_SURFACE_NORMAL/);
   assert.doesNotMatch(source, /const getCornerHeights/);
