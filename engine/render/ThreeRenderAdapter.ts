@@ -175,7 +175,7 @@ export class ThreeRenderAdapter implements RenderAdapter {
         this.renderer.setClearColor(this.config.clearColor, 0); // Transparent clear
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.0;
+        this.renderer.toneMappingExposure = 0.96;
         this.renderer.localClippingEnabled = true; // Required for material clippingPlanes
 
         if (this.config.shadowMap) {
@@ -228,13 +228,11 @@ export class ThreeRenderAdapter implements RenderAdapter {
      * Setup default scene lighting
      */
     private setupDefaultLighting(): void {
-        // Boosted ambient light for visibility
-        this.ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+        this.ambientLight = new THREE.AmbientLight(0xf3f0df, 0.82);
         this.scene.add(this.ambientLight);
 
-        // Main directional light (sun)
-        this.directionalLight = new THREE.DirectionalLight(0xfff5e0, 1.0);
-        this.directionalLight.position.set(50, 80, 30);
+        this.directionalLight = new THREE.DirectionalLight(0xffedcf, 1.18);
+        this.directionalLight.position.set(55, 90, 38);
         this.directionalLight.castShadow = this.config.shadowMap;
         if (this.config.shadowMap) {
             this.directionalLight.shadow.mapSize.set(this.config.shadowMapSize, this.config.shadowMapSize);
@@ -248,8 +246,7 @@ export class ThreeRenderAdapter implements RenderAdapter {
         this.scene.add(this.directionalLight);
         this.scene.add(this.directionalLight.target);
 
-        // Hemisphere light for ambient variation
-        const hemi = new THREE.HemisphereLight(0x87CEEB, 0x3d2817, 0.4);
+        const hemi = new THREE.HemisphereLight(0xd7e5df, 0x4a3a28, 0.62);
         this.scene.add(hemi);
     }
 
