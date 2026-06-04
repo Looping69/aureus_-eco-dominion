@@ -108,42 +108,44 @@ test('PacketInstancedLayer now supports pooled bucketed instancing with render-o
   }
 });
 
-test('Engine worker renders terrain as a smooth heightfield with stable top-surface lighting and cliff side bands disabled', () => {
+test('Engine worker renders terrain with restored voxel block tops and axis-aligned step faces', () => {
   assert.equal(existsSync(engineWorkerPath), true, 'engine.worker.ts is missing');
 
   const source = readFileSync(engineWorkerPath, 'utf8');
 
   for (const snippet of [
-    'const CLIFF_FACE_THRESHOLD = Number.POSITIVE_INFINITY;',
-    'const TERRAIN_SURFACE_NORMAL: [number, number, number] = [0, 1, 0];',
+    'const VOXEL_SIDE_EPSILON = 0.01;',
+    'const BLOCK_TOP_NORMAL: [number, number, number] = [0, 1, 0];',
     'const macroStep = getTerrainMacroStep(lod);',
     'const surfaceStep = 1;',
     'const foliageStep = Math.max(1, macroStep);',
-    'const addTopSurface = (',
-    'pushVertex(dest, nw, TERRAIN_SURFACE_NORMAL, color, [0, 0]);',
-    'pushVertex(dest, ne, TERRAIN_SURFACE_NORMAL, color, [1, 0]);',
-    'pushVertex(dest, se, TERRAIN_SURFACE_NORMAL, color, [1, 1]);',
-    'pushVertex(dest, sw, TERRAIN_SURFACE_NORMAL, color, [0, 1]);',
-    'const addCliffBand = (',
+    'const addBlockTop = (',
+    'pushVertex(dest, nw, BLOCK_TOP_NORMAL, color, [0, 0]);',
+    'pushVertex(dest, ne, BLOCK_TOP_NORMAL, color, [1, 0]);',
+    'pushVertex(dest, se, BLOCK_TOP_NORMAL, color, [1, 1]);',
+    'pushVertex(dest, sw, BLOCK_TOP_NORMAL, color, [0, 1]);',
+    'const getBlockSideColor = (color: number[]) => color.map',
+    'const addBlockSide = (',
+    'if (topY - bottomY <= VOXEL_SIDE_EPSILON) {',
     'const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {',
-    'const getCornerHeights = (worldX: number, worldZ: number, cellWidth: number, cellDepth: number) => ({',
     'for (let z = 0; z < CHUNK_SIZE; z += surfaceStep) {',
     'for (let x = 0; x < CHUNK_SIZE; x += surfaceStep) {',
-    'if (x % foliageStep === 0 && z % foliageStep === 0 && macro.foliageType',
-    '[-surfaceStep, 0, 1],',
-    '[0, -surfaceStep, 5]',
-    'if (Math.max(topA - bottomA, topB - bottomB) <= CLIFF_FACE_THRESHOLD) {',
-    'addTopSurface(',
+    'const topY = getTopSurfaceY(data);',
+    'addBlockTop(',
+    'const neighborTopY = getTopSurfaceY(getData(worldX + dx, worldZ + dz));',
+    'addBlockSide(',
     'const path = findPath(job.startX, job.startZ, job.endX, job.endZ, localChunks);',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 
-  assert.doesNotMatch(source, /const CLIFF_FACE_THRESHOLD = 0\.76;/);
-  assert.doesNotMatch(source, /const CLIFF_FACE_THRESHOLD = 1\.45;/);
+  assert.doesNotMatch(source, /const CLIFF_FACE_THRESHOLD/);
+  assert.doesNotMatch(source, /const TERRAIN_SURFACE_NORMAL/);
+  assert.doesNotMatch(source, /const getCornerHeights/);
+  assert.doesNotMatch(source, /const addTopSurface/);
+  assert.doesNotMatch(source, /const addCliffBand/);
   assert.doesNotMatch(source, /addQuad\(dest, nw, ne, se, sw, color\);/);
   assert.doesNotMatch(source, /for \(let z = 0; z < CHUNK_SIZE; z \+= macroStep\)/);
   assert.doesNotMatch(source, /for \(let x = 0; x < CHUNK_SIZE; x \+= macroStep\)/);
-  assert.doesNotMatch(source, /for \(let y = topY; y > nTop; y--\)/);
   assert.doesNotMatch(source, /const path = findPath\(job\.startX, job\.startZ, localChunks\);/);
 });
