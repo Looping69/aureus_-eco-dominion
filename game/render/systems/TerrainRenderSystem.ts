@@ -34,9 +34,9 @@ export class TerrainRenderSystem {
     private ghostMeshPool: THREE.Mesh[] = [];
     private readonly maxPoolSizePerType = 12;
 
-    // View radius in chunks.
-    // The previous radius was simply too expensive for a mobile target.
-    private viewRadius = ('ontouchstart' in window) ? 4 : 6;
+    // Voxel terrain emits more faces than the smoothed shell, so keep the active
+    // chunk ring tighter while LOD preserves the blocky silhouette in the distance.
+    private viewRadius = ('ontouchstart' in window) ? 3 : 5;
 
     // Track last camera chunk to avoid redundant updates
     private lastCameraCx = -999;
