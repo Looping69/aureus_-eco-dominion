@@ -13,8 +13,8 @@ import { Job, PathfindJob, PathfindResult, MeshChunkJob, MeshChunkResult, ENGINE
 import { findPath } from '../sim/algorithms/Pathfinding';
 
 let localChunks: Record<string, Chunk> = {};
-const CLIFF_FACE_THRESHOLD = Number.POSITIVE_INFINITY;
-const TERRAIN_SURFACE_NORMAL: [number, number, number] = [0, 1, 0];
+const VOXEL_SIDE_EPSILON = 0.01;
+const BLOCK_TOP_NORMAL: [number, number, number] = [0, 1, 0];
 
 const PALETTE: Record<string, number[]> = {
     'grass': [0.42, 0.60, 0.27],
@@ -184,69 +184,67 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
         addQuad(dest, v1, v2, v3, v4, color);
     };
 
-    const addTopSurface = (
+    const addBlockTop = (
         dest: any,
         centerX: number,
         centerZ: number,
         hx: number,
         hz: number,
-        corners: { nw: number; ne: number; se: number; sw: number },
+        topY: number,
         color: number[]
     ) => {
-        const nw: [number, number, number] = [centerX - hx, corners.nw, centerZ + hz];
-        const ne: [number, number, number] = [centerX + hx, corners.ne, centerZ + hz];
-        const se: [number, number, number] = [centerX + hx, corners.se, centerZ - hz];
-        const sw: [number, number, number] = [centerX - hx, corners.sw, centerZ - hz];
-        pushVertex(dest, nw, TERRAIN_SURFACE_NORMAL, color, [0, 0]);
-        pushVertex(dest, ne, TERRAIN_SURFACE_NORMAL, color, [1, 0]);
-        pushVertex(dest, se, TERRAIN_SURFACE_NORMAL, color, [1, 1]);
-        pushVertex(dest, nw, TERRAIN_SURFACE_NORMAL, color, [0, 0]);
-        pushVertex(dest, se, TERRAIN_SURFACE_NORMAL, color, [1, 1]);
-        pushVertex(dest, sw, TERRAIN_SURFACE_NORMAL, color, [0, 1]);
+        const nw: [number, number, number] = [centerX - hx, topY, centerZ + hz];
+        const ne: [number, number, number] = [centerX + hx, topY, centerZ + hz];
+        const se: [number, number, number] = [centerX + hx, topY, centerZ - hz];
+        const sw: [number, number, number] = [centerX - hx, topY, centerZ - hz];
+        pushVertex(dest, nw, BLOCK_TOP_NORMAL, color, [0, 0]);
+        pushVertex(dest, ne, BLOCK_TOP_NORMAL, color, [1, 0]);
+        pushVertex(dest, se, BLOCK_TOP_NORMAL, color, [1, 1]);
+        pushVertex(dest, nw, BLOCK_TOP_NORMAL, color, [0, 0]);
+        pushVertex(dest, se, BLOCK_TOP_NORMAL, color, [1, 1]);
+        pushVertex(dest, sw, BLOCK_TOP_NORMAL, color, [0, 1]);
     };
 
-    const getCliffFaceColor = (color: number[]) => color.map((channel) => Math.min(1, Math.max(0, channel * 0.72 + 0.10)));
+    const getBlockSideColor = (color: number[]) => color.map((channel) => Math.min(1, Math.max(0, channel * 0.78 + 0.06)));
 
-    const addCliffBand = (
+    const addBlockSide = (
         dest: any,
         edgeType: number,
         centerX: number,
         centerZ: number,
         hx: number,
         hz: number,
-        topA: number,
-        topB: number,
-        bottomA: number,
-        bottomB: number,
+        topY: number,
+        bottomY: number,
         color: number[]
     ) => {
-        if (Math.max(topA - bottomA, topB - bottomB) <= CLIFF_FACE_THRESHOLD) {
+        if (topY - bottomY <= VOXEL_SIDE_EPSILON) {
             return;
         }
 
         let v1: [number, number, number], v2: [number, number, number], v3: [number, number, number], v4: [number, number, number];
         if (edgeType === 0) {
-            v1 = [centerX + hx, bottomA, centerZ + hz];
-            v2 = [centerX + hx, bottomB, centerZ - hz];
-            v3 = [centerX + hx, topB, centerZ - hz];
-            v4 = [centerX + hx, topA, centerZ + hz];
+            v1 = [centerX + hx, bottomY, centerZ + hz];
+            v2 = [centerX + hx, bottomY, centerZ - hz];
+            v3 = [centerX + hx, topY, centerZ - hz];
+            v4 = [centerX + hx, topY, centerZ + hz];
         } else if (edgeType === 1) {
-            v1 = [centerX - hx, bottomB, centerZ - hz];
-            v2 = [centerX - hx, bottomA, centerZ + hz];
-            v3 = [centerX - hx, topA, centerZ + hz];
-            v4 = [centerX - hx, topB, centerZ - hz];
+            v1 = [centerX - hx, bottomY, centerZ - hz];
+            v2 = [centerX - hx, bottomY, centerZ + hz];
+            v3 = [centerX - hx, topY, centerZ + hz];
+            v4 = [centerX - hx, topY, centerZ - hz];
         } else if (edgeType === 4) {
-            v1 = [centerX - hx, bottomA, centerZ + hz];
-            v2 = [centerX + hx, bottomB, centerZ + hz];
-            v3 = [centerX + hx, topB, centerZ + hz];
-            v4 = [centerX - hx, topA, centerZ + hz];
+            v1 = [centerX - hx, bottomY, centerZ + hz];
+            v2 = [centerX + hx, bottomY, centerZ + hz];
+            v3 = [centerX + hx, topY, centerZ + hz];
+            v4 = [centerX - hx, topY, centerZ + hz];
         } else {
-            v1 = [centerX + hx, bottomA, centerZ - hz];
-            v2 = [centerX - hx, bottomB, centerZ - hz];
-            v3 = [centerX - hx, topB, centerZ - hz];
-            v4 = [centerX + hx, topA, centerZ - hz];
+            v1 = [centerX + hx, bottomY, centerZ - hz];
+            v2 = [centerX - hx, bottomY, centerZ - hz];
+            v3 = [centerX - hx, topY, centerZ - hz];
+            v4 = [centerX + hx, topY, centerZ - hz];
         }
-        addQuad(dest, v1, v2, v3, v4, getCliffFaceColor(color));
+        addQuad(dest, v1, v2, v3, v4, getBlockSideColor(color));
     };
 
     const getTile = (gx: number, gz: number): GridTile | null => {
@@ -308,13 +306,6 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
         };
     };
 
-    const getCornerHeights = (worldX: number, worldZ: number, cellWidth: number, cellDepth: number) => ({
-        nw: getTopSurfaceY(getData(worldX, worldZ)),
-        ne: getTopSurfaceY(getData(worldX + cellWidth, worldZ)),
-        se: getTopSurfaceY(getData(worldX + cellWidth, worldZ + cellDepth)),
-        sw: getTopSurfaceY(getData(worldX, worldZ + cellDepth)),
-    });
-
     for (let z = 0; z < CHUNK_SIZE; z += surfaceStep) {
         for (let x = 0; x < CHUNK_SIZE; x += surfaceStep) {
             const worldX = startX + x;
@@ -324,7 +315,7 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
             const macro = getMacroData(worldX, worldZ, cellWidth, cellDepth);
             const data = macro.data;
             const isWater = data.bt === 'POND' || data.bt === 'RESERVOIR' || (!data.in && data.h === 0);
-            const cornerHeights = getCornerHeights(worldX, worldZ, cellWidth, cellDepth);
+            const topY = getTopSurfaceY(data);
 
             if (x % foliageStep === 0 && z % foliageStep === 0 && macro.foliageType && macro.foliageType !== 'NONE' && macro.foliageType !== 'GOLD_VEIN') {
                 foliageItems.push({
@@ -340,13 +331,13 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
             if (data.b === 'GRASS' && data.h > 2) matKey = 'grassLight';
             const color = PALETTE[matKey] || [1, 1, 1];
 
-            addTopSurface(
+            addBlockTop(
                 solid,
                 macro.localCenterX,
                 macro.localCenterZ,
                 cellWidth * 0.5,
                 cellDepth * 0.5,
-                cornerHeights,
+                topY,
                 color,
             );
 
@@ -356,22 +347,18 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
                 [0, cellDepth, 4],
                 [0, -surfaceStep, 5]
             ].forEach(([dx, dz, type]) => {
-                const neighborCorners = getCornerHeights(
-                    worldX + dx,
-                    worldZ + dz,
-                    cellWidth,
-                    cellDepth
+                const neighborTopY = getTopSurfaceY(getData(worldX + dx, worldZ + dz));
+                addBlockSide(
+                    solid,
+                    type,
+                    macro.localCenterX,
+                    macro.localCenterZ,
+                    cellWidth * 0.5,
+                    cellDepth * 0.5,
+                    topY,
+                    neighborTopY,
+                    color
                 );
-
-                if (type === 0) {
-                    addCliffBand(solid, type, macro.localCenterX, macro.localCenterZ, cellWidth * 0.5, cellDepth * 0.5, cornerHeights.ne, cornerHeights.se, neighborCorners.nw, neighborCorners.sw, color);
-                } else if (type === 1) {
-                    addCliffBand(solid, type, macro.localCenterX, macro.localCenterZ, cellWidth * 0.5, cellDepth * 0.5, cornerHeights.sw, cornerHeights.nw, neighborCorners.se, neighborCorners.ne, color);
-                } else if (type === 4) {
-                    addCliffBand(solid, type, macro.localCenterX, macro.localCenterZ, cellWidth * 0.5, cellDepth * 0.5, cornerHeights.nw, cornerHeights.ne, neighborCorners.sw, neighborCorners.se, color);
-                } else {
-                    addCliffBand(solid, type, macro.localCenterX, macro.localCenterZ, cellWidth * 0.5, cellDepth * 0.5, cornerHeights.se, cornerHeights.sw, neighborCorners.ne, neighborCorners.nw, color);
-                }
             });
 
             if (isWater) {
