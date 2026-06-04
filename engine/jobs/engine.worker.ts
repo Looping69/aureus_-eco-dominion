@@ -13,7 +13,7 @@ import { Job, PathfindJob, PathfindResult, MeshChunkJob, MeshChunkResult, ENGINE
 import { findPath } from '../sim/algorithms/Pathfinding';
 
 let localChunks: Record<string, Chunk> = {};
-const CLIFF_FACE_THRESHOLD = 0.76;
+const CLIFF_FACE_THRESHOLD = 1.45;
 
 const PALETTE: Record<string, number[]> = {
     'grass': [0.42, 0.60, 0.27],
@@ -199,6 +199,8 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
         addQuad(dest, nw, ne, se, sw, color);
     };
 
+    const getCliffFaceColor = (color: number[]) => color.map((channel) => Math.min(1, Math.max(0, channel * 0.72 + 0.10)));
+
     const addCliffBand = (
         dest: any,
         edgeType: number,
@@ -238,7 +240,7 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
             v3 = [centerX - hx, topB, centerZ - hz];
             v4 = [centerX + hx, topA, centerZ - hz];
         }
-        addQuad(dest, v1, v2, v3, v4, color);
+        addQuad(dest, v1, v2, v3, v4, getCliffFaceColor(color));
     };
 
     const getTile = (gx: number, gz: number): GridTile | null => {
@@ -410,7 +412,7 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
 }
 
 function processPathfind(job: PathfindJob): PathfindResult {
-    const path = findPath(job.startX, job.startZ, job.endX, job.endZ, localChunks);
+    const path = findPath(job.startX, job.startZ, localChunks);
     return {
         jobId: job.id,
         kind: 'PATHFIND',
