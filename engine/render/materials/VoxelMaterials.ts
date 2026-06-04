@@ -325,12 +325,12 @@ function createWaterMaterial(baseColorHex: number, foamColorHex: number): THREE.
                myWorldPosition = modelMatrix * myWorldPosition;
             #endif
 
-            // More realistic wave sum
-            float wave1 = sin(myWorldPosition.x * 1.5 + time * 1.2) * 0.15;
-            float wave2 = cos(myWorldPosition.z * 1.2 + time * 1.5) * 0.15;
-            float wave3 = sin((myWorldPosition.x * 0.8 + myWorldPosition.z * 0.5) - time) * 0.1;
+            float topFaceWaveMask = step(0.55, normal.y);
+            float wave1 = sin(myWorldPosition.x * 1.5 + time * 1.2) * 0.045;
+            float wave2 = cos(myWorldPosition.z * 1.2 + time * 1.5) * 0.045;
+            float wave3 = sin((myWorldPosition.x * 0.8 + myWorldPosition.z * 0.5) - time) * 0.03;
             
-            float height = wave1 + wave2 + wave3;
+            float height = (wave1 + wave2 + wave3) * topFaceWaveMask;
             transformed.y += height;
 
             vWorldPos = myWorldPosition.xyz + vec3(0.0, height, 0.0);
@@ -341,10 +341,10 @@ function createWaterMaterial(baseColorHex: number, foamColorHex: number): THREE.
             `
             vec3 objectNormal = vec3(normal);
             
-            float dHx = 1.5 * 0.15 * cos(vWorldPos.x * 1.5 + time * 1.2) + 0.8 * 0.1 * cos((vWorldPos.x * 0.8 + vWorldPos.z * 0.5) - time);
-            float dHz = 1.2 * 0.15 * -sin(vWorldPos.z * 1.2 + time * 1.5) + 0.5 * 0.1 * cos((vWorldPos.x * 0.8 + vWorldPos.z * 0.5) - time);
+            float dHx = 1.5 * 0.045 * cos(vWorldPos.x * 1.5 + time * 1.2) + 0.8 * 0.03 * cos((vWorldPos.x * 0.8 + vWorldPos.z * 0.5) - time);
+            float dHz = 1.2 * 0.045 * -sin(vWorldPos.z * 1.2 + time * 1.5) + 0.5 * 0.03 * cos((vWorldPos.x * 0.8 + vWorldPos.z * 0.5) - time);
             
-            if (normal.y > 0.5) {
+            if (normal.y > 0.55) {
                 vec3 modifiedNormal = normalize(vec3(-dHx, 1.0, -dHz));
                 objectNormal = modifiedNormal;
             }
@@ -366,8 +366,8 @@ function createWaterMaterial(baseColorHex: number, foamColorHex: number): THREE.
             float pattern = sin((vWorldPos.x + vWorldPos.z) * 4.0 - time * 2.0) * 0.5 + 0.5;
             pattern += sin((vWorldPos.x - vWorldPos.z) * 2.0 + time) * 0.2;
             
-            float wavePeak = smoothstep(-0.1, 0.3, vWaveHeight); 
-            float foam = smoothstep(0.85, 1.0, pattern) * wavePeak;
+            float wavePeak = smoothstep(0.0, 0.1, vWaveHeight); 
+            float foam = smoothstep(0.88, 1.0, pattern) * wavePeak;
             
             vec3 finalMix = mix(waterColor, foamColor, foam);
             diffuseColor.rgb = finalMix;
