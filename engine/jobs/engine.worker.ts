@@ -13,7 +13,7 @@ import { Job, PathfindJob, PathfindResult, MeshChunkJob, MeshChunkResult, ENGINE
 import { findPath } from '../sim/algorithms/Pathfinding';
 
 let localChunks: Record<string, Chunk> = {};
-const CLIFF_FACE_THRESHOLD = 1.45;
+const CLIFF_FACE_THRESHOLD = Number.POSITIVE_INFINITY;
 
 const PALETTE: Record<string, number[]> = {
     'grass': [0.42, 0.60, 0.27],
