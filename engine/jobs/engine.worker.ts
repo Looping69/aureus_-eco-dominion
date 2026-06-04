@@ -97,7 +97,7 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
     const { cx, cz, tiles, lod = 1 } = job.payload;
     const CHUNK_SIZE = 16;
     const macroStep = getTerrainMacroStep(lod);
-    const surfaceStep = 1;
+    const surfaceStep = Math.max(1, macroStep);
     const foliageStep = Math.max(1, macroStep);
 
     const startX = cx * CHUNK_SIZE;
