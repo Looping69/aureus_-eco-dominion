@@ -14,6 +14,7 @@ import { findPath } from '../sim/algorithms/Pathfinding';
 
 let localChunks: Record<string, Chunk> = {};
 const CLIFF_FACE_THRESHOLD = Number.POSITIVE_INFINITY;
+const TERRAIN_SURFACE_NORMAL: [number, number, number] = [0, 1, 0];
 
 const PALETTE: Record<string, number[]> = {
     'grass': [0.42, 0.60, 0.27],
@@ -196,7 +197,12 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
         const ne: [number, number, number] = [centerX + hx, corners.ne, centerZ + hz];
         const se: [number, number, number] = [centerX + hx, corners.se, centerZ - hz];
         const sw: [number, number, number] = [centerX - hx, corners.sw, centerZ - hz];
-        addQuad(dest, nw, ne, se, sw, color);
+        pushVertex(dest, nw, TERRAIN_SURFACE_NORMAL, color, [0, 0]);
+        pushVertex(dest, ne, TERRAIN_SURFACE_NORMAL, color, [1, 0]);
+        pushVertex(dest, se, TERRAIN_SURFACE_NORMAL, color, [1, 1]);
+        pushVertex(dest, nw, TERRAIN_SURFACE_NORMAL, color, [0, 0]);
+        pushVertex(dest, se, TERRAIN_SURFACE_NORMAL, color, [1, 1]);
+        pushVertex(dest, sw, TERRAIN_SURFACE_NORMAL, color, [0, 1]);
     };
 
     const getCliffFaceColor = (color: number[]) => color.map((channel) => Math.min(1, Math.max(0, channel * 0.72 + 0.10)));
