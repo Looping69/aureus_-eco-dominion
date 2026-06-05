@@ -14,7 +14,7 @@ import { getWeatherGameplayEffects } from '../../weather/weatherModel';
 
 export class WaterNetworkSystem extends BaseSimSystem {
     readonly id = 'waterNetwork';
-    readonly priority = 11; // Run right after PowerGridSystem
+    readonly priority = 44; // Run after power, before production, so water-gated buildings use fresh utility state.
 
     private lastUpdate = 0;
     private readonly INTERVAL = 1.0; // Update every second
