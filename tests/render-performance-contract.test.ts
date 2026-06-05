@@ -111,7 +111,7 @@ test('PacketInstancedLayer now supports pooled bucketed instancing with render-o
   }
 });
 
-test('Engine worker renders voxel terrain with LOD-limited block tops aligned to actors and water', () => {
+test('Engine worker renders voxel terrain with LOD-limited textured block tops aligned to actors and water', () => {
   assert.equal(existsSync(engineWorkerPath), true, 'engine.worker.ts is missing');
 
   const source = readFileSync(engineWorkerPath, 'utf8');
@@ -119,34 +119,31 @@ test('Engine worker renders voxel terrain with LOD-limited block tops aligned to
   for (const snippet of [
     'const VOXEL_SIDE_EPSILON = 0.01;',
     'const BLOCK_TOP_NORMAL: [number, number, number] = [0, 1, 0];',
+    'const terrainHash = (x: number, z: number, salt = 0) => {',
+    'const getTexturedTerrainColor = (base: number[], biome: string, worldX: number, worldZ: number, height: number) => {',
+    "if (biome === 'GRASS') {",
+    "} else if (biome === 'SAND') {",
+    "} else if (biome === 'DIRT') {",
+    "} else if (biome === 'STONE') {",
+    'const altitudeShade = Math.max(-0.035, Math.min(0.035, (height - 2) * 0.008));',
     'const macroStep = getTerrainMacroStep(lod);',
     'const surfaceStep = Math.max(1, macroStep);',
     'const foliageStep = Math.max(1, macroStep);',
     'const addBlockTop = (',
     'pushVertex(dest, nw, BLOCK_TOP_NORMAL, color, [0, 0]);',
-    'pushVertex(dest, ne, BLOCK_TOP_NORMAL, color, [1, 0]);',
-    'pushVertex(dest, se, BLOCK_TOP_NORMAL, color, [1, 1]);',
-    'pushVertex(dest, sw, BLOCK_TOP_NORMAL, color, [0, 1]);',
     'const getBlockSideColor = (color: number[]) => color.map',
     'const addBlockSide = (',
-    'if (topY - bottomY <= VOXEL_SIDE_EPSILON) {',
-    'const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {',
     'let topY = data.h * 0.5;',
-    "if (data.bt === 'POND' || data.bt === 'RESERVOIR') topY -= 1;",
     'else if (!data.in && data.h === 0) topY = -1;',
-    'for (let z = 0; z < CHUNK_SIZE; z += surfaceStep) {',
-    'for (let x = 0; x < CHUNK_SIZE; x += surfaceStep) {',
-    'const cellWidth = Math.min(surfaceStep, CHUNK_SIZE - x);',
-    'const topY = getTopSurfaceY(data);',
-    'addBlockTop(',
-    'const neighborTopY = getTopSurfaceY(getData(worldX + dx, worldZ + dz));',
-    'addBlockSide(',
+    'const baseColor = PALETTE[matKey] || [1, 1, 1];',
+    'const color = getTexturedTerrainColor(baseColor, data.b, worldX, worldZ, data.h);',
     'const waterY = data.h === 0 ? -0.5 : (data.h * 0.5) - 0.5;',
     'const path = findPath(job.startX, job.startZ, job.endX, job.endZ, localChunks);',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 
+  assert.doesNotMatch(source, /const color = PALETTE\[matKey\] \|\| \[1, 1, 1\];/);
   assert.doesNotMatch(source, /let topY = \(data\.h \* 0\.5\) - 0\.5;/);
   assert.doesNotMatch(source, /const waterY = data\.h === 0 \? 0 : \(data\.h \* 0\.5\) - 0\.5;/);
   assert.doesNotMatch(source, /const surfaceStep = 1;/);
