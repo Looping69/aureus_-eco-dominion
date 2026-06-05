@@ -6,7 +6,7 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
-import { GameState, BuildingType } from '../../../types';
+import { GameState, BuildingType, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { ChunkStore } from '../../space/ChunkStore';
 import { getSolarEfficiency } from '../dayNightCycle';
@@ -43,6 +43,12 @@ export class PowerGridSystem extends BaseSimSystem {
                 const def = BUILDINGS[tile.buildingType];
                 if (!def) continue;
 
+                if (tile.buildingType === BuildingType.POWER_LINE || def.power?.produces || def.power?.consumes) {
+                    tile.powerStatus = 'DISCONNECTED';
+                }
+
+                if (!this.isStructureHead(tile)) continue;
+
                 // Sources
                 if (def.power?.produces) {
                     let production = def.power.produces;
@@ -64,17 +70,10 @@ export class PowerGridSystem extends BaseSimSystem {
 
                     totalProduced += production;
 
-                    // If producing power, it pushes to grid
+                    // If producing power, the full footprint can feed adjacent lines/buildings.
                     if (production > 0) {
-                        openSet.push({ x: tile.x, z: tile.z });
-                        empoweredTiles.add(`${tile.x},${tile.z}`);
-                        tile.powerStatus = 'CONNECTED';
-                    } else {
-                        tile.powerStatus = 'DISCONNECTED'; // Generator off/night
+                        this.markStructurePowerStatus(state, tile, 'CONNECTED', empoweredTiles, openSet);
                     }
-                } else if (tile.buildingType === BuildingType.POWER_LINE || def.power?.consumes) {
-                    // Default to disconnected
-                    tile.powerStatus = 'DISCONNECTED';
                 }
             }
         }
@@ -107,17 +106,17 @@ export class PowerGridSystem extends BaseSimSystem {
                     empoweredTiles.add(key);
                     openSet.push({ x: nx, z: nz });
                 } else if (nDef.power?.consumes) {
-                    neighbor.powerStatus = 'CONNECTED';
-                    empoweredTiles.add(key);
+                    const headTile = this.getStructureHeadTile(state, neighbor);
+                    this.markStructurePowerStatus(state, headTile, 'CONNECTED', empoweredTiles);
                     // Do not propagate through buildings to avoid daisy-chaining without wires
                 }
             }
         }
 
-        // 3. Calculate connected and stranded demand separately
+        // 3. Calculate connected and stranded demand separately. Only structure heads count demand.
         for (const chunk of Object.values(state.chunks)) {
             for (const tile of chunk.tiles) {
-                if (!tile) continue;
+                if (!tile || !this.isStructureHead(tile)) continue;
                 const def = BUILDINGS[tile.buildingType];
                 if (!def?.power?.consumes) continue;
 
@@ -139,6 +138,43 @@ export class PowerGridSystem extends BaseSimSystem {
             strandedDemand,
             deficit: Math.max(0, totalConsumed - totalProduced)
         };
+    }
+
+    private isStructureHead(tile: GridTile): boolean {
+        return tile.structureHeadX === undefined
+            || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
+    }
+
+    private getStructureHeadTile(state: GameState, tile: GridTile): GridTile {
+        if (this.isStructureHead(tile)) return tile;
+        return ChunkStore.getTile(state.chunks, tile.structureHeadX!, tile.structureHeadZ!) || tile;
+    }
+
+    private markStructurePowerStatus(
+        state: GameState,
+        headTile: GridTile,
+        status: 'CONNECTED' | 'DISCONNECTED',
+        empoweredTiles?: Set<string>,
+        openSet?: { x: number, z: number }[],
+    ): void {
+        const def = BUILDINGS[headTile.buildingType];
+        const width = def?.width || 1;
+        const depth = def?.depth || 1;
+
+        for (let dz = 0; dz < depth; dz++) {
+            for (let dx = 0; dx < width; dx++) {
+                const tile = ChunkStore.getTile(state.chunks, headTile.x + dx, headTile.z + dz);
+                if (!tile || tile.buildingType !== headTile.buildingType) continue;
+
+                tile.powerStatus = status;
+                if (empoweredTiles) {
+                    empoweredTiles.add(`${tile.x},${tile.z}`);
+                }
+                if (openSet) {
+                    openSet.push({ x: tile.x, z: tile.z });
+                }
+            }
+        }
     }
 
     private isIndustrialConsumer(type: BuildingType): boolean {
