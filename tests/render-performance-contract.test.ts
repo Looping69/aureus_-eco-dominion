@@ -111,7 +111,7 @@ test('PacketInstancedLayer now supports pooled bucketed instancing with render-o
   }
 });
 
-test('Engine worker renders voxel terrain with LOD-limited block tops and axis-aligned step faces', () => {
+test('Engine worker renders voxel terrain with LOD-limited block tops aligned to actors and water', () => {
   assert.equal(existsSync(engineWorkerPath), true, 'engine.worker.ts is missing');
 
   const source = readFileSync(engineWorkerPath, 'utf8');
@@ -131,6 +131,9 @@ test('Engine worker renders voxel terrain with LOD-limited block tops and axis-a
     'const addBlockSide = (',
     'if (topY - bottomY <= VOXEL_SIDE_EPSILON) {',
     'const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {',
+    'let topY = data.h * 0.5;',
+    "if (data.bt === 'POND' || data.bt === 'RESERVOIR') topY -= 1;",
+    'else if (!data.in && data.h === 0) topY = -1;',
     'for (let z = 0; z < CHUNK_SIZE; z += surfaceStep) {',
     'for (let x = 0; x < CHUNK_SIZE; x += surfaceStep) {',
     'const cellWidth = Math.min(surfaceStep, CHUNK_SIZE - x);',
@@ -138,11 +141,14 @@ test('Engine worker renders voxel terrain with LOD-limited block tops and axis-a
     'addBlockTop(',
     'const neighborTopY = getTopSurfaceY(getData(worldX + dx, worldZ + dz));',
     'addBlockSide(',
+    'const waterY = data.h === 0 ? -0.5 : (data.h * 0.5) - 0.5;',
     'const path = findPath(job.startX, job.startZ, job.endX, job.endZ, localChunks);',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 
+  assert.doesNotMatch(source, /let topY = \(data\.h \* 0\.5\) - 0\.5;/);
+  assert.doesNotMatch(source, /const waterY = data\.h === 0 \? 0 : \(data\.h \* 0\.5\) - 0\.5;/);
   assert.doesNotMatch(source, /const surfaceStep = 1;/);
   assert.doesNotMatch(source, /const CLIFF_FACE_THRESHOLD/);
   assert.doesNotMatch(source, /const TERRAIN_SURFACE_NORMAL/);
