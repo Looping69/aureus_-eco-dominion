@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useAureusEngine } from './game/useAureusEngine';
-import { useEngineState } from './game/useEngineState';
 import { SfxType, SidebarMode } from './types';
 import { HUD } from './components/HUD';
 import { Controls } from './components/Controls';
@@ -38,26 +37,30 @@ const App: React.FC = () => {
     const [pinnedTilePos, setPinnedTilePos] = useState<{ x: number, z: number } | null>(null);
 
     const [worldInstance, setWorldInstance] = useState<any>(null);
-    const engineState = useEngineState(worldInstance);
-    const state = engineState.state;
+    const stateRef = useRef<any>(null);
 
     const handleTileClick = useCallback((x: number, z: number, isTouch?: boolean) => {
-        if (!state) return;
+        const currentState = stateRef.current;
+        if (!currentState) return;
 
-        if (state.interactionMode === 'BUILD' && state.selectedBuilding) {
+        if (currentState.interactionMode === 'BUILD' && currentState.selectedBuilding) {
             setPendingPlacementPos({ x, z });
             worldInstance?.pinBuildingForConfirmation(x, z);
-        } else if (state.interactionMode === 'INSPECT' || (state.interactionMode === 'BUILD' && !state.selectedBuilding)) {
+        } else if (currentState.interactionMode === 'INSPECT' || (currentState.interactionMode === 'BUILD' && !currentState.selectedBuilding)) {
             setSelectedTilePos({ x, z });
         }
-    }, [state, worldInstance]);
+    }, [worldInstance]);
 
-    const { world, dispatch, getDebugStats, loading } = useAureusEngine({
+    const { world, state, dispatch, getDebugStats, loading } = useAureusEngine({
         container,
         onTileClick: handleTileClick,
         onAgentClick: (id) => dispatch({ type: 'SELECT_AGENT', payload: id }),
         onSfx: (type) => console.log(`[Engine SFX] ${type}`)
     });
+
+    useEffect(() => {
+        stateRef.current = state;
+    }, [state]);
 
     useEffect(() => {
         if (world) setWorldInstance(world);
