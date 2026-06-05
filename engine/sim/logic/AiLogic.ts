@@ -90,8 +90,8 @@ export function checkAndGenerateEvent(ctx: FixedContext, state: GameState): { ev
     const r = ctx.random?.next() || Math.random();
     const eco = state.resources.eco;
 
-    // 1. DUST STORM FRONT (More likely after ecological abuse)
-    const dustStormChance = eco < 50 ? 0.22 + ((50 - eco) / 120) : 0;
+    // 1. DUST STORM FRONT (Only likely after sustained ecological abuse)
+    const dustStormChance = eco < 50 ? Math.min(0.12, 0.035 + ((50 - eco) / 700)) : 0;
 
     if (r < dustStormChance) {
         newChunks = { ...state.chunks };
@@ -133,7 +133,7 @@ export function checkAndGenerateEvent(ctx: FixedContext, state: GameState): { ev
 
 
     // 2. HEATWAVE
-    if (r < 0.45) {
+    if (r < 0.12) {
         event = {
             id: ctx.getNextId?.('evt_heat') || `evt_heat_${Date.now()}`,
             name: "Heatwave",
@@ -149,8 +149,8 @@ export function checkAndGenerateEvent(ctx: FixedContext, state: GameState): { ev
     }
 
 
-    // 3. ECONOMIC BOOM (Random)
-    if (r < 0.6) {
+    // 3. ECONOMIC BOOM (Occasional)
+    if (r < 0.22) {
         event = {
             id: ctx.getNextId?.('evt_boom') || `evt_boom_${Date.now()}`,
             name: "Global Market Boom",
@@ -165,8 +165,8 @@ export function checkAndGenerateEvent(ctx: FixedContext, state: GameState): { ev
     }
 
 
-    // 4. GEOLOGICAL SHIFT (Spawns resources)
-    if (r < 0.75) {
+    // 4. GEOLOGICAL SHIFT (Occasional resource reveal)
+    if (r < 0.30) {
         const allTiles = Object.values(state.chunks).flatMap(c => c.tiles);
         const candidates = allTiles.filter(t => t.biome === 'STONE' && t.buildingType === BuildingType.EMPTY && t.foliage === 'NONE');
         if (candidates.length > 0) {
@@ -193,25 +193,23 @@ export function checkAndGenerateEvent(ctx: FixedContext, state: GameState): { ev
 
 
 
-    // 5. INCURSION (Rare)
-    if (r > 0.95) {
+    // 5. INCURSION (Super rare)
+    if (r > 0.9985) {
         const allTiles = Object.values(state.chunks).flatMap(c => c.tiles);
         const borderTiles = allTiles.filter(t => t.locked && t.foliage === 'NONE');
         if (borderTiles.length > 3) {
             newChunks = { ...state.chunks };
             newAgents = [...state.agents];
-            for (let i = 0; i < 3; i++) {
-                const tile = borderTiles[Math.floor((ctx.random?.next() || Math.random()) * borderTiles.length)];
-                const { cx, cz } = worldToChunk(tile.x, tile.z, CHUNK_SIZE);
-                const chunkId = toChunkKey(cx, cz);
-                const chunk = { ...newChunks[chunkId], tiles: [...newChunks[chunkId].tiles] };
-                const tIdx = chunk.tiles.findIndex(t => t.x === tile.x && t.z === tile.z);
-                if (tIdx !== -1) {
-                    chunk.tiles[tIdx] = { ...chunk.tiles[tIdx], foliage: 'ILLEGAL_CAMP' };
-                    newChunks[chunkId] = chunk;
-                }
-                newAgents.push(createColonist(tile.x, tile.z, 'ILLEGAL_MINER'));
+            const tile = borderTiles[Math.floor((ctx.random?.next() || Math.random()) * borderTiles.length)];
+            const { cx, cz } = worldToChunk(tile.x, tile.z, CHUNK_SIZE);
+            const chunkId = toChunkKey(cx, cz);
+            const chunk = { ...newChunks[chunkId], tiles: [...newChunks[chunkId].tiles] };
+            const tIdx = chunk.tiles.findIndex(t => t.x === tile.x && t.z === tile.z);
+            if (tIdx !== -1) {
+                chunk.tiles[tIdx] = { ...chunk.tiles[tIdx], foliage: 'ILLEGAL_CAMP' };
+                newChunks[chunkId] = chunk;
             }
+            newAgents.push(createColonist(tile.x, tile.z, 'ILLEGAL_MINER'));
             event = {
                 id: ctx.getNextId?.('evt_inc') || `evt_inc_${Date.now()}`,
                 name: "Resource Incursion",
