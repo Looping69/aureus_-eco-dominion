@@ -14,7 +14,7 @@ export class EventSystem extends BaseSimSystem {
     readonly priority = 15;
 
     private lastEventCheck = 0;
-    private readonly EVENT_CHECK_INTERVAL = 30.0; // Seconds
+    private readonly EVENT_CHECK_INTERVAL = 180.0; // Seconds
 
     tick(ctx: FixedContext, state: GameState): void {
         // 1. Process Active Events (Durations)
