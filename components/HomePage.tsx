@@ -110,8 +110,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartGame, onStartDemo, on
                     >
                         <Radio size={24} className="text-black/80 animate-pulse" />
                         <div className="text-left">
-                            <span className="block text-xl font-black text-black italic tracking-tighter leading-none mb-0.5 uppercase">Play Demo</span>
-                            <span className="block text-[8px] font-black text-black/60 tracking-[0.3em] uppercase leading-none">Auto-Sim</span>
+                            <span className="block text-xl font-black text-black italic tracking-tighter leading-none mb-0.5 uppercase">Guided Demo</span>
+                            <span className="block text-[8px] font-black text-black/60 tracking-[0.3em] uppercase leading-none">5-Min Run</span>
                         </div>
                     </button>
                 </div>
