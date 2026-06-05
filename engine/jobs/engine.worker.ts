@@ -272,9 +272,9 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
     };
 
     const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {
-        let topY = (data.h * 0.5) - 0.5;
+        let topY = data.h * 0.5;
         if (data.bt === 'POND' || data.bt === 'RESERVOIR') topY -= 1;
-        else if (!data.in && data.h === 0) topY = -2;
+        else if (!data.in && data.h === 0) topY = -1;
         return topY;
     };
 
@@ -362,7 +362,7 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
             });
 
             if (isWater) {
-                const waterY = data.h === 0 ? 0 : (data.h * 0.5) - 0.5;
+                const waterY = data.h === 0 ? -0.5 : (data.h * 0.5) - 0.5;
                 addFace(
                     water,
                     macro.localCenterX,
