@@ -39,6 +39,39 @@ const PALETTE: Record<string, number[]> = {
     'gold': [0.86, 0.65, 0.18]
 };
 
+const clampColor = (value: number) => Math.min(1, Math.max(0, value));
+
+const terrainHash = (x: number, z: number, salt = 0) => {
+    const n = Math.sin((x * 127.1) + (z * 311.7) + (salt * 74.7)) * 43758.5453123;
+    return n - Math.floor(n);
+};
+
+const getTexturedTerrainColor = (base: number[], biome: string, worldX: number, worldZ: number, height: number) => {
+    const grain = terrainHash(worldX, worldZ, 1) - 0.5;
+    const patch = terrainHash(Math.floor(worldX / 2), Math.floor(worldZ / 2), 2) - 0.5;
+    const fleck = terrainHash(worldX, worldZ, 3);
+    let tint: [number, number, number] = [grain * 0.06 + patch * 0.05, grain * 0.06 + patch * 0.05, grain * 0.06 + patch * 0.05];
+
+    if (biome === 'GRASS') {
+        tint = [grain * 0.035 - patch * 0.025, grain * 0.075 + patch * 0.06, grain * 0.025 - patch * 0.02];
+        if (fleck > 0.84) tint = [tint[0] + 0.035, tint[1] + 0.055, tint[2] + 0.015];
+        if (fleck < 0.10) tint = [tint[0] - 0.035, tint[1] - 0.05, tint[2] - 0.02];
+    } else if (biome === 'SAND') {
+        tint = [grain * 0.06 + patch * 0.04, grain * 0.045 + patch * 0.03, grain * 0.018 - patch * 0.015];
+        if (fleck > 0.88) tint = [tint[0] + 0.025, tint[1] + 0.02, tint[2] + 0.006];
+    } else if (biome === 'DIRT') {
+        tint = [grain * 0.06 + patch * 0.04, grain * 0.035 + patch * 0.025, grain * 0.018];
+        if (fleck < 0.14) tint = [tint[0] - 0.035, tint[1] - 0.025, tint[2] - 0.012];
+    } else if (biome === 'STONE') {
+        tint = [grain * 0.045 + patch * 0.04, grain * 0.045 + patch * 0.04, grain * 0.05 + patch * 0.045];
+        if (fleck > 0.82) tint = [tint[0] + 0.04, tint[1] + 0.04, tint[2] + 0.035];
+        if (fleck < 0.12) tint = [tint[0] - 0.04, tint[1] - 0.04, tint[2] - 0.035];
+    }
+
+    const altitudeShade = Math.max(-0.035, Math.min(0.035, (height - 2) * 0.008));
+    return base.map((channel, idx) => clampColor(channel + tint[idx] + altitudeShade));
+};
+
 self.onmessage = (e: MessageEvent) => {
     const msg = e.data;
 
@@ -329,7 +362,8 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
 
             let matKey = data.b.toLowerCase();
             if (data.b === 'GRASS' && data.h > 2) matKey = 'grassLight';
-            const color = PALETTE[matKey] || [1, 1, 1];
+            const baseColor = PALETTE[matKey] || [1, 1, 1];
+            const color = getTexturedTerrainColor(baseColor, data.b, worldX, worldZ, data.h);
 
             addBlockTop(
                 solid,
