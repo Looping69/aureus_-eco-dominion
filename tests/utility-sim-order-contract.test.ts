@@ -40,3 +40,26 @@ test('production still gates output by current power and water status', () => {
     assert.match(productionSource, /if \(tile\.waterStatus !== 'CONNECTED'\)/);
     assert.match(productionSource, /state\.waterNetwork\?\.deficit > 0/);
 });
+
+test('power accounting counts multi-tile structures once while allowing footprint-edge connections', () => {
+    assert.match(powerSource, /private isStructureHead\(tile: GridTile\): boolean/);
+    assert.match(powerSource, /if \(!this\.isStructureHead\(tile\)\) continue;/);
+    assert.match(powerSource, /Only structure heads count demand\./);
+    assert.match(powerSource, /markStructurePowerStatus\(state, tile, 'CONNECTED', empoweredTiles, openSet\)/);
+    assert.match(powerSource, /const headTile = this\.getStructureHeadTile\(state, neighbor\);/);
+    assert.match(powerSource, /markStructurePowerStatus\(state, headTile, 'CONNECTED', empoweredTiles\)/);
+    assert.match(powerSource, /const width = def\?\.width \|\| 1;/);
+    assert.match(powerSource, /const depth = def\?\.depth \|\| 1;/);
+});
+
+test('water accounting counts multi-tile structures once while allowing footprint-edge connections', () => {
+    assert.match(waterSource, /private isStructureHead\(tile: GridTile\): boolean/);
+    assert.match(waterSource, /if \(!this\.isStructureHead\(tile\)\) continue;/);
+    assert.match(waterSource, /Only structure heads count demand\./);
+    assert.match(waterSource, /Mark the full footprint as a water source so pipes can connect to any edge\./);
+    assert.match(waterSource, /markStructureWaterStatus\(state, tile, 'CONNECTED', suppliedTiles, openSet\)/);
+    assert.match(waterSource, /const headTile = this\.getStructureHeadTile\(state, neighbor\);/);
+    assert.match(waterSource, /markStructureWaterStatus\(state, headTile, 'CONNECTED', suppliedTiles\)/);
+    assert.match(waterSource, /const width = def\?\.width \|\| 1;/);
+    assert.match(waterSource, /const depth = def\?\.depth \|\| 1;/);
+});
