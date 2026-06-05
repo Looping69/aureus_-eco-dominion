@@ -14,7 +14,7 @@ import { getWeatherGameplayEffects } from '../../weather/weatherModel';
 
 export class PowerGridSystem extends BaseSimSystem {
     readonly id = 'powerGrid';
-    readonly priority = 10; // Run early so ProductionSystem can use the results
+    readonly priority = 45; // Run before water and production so utility-gated buildings use fresh power state.
 
     private lastUpdate = 0;
     private readonly INTERVAL = 1.0; // Update every second
