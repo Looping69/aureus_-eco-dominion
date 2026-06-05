@@ -6,7 +6,7 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
-import { GameState, BuildingType } from '../../../types';
+import { GameState, BuildingType, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { ChunkStore } from '../../space/ChunkStore';
 import { getWeatherGameplayEffects } from '../../weather/weatherModel';
@@ -46,7 +46,13 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 if (!def) continue;
 
                 // Reset status primarily for Pipes and Consumers
-                // Sources start connected
+                if (tile.buildingType === BuildingType.PIPE || def.water?.produces || def.water?.consumes) {
+                    tile.waterStatus = 'DISCONNECTED';
+                }
+
+                if (!this.isStructureHead(tile)) continue;
+
+                // Sources start connected and count once per structure, not once per footprint tile.
                 if (def.water?.produces) {
                     // Determine actual production
                     let production = def.water.produces;
@@ -62,13 +68,8 @@ export class WaterNetworkSystem extends BaseSimSystem {
 
                     totalProduced += production;
 
-                    // Mark as a source for BFS
-                    openSet.push({ x: tile.x, z: tile.z });
-                    suppliedTiles.add(`${tile.x},${tile.z}`);
-                    tile.waterStatus = 'CONNECTED';
-                } else if (tile.buildingType === BuildingType.PIPE || def.water?.consumes) {
-                    // Default to disconnected, will be set to CONNECTED if reached by BFS
-                    tile.waterStatus = 'DISCONNECTED';
+                    // Mark the full footprint as a water source so pipes can connect to any edge.
+                    this.markStructureWaterStatus(state, tile, 'CONNECTED', suppliedTiles, openSet);
                 }
             }
         }
@@ -107,17 +108,17 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 }
                 // If it's a Consumer, it accepts water but STOPS flow (terminal node)
                 else if (nDef.water?.consumes) {
-                    neighbor.waterStatus = 'CONNECTED';
-                    suppliedTiles.add(key);
+                    const headTile = this.getStructureHeadTile(state, neighbor);
+                    this.markStructureWaterStatus(state, headTile, 'CONNECTED', suppliedTiles);
                     // Do NOT push to openSet; consumers don't output water to neighbors
                 }
             }
         }
 
-        // 3. Calculate Consumption & Deficit
+        // 3. Calculate Consumption & Deficit. Only structure heads count demand.
         for (const chunk of Object.values(state.chunks)) {
             for (const tile of chunk.tiles) {
-                if (!tile) continue;
+                if (!tile || !this.isStructureHead(tile)) continue;
                 const def = BUILDINGS[tile.buildingType];
                 if (def && def.water?.consumes) {
                     totalConsumed += def.water.consumes;
@@ -132,5 +133,42 @@ export class WaterNetworkSystem extends BaseSimSystem {
             totalConsumed,
             deficit: Math.max(0, totalConsumed - totalProduced)
         };
+    }
+
+    private isStructureHead(tile: GridTile): boolean {
+        return tile.structureHeadX === undefined
+            || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
+    }
+
+    private getStructureHeadTile(state: GameState, tile: GridTile): GridTile {
+        if (this.isStructureHead(tile)) return tile;
+        return ChunkStore.getTile(state.chunks, tile.structureHeadX!, tile.structureHeadZ!) || tile;
+    }
+
+    private markStructureWaterStatus(
+        state: GameState,
+        headTile: GridTile,
+        status: 'CONNECTED' | 'DISCONNECTED',
+        suppliedTiles?: Set<string>,
+        openSet?: { x: number, z: number }[],
+    ): void {
+        const def = BUILDINGS[headTile.buildingType];
+        const width = def?.width || 1;
+        const depth = def?.depth || 1;
+
+        for (let dz = 0; dz < depth; dz++) {
+            for (let dx = 0; dx < width; dx++) {
+                const tile = ChunkStore.getTile(state.chunks, headTile.x + dx, headTile.z + dz);
+                if (!tile || tile.buildingType !== headTile.buildingType) continue;
+
+                tile.waterStatus = status;
+                if (suppliedTiles) {
+                    suppliedTiles.add(`${tile.x},${tile.z}`);
+                }
+                if (openSet) {
+                    openSet.push({ x: tile.x, z: tile.z });
+                }
+            }
+        }
     }
 }
