@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Era, EraDef, BuildingType } from '../types';
+import { Era, BuildingType } from '../types';
 import { ERAS, BUILDINGS } from '../engine/data/VoxelConstants';
 import { X, Trophy, Unlock, ChevronRight } from 'lucide-react';
 
@@ -33,15 +33,23 @@ export const EraUnlockedModal: React.FC<EraUnlockedModalProps> = ({ era, onClose
     };
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+        <div
+            className="fixed left-0 top-0 z-[9999] flex h-screen min-h-[100dvh] w-screen items-center justify-center overflow-hidden pointer-events-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="era-unlocked-title"
+            onClick={(e) => e.stopPropagation()}
+        >
             {/* Backdrop with particles */}
-            <div
-                className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            <button
+                type="button"
+                aria-label="Close era unlocked modal"
+                className="absolute left-0 top-0 h-full w-full cursor-default bg-black/80 backdrop-blur-sm"
                 onClick={handleClose}
             />
 
             {/* Celebration rays */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute left-0 top-0 h-full w-full overflow-hidden pointer-events-none">
                 <div
                     className="absolute top-1/2 left-1/2 w-[200vw] h-[200vh] -translate-x-1/2 -translate-y-1/2"
                     style={{
@@ -52,7 +60,7 @@ export const EraUnlockedModal: React.FC<EraUnlockedModalProps> = ({ era, onClose
             </div>
 
             {/* Floating particles */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute left-0 top-0 h-full w-full pointer-events-none overflow-hidden">
                 {[...Array(20)].map((_, i) => (
                     <div
                         key={i}
@@ -72,21 +80,23 @@ export const EraUnlockedModal: React.FC<EraUnlockedModalProps> = ({ era, onClose
             {/* Modal Content */}
             <div
                 className={`relative w-[90vw] max-w-lg bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 
-                           border-2 rounded-xl shadow-2xl transform transition-all duration-500
+                           border-2 rounded-xl shadow-2xl transform transition-all duration-500 pointer-events-auto
                            ${showContent ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}`}
                 style={{ borderColor: eraDef.color }}
             >
                 {/* Glow effect */}
                 <div
-                    className="absolute -inset-1 rounded-xl blur-xl opacity-30"
+                    className="absolute -inset-1 rounded-xl blur-xl opacity-30 pointer-events-none"
                     style={{ background: eraDef.color }}
                 />
 
                 {/* Close button */}
                 <button
+                    type="button"
                     onClick={handleClose}
                     className="absolute top-3 right-3 z-10 p-2 text-slate-400 hover:text-white 
                                bg-slate-800/50 hover:bg-slate-700/50 rounded-lg transition-colors"
+                    aria-label="Close"
                 >
                     <X size={20} />
                 </button>
@@ -110,6 +120,7 @@ export const EraUnlockedModal: React.FC<EraUnlockedModalProps> = ({ era, onClose
                             New Era Unlocked
                         </p>
                         <h1
+                            id="era-unlocked-title"
                             className="text-3xl sm:text-4xl font-black uppercase tracking-wide"
                             style={{ color: eraDef.color }}
                         >
@@ -167,6 +178,7 @@ export const EraUnlockedModal: React.FC<EraUnlockedModalProps> = ({ era, onClose
                 {/* Continue Button */}
                 <div className="p-6 pt-2">
                     <button
+                        type="button"
                         onClick={handleClose}
                         className="w-full py-3 px-6 font-bold uppercase tracking-wider text-white 
                                    rounded-lg flex items-center justify-center gap-2 group
