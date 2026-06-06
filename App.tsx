@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Routes, Route } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useAureusEngine } from './game/useAureusEngine';
-import { SfxType, SidebarMode } from './types';
+import { BuildingType, SfxType, SidebarMode } from './types';
 import { HUD } from './components/HUD';
 import { Controls } from './components/Controls';
 import { SupplySidebar } from './components/SupplySidebar';
@@ -30,11 +30,23 @@ import { DebugMenu } from './components/DebugMenu';
 import { AgentDebugOverlay } from './components/AgentDebugOverlay';
 import { LoadingOverlay } from './components/LoadingOverlay';
 
+const LINE_PLACEMENT_TYPES = new Set<BuildingType>([
+    BuildingType.ROAD,
+    BuildingType.PIPE,
+    BuildingType.POWER_LINE,
+    BuildingType.FENCE,
+]);
+
+const isLinePlacementType = (type: BuildingType | null | undefined): type is BuildingType => {
+    return Boolean(type && LINE_PLACEMENT_TYPES.has(type));
+};
+
 const App: React.FC = () => {
     const [container, setContainer] = useState<HTMLElement | null>(null);
     const [pendingPlacementPos, setPendingPlacementPos] = useState<{ x: number, z: number } | null>(null);
     const [selectedTilePos, setSelectedTilePos] = useState<{ x: number, z: number } | null>(null);
     const [pinnedTilePos, setPinnedTilePos] = useState<{ x: number, z: number } | null>(null);
+    const [linePlacementStart, setLinePlacementStart] = useState<{ x: number, z: number, type: BuildingType } | null>(null);
 
     const [worldInstance, setWorldInstance] = useState<any>(null);
     const stateRef = useRef<any>(null);
@@ -44,12 +56,40 @@ const App: React.FC = () => {
         if (!currentState) return;
 
         if (currentState.interactionMode === 'BUILD' && currentState.selectedBuilding) {
+            const selectedBuilding = currentState.selectedBuilding as BuildingType;
+
+            if (isLinePlacementType(selectedBuilding)) {
+                if (!linePlacementStart || linePlacementStart.type !== selectedBuilding) {
+                    setLinePlacementStart({ x, z, type: selectedBuilding });
+                    setPendingPlacementPos(null);
+                    setPinnedTilePos({ x, z });
+                    worldInstance?.pinBuildingForConfirmation(x, z);
+                    return;
+                }
+
+                worldInstance?.placeInfrastructureLine(
+                    linePlacementStart.x,
+                    linePlacementStart.z,
+                    x,
+                    z,
+                    selectedBuilding
+                );
+                worldInstance?.selectBuilding(null);
+                worldInstance?.clearPinnedBuilding();
+                setLinePlacementStart(null);
+                setPendingPlacementPos(null);
+                setPinnedTilePos(null);
+                return;
+            }
+
+            setLinePlacementStart(null);
             setPendingPlacementPos({ x, z });
             worldInstance?.pinBuildingForConfirmation(x, z);
         } else if (currentState.interactionMode === 'INSPECT' || (currentState.interactionMode === 'BUILD' && !currentState.selectedBuilding)) {
+            setLinePlacementStart(null);
             setSelectedTilePos({ x, z });
         }
-    }, [worldInstance]);
+    }, [linePlacementStart, worldInstance]);
 
     const { world, state, dispatch, getDebugStats, loading } = useAureusEngine({
         container,
@@ -65,6 +105,12 @@ const App: React.FC = () => {
     useEffect(() => {
         if (world) setWorldInstance(world);
     }, [world]);
+
+    useEffect(() => {
+        if (!state?.selectedBuilding || !isLinePlacementType(state.selectedBuilding)) {
+            setLinePlacementStart(null);
+        }
+    }, [state?.selectedBuilding]);
 
     const financials = useMemo(() => {
         if (!state) return { income: 0, cost: 0, net: 0, ecoMult: 1, trustMult: 1 };
@@ -237,7 +283,7 @@ const App: React.FC = () => {
                                     )}
 
                                     <MobileBuildingConfirmation
-                                        buildingType={state.selectedBuilding}
+                                        buildingType={state.selectedBuilding && isLinePlacementType(state.selectedBuilding) ? null : state.selectedBuilding}
                                         tilePos={pendingPlacementPos}
                                         onConfirm={() => {
                                             if (worldInstance && pendingPlacementPos !== null) {
@@ -246,6 +292,7 @@ const App: React.FC = () => {
                                                 worldInstance.clearPinnedBuilding();
                                                 setPendingPlacementPos(null);
                                                 setPinnedTilePos(null);
+                                                setLinePlacementStart(null);
                                             }
                                         }}
                                         onCancel={() => {
@@ -254,6 +301,7 @@ const App: React.FC = () => {
                                             }
                                             setPendingPlacementPos(null);
                                             setPinnedTilePos(null);
+                                            setLinePlacementStart(null);
                                         }}
                                         playSfx={playSfx}
                                     />
