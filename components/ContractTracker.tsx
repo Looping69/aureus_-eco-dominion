@@ -25,16 +25,19 @@ const RESOURCE_LABEL: Record<Contract['resource'], string> = {
 const STATUS_TONE: Record<string, string> = {
     AVAILABLE: 'border-cyan-800 bg-cyan-950/40 text-cyan-200',
     ACCEPTED: 'border-amber-800 bg-amber-950/40 text-amber-200',
+    READY_TO_DELIVER: 'border-emerald-800 bg-emerald-950/40 text-emerald-200',
     COMPLETED: 'border-emerald-800 bg-emerald-950/40 text-emerald-200',
     FAILED: 'border-rose-800 bg-rose-950/40 text-rose-200',
 };
 
 const getStatusIcon = (status: string) => {
-    if (status === 'COMPLETED') return <CheckCircle2 size={12} />;
+    if (status === 'COMPLETED' || status === 'READY_TO_DELIVER') return <CheckCircle2 size={12} />;
     if (status === 'FAILED') return <XCircle size={12} />;
     if (status === 'ACCEPTED') return <Package size={12} />;
     return <Briefcase size={12} />;
 };
+
+const getStatusLabel = (status: string) => status.replace(/_/g, ' ');
 
 const formatTime = (seconds: number) => {
     const clamped = Math.max(0, Math.ceil(seconds));
@@ -43,7 +46,7 @@ const formatTime = (seconds: number) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-const queueContractCommand = (world: any, type: 'ACCEPT_CONTRACT' | 'DELIVER_CONTRACT', contractId: string) => {
+const queueContractCommand = (world: any, type: 'ACCEPT_CONTRACT' | 'DELIVER_CONTRACT' | 'ABANDON_CONTRACT', contractId: string) => {
     const gameState = world?.getState?.();
     if (!gameState?.commandQueue) return false;
     gameState.commandQueue.push({
@@ -71,7 +74,7 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
     if (contracts.length === 0) return null;
 
     const lastResult = liveState.ui?.lastCommandResult;
-    const contractResult = lastResult && ['ACCEPT_CONTRACT', 'DELIVER_CONTRACT'].includes(lastResult.type)
+    const contractResult = lastResult && ['ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT'].includes(lastResult.type)
         ? lastResult
         : null;
 
@@ -94,11 +97,13 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
                         const status = contract.status || 'AVAILABLE';
                         const resourceKey = RESOURCE_KEY[contract.resource];
                         const available = Math.floor(liveState.resources[resourceKey] || 0);
-                        const progress = status === 'COMPLETED'
+                        const progress = status === 'COMPLETED' || status === 'READY_TO_DELIVER'
                             ? 1
                             : Math.min(1, available / Math.max(1, contract.amount));
-                        const canDeliver = status === 'ACCEPTED' && available >= contract.amount;
+                        const canDeliver = (status === 'ACCEPTED' || status === 'READY_TO_DELIVER') && available >= contract.amount;
                         const timeRatio = Math.min(1, contract.timeLeft / (status === 'AVAILABLE' ? 180 : 300));
+                        const trustReward = contract.trustReward ?? 2;
+                        const trustPenalty = contract.trustPenalty ?? 3;
 
                         const handleAccept = () => {
                             if (queueContractCommand(world, 'ACCEPT_CONTRACT', contract.id)) {
@@ -118,19 +123,28 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
                             }
                         };
 
+                        const handleAbandon = () => {
+                            if (queueContractCommand(world, 'ABANDON_CONTRACT', contract.id)) {
+                                playSfx(SfxType.ERROR);
+                                window.setTimeout(() => forceRefresh(value => value + 1), 80);
+                            } else {
+                                playSfx(SfxType.ERROR);
+                            }
+                        };
+
                         return (
                             <div key={contract.id} className="bg-slate-900/90 border border-slate-800 rounded-[5px] p-2">
                                 <div className="flex items-start justify-between gap-2 mb-2">
                                     <div className="min-w-0">
                                         <div className={`inline-flex items-center gap-1 border rounded-[3px] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${STATUS_TONE[status] || STATUS_TONE.AVAILABLE}`}>
                                             {getStatusIcon(status)}
-                                            {status}
+                                            {getStatusLabel(status)}
                                         </div>
                                         <div className="mt-1 text-[10px] font-bold text-slate-200 leading-snug">
-                                            {contract.amount} {RESOURCE_LABEL[contract.resource]} for +{contract.reward} AGT
+                                            Deliver {contract.amount} {RESOURCE_LABEL[contract.resource]} for {contract.reward.toLocaleString()} AGT
                                         </div>
                                     </div>
-                                    <div className={`flex items-center gap-1 text-[10px] font-mono shrink-0 ${contract.timeLeft < 30 && status === 'ACCEPTED' ? 'text-rose-300 animate-pulse' : 'text-slate-400'}`}>
+                                    <div className={`flex items-center gap-1 text-[10px] font-mono shrink-0 ${contract.timeLeft < 30 && (status === 'ACCEPTED' || status === 'READY_TO_DELIVER') ? 'text-rose-300 animate-pulse' : 'text-slate-400'}`}>
                                         <Clock size={11} />
                                         {formatTime(contract.timeLeft)}
                                     </div>
@@ -167,19 +181,43 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
                                     </button>
                                 )}
                                 {status === 'ACCEPTED' && (
-                                    <button
-                                        onClick={handleDeliver}
-                                        disabled={!canDeliver}
-                                        className={`w-full rounded-[4px] py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${canDeliver ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
-                                    >
-                                        {canDeliver ? 'Deliver And Claim Reward' : `Collect ${contract.amount - available} More ${RESOURCE_LABEL[contract.resource]}`}
-                                    </button>
+                                    <div className="space-y-1">
+                                        <button
+                                            onClick={handleDeliver}
+                                            disabled={!canDeliver}
+                                            className={`w-full rounded-[4px] py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${canDeliver ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
+                                        >
+                                            {canDeliver ? 'Deliver And Claim Reward' : `Collect ${contract.amount - available} More ${RESOURCE_LABEL[contract.resource]}`}
+                                        </button>
+                                        <button
+                                            onClick={handleAbandon}
+                                            className="w-full bg-slate-950 hover:bg-rose-950/60 border border-slate-800 hover:border-rose-800 text-slate-400 hover:text-rose-200 rounded-[4px] py-1 text-[9px] font-black uppercase tracking-wider transition-colors"
+                                        >
+                                            Abandon: -{contract.penalty} AGT / -{trustPenalty} Trust
+                                        </button>
+                                    </div>
+                                )}
+                                {status === 'READY_TO_DELIVER' && (
+                                    <div className="space-y-1">
+                                        <button
+                                            onClick={handleDeliver}
+                                            className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 rounded-[4px] py-2 text-[11px] font-black uppercase tracking-wider transition-colors animate-pulse"
+                                        >
+                                            Deliver Now: +{contract.reward.toLocaleString()} AGT / +{trustReward} Trust
+                                        </button>
+                                        <button
+                                            onClick={handleAbandon}
+                                            className="w-full bg-slate-950 hover:bg-rose-950/60 border border-slate-800 hover:border-rose-800 text-slate-400 hover:text-rose-200 rounded-[4px] py-1 text-[9px] font-black uppercase tracking-wider transition-colors"
+                                        >
+                                            Abandon Contract
+                                        </button>
+                                    </div>
                                 )}
                                 {status === 'COMPLETED' && (
-                                    <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Paid and logged</div>
+                                    <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Paid: +{contract.reward.toLocaleString()} AGT / +{trustReward} Trust</div>
                                 )}
                                 {status === 'FAILED' && (
-                                    <div className="text-[10px] font-bold text-rose-300 uppercase tracking-wider">Failed and penalized</div>
+                                    <div className="text-[10px] font-bold text-rose-300 uppercase tracking-wider">Failed: -{contract.penalty} AGT / -{trustPenalty} Trust{contract.failureReason ? ` - ${contract.failureReason}` : ''}</div>
                                 )}
                             </div>
                         );
