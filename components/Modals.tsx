@@ -386,6 +386,8 @@ export const BuildingInspectorModal: React.FC<{
         }
     }
 
+    const utilityAlerts = getUtilityAlerts(tile, currentDef);
+
     // Check for next upgrade
     const nextLevel = (tile.level || 1) + 1;
     const nextUpgrade = def.upgrades?.find(u => u.level === nextLevel);
@@ -476,6 +478,31 @@ export const BuildingInspectorModal: React.FC<{
                         </div>
                     </div>
 
+                    {utilityAlerts.length > 0 && (
+                        <div className="bg-slate-950 border border-slate-800 p-2 mb-3 rounded-sm space-y-1.5">
+                            <div className="flex items-center gap-1 text-[8px] text-slate-500 uppercase font-black tracking-widest">
+                                <Info size={9} /> Utility Status
+                            </div>
+                            {utilityAlerts.map((alert, index) => (
+                                <div
+                                    key={`${alert.title}-${index}`}
+                                    className={`p-2 border rounded-[3px] ${alert.kind === 'danger'
+                                        ? 'bg-rose-950/30 border-rose-700/50 text-rose-100'
+                                        : alert.kind === 'warning'
+                                            ? 'bg-amber-950/30 border-amber-700/50 text-amber-100'
+                                            : 'bg-emerald-950/25 border-emerald-700/40 text-emerald-100'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide">
+                                        {alert.kind === 'ok' ? <CheckCircle2 size={10} /> : <AlertTriangle size={10} />}
+                                        <span>{alert.title}</span>
+                                    </div>
+                                    <p className="mt-1 text-[9px] opacity-80 leading-tight font-mono uppercase">{alert.detail}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     {currentDef.production && (
                         <div className="bg-emerald-950/20 border border-emerald-900/50 p-2 mb-3 rounded-sm">
                             <div className="flex justify-between items-center text-[10px]">
@@ -541,4 +568,68 @@ export const BuildingInspectorModal: React.FC<{
 function maxDesc(str: string) {
     if (str.length > 50) return str.substring(0, 48) + '...';
     return str;
+}
+
+type UtilityAlert = {
+    kind: 'danger' | 'warning' | 'ok';
+    title: string;
+    detail: string;
+};
+
+function getUtilityAlerts(tile: any, currentDef: any): UtilityAlert[] {
+    const alerts: UtilityAlert[] = [];
+    const needsPower = Boolean(currentDef.power?.consumes);
+    const producesPower = Boolean(currentDef.power?.produces);
+    const needsWater = Boolean(currentDef.water?.consumes);
+    const producesWater = Boolean(currentDef.water?.produces);
+
+    if (needsPower) {
+        if (tile.powerStatus !== 'CONNECTED') {
+            alerts.push({
+                kind: 'danger',
+                title: `${currentDef.name} offline: no power`,
+                detail: 'Connect a live power line or add generation. Brownouts prioritize housing, reservoirs, then industry.'
+            });
+        } else {
+            alerts.push({
+                kind: 'ok',
+                title: `${currentDef.name} powered`,
+                detail: 'This building is connected and currently inside the supplied power budget.'
+            });
+        }
+    }
+
+    if (needsWater) {
+        if (tile.waterStatus !== 'CONNECTED') {
+            alerts.push({
+                kind: 'danger',
+                title: `${currentDef.name} water-starved`,
+                detail: 'Connect pipes to a producing source or increase water output before production can stabilize.'
+            });
+        } else {
+            alerts.push({
+                kind: 'ok',
+                title: `${currentDef.name} water supplied`,
+                detail: 'This building is piped and currently inside the supplied water budget.'
+            });
+        }
+    }
+
+    if (producesWater && tile.buildingType === BuildingType.RESERVOIR && tile.powerStatus !== 'CONNECTED') {
+        alerts.push({
+            kind: 'warning',
+            title: 'Reservoir underpowered: 25% output',
+            detail: 'Reservoirs still trickle water without power, but full output requires a supplied power connection.'
+        });
+    }
+
+    if (producesPower && tile.buildingType === BuildingType.SOLAR_ARRAY && tile.powerStatus !== 'CONNECTED') {
+        alerts.push({
+            kind: 'warning',
+            title: 'Solar array not feeding the grid',
+            detail: 'Place power lines from this source so nearby buildings can use its output.'
+        });
+    }
+
+    return alerts;
 }
