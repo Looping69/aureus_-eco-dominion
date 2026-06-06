@@ -67,6 +67,10 @@ export interface AureusEngineHandle {
     dispatch: (action: any) => void;
 }
 
+function reloadWorldState(world: AureusWorld, state: GameState): void {
+    world.dispatch({ type: 'LOAD_GAME', payload: state });
+}
+
 function findPlannerTargetNode(state: GameState, payload: Record<string, any>) {
     const nodes = state.factory?.nodes || {};
     if (payload?.targetKey && nodes[payload.targetKey]) {
@@ -457,7 +461,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 const state = world.getState();
                 const updatedState = claimCompletedGoal(state);
                 if (updatedState) {
-                    world.loadGame(JSON.stringify(updatedState));
+                    reloadWorldState(world, updatedState);
                 }
                 return;
             }
@@ -486,7 +490,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                     },
                 };
 
-                world.loadGame(JSON.stringify(updatedState));
+                reloadWorldState(world, updatedState);
                 return;
             }
 
@@ -507,13 +511,13 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
 
                     const overlayMode = getPlannerOverlayMode(action.payload?.reason, action.payload?.suggestedBuilding);
                     if (state.logistics.overlayMode !== overlayMode) {
-                        world.loadGame(JSON.stringify({
+                        reloadWorldState(world, {
                             ...state,
                             logistics: {
                                 ...state.logistics,
                                 overlayMode,
                             },
-                        }));
+                        });
                     }
 
                     if (action.payload?.suggestedBuilding) {
@@ -572,7 +576,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                     },
                 };
 
-                world.loadGame(JSON.stringify(updatedState));
+                reloadWorldState(world, updatedState);
                 return;
             }
 
