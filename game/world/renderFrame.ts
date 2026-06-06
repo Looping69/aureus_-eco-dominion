@@ -30,7 +30,14 @@ export function drawWorldFrame(ctx: FrameContext, deps: RenderFrameDeps): void {
     reservoirWaterMaterial.uniforms.time.value = ctx.time;
 
     processPendingEffects(state, affectedBuildingChunks, deps);
-    updateActiveView(ctx, state, affectedBuildingChunks, deps);
+    includeActiveConstructionChunks(state, affectedBuildingChunks);
+
+    const renderDirtyKeys = deps.stateManager.getDirtyKeys();
+    if (affectedBuildingChunks.size > 0) {
+        renderDirtyKeys.add('chunks');
+    }
+
+    updateActiveView(ctx, state, affectedBuildingChunks, renderDirtyKeys, deps);
     updateCursor(state, deps);
     updateEnvironmentAndDraw(ctx, state, deps);
 
@@ -60,18 +67,34 @@ function processPendingEffects(state: any, affectedBuildingChunks: Set<string>, 
     state.pendingEffects.length = 0;
 }
 
-function updateActiveView(ctx: FrameContext, state: any, affectedBuildingChunks: Set<string>, deps: RenderFrameDeps): void {
+function includeActiveConstructionChunks(state: any, affectedBuildingChunks: Set<string>): void {
+    Object.entries(state.chunks).forEach(([key, chunk]: [string, any]) => {
+        const hasActiveConstruction = chunk.tiles.some((tile: any) => tile.isUnderConstruction);
+        if (!hasActiveConstruction) return;
+
+        chunk.simDirty = true;
+        affectedBuildingChunks.add(key);
+    });
+}
+
+function updateActiveView(
+    ctx: FrameContext,
+    state: any,
+    affectedBuildingChunks: Set<string>,
+    renderDirtyKeys: Set<string>,
+    deps: RenderFrameDeps
+): void {
     if (state.activeView === 'DUNGEON') {
         updateDungeonView(state, deps);
         return;
     }
 
     if (deps.fpsCameraSystem.enabled) {
-        updateFirstPersonView(ctx, state, affectedBuildingChunks, deps);
+        updateFirstPersonView(ctx, state, affectedBuildingChunks, renderDirtyKeys, deps);
         return;
     }
 
-    updateSurfaceView(ctx, state, affectedBuildingChunks, deps);
+    updateSurfaceView(ctx, state, affectedBuildingChunks, renderDirtyKeys, deps);
 }
 
 function updateDungeonView(state: any, deps: RenderFrameDeps): void {
@@ -87,7 +110,13 @@ function updateDungeonView(state: any, deps: RenderFrameDeps): void {
     deps.dungeonInputHandler.setDungeonEngine(new DungeonEngine(state.dungeon));
 }
 
-function updateFirstPersonView(ctx: FrameContext, state: any, affectedBuildingChunks: Set<string>, deps: RenderFrameDeps): void {
+function updateFirstPersonView(
+    ctx: FrameContext,
+    state: any,
+    affectedBuildingChunks: Set<string>,
+    renderDirtyKeys: Set<string>,
+    deps: RenderFrameDeps
+): void {
     deps.dungeonRenderSystem.setVisible(false);
 
     if (deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(false);
@@ -105,7 +134,7 @@ function updateFirstPersonView(ctx: FrameContext, state: any, affectedBuildingCh
         state.chunks,
         state.factory,
         state.logistics.overlayMode,
-        deps.stateManager.getDirtyKeys(),
+        renderDirtyKeys,
         affectedBuildingChunks,
         'FIRST_PERSON',
         0.1,
@@ -113,7 +142,13 @@ function updateFirstPersonView(ctx: FrameContext, state: any, affectedBuildingCh
     );
 }
 
-function updateSurfaceView(ctx: FrameContext, state: any, affectedBuildingChunks: Set<string>, deps: RenderFrameDeps): void {
+function updateSurfaceView(
+    ctx: FrameContext,
+    state: any,
+    affectedBuildingChunks: Set<string>,
+    renderDirtyKeys: Set<string>,
+    deps: RenderFrameDeps
+): void {
     deps.dungeonRenderSystem.setVisible(false);
 
     if (!deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(true);
@@ -133,7 +168,7 @@ function updateSurfaceView(ctx: FrameContext, state: any, affectedBuildingChunks
         state.chunks,
         state.factory,
         state.logistics.overlayMode,
-        deps.stateManager.getDirtyKeys(),
+        renderDirtyKeys,
         affectedBuildingChunks,
         'SURFACE',
         zoomLevel,
