@@ -5,7 +5,7 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
-import { GameState, Era, SfxType, BuildingType } from '../../../types';
+import { GameState, Era, SfxType, BuildingType, GridTile } from '../../../types';
 
 import { ERAS } from '../../data/VoxelConstants';
 
@@ -54,11 +54,23 @@ export class EraSystem extends BaseSimSystem {
         if (conditions.minTrust && state.resources.trust < conditions.minTrust) return false;
 
         if (conditions.minBuildings) {
-            const count = Object.values(state.chunks).flatMap(c => c.tiles).filter(t => t.buildingType !== BuildingType.EMPTY && !t.isUnderConstruction).length;
+            const count = this.countCompletedBuildings(state);
             if (count < conditions.minBuildings) return false;
         }
 
         return true;
+    }
+
+    private countCompletedBuildings(state: GameState): number {
+        return Object.values(state.chunks)
+            .flatMap(c => c.tiles)
+            .filter(t => t.buildingType !== BuildingType.EMPTY && !t.isUnderConstruction && this.isStructureHead(t))
+            .length;
+    }
+
+    private isStructureHead(tile: GridTile): boolean {
+        return tile.structureHeadX === undefined
+            || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
     }
 
     private unlockEra(ctx: FixedContext, state: GameState, era: Era): void {
