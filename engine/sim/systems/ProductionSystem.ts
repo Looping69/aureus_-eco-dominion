@@ -78,20 +78,12 @@ export class ProductionSystem extends BaseSimSystem {
                 let powerEfficiency = 1.0;
                 let waterEfficiency = 1.0;
 
-                if (currentDef.power?.consumes) {
-                    if (tile.powerStatus !== 'CONNECTED') {
-                        powerEfficiency = 0.1;
-                    } else if (state.powerGrid?.deficit > 0) {
-                        powerEfficiency = 0.25;
-                    }
+                if (currentDef.power?.consumes && tile.powerStatus !== 'CONNECTED') {
+                    powerEfficiency = 0.1;
                 }
 
-                if (currentDef.water?.consumes) {
-                    if (tile.waterStatus !== 'CONNECTED') {
-                        waterEfficiency = 0.1;
-                    } else if (state.waterNetwork?.deficit > 0) {
-                        waterEfficiency = 0.5;
-                    }
+                if (currentDef.water?.consumes && tile.waterStatus !== 'CONNECTED') {
+                    waterEfficiency = 0.1;
                 }
 
                 const utilityEfficiency = powerEfficiency * waterEfficiency;
@@ -418,36 +410,31 @@ export class ProductionSystem extends BaseSimSystem {
                         const chunk = state.chunks[`${cx},${cz}`];
                         if (chunk) {
                             chunk.meshDirty = true;
-                            chunk.simDirty = true;
+                            state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
                         }
-                        state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
-
-                        if (changed) {
-                            state.pendingEffects.push({ type: 'FX', fxType: isWood ? 'FARM' : 'MINING', x: tx, z: tz });
-                        }
+                        return true;
                     }
                     return true;
                 }
             }
         }
-
         return false;
     }
 
-    private executeAutoSell(ctx: FixedContext, state: GameState, modifiers: any) {
+    private executeAutoSell(ctx: FixedContext, state: GameState, modifiers: any): void {
+        const amount = state.resources.minerals;
+        if (amount <= 0) return;
         const ecoMult = getEcoMultiplier(state.resources.eco);
         const trustMult = 1 + (state.resources.trust / 200);
-        const price = state.market.minerals.currentPrice;
-
-        const value = Math.floor(state.resources.minerals * price * modifiers.sellPrice * ecoMult * trustMult);
+        const sectorBonus = this.getSectorExportBonus(state, 'MINERALS');
+        const value = Math.floor(amount * state.market.minerals.currentPrice * ecoMult * trustMult * modifiers.sellPrice * (1 + sectorBonus));
 
         state.resources.agt += value;
         state.resources.minerals = 0;
-
         state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.SELL });
-        state.newsFeed.push({
-            id: ctx.getNextId?.('sell') || `sell_${Date.now()}`,
-            headline: `Logistics: Auto-sold minerals for ${value} AGT.`,
+        state.newsFeed.unshift({
+            id: ctx.getNextId?.('auto_sell') || `auto_sell_${Date.now()}`,
+            headline: `Auto-sold minerals for ${value} AGT${sectorBonus > 0 ? ` with ${Math.round(sectorBonus * 100)}% sector premium` : ''}`,
             type: 'POSITIVE',
             timestamp: state.tickCount
         });
