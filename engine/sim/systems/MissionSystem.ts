@@ -5,7 +5,7 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
-import { GameState } from '../../../types';
+import { BuildingType, GameState, GridTile } from '../../../types';
 import { generateGoal } from '../logic/AiLogic';
 
 export class MissionSystem extends BaseSimSystem {
@@ -16,20 +16,57 @@ export class MissionSystem extends BaseSimSystem {
     private lastContractCheck = 0;
 
     tick(ctx: FixedContext, state: GameState): void {
-        // 1. Goal Generation (Every 30s if none active)
+        // 1. Goal progress updates every mission tick so objectives reflect live play.
+        this.updateGoalProgress(state);
+
+        // 2. Goal Generation (Every 30s if none active)
         if (!state.activeGoal && ctx.time - this.lastGoalCheck > 30) {
             this.lastGoalCheck = ctx.time;
             state.activeGoal = generateGoal(ctx, state);
+            this.updateGoalProgress(state);
         }
 
-        // 2. Contract Management (Every 60s)
+        // 3. Contract Management (Every 60s)
         if (ctx.time - this.lastContractCheck > 60) {
             this.lastContractCheck = ctx.time;
             this.updateContracts(ctx, state);
         }
 
-        // 3. Contract Timers
+        // 4. Contract Timers
         this.processContractTimers(ctx, state);
+    }
+
+    private updateGoalProgress(state: GameState): void {
+        const goal = state.activeGoal;
+        if (!goal || goal.completed) return;
+
+        if (goal.type === 'BUILD' && typeof goal.targetType === 'string' && goal.targetType in BuildingType) {
+            goal.currentValue = this.countCompletedBuildings(state, goal.targetType as BuildingType);
+        } else if (goal.targetType === 'AGT') {
+            goal.currentValue = state.resources.agt;
+        } else if (goal.targetType === 'MINERALS') {
+            goal.currentValue = state.resources.minerals;
+        } else if (goal.targetType === 'ECO') {
+            goal.currentValue = state.resources.eco;
+        } else if (goal.targetType === 'TRUST') {
+            goal.currentValue = state.resources.trust;
+        } else if (goal.targetType === 'GEMS') {
+            goal.currentValue = state.resources.gems;
+        }
+
+        goal.completed = goal.currentValue >= goal.targetValue;
+    }
+
+    private countCompletedBuildings(state: GameState, type: BuildingType): number {
+        return Object.values(state.chunks)
+            .flatMap(chunk => chunk.tiles)
+            .filter(tile => tile.buildingType === type && !tile.isUnderConstruction && this.isStructureHead(tile))
+            .length;
+    }
+
+    private isStructureHead(tile: GridTile): boolean {
+        return tile.structureHeadX === undefined
+            || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
     }
 
     private updateContracts(ctx: FixedContext, state: GameState) {
