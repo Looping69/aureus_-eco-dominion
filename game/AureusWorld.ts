@@ -54,6 +54,13 @@ export interface AureusWorldConfig {
     onSfx?: (type: SfxType) => void;
 }
 
+const INFRASTRUCTURE_LINE_TYPES = new Set<BuildingType>([
+    BuildingType.ROAD,
+    BuildingType.PIPE,
+    BuildingType.POWER_LINE,
+    BuildingType.FENCE,
+]);
+
 export class AureusWorld extends BaseWorld {
     readonly id = 'aureus-main';
 
@@ -234,6 +241,52 @@ export class AureusWorld extends BaseWorld {
 
         this.stateManager.pushCommand('PLACE_BUILDING', { x, z, buildingType });
         this.stateManager.pushEffect({ type: 'AUDIO', sfx: SfxType.BUILD });
+    }
+
+    placeInfrastructureLine(startX: number, startZ: number, endX: number, endZ: number, type?: string): void {
+        const state = this.stateManager.getState();
+        const buildingType = (type || state.selectedBuilding) as BuildingType;
+        if (!INFRASTRUCTURE_LINE_TYPES.has(buildingType)) {
+            this.placeBuilding(endX, endZ, buildingType);
+            return;
+        }
+
+        const deltaX = endX - startX;
+        const deltaZ = endZ - startZ;
+        const horizontal = Math.abs(deltaX) >= Math.abs(deltaZ);
+        const finalX = horizontal ? endX : startX;
+        const finalZ = horizontal ? startZ : endZ;
+        const stepX = Math.sign(finalX - startX);
+        const stepZ = Math.sign(finalZ - startZ);
+        const requestedLength = Math.max(Math.abs(finalX - startX), Math.abs(finalZ - startZ)) + 1;
+        const available = state.cheatsEnabled ? requestedLength : (state.inventory?.[buildingType] || 0);
+        const placeCount = Math.min(requestedLength, available);
+
+        if (placeCount <= 0) {
+            this.stateManager.pushEffect({ type: 'AUDIO', sfx: SfxType.ERROR });
+            return;
+        }
+
+        for (let i = 0; i < placeCount; i++) {
+            this.stateManager.pushCommand('PLACE_BUILDING', {
+                x: startX + stepX * i,
+                z: startZ + stepZ * i,
+                buildingType,
+            });
+        }
+
+        this.stateManager.pushEffect({ type: 'AUDIO', sfx: SfxType.BUILD });
+
+        if (placeCount < requestedLength) {
+            const def = BUILDINGS[buildingType];
+            state.newsFeed.unshift({
+                id: `line_short_${Date.now()}`,
+                headline: `Only ${placeCount}/${requestedLength} ${def?.name || 'infrastructure'} pieces available for that line.`,
+                type: 'NEGATIVE',
+                timestamp: state.tickCount,
+            });
+            this.stateManager.markDirty('newsFeed');
+        }
     }
 
     bulldozeTile(x: number, z: number): void {
