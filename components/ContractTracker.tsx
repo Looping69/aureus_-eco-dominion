@@ -56,13 +56,21 @@ const queueContractCommand = (world: any, type: 'ACCEPT_CONTRACT' | 'DELIVER_CON
 };
 
 export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, playSfx }) => {
-    const contracts = (state.contracts || [])
+    const [, forceRefresh] = React.useState(0);
+
+    React.useEffect(() => {
+        const timer = window.setInterval(() => forceRefresh(value => value + 1), 500);
+        return () => window.clearInterval(timer);
+    }, []);
+
+    const liveState = world?.getState?.() || state;
+    const contracts = (liveState.contracts || [])
         .filter(contract => (contract.status || 'AVAILABLE') !== 'FAILED' || contract.timeLeft > 0)
         .slice(0, 3);
 
     if (contracts.length === 0) return null;
 
-    const lastResult = state.ui?.lastCommandResult;
+    const lastResult = liveState.ui?.lastCommandResult;
     const contractResult = lastResult && ['ACCEPT_CONTRACT', 'DELIVER_CONTRACT'].includes(lastResult.type)
         ? lastResult
         : null;
@@ -85,7 +93,7 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
                     {contracts.map(contract => {
                         const status = contract.status || 'AVAILABLE';
                         const resourceKey = RESOURCE_KEY[contract.resource];
-                        const available = Math.floor(state.resources[resourceKey] || 0);
+                        const available = Math.floor(liveState.resources[resourceKey] || 0);
                         const progress = status === 'COMPLETED'
                             ? 1
                             : Math.min(1, available / Math.max(1, contract.amount));
@@ -95,6 +103,7 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
                         const handleAccept = () => {
                             if (queueContractCommand(world, 'ACCEPT_CONTRACT', contract.id)) {
                                 playSfx(SfxType.UI_CLICK);
+                                window.setTimeout(() => forceRefresh(value => value + 1), 80);
                             } else {
                                 playSfx(SfxType.ERROR);
                             }
@@ -103,6 +112,7 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
                         const handleDeliver = () => {
                             if (queueContractCommand(world, 'DELIVER_CONTRACT', contract.id)) {
                                 playSfx(canDeliver ? SfxType.UI_COIN : SfxType.ERROR);
+                                window.setTimeout(() => forceRefresh(value => value + 1), 80);
                             } else {
                                 playSfx(SfxType.ERROR);
                             }
