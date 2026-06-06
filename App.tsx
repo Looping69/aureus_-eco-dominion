@@ -71,6 +71,7 @@ const App: React.FC = () => {
     const [isIntroAnim, setIsIntroAnim] = useState(false);
     const [showWorldMap, setShowWorldMap] = useState(false);
     const [activeHUDBlock, setActiveHUDBlock] = useState<string | null>(null);
+    const [dismissedEraPopup, setDismissedEraPopup] = useState<string | null>(null);
     const stateRef = useRef<any>(null);
 
     const clearLinePlacement = useCallback(() => {
@@ -149,6 +150,12 @@ const App: React.FC = () => {
     }, [state]);
 
     useEffect(() => {
+        if (!state?.eraUnlockedPopup) {
+            setDismissedEraPopup(null);
+        }
+    }, [state?.eraUnlockedPopup]);
+
+    useEffect(() => {
         if (world) setWorldInstance(world);
     }, [world]);
 
@@ -173,7 +180,16 @@ const App: React.FC = () => {
         console.log(`[SFX] ${type}`);
     }, []);
 
+    const handleEraModalClose = useCallback(() => {
+        const era = stateRef.current?.eraUnlockedPopup;
+        if (era) {
+            setDismissedEraPopup(era);
+        }
+        world?.dismissEraPopup?.();
+    }, [world]);
+
     const handleNewGame = () => {
+        setDismissedEraPopup(null);
         world?.dismissEraPopup?.();
         setShowHomePage(false);
         setIsIntroAnim(true);
@@ -182,6 +198,7 @@ const App: React.FC = () => {
 
     const onContinue = () => {
         if (world?.hasSave()) {
+            setDismissedEraPopup(null);
             world?.dismissEraPopup?.();
             setShowHomePage(false);
             playSfx(SfxType.UI_CLICK);
@@ -239,6 +256,7 @@ const App: React.FC = () => {
                                     <HomePage
                                         onStartGame={handleNewGame}
                                         onStartDemo={() => {
+                                            setDismissedEraPopup(null);
                                             world?.dismissEraPopup?.();
                                             dispatch({ type: 'START_DEMO' });
                                             setShowHomePage(false);
@@ -249,8 +267,8 @@ const App: React.FC = () => {
                                 </div>
                             )}
 
-                            {!showHomePage && !isIntroAnim && state?.eraUnlockedPopup && (
-                                <EraUnlockedModal era={state.eraUnlockedPopup} onClose={() => world?.dismissEraPopup()} playSfx={playSfx} />
+                            {!showHomePage && !isIntroAnim && state?.eraUnlockedPopup && state.eraUnlockedPopup !== dismissedEraPopup && (
+                                <EraUnlockedModal era={state.eraUnlockedPopup} onClose={handleEraModalClose} playSfx={playSfx} />
                             )}
 
                             {!showHomePage && !isIntroAnim && (
