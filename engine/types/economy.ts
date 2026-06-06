@@ -29,12 +29,19 @@ export interface MarketState {
     eventDuration: number;
 }
 
+export type ContractStatus = 'AVAILABLE' | 'ACCEPTED' | 'COMPLETED' | 'FAILED';
+
 export interface Contract {
     id: string;
     description: string;
     resource: 'MINERALS' | 'GEMS' | 'WOOD' | 'STONE';
     amount: number;
     reward: number; // AGT payout
-    timeLeft: number; // Seconds
-    penalty: number; // Reputation/Trust hit if failed
+    timeLeft: number; // Seconds for accepted contracts, offer expiry for available contracts, display TTL for terminal states
+    penalty: number; // AGT penalty if accepted work fails
+    status?: ContractStatus;
+    acceptedAtTick?: number;
+    completedAtTick?: number;
+    failedAtTick?: number;
+    deliveredAmount?: number;
 }
