@@ -66,6 +66,11 @@ const App: React.FC = () => {
     const [linePlacementStart, setLinePlacementStart] = useState<{ x: number, z: number, type: BuildingType } | null>(null);
 
     const [worldInstance, setWorldInstance] = useState<any>(null);
+    const [sidebarOpen, setSidebarOpen] = useState<SidebarMode>('NONE');
+    const [showHomePage, setShowHomePage] = useState(true);
+    const [isIntroAnim, setIsIntroAnim] = useState(false);
+    const [showWorldMap, setShowWorldMap] = useState(false);
+    const [activeHUDBlock, setActiveHUDBlock] = useState<string | null>(null);
     const stateRef = useRef<any>(null);
 
     const clearLinePlacement = useCallback(() => {
@@ -132,6 +137,7 @@ const App: React.FC = () => {
 
     const { world, state, dispatch, getDebugStats, loading } = useAureusEngine({
         container,
+        paused: showHomePage || isIntroAnim,
         onTileClick: handleTileClick,
         onTileHover: handleTileHover,
         onAgentClick: (id) => dispatch({ type: 'SELECT_AGENT', payload: id }),
@@ -167,13 +173,8 @@ const App: React.FC = () => {
         console.log(`[SFX] ${type}`);
     }, []);
 
-    const [sidebarOpen, setSidebarOpen] = useState<SidebarMode>('NONE');
-    const [showHomePage, setShowHomePage] = useState(true);
-    const [isIntroAnim, setIsIntroAnim] = useState(false);
-    const [showWorldMap, setShowWorldMap] = useState(false);
-    const [activeHUDBlock, setActiveHUDBlock] = useState<string | null>(null);
-
     const handleNewGame = () => {
+        world?.dismissEraPopup?.();
         setShowHomePage(false);
         setIsIntroAnim(true);
         setTimeout(() => setIsIntroAnim(false), 2000);
@@ -181,6 +182,7 @@ const App: React.FC = () => {
 
     const onContinue = () => {
         if (world?.hasSave()) {
+            world?.dismissEraPopup?.();
             setShowHomePage(false);
             playSfx(SfxType.UI_CLICK);
         }
@@ -237,6 +239,7 @@ const App: React.FC = () => {
                                     <HomePage
                                         onStartGame={handleNewGame}
                                         onStartDemo={() => {
+                                            world?.dismissEraPopup?.();
                                             dispatch({ type: 'START_DEMO' });
                                             setShowHomePage(false);
                                         }}
@@ -246,7 +249,7 @@ const App: React.FC = () => {
                                 </div>
                             )}
 
-                            {state?.eraUnlockedPopup && (
+                            {!showHomePage && !isIntroAnim && state?.eraUnlockedPopup && (
                                 <EraUnlockedModal era={state.eraUnlockedPopup} onClose={() => world?.dismissEraPopup()} playSfx={playSfx} />
                             )}
 
