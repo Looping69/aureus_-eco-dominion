@@ -11,6 +11,8 @@ import { getEcoMultiplier } from '../../utils/GameUtils';
 import { getIndustrialBuildingCosts, getMissingIndustrialCosts } from '../../data/industrialCosts';
 
 
+type TradableResource = 'minerals' | 'gems' | 'wood' | 'stone';
+
 export class EconomySystem extends BaseSimSystem {
     readonly id = 'economy';
     readonly priority = 40;
@@ -91,6 +93,8 @@ export class EconomySystem extends BaseSimSystem {
                 return this.handleSellResource(cmd.payload.resource, cmd.payload.address, state);
             case 'BUY_RESOURCE':
                 return this.handleBuyResource(cmd.payload.resource, cmd.payload.amount, state);
+            case 'DELIVER_CONTRACT':
+                return this.handleDeliverContract(cmd.payload?.contractId ?? cmd.payload, ctx, state);
             case 'SET_AUTO_SELL':
                 state.logistics.autoSell = cmd.payload.enabled;
                 state.logistics.sellThreshold = cmd.payload.threshold;
@@ -181,7 +185,7 @@ export class EconomySystem extends BaseSimSystem {
         return { ok: true };
     }
 
-    private handleSellResource(resource: 'minerals' | 'gems' | 'wood' | 'stone', address: string | undefined, state: GameState): CommandResult {
+    private handleSellResource(resource: TradableResource, address: string | undefined, state: GameState): CommandResult {
         const amount = state.resources[resource];
         if (amount <= 0) return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: `No ${resource} to sell` };
 
@@ -215,7 +219,7 @@ export class EconomySystem extends BaseSimSystem {
         return { ok: true };
     }
 
-    private handleBuyResource(resource: 'minerals' | 'gems' | 'wood' | 'stone', amount: number, state: GameState): CommandResult {
+    private handleBuyResource(resource: TradableResource, amount: number, state: GameState): CommandResult {
         const sectorDiscount = this.getSectorImportDiscount(state, this.toFactoryResourceType(resource));
         const price = state.market[resource].currentPrice * 1.25 * (1 - sectorDiscount);
         const totalCost = Math.floor(price * amount);
@@ -232,6 +236,37 @@ export class EconomySystem extends BaseSimSystem {
             id: `buy_${resource}_${Date.now()}`,
             headline: `Import Dispatch: Acquired ${amount} ${resource} for ${totalCost} AGT${sectorDiscount > 0 ? ` with a ${Math.round(sectorDiscount * 100)}% sector discount` : ''}`,
             type: 'NEUTRAL',
+            timestamp: state.tickCount
+        });
+        return { ok: true };
+    }
+
+    private handleDeliverContract(contractId: string | undefined, ctx: CommandContext, state: GameState): CommandResult {
+        if (!contractId) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Missing contract id' };
+
+        const contractIndex = state.contracts.findIndex(contract => contract.id === contractId);
+        if (contractIndex < 0) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Contract not found' };
+
+        const contract = state.contracts[contractIndex];
+        const resource = this.toTradableResource(contract.resource);
+        if (state.resources[resource] < contract.amount) {
+            state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ERROR });
+            return {
+                ok: false,
+                code: CommandErrorCode.INSUFFICIENT_RESOURCES,
+                reason: `Need ${contract.amount} ${resource} to deliver contract`
+            };
+        }
+
+        state.resources[resource] -= contract.amount;
+        state.resources.agt += contract.reward;
+        state.resources.trust = Math.min(100, state.resources.trust + 1);
+        state.contracts.splice(contractIndex, 1);
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.UI_COIN });
+        state.newsFeed.unshift({
+            id: ctx.getNextId?.('contract_delivered') || `contract_delivered_${Date.now()}`,
+            headline: `Contract delivered: ${contract.amount} ${contract.resource} for ${contract.reward} AGT.`,
+            type: 'POSITIVE',
             timestamp: state.tickCount
         });
         return { ok: true };
@@ -294,11 +329,18 @@ export class EconomySystem extends BaseSimSystem {
         return Math.min(1, (sector.contractProgress || 0) / target);
     }
 
-    private toFactoryResourceType(resource: 'minerals' | 'gems' | 'wood' | 'stone'): FactoryResourceType {
+    private toFactoryResourceType(resource: TradableResource): FactoryResourceType {
         if (resource === 'minerals') return 'MINERALS';
         if (resource === 'gems') return 'GEMS';
         if (resource === 'wood') return 'WOOD';
         return 'STONE';
+    }
+
+    private toTradableResource(resource: 'MINERALS' | 'GEMS' | 'WOOD' | 'STONE'): TradableResource {
+        if (resource === 'MINERALS') return 'minerals';
+        if (resource === 'GEMS') return 'gems';
+        if (resource === 'WOOD') return 'wood';
+        return 'stone';
     }
 
     private fluatuateResource(ctx: FixedContext, m: any) {
