@@ -1,7 +1,7 @@
 /**
  * Power Grid System
- * Calculates total power production and consumption across all buildings.
- * Buildings without sufficient power operate at reduced efficiency.
+ * Calculates power production and allocates connected demand by priority.
+ * Buildings that are wired but not supplied during a brownout are marked disconnected.
  */
 
 import { BaseSimSystem } from '../Simulation';
@@ -24,8 +24,6 @@ export class PowerGridSystem extends BaseSimSystem {
         this.lastUpdate = ctx.time;
 
         let totalProduced = 0;
-        let totalConsumed = 0;
-        let industrialDemand = 0;
         let strandedDemand = 0;
 
         // 1. Identify Sources and reset network state
@@ -113,7 +111,8 @@ export class PowerGridSystem extends BaseSimSystem {
             }
         }
 
-        // 3. Calculate connected and stranded demand separately. Only structure heads count demand.
+        // 3. Allocate connected demand by priority. A connected wire is not enough during brownouts.
+        const connectedConsumers: GridTile[] = [];
         for (const chunk of Object.values(state.chunks)) {
             for (const tile of chunk.tiles) {
                 if (!tile || !this.isStructureHead(tile)) continue;
@@ -121,23 +120,55 @@ export class PowerGridSystem extends BaseSimSystem {
                 if (!def?.power?.consumes) continue;
 
                 if (tile.powerStatus === 'CONNECTED') {
-                    totalConsumed += def.power.consumes;
-                    if (this.isIndustrialConsumer(tile.buildingType)) {
-                        industrialDemand += def.power.consumes;
-                    }
+                    connectedConsumers.push(tile);
                 } else {
                     strandedDemand += def.power.consumes;
                 }
             }
         }
 
+        const connectedDemand = connectedConsumers.reduce((sum, tile) => sum + (BUILDINGS[tile.buildingType]?.power?.consumes || 0), 0);
+        const suppliedConsumers = this.allocatePowerBudget(state, connectedConsumers, totalProduced);
+        const totalConsumed = suppliedConsumers.reduce((sum, tile) => sum + (BUILDINGS[tile.buildingType]?.power?.consumes || 0), 0);
+        const industrialDemand = suppliedConsumers.reduce((sum, tile) => {
+            const demand = BUILDINGS[tile.buildingType]?.power?.consumes || 0;
+            return this.isIndustrialConsumer(tile.buildingType) ? sum + demand : sum;
+        }, 0);
+
         state.powerGrid = {
             totalProduced,
             totalConsumed,
             industrialDemand,
             strandedDemand,
-            deficit: Math.max(0, totalConsumed - totalProduced)
+            deficit: Math.max(0, connectedDemand - totalProduced)
         };
+    }
+
+    private allocatePowerBudget(state: GameState, consumers: GridTile[], totalProduced: number): GridTile[] {
+        let remaining = totalProduced;
+        const supplied: GridTile[] = [];
+
+        for (const tile of [...consumers].sort((a, b) => this.getPowerPriority(b) - this.getPowerPriority(a))) {
+            const demand = BUILDINGS[tile.buildingType]?.power?.consumes || 0;
+            if (demand <= remaining) {
+                remaining -= demand;
+                this.markStructurePowerStatus(state, tile, 'CONNECTED');
+                supplied.push(tile);
+            } else {
+                this.markStructurePowerStatus(state, tile, 'DISCONNECTED');
+            }
+        }
+
+        return supplied;
+    }
+
+    private getPowerPriority(tile: GridTile): number {
+        if (tile.buildingType === BuildingType.RESERVOIR) return 100;
+        if (tile.buildingType === BuildingType.STAFF_QUARTERS) return 90;
+        if (tile.buildingType === BuildingType.WATER_TOWER) return 85;
+        if (this.isIndustrialConsumer(tile.buildingType)) return 70;
+        if (tile.buildingType === BuildingType.GREEN_TECH_LAB) return 65;
+        return 50;
     }
 
     private isStructureHead(tile: GridTile): boolean {
