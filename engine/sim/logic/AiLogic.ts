@@ -7,12 +7,8 @@
 import { GameState, Goal, GlobalEvent, NewsItem, GridTile, Agent, BuildingType, Chunk } from '../../../types';
 import { createColonist } from './SimulationLogic';
 import { FixedContext } from '../../kernel';
-import { ChunkStore } from '../../space/ChunkStore';
 import { toChunkKey, worldToChunk } from '../../utils/coords';
 import { CHUNK_SIZE } from '../../space/ChunkStore';
-
-
-
 
 const isStructureHead = (tile: GridTile) =>
     tile.structureHeadX === undefined || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
@@ -23,62 +19,160 @@ const getBuildingCount = (state: GameState, type: BuildingType) =>
         .filter(t => t.buildingType === type && !t.isUnderConstruction && isStructureHead(t))
         .length;
 
+const makeGoal = (
+    ctx: FixedContext,
+    title: string,
+    description: string,
+    type: Goal['type'],
+    targetType: Goal['targetType'],
+    targetValue: number,
+    currentValue: number,
+    reward: Goal['reward']
+): Goal => ({
+    id: ctx.getNextId?.('goal') || `goal_${Date.now()}`,
+    title,
+    description,
+    type,
+    targetType,
+    targetValue,
+    currentValue,
+    reward,
+    completed: false
+});
 
 export function generateGoal(ctx: FixedContext, state: GameState): Goal {
+    const staffQuarters = getBuildingCount(state, BuildingType.STAFF_QUARTERS);
+    if (staffQuarters < 1) {
+        return makeGoal(
+            ctx,
+            'Buy and Place Staff Quarters',
+            'Buy Staff Quarters, place the footprint, then let workers finish construction.',
+            'BUILD',
+            BuildingType.STAFF_QUARTERS,
+            1,
+            staffQuarters,
+            { type: 'AGT', amount: 250 }
+        );
+    }
+
+    const storage = getBuildingCount(state, BuildingType.STORAGE_DEPOT) + getBuildingCount(state, BuildingType.STOCKPILE);
+    if (storage < 1) {
+        return makeGoal(
+            ctx,
+            'Build Storage',
+            'Add a Storage Depot so mined resources have somewhere obvious to go.',
+            'BUILD',
+            BuildingType.STORAGE_DEPOT,
+            1,
+            storage,
+            { type: 'AGT', amount: 300 }
+        );
+    }
+
+    const miningHeadframes = getBuildingCount(state, BuildingType.MINING_HEADFRAME);
+    if (miningHeadframes < 1) {
+        return makeGoal(
+            ctx,
+            'Build Mining Headframe',
+            'Place and finish a Mining Headframe to start producing the first contract resource.',
+            'BUILD',
+            BuildingType.MINING_HEADFRAME,
+            1,
+            miningHeadframes,
+            { type: 'AGT', amount: 500 }
+        );
+    }
+
+    if (state.resources.minerals < 80) {
+        return makeGoal(
+            ctx,
+            'Generate Minerals',
+            'Let the mining loop run until the colony has 80 minerals ready for delivery.',
+            'RESOURCE',
+            'MINERALS',
+            80,
+            state.resources.minerals,
+            { type: 'GEMS', amount: 1 }
+        );
+    }
+
+    const hasCompletedContract = state.contracts.some(contract => contract.status === 'COMPLETED');
+    if (!hasCompletedContract) {
+        return makeGoal(
+            ctx,
+            'Deliver First Mineral Contract',
+            'Accept the mineral contract, deliver the stockpile, and turn production into cash.',
+            'RESOURCE',
+            'AGT',
+            state.resources.agt + 1500,
+            state.resources.agt,
+            { type: 'AGT', amount: 500 }
+        );
+    }
+
+    if (!state.unlockedEras?.includes('GROWTH' as any)) {
+        return makeGoal(
+            ctx,
+            'Unlock Growth',
+            'Use the first payout to stabilize the settlement and advance into the next era.',
+            'RESOURCE',
+            'TRUST',
+            Math.min(100, Math.max(state.resources.trust + 2, 35)),
+            state.resources.trust,
+            { type: 'AGT', amount: 1000 }
+        );
+    }
+
     const r = ctx.random?.next() || Math.random();
 
-    // Basic progression goals
+    // Basic progression goals after the starter loop is proven.
     if (state.resources.agt < 1000) {
-        return {
-            id: ctx.getNextId?.('goal') || `goal_${Date.now()}`,
-            title: 'Initial Capital',
-            description: 'Accumulate wealth to fund expansion.',
-            type: 'RESOURCE',
-            targetType: 'AGT',
-            targetValue: state.resources.agt + 500,
-            currentValue: state.resources.agt,
-            reward: { type: 'GEMS', amount: 2 },
-            completed: false
-        };
+        return makeGoal(
+            ctx,
+            'Initial Capital',
+            'Accumulate wealth to fund expansion.',
+            'RESOURCE',
+            'AGT',
+            state.resources.agt + 500,
+            state.resources.agt,
+            { type: 'GEMS', amount: 2 }
+        );
     }
 
     if (r > 0.6) {
         const currentStaffQuarters = getBuildingCount(state, BuildingType.STAFF_QUARTERS);
-        return {
-            id: ctx.getNextId?.('goal') || `goal_${Date.now()}`,
-            title: 'Expansion Protocol',
-            description: 'Construct more housing for workforce.',
-            type: 'BUILD',
-            targetType: BuildingType.STAFF_QUARTERS,
-            targetValue: currentStaffQuarters + 1,
-            currentValue: currentStaffQuarters,
-            reward: { type: 'AGT', amount: 500 },
-            completed: false
-        };
+        return makeGoal(
+            ctx,
+            'Expansion Protocol',
+            'Construct more housing for workforce.',
+            'BUILD',
+            BuildingType.STAFF_QUARTERS,
+            currentStaffQuarters + 1,
+            currentStaffQuarters,
+            { type: 'AGT', amount: 500 }
+        );
     } else if (r > 0.3) {
-        return {
-            id: ctx.getNextId?.('goal') || `goal_${Date.now()}`,
-            title: 'Stockpile Ore',
-            description: 'Gather raw minerals for export.',
-            type: 'RESOURCE',
-            targetType: 'MINERALS',
-            targetValue: state.resources.minerals + 100,
-            currentValue: state.resources.minerals,
-            reward: { type: 'GEMS', amount: 2 },
-            completed: false
-        };
+        return makeGoal(
+            ctx,
+            'Stockpile Ore',
+            'Gather raw minerals for export.',
+            'RESOURCE',
+            'MINERALS',
+            state.resources.minerals + 100,
+            state.resources.minerals,
+            { type: 'GEMS', amount: 2 }
+        );
     } else {
-        return {
-            id: ctx.getNextId?.('goal') || `goal_${Date.now()}`,
-            title: 'Public Trust',
-            description: 'Improve colony reputation.',
-            type: 'RESOURCE',
-            targetType: 'TRUST',
-            targetValue: Math.min(100, state.resources.trust + 15),
-            currentValue: state.resources.trust,
-            reward: { type: 'AGT', amount: 1000 },
-            completed: false
-        };
+        return makeGoal(
+            ctx,
+            'Public Trust',
+            'Improve colony reputation.',
+            'RESOURCE',
+            'TRUST',
+            Math.min(100, state.resources.trust + 15),
+            state.resources.trust,
+            { type: 'AGT', amount: 1000 }
+        );
     }
 }
 
@@ -232,4 +326,3 @@ export function checkAndGenerateEvent(ctx: FixedContext, state: GameState): { ev
 
     return { event, news, newChunks, newAgents };
 }
-
