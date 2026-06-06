@@ -16,21 +16,26 @@ interface EraUnlockedModalProps {
 
 export const EraUnlockedModal: React.FC<EraUnlockedModalProps> = ({ era, onClose, playSfx }) => {
     const [showContent, setShowContent] = useState(false);
+    const [dismissed, setDismissed] = useState(false);
     const eraDef = ERAS[era];
 
     // Get buildings unlocked in this era
     const unlockedBuildings = Object.values(BUILDINGS).filter(b => b.era === era && b.type !== BuildingType.EMPTY);
 
     useEffect(() => {
-        // Animate in
+        setDismissed(false);
+        setShowContent(false);
         const timer = setTimeout(() => setShowContent(true), 100);
         return () => clearTimeout(timer);
-    }, []);
+    }, [era]);
 
     const handleClose = () => {
+        setDismissed(true);
         playSfx('UI_CLICK');
         onClose();
     };
+
+    if (dismissed) return null;
 
     return (
         <div
