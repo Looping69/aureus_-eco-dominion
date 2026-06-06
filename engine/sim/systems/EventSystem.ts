@@ -5,7 +5,7 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
-import { GameState, BuildingType, GridTile, SfxType, Chunk } from '../../../types';
+import { GameState, SfxType } from '../../../types';
 
 import { checkAndGenerateEvent } from '../logic/AiLogic';
 
@@ -55,7 +55,7 @@ export class EventSystem extends BaseSimSystem {
 
         for (let i = 0; i < state.activeEvents.length; i++) {
             const event = state.activeEvents[i];
-            event.duration -= dt * 10; // State duration is in arbitrary 'ticks' roughly
+            event.duration -= dt;
 
             if (event.duration <= 0) {
                 state.activeEvents.splice(i, 1);
