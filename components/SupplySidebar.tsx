@@ -157,6 +157,7 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
     const [selectedItem, setSelectedItem] = useState<BuildingType | null>(null);
     const [activeCategory, setActiveCategory] = useState<CategoryType>('ALL');
     const [searchQuery, setSearchQuery] = useState('');
+    const isStarterPhase = !state.unlockedEras.includes(Era.GROWTH);
 
     const shopItems = useMemo(() => {
         if (state.activeView === 'DUNGEON') {
@@ -185,16 +186,16 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
             BuildingType.MONUMENT, BuildingType.SPACEPORT
         ];
 
-        const visible = state.unlockedEras.includes(Era.GROWTH)
-            ? all
-            : all.filter(type => STARTER_SHOP_TYPES.has(type));
+        const visible = isStarterPhase
+            ? all.filter(type => STARTER_SHOP_TYPES.has(type))
+            : all;
 
         return visible.filter(type => {
             const matchesCategory = activeCategory === 'ALL' || ITEM_CATEGORIES[type] === activeCategory;
             const matchesSearch = BUILDINGS[type] ? BUILDINGS[type].name.toLowerCase().includes(searchQuery.toLowerCase()) : false;
             return matchesCategory && matchesSearch;
         });
-    }, [activeCategory, searchQuery, state.activeView, state.unlockedEras]);
+    }, [activeCategory, isStarterPhase, searchQuery, state.activeView]);
 
     const sidebarRef = React.useRef<HTMLDivElement>(null);
 
@@ -300,9 +301,9 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
                                 <p className="text-slate-500 text-[10px] uppercase font-mono mt-1 tracking-tighter">
                                     {state.activeView === 'DUNGEON'
                                         ? 'Survey Intel & Subsurface Operations'
-                                        : state.unlockedEras.includes(Era.GROWTH)
-                                            ? 'Authorized Assets & Infrastructure'
-                                            : 'Starter Assets: Shelter, Storage, Mining'}
+                                        : isStarterPhase
+                                            ? 'Starter Assets: Shelter, Storage, Mining'
+                                            : 'Authorized Assets & Infrastructure'}
                                 </p>
                             </div>
                             <div className="flex flex-col items-end">
@@ -365,8 +366,9 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
                                     const missingIndustrial = state.cheatsEnabled ? [] : getMissingIndustrialCosts(state.industry, industrialCosts);
                                     const isEcoLocked = (b as any).ecoReq ? state.resources.eco < (b as any).ecoReq : false;
                                     const isTrustLocked = (b as any).trustReq ? state.resources.trust < (b as any).trustReq : false;
+                                    const skipDependencyLock = isStarterPhase && STARTER_SHOP_TYPES.has(type);
                                     let dependencyMet = true;
-                                    if ((b as any).dependency) {
+                                    if ((b as any).dependency && !skipDependencyLock) {
                                         dependencyMet = Object.values(state.chunks).flatMap((c: Chunk) => c.tiles).some(t => t.buildingType === (b as any).dependency && !t.isUnderConstruction);
                                     }
                                     const isEraLocked = b.era && b.era !== 'UNDERGROUND' && !state.unlockedEras.includes(b.era);
@@ -436,8 +438,9 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
 
                             const isEcoLocked = (b as any).ecoReq ? state.resources.eco < (b as any).ecoReq : false;
                             const isTrustLocked = (b as any).trustReq ? state.resources.trust < (b as any).trustReq : false;
+                            const skipDependencyLock = isStarterPhase && selectedItem !== null && STARTER_SHOP_TYPES.has(selectedItem);
                             let dependencyMet = true;
-                            if ((b as any).dependency) {
+                            if ((b as any).dependency && !skipDependencyLock) {
                                 dependencyMet = Object.values(state.chunks).flatMap((c: Chunk) => c.tiles).some(t => t.buildingType === (b as any).dependency && !t.isUnderConstruction);
                             }
                             const isEraLocked = b.era && b.era !== 'UNDERGROUND' && !state.unlockedEras.includes(b.era);
