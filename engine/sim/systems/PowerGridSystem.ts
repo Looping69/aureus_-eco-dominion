@@ -165,9 +165,7 @@ export class PowerGridSystem extends BaseSimSystem {
     private getPowerPriority(tile: GridTile): number {
         if (tile.buildingType === BuildingType.RESERVOIR) return 100;
         if (tile.buildingType === BuildingType.STAFF_QUARTERS) return 90;
-        if (tile.buildingType === BuildingType.WATER_TOWER) return 85;
         if (this.isIndustrialConsumer(tile.buildingType)) return 70;
-        if (tile.buildingType === BuildingType.GREEN_TECH_LAB) return 65;
         return 50;
     }
 
