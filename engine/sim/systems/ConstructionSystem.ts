@@ -17,42 +17,9 @@ import { applyDeepLedgerSurvey } from '../../underground/UndergroundGenerator';
 export class ConstructionSystem extends BaseSimSystem {
     readonly id = 'construction';
     readonly priority = 60; // Run high to handle placement/removal before sim systems
-    tick(ctx: FixedContext, state: GameState): void {
-        // 1. Passive Construction Progress (All head tiles under construction progress slowly)
-        if (state.tickCount % 60 === 0) {
-            
-            // Gather active workshops to speed up nearby construction
-            const workshops: {x: number, z: number}[] = [];
-            for (const chunk of Object.values(state.chunks)) {
-                for (const tile of chunk.tiles) {
-                    if (tile.buildingType === BuildingType.WORKSHOP && !tile.isUnderConstruction) {
-                        workshops.push({ x: tile.x, z: tile.z });
-                    }
-                }
-            }
-            
-            for (const chunk of Object.values(state.chunks)) {
-                for (const tile of chunk.tiles) {
-                    // Only progress if it's a head tile (or single-tile) under construction
-                    if (tile.isUnderConstruction && (tile.structureHeadX === undefined || (tile.structureHeadX === tile.x && tile.structureHeadZ === tile.z))) {
-                        
-                        // Check for nearby workshop (radius ~15 tiles)
-                        let speedMult = 1.0;
-                        for (const ws of workshops) {
-                            const dist = Math.sqrt(Math.pow(tile.x - ws.x, 2) + Math.pow(tile.z - ws.z, 2));
-                            if (dist <= 15) {
-                                speedMult = 1.25;
-                                break;
-                            }
-                        }
-                        
-                        this.progressConstruction(tile.x, tile.z, 1.0 * speedMult, state);
-                    }
-                }
-            }
-        }
-
-        // 3. Periodic consistency check for multi-tile buildings
+    tick(_ctx: FixedContext, state: GameState): void {
+        // Construction progress is worker-driven through AgentSystem.performWork -> progressConstruction.
+        // This consistency pass only repairs impossible child tiles; it does not advance build timers.
         if (state.tickCount % 120 === 0) {
             this.enforceMultiTileConsistency(state);
         }
@@ -91,9 +58,6 @@ export class ConstructionSystem extends BaseSimSystem {
         const headTile = ChunkStore.getTile(state.chunks, hx, hz);
 
         if (!headTile) return false;
-
-        // CHECK FOLIAGE OBSTRUCTION
-        const def = BUILDINGS[headTile.buildingType];
 
         headTile.constructionTimeLeft = Math.max(0, (headTile.constructionTimeLeft || 0) - amount);
 
@@ -134,9 +98,6 @@ export class ConstructionSystem extends BaseSimSystem {
                         pTile.structureHeadX = hx;
                         pTile.structureHeadZ = hz;
                     }
-
-                    // Synchronous UI/Sim state cleanup (No longer using redundant DigState)
-
 
                     const { cx, cz } = worldToChunk(tx, tz, CHUNK_SIZE);
                     affectedChunks.add(`${cx},${cz}`);
@@ -195,10 +156,9 @@ export class ConstructionSystem extends BaseSimSystem {
 
         const w = def.width || 1;
         const d = def.depth || 1;
+        const footprint: Array<{ tile: GridTile; cx: number; cz: number }> = [];
 
-        const affectedChunks = new Set<string>();
-        const updates: GridTile[] = [];
-
+        // Validate the complete footprint before mutating any tile. Failed placement must be atomic.
         for (let dz = 0; dz < d; dz++) {
             for (let dx = 0; dx < w; dx++) {
                 const tx = x + dx;
@@ -217,20 +177,27 @@ export class ConstructionSystem extends BaseSimSystem {
                     return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Cannot build ${def.name} on water` };
                 }
 
-                Object.assign(tile, {
-                    buildingType,
-                    isUnderConstruction: !isInstant,
-                    constructionTimeLeft: isInstant ? 0 : def.buildTime,
-                    structureHeadX: x,
-                    structureHeadZ: z,
-                    explored: true,
-                    level: level || 1,
-                    foliage: 'NONE', // Clear foliage
-                    markedForHarvest: false // Remove harvest mark
-                });
-                updates.push(tile);
-                affectedChunks.add(`${cx},${cz}`);
+                footprint.push({ tile, cx, cz });
             }
+        }
+
+        const affectedChunks = new Set<string>();
+        const updates: GridTile[] = [];
+
+        for (const { tile, cx, cz } of footprint) {
+            Object.assign(tile, {
+                buildingType,
+                isUnderConstruction: !isInstant,
+                constructionTimeLeft: isInstant ? 0 : def.buildTime,
+                structureHeadX: x,
+                structureHeadZ: z,
+                explored: true,
+                level: level || 1,
+                foliage: 'NONE', // Clear foliage
+                markedForHarvest: false // Remove harvest mark
+            });
+            updates.push(tile);
+            affectedChunks.add(`${cx},${cz}`);
         }
 
         updateWaterConnectivity(state.chunks);
