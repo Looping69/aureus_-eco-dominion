@@ -273,6 +273,11 @@ export class StateManager {
             },
         };
 
+        const unlockedEras = overrides?.unlockedEras ?? baseState.unlockedEras;
+        const eraUnlockedPopup = overrides?.eraUnlockedPopup && !unlockedEras.includes(overrides.eraUnlockedPopup)
+            ? overrides.eraUnlockedPopup
+            : null;
+
         return {
             ...baseState,
             ...overrides,
@@ -312,7 +317,8 @@ export class StateManager {
                 ...baseState.dayNightCycle,
                 ...overrides?.dayNightCycle,
             },
-            unlockedEras: overrides?.unlockedEras ?? baseState.unlockedEras,
+            unlockedEras,
+            eraUnlockedPopup,
             powerGrid: {
                 ...baseState.powerGrid,
                 ...overrides?.powerGrid,
