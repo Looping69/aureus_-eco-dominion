@@ -32,8 +32,11 @@ export class ColonySystem extends BaseSimSystem {
 
             const capacity = (quarters * CAPACITY_PER_QUARTERS) + 4;
             const availableSlots = capacity - aliveColonists.length;
+            const role = this.determineNeededRole(chunks, agents);
+            const hasConcreteWorkforceDemand = role !== 'WORKER';
 
             if (
+                hasConcreteWorkforceDemand &&
                 availableSlots >= this.MIN_CAPACITY_GAP &&
                 state.resources.agt >= this.RECRUITMENT_COST &&
                 state.resources.trust >= this.MIN_TRUST_FOR_RECRUITMENT
@@ -41,7 +44,6 @@ export class ColonySystem extends BaseSimSystem {
                 state.resources.agt -= this.RECRUITMENT_COST;
 
                 const spawn = this.findRecruitmentSpawn(state, aliveColonists);
-                const role = this.determineNeededRole(chunks, agents);
                 const newAgent = createColonist(spawn.x, spawn.z, role, ctx);
                 agents.push(newAgent);
 
@@ -69,7 +71,9 @@ export class ColonySystem extends BaseSimSystem {
             } else {
                 if ((ctx.random?.next() ?? Math.random()) < 0.1) {
                     let reason = '';
-                    if (state.resources.agt < this.RECRUITMENT_COST) {
+                    if (!hasConcreteWorkforceDemand) {
+                        reason = 'Recruitment paused: current workforce covers known jobs';
+                    } else if (state.resources.agt < this.RECRUITMENT_COST) {
                         reason = `Recruitment blocked: Need ${this.RECRUITMENT_COST} AGT`;
                     } else if (state.resources.trust < this.MIN_TRUST_FOR_RECRUITMENT) {
                         reason = `Recruitment blocked: Need ${this.MIN_TRUST_FOR_RECRUITMENT} Trust`;
@@ -77,7 +81,7 @@ export class ColonySystem extends BaseSimSystem {
                         reason = `Recruitment blocked: Build more Staff Quarters`;
                     }
 
-                    if (reason) {
+                    if (reason && hasConcreteWorkforceDemand) {
                         state.newsFeed.push({
                             id: ctx.getNextId?.('recruit_fail') || `recruit_fail_${Date.now()}`,
                             headline: reason,
