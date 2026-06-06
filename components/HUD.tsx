@@ -6,8 +6,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Coins, Pickaxe, Leaf, Heart, Gem, Users, Target, Trees, Database, Truck, Hammer, Zap } from 'lucide-react';
-import { GameState, Era, FactoryResourceType } from '../types';
-import { ERAS } from '../engine/data/VoxelConstants';
+import { GameState, Era, FactoryResourceType, BuildingType } from '../types';
+import { BUILDINGS, ERAS } from '../engine/data/VoxelConstants';
 
 const SECTOR_RESOURCE_LABELS: Record<FactoryResourceType, string> = {
   ORE: 'Ore',
@@ -36,6 +36,57 @@ const getSatisfactionTone = (value: number) => {
   if (value >= 0.75) return 'text-emerald-300';
   if (value >= 0.45) return 'text-amber-300';
   return 'text-rose-300';
+};
+
+const isStructureHead = (tile: GameState['chunks'][string]['tiles'][number]) =>
+  tile.structureHeadX === undefined || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
+
+const countCompletedBuildings = (state: GameState, type?: BuildingType) => Object.values(state.chunks)
+  .flatMap(chunk => chunk.tiles)
+  .filter(tile => tile.buildingType !== BuildingType.EMPTY && !tile.isUnderConstruction && isStructureHead(tile))
+  .filter(tile => !type || tile.buildingType === type)
+  .length;
+
+interface EraRequirementRow {
+  label: string;
+  current: number;
+  target: number;
+  met: boolean;
+}
+
+const getEraRequirementRows = (state: GameState, nextEra: Era | null): EraRequirementRow[] => {
+  if (!nextEra) return [];
+  const conditions = ERAS[nextEra].unlockConditions as typeof ERAS[Era.SETTLEMENT]['unlockConditions'] & { requiredBuildings?: BuildingType[] };
+  const rows: EraRequirementRow[] = [];
+
+  if (conditions.minColonists) {
+    const current = state.agents.filter(agent => agent.type !== 'ILLEGAL_MINER').length;
+    rows.push({ label: 'Colonists', current, target: conditions.minColonists, met: current >= conditions.minColonists });
+  }
+  if (conditions.minAgt) {
+    rows.push({ label: 'AGT', current: Math.floor(state.resources.agt), target: conditions.minAgt, met: state.resources.agt >= conditions.minAgt });
+  }
+  if (conditions.minEco) {
+    rows.push({ label: 'Eco', current: Math.floor(state.resources.eco), target: conditions.minEco, met: state.resources.eco >= conditions.minEco });
+  }
+  if (conditions.minTrust) {
+    rows.push({ label: 'Trust', current: Math.floor(state.resources.trust), target: conditions.minTrust, met: state.resources.trust >= conditions.minTrust });
+  }
+  if (conditions.minBuildings) {
+    const current = countCompletedBuildings(state);
+    rows.push({ label: 'Buildings', current, target: conditions.minBuildings, met: current >= conditions.minBuildings });
+  }
+  for (const buildingType of conditions.requiredBuildings || []) {
+    const current = countCompletedBuildings(state, buildingType);
+    rows.push({
+      label: BUILDINGS[buildingType]?.name || buildingType,
+      current: Math.min(1, current),
+      target: 1,
+      met: current > 0,
+    });
+  }
+
+  return rows;
 };
 
 const ResourceBlock = React.memo(({ icon: Icon, val, label, borderClass, iconBgClass, sub, textColor = "text-white", isExpanded, onToggle }: any) => {
@@ -147,43 +198,13 @@ const EraBlock = ({ currentEra, state, isExpanded, onToggle }: { currentEra: Era
   const nextEraIndex = eras.indexOf(currentEra) + 1;
   const nextEra = nextEraIndex < eras.length ? eras[nextEraIndex] : null;
   const nextDef = nextEra ? ERAS[nextEra] : null;
-
-  let progress = 0;
-  let totalReqs = 0;
-  let metReqs = 0;
+  const requirementRows = getEraRequirementRows(state, nextEra);
+  const metReqs = requirementRows.filter(row => row.met).length;
+  const progress = requirementRows.length > 0
+    ? (requirementRows.reduce((sum, row) => sum + Math.min(1, row.current / row.target), 0) / requirementRows.length) * 100
+    : 0;
 
   if (nextDef) {
-    const c = nextDef.unlockConditions;
-    if (c.minColonists) {
-      totalReqs++;
-      const count = state.agents.filter(a => a.type !== 'ILLEGAL_MINER').length;
-      if (count >= c.minColonists) metReqs++;
-      progress += Math.min(1, count / c.minColonists);
-    }
-    if (c.minAgt) {
-      totalReqs++;
-      if (state.resources.agt >= c.minAgt) metReqs++;
-      progress += Math.min(1, state.resources.agt / c.minAgt);
-    }
-    if (c.minEco) {
-      totalReqs++;
-      if (state.resources.eco >= c.minEco) metReqs++;
-      progress += Math.min(1, state.resources.eco / c.minEco);
-    }
-    if (c.minTrust) {
-      totalReqs++;
-      if (state.resources.trust >= c.minTrust) metReqs++;
-      progress += Math.min(1, state.resources.trust / c.minTrust);
-    }
-    if (c.minBuildings) {
-      totalReqs++;
-      const count = Object.values(state.chunks).flatMap(c => c.tiles).filter(t => t.buildingType !== 'EMPTY' && !t.isUnderConstruction).length;
-      if (count >= c.minBuildings) metReqs++;
-      progress += Math.min(1, count / c.minBuildings);
-    }
-
-    if (totalReqs > 0) progress = (progress / totalReqs) * 100;
-
     if (!isExpanded && progress > prevProgressRef.current + 0.1) {
       setHasNew(true);
     }
@@ -202,11 +223,11 @@ const EraBlock = ({ currentEra, state, isExpanded, onToggle }: { currentEra: Era
       <button
         onClick={handleToggle}
         className={`
-          flex items-center gap-1.5 sm:gap-2.5 
+          flex items-start gap-1.5 sm:gap-2.5 
           bg-slate-900 
           border-2 border-slate-700
           rounded-[4px] px-2 py-1 sm:px-3 sm:py-2
-          ${isExpanded ? 'min-w-[120px]' : 'w-10 h-10 sm:w-12 sm:h-12 justify-center'}
+          ${isExpanded ? 'min-w-[240px] max-w-[280px]' : 'w-10 h-10 sm:w-12 sm:h-12 justify-center items-center'}
           shadow-[4px_4px_0px_0px_rgba(0,0,0,0.4)]
           transition-all duration-200
           hover:-translate-y-0.5 hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,0.3)]
@@ -225,9 +246,25 @@ const EraBlock = ({ currentEra, state, isExpanded, onToggle }: { currentEra: Era
         </div>
 
         {isExpanded && (
-          <div className="flex flex-col items-start leading-none gap-0.5 pr-2 animate-in fade-in slide-in-from-left-1 duration-200">
+          <div className="flex flex-col items-start leading-none gap-1.5 pr-2 animate-in fade-in slide-in-from-left-1 duration-200 text-left min-w-0 flex-1">
             <span className="text-[7px] sm:text-[9px] text-slate-500 font-bold uppercase tracking-wider">Evolution</span>
-            <span className="text-xs sm:text-sm font-['Rajdhani'] font-bold text-white tracking-wide truncate max-w-[100px]">{eraDef.name.replace('Era ', 'E')}</span>
+            <span className="text-xs sm:text-sm font-['Rajdhani'] font-bold text-white tracking-wide truncate max-w-full">{eraDef.name.replace('Era ', 'E')}</span>
+            {nextDef && (
+              <div className="w-full pt-1 border-t border-slate-800/80">
+                <div className="flex items-center justify-between gap-2 text-[8px] sm:text-[9px] font-mono uppercase tracking-wider mb-1">
+                  <span className="text-slate-500">Next</span>
+                  <span className="text-amber-300">{metReqs}/{requirementRows.length}</span>
+                </div>
+                <div className="space-y-1">
+                  {requirementRows.slice(0, 6).map(row => (
+                    <div key={row.label} className="flex items-center justify-between gap-2 text-[8px] sm:text-[9px] font-mono">
+                      <span className={row.met ? 'text-emerald-300 truncate' : 'text-slate-400 truncate'}>{row.label}</span>
+                      <span className={row.met ? 'text-emerald-300 shrink-0' : 'text-amber-300 shrink-0'}>{row.current}/{row.target}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
