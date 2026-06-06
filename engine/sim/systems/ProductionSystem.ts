@@ -410,31 +410,36 @@ export class ProductionSystem extends BaseSimSystem {
                         const chunk = state.chunks[`${cx},${cz}`];
                         if (chunk) {
                             chunk.meshDirty = true;
-                            state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
+                            chunk.simDirty = true;
                         }
-                        return true;
+                        state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
+
+                        if (changed) {
+                            state.pendingEffects.push({ type: 'FX', fxType: isWood ? 'FARM' : 'MINING', x: tx, z: tz });
+                        }
                     }
                     return true;
                 }
             }
         }
+
         return false;
     }
 
-    private executeAutoSell(ctx: FixedContext, state: GameState, modifiers: any): void {
-        const amount = state.resources.minerals;
-        if (amount <= 0) return;
+    private executeAutoSell(ctx: FixedContext, state: GameState, modifiers: any) {
         const ecoMult = getEcoMultiplier(state.resources.eco);
         const trustMult = 1 + (state.resources.trust / 200);
-        const sectorBonus = this.getSectorExportBonus(state, 'MINERALS');
-        const value = Math.floor(amount * state.market.minerals.currentPrice * ecoMult * trustMult * modifiers.sellPrice * (1 + sectorBonus));
+        const price = state.market.minerals.currentPrice;
+
+        const value = Math.floor(state.resources.minerals * price * modifiers.sellPrice * ecoMult * trustMult);
 
         state.resources.agt += value;
         state.resources.minerals = 0;
+
         state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.SELL });
-        state.newsFeed.unshift({
-            id: ctx.getNextId?.('auto_sell') || `auto_sell_${Date.now()}`,
-            headline: `Auto-sold minerals for ${value} AGT${sectorBonus > 0 ? ` with ${Math.round(sectorBonus * 100)}% sector premium` : ''}`,
+        state.newsFeed.push({
+            id: ctx.getNextId?.('sell') || `sell_${Date.now()}`,
+            headline: `Logistics: Auto-sold minerals for ${value} AGT.`,
             type: 'POSITIVE',
             timestamp: state.tickCount
         });
