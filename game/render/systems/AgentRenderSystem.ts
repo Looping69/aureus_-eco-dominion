@@ -9,6 +9,7 @@ import { createEagle } from '../../../engine/data/voxels/Eagle';
 const STATUS_CONFIG = {
     height: 0.7,           // Height above agent
     scale: 0.15,           // Base scale of indicators
+    textScale: 0.34,       // Scale for intent labels
     warningThreshold: 30,  // Show warning below this need level
     criticalThreshold: 15, // Critical warning level
 };
@@ -24,6 +25,8 @@ const STATE_ICONS: Record<string, string> = {
     'PATROLLING': '👁️',
     'IDLE': '⏳',
     'OFF_DUTY': '🌙',
+    'DEPOSITING': '📦',
+    'MANUAL': '🎮',
 };
 
 const ROLE_ICONS: Record<AgentRole, { icon: string; color: string }> = {
@@ -44,6 +47,51 @@ const WARNING_ICONS = {
     hunger: '🍽️',
     mood: '😟',
 };
+
+type AgentExplanation = {
+    label: string;
+    tone: 'normal' | 'warning' | 'blocked';
+};
+
+function getJobLabel(jobId: string | null): string {
+    if (!jobId) return 'Planning next task';
+    if (jobId === 'sys_sleep') return 'Going to rest';
+    if (jobId === 'sys_eat') return 'Going to eat';
+    if (jobId === 'sys_deposit') return 'Delivering resources';
+    if (jobId === 'sys_wait_at_work') return 'Waiting at workplace';
+    if (jobId === 'sys_wander') return 'Patrolling nearby';
+    if (jobId.startsWith('build_')) return 'Building scaffold';
+    if (jobId.includes('mine')) return 'Harvesting resource';
+    if (jobId.includes('rehab')) return 'Restoring land';
+    if (jobId.startsWith('manual_')) return 'Following command';
+    return 'Working assignment';
+}
+
+function getActiveCooldownCount(agent: Agent): number {
+    return Object.keys(agent.unreachableCooldowns || {}).length;
+}
+
+function getAgentExplanation(agent: Agent): AgentExplanation {
+    const blockedTargets = getActiveCooldownCount(agent);
+    if (blockedTargets > 0 && agent.state === 'IDLE') {
+        return { label: 'Blocked: no route', tone: 'blocked' };
+    }
+    if (agent.energy < STATUS_CONFIG.warningThreshold && agent.state !== 'SLEEPING') {
+        return { label: 'Needs rest', tone: 'warning' };
+    }
+    if (agent.hunger < STATUS_CONFIG.warningThreshold && agent.state !== 'EATING') {
+        return { label: 'Needs food', tone: 'warning' };
+    }
+
+    if (agent.state === 'MOVING') return { label: getJobLabel(agent.currentJobId), tone: 'normal' };
+    if (agent.state === 'WORKING') return { label: getJobLabel(agent.currentJobId), tone: 'normal' };
+    if (agent.state === 'DEPOSITING') return { label: 'Depositing cargo', tone: 'normal' };
+    if (agent.state === 'SLEEPING') return { label: 'Resting', tone: 'normal' };
+    if (agent.state === 'EATING') return { label: 'Eating', tone: 'normal' };
+    if (agent.state === 'MANUAL') return { label: 'Player controlled', tone: 'normal' };
+    if (agent.profession && agent.profession !== 'UNEMPLOYED') return { label: `Waiting: ${agent.profession}`, tone: 'normal' };
+    return { label: 'Waiting for job', tone: 'normal' };
+}
 
 export class AgentRenderSystem {
     private scene: THREE.Scene;
@@ -384,6 +432,37 @@ export class AgentRenderSystem {
         return tex;
     }
 
+    private createTextTexture(text: string, tone: AgentExplanation['tone']): THREE.CanvasTexture {
+        const cacheKey = `label_${tone}_${text}`;
+        if (this.spriteTextures.has(cacheKey)) return this.spriteTextures.get(cacheKey)!;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 72;
+        const ctx = canvas.getContext('2d')!;
+        const bg = tone === 'blocked' ? 'rgba(127, 29, 29, 0.88)' : tone === 'warning' ? 'rgba(120, 53, 15, 0.88)' : 'rgba(15, 23, 42, 0.86)';
+        const stroke = tone === 'blocked' ? '#fb7185' : tone === 'warning' ? '#fbbf24' : '#38bdf8';
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = bg;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.roundRect(8, 10, 240, 44, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = 'bold 18px Arial';
+        ctx.fillStyle = '#f8fafc';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text.slice(0, 24), 128, 32);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        this.spriteTextures.set(cacheKey, tex);
+        return tex;
+    }
+
     private createStatusGroup(agent: Agent): THREE.Group {
         const group = new THREE.Group();
 
@@ -401,8 +480,19 @@ export class AgentRenderSystem {
         stateSprite.position.set(0.05, 0, 0);
         group.add(stateSprite);
 
+        const explanation = getAgentExplanation(agent);
+        const textMat = new THREE.SpriteMaterial({ map: this.createTextTexture(explanation.label, explanation.tone), depthTest: false, transparent: true });
+        const textSprite = new THREE.Sprite(textMat);
+        textSprite.name = 'intentLabel';
+        textSprite.scale.set(STATUS_CONFIG.textScale, STATUS_CONFIG.textScale * 0.28, 1);
+        textSprite.position.set(0.07, 0.17, 0);
+        group.add(textSprite);
+
         group.userData.stateSprite = stateSprite;
+        group.userData.intentLabel = textSprite;
         group.userData.stateIcon = 'IDLE';
+        group.userData.intentText = explanation.label;
+        group.userData.intentTone = explanation.tone;
 
         return group;
     }
@@ -415,6 +505,18 @@ export class AgentRenderSystem {
                 (stateSprite.material as THREE.SpriteMaterial).map = this.createIconTexture(icon);
                 group.userData.stateIcon = icon;
             }
+        }
+
+        const intentLabel = group.userData.intentLabel as THREE.Sprite | undefined;
+        if (intentLabel) {
+            const explanation = getAgentExplanation(agent);
+            if (group.userData.intentText !== explanation.label || group.userData.intentTone !== explanation.tone) {
+                (intentLabel.material as THREE.SpriteMaterial).map = this.createTextTexture(explanation.label, explanation.tone);
+                group.userData.intentText = explanation.label;
+                group.userData.intentTone = explanation.tone;
+            }
+            const pulse = explanation.tone === 'blocked' ? 1 + Math.sin(time * 6) * 0.08 : 1;
+            intentLabel.scale.set(STATUS_CONFIG.textScale * pulse, STATUS_CONFIG.textScale * 0.28 * pulse, 1);
         }
     }
 }
