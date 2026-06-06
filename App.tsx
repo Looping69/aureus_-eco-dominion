@@ -42,6 +42,22 @@ const isLinePlacementType = (type: BuildingType | null | undefined): type is Bui
     return Boolean(type && LINE_PLACEMENT_TYPES.has(type));
 };
 
+const CommandFailureToast: React.FC<{ result?: any }> = ({ result }) => {
+    if (!result || result.ok) return null;
+
+    const commandName = String(result.type || 'COMMAND').replace(/_/g, ' ').toLowerCase();
+    const reason = result.reason || 'The command could not be completed.';
+
+    return (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[80] pointer-events-none max-w-[calc(100vw-2rem)]">
+            <div className="bg-rose-950/92 border border-rose-700 text-rose-100 shadow-[4px_4px_0_rgba(0,0,0,0.45)] rounded-[6px] px-4 py-3 w-[22rem] max-w-full">
+                <div className="text-[9px] font-black uppercase tracking-wider text-rose-300 mb-1">Cannot {commandName}</div>
+                <div className="text-xs font-bold leading-snug">{reason}</div>
+            </div>
+        </div>
+    );
+};
+
 const App: React.FC = () => {
     const [container, setContainer] = useState<HTMLElement | null>(null);
     const [pendingPlacementPos, setPendingPlacementPos] = useState<{ x: number, z: number } | null>(null);
@@ -259,6 +275,7 @@ const App: React.FC = () => {
                                                 <NewsTicker news={state.newsFeed} onDismiss={(id) => dispatch({ type: 'DISMISS_NEWS', payload: id })} playSfx={playSfx} />
                                             </div>
 
+                                            <CommandFailureToast result={state.ui?.lastCommandResult} />
                                             <InventoryHUD inventory={state.inventory} selectedBuilding={state.selectedBuilding} dispatch={dispatch} playSfx={playSfx} step={state.step} />
                                             {state.activeView === 'SURFACE' && <SurveyDrillQuickBuild state={state} dispatch={dispatch} playSfx={playSfx} />}
 
