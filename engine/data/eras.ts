@@ -1,4 +1,4 @@
-import { Era, EraDef } from '../../types';
+import { BuildingType, Era, EraDef } from '../../types';
 
 export const ERAS: Record<Era, EraDef> = {
   [Era.SETTLEMENT]: {
@@ -16,7 +16,11 @@ export const ERAS: Record<Era, EraDef> = {
     id: Era.GROWTH,
     name: 'Era 2: Growth',
     description: 'Expand after proving the starter economy works',
-    unlockConditions: { minAgt: 5000, minBuildings: 3 },
+    unlockConditions: {
+      minAgt: 5000,
+      minBuildings: 3,
+      requiredBuildings: [BuildingType.STAFF_QUARTERS, BuildingType.STORAGE_DEPOT, BuildingType.MINING_HEADFRAME]
+    } as any,
     color: '#22c55e',
     milestones: [
       { id: 'starter_base', name: 'Starter Base', target: 3 },
