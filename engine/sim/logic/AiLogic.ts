@@ -14,8 +14,14 @@ import { CHUNK_SIZE } from '../../space/ChunkStore';
 
 
 
+const isStructureHead = (tile: GridTile) =>
+    tile.structureHeadX === undefined || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
+
 const getBuildingCount = (state: GameState, type: BuildingType) =>
-    Object.values(state.chunks).flatMap(c => c.tiles).filter(t => t.buildingType === type && !t.isUnderConstruction).length;
+    Object.values(state.chunks)
+        .flatMap(c => c.tiles)
+        .filter(t => t.buildingType === type && !t.isUnderConstruction && isStructureHead(t))
+        .length;
 
 
 export function generateGoal(ctx: FixedContext, state: GameState): Goal {
@@ -44,7 +50,7 @@ export function generateGoal(ctx: FixedContext, state: GameState): Goal {
             type: 'BUILD',
             targetType: BuildingType.STAFF_QUARTERS,
             targetValue: getBuildingCount(state, BuildingType.STAFF_QUARTERS) + 1,
-            currentValue: 0,
+            currentValue: getBuildingCount(state, BuildingType.STAFF_QUARTERS),
             reward: { type: 'AGT', amount: 500 },
             completed: false
         };
@@ -56,7 +62,7 @@ export function generateGoal(ctx: FixedContext, state: GameState): Goal {
             type: 'RESOURCE',
             targetType: 'MINERALS',
             targetValue: state.resources.minerals + 100,
-            currentValue: 0,
+            currentValue: state.resources.minerals,
             reward: { type: 'GEMS', amount: 2 },
             completed: false
         };
@@ -68,7 +74,7 @@ export function generateGoal(ctx: FixedContext, state: GameState): Goal {
             type: 'RESOURCE',
             targetType: 'TRUST',
             targetValue: Math.min(100, state.resources.trust + 15),
-            currentValue: 0,
+            currentValue: state.resources.trust,
             reward: { type: 'AGT', amount: 1000 },
             completed: false
         };
