@@ -44,11 +44,12 @@ export class CommandDispatcher extends BaseSimSystem {
     private dispatchCommand(cmd: GameCommand, ctx: CommandContext, state: GameState) {
         let handledBy: string | null = null;
         let result: CommandResult | null = null;
+        const commandType = cmd.type as string;
 
-        if (cmd.type === 'ACCEPT_CONTRACT') {
+        if (commandType === 'ACCEPT_CONTRACT') {
             result = this.acceptContract(cmd, state);
             handledBy = this.id;
-        } else if (cmd.type === 'DELIVER_CONTRACT') {
+        } else if (commandType === 'DELIVER_CONTRACT') {
             result = this.deliverContract(cmd, state);
             handledBy = this.id;
         }
@@ -82,11 +83,11 @@ export class CommandDispatcher extends BaseSimSystem {
     private acceptContract(cmd: GameCommand, state: GameState): CommandResult {
         const contract = this.findContract(cmd, state);
         if (!contract) {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Contract not found.' } as any;
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Contract not found.' };
         }
         contract.status ??= 'AVAILABLE';
         if (contract.status !== 'AVAILABLE') {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Contract is already ${contract.status.toLowerCase()}.` } as any;
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Contract is already ${contract.status.toLowerCase()}.` };
         }
 
         contract.status = 'ACCEPTED';
@@ -99,26 +100,26 @@ export class CommandDispatcher extends BaseSimSystem {
             type: 'NEUTRAL',
             timestamp: state.tickCount,
         });
-        return { ok: true } as any;
+        return { ok: true };
     }
 
     private deliverContract(cmd: GameCommand, state: GameState): CommandResult {
         const contract = this.findContract(cmd, state);
         if (!contract) {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Contract not found.' } as any;
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Contract not found.' };
         }
         contract.status ??= 'AVAILABLE';
         if (contract.status === 'AVAILABLE') {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Accept the contract before delivering.' } as any;
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Accept the contract before delivering.' };
         }
         if (contract.status !== 'ACCEPTED') {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Contract is already ${contract.status.toLowerCase()}.` } as any;
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Contract is already ${contract.status.toLowerCase()}.` };
         }
 
         const resourceKey = this.getResourceKey(contract.resource);
         if (state.resources[resourceKey] < contract.amount) {
             const missing = Math.ceil(contract.amount - state.resources[resourceKey]);
-            return { ok: false, code: CommandErrorCode.INSUFFICIENT_RESOURCES, reason: `Need ${missing} more ${this.formatResource(contract.resource)}.` } as any;
+            return { ok: false, code: CommandErrorCode.INSUFFICIENT_RESOURCES, reason: `Need ${missing} more ${this.formatResource(contract.resource)}.` };
         }
 
         state.resources[resourceKey] -= contract.amount;
@@ -134,7 +135,7 @@ export class CommandDispatcher extends BaseSimSystem {
             type: 'POSITIVE',
             timestamp: state.tickCount,
         });
-        return { ok: true } as any;
+        return { ok: true };
     }
 
     private findContract(cmd: GameCommand, state: GameState): Contract | undefined {
@@ -170,7 +171,7 @@ export class CommandDispatcher extends BaseSimSystem {
 
         // 2. Update UI-safe feedback
         const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT'];
-        if (!ok || (cmd && feedbackTypes.includes(cmd.type))) {
+        if (!ok || (cmd && feedbackTypes.includes(cmd.type as string))) {
             state.ui.lastCommandResult = {
                 commandId,
                 type: cmd?.type || 'UNKNOWN',
