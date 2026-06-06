@@ -14,7 +14,7 @@ import { WorldHost, Runtime } from '../engine';
 import { RuntimeQualityGovernor, ThreeRenderAdapter, getRecommendedRenderQuality } from '../engine/render';
 import { DebugHud } from '../engine/tools';
 import { AureusWorld, AureusWorldConfig } from './AureusWorld';
-import { BuildingType, GameState, LogisticsOverlayMode, SfxType } from '../types';
+import { BuildingType, GameCommand, GameState, LogisticsOverlayMode, SfxType } from '../types';
 import { ChunkStore } from '../engine/space/ChunkStore';
 
 export interface LoadingProgress {
@@ -69,6 +69,16 @@ export interface AureusEngineHandle {
 
 function reloadWorldState(world: AureusWorld, state: GameState): void {
     world.dispatch({ type: 'LOAD_GAME', payload: state });
+}
+
+function enqueueWorldCommand(world: AureusWorld, type: GameCommand['type'], payload?: any): void {
+    const state = world.getState();
+    state.commandQueue.push({
+        id: `ui_${type.toLowerCase()}_${Date.now()}`,
+        type,
+        payload,
+        issuedAtTick: state.tickCount,
+    });
 }
 
 function findPlannerTargetNode(state: GameState, payload: Record<string, any>) {
@@ -468,6 +478,11 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 if (updatedState) {
                     reloadWorldState(world, updatedState);
                 }
+                return;
+            }
+
+            if (action?.type === 'DELIVER_CONTRACT') {
+                enqueueWorldCommand(world, 'DELIVER_CONTRACT', { contractId: action.payload?.contractId ?? action.payload });
                 return;
             }
 
