@@ -5,7 +5,9 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
-import { GameState, GameCommand } from '../../../types';
+import { Contract, GameState, GameCommand, SfxType } from '../../../types';
+
+const CONTRACT_COMPLETION_TTL = 75;
 
 export class CommandDispatcher extends BaseSimSystem {
     readonly id = 'command-dispatcher';
@@ -43,13 +45,23 @@ export class CommandDispatcher extends BaseSimSystem {
         let handledBy: string | null = null;
         let result: CommandResult | null = null;
 
+        if (cmd.type === 'ACCEPT_CONTRACT') {
+            result = this.acceptContract(cmd, state);
+            handledBy = this.id;
+        } else if (cmd.type === 'DELIVER_CONTRACT') {
+            result = this.deliverContract(cmd, state);
+            handledBy = this.id;
+        }
+
         // Try each registered system in order
-        for (const system of this.systems) {
-            if (system && system.enabled && system.handleCommand) {
-                result = system.handleCommand(cmd, ctx, state);
-                if (result) {
-                    handledBy = system.id;
-                    break;
+        if (result === null) {
+            for (const system of this.systems) {
+                if (system && system.enabled && system.handleCommand) {
+                    result = system.handleCommand(cmd, ctx, state);
+                    if (result) {
+                        handledBy = system.id;
+                        break;
+                    }
                 }
             }
         }
@@ -67,6 +79,83 @@ export class CommandDispatcher extends BaseSimSystem {
         this.reportResult(cmd.id, result, state, handledBy, cmd);
     }
 
+    private acceptContract(cmd: GameCommand, state: GameState): CommandResult {
+        const contract = this.findContract(cmd, state);
+        if (!contract) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Contract not found.' } as any;
+        }
+        contract.status ??= 'AVAILABLE';
+        if (contract.status !== 'AVAILABLE') {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Contract is already ${contract.status.toLowerCase()}.` } as any;
+        }
+
+        contract.status = 'ACCEPTED';
+        contract.acceptedAtTick = state.tickCount;
+        contract.deliveredAmount = 0;
+        contract.timeLeft = Math.max(1, contract.timeLeft);
+        state.newsFeed.unshift({
+            id: `contract_accept_${Date.now()}_${contract.id}`,
+            headline: `Contract accepted: deliver ${contract.amount} ${this.formatResource(contract.resource)}.`,
+            type: 'NEUTRAL',
+            timestamp: state.tickCount,
+        });
+        return { ok: true } as any;
+    }
+
+    private deliverContract(cmd: GameCommand, state: GameState): CommandResult {
+        const contract = this.findContract(cmd, state);
+        if (!contract) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Contract not found.' } as any;
+        }
+        contract.status ??= 'AVAILABLE';
+        if (contract.status === 'AVAILABLE') {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Accept the contract before delivering.' } as any;
+        }
+        if (contract.status !== 'ACCEPTED') {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Contract is already ${contract.status.toLowerCase()}.` } as any;
+        }
+
+        const resourceKey = this.getResourceKey(contract.resource);
+        if (state.resources[resourceKey] < contract.amount) {
+            const missing = Math.ceil(contract.amount - state.resources[resourceKey]);
+            return { ok: false, code: CommandErrorCode.INSUFFICIENT_RESOURCES, reason: `Need ${missing} more ${this.formatResource(contract.resource)}.` } as any;
+        }
+
+        state.resources[resourceKey] -= contract.amount;
+        state.resources.agt += contract.reward;
+        contract.status = 'COMPLETED';
+        contract.completedAtTick = state.tickCount;
+        contract.deliveredAmount = contract.amount;
+        contract.timeLeft = CONTRACT_COMPLETION_TTL;
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.COMPLETE });
+        state.newsFeed.unshift({
+            id: `contract_done_${Date.now()}_${contract.id}`,
+            headline: `Contract complete: +${contract.reward} AGT for ${this.formatResource(contract.resource)} delivery.`,
+            type: 'POSITIVE',
+            timestamp: state.tickCount,
+        });
+        return { ok: true } as any;
+    }
+
+    private findContract(cmd: GameCommand, state: GameState): Contract | undefined {
+        const contractId = cmd.payload?.contractId ?? cmd.payload;
+        return state.contracts.find(contract => contract.id === contractId);
+    }
+
+    private getResourceKey(resource: Contract['resource']): 'minerals' | 'gems' | 'wood' | 'stone' {
+        if (resource === 'GEMS') return 'gems';
+        if (resource === 'WOOD') return 'wood';
+        if (resource === 'STONE') return 'stone';
+        return 'minerals';
+    }
+
+    private formatResource(resource: Contract['resource']): string {
+        if (resource === 'GEMS') return 'Gems';
+        if (resource === 'WOOD') return 'Wood';
+        if (resource === 'STONE') return 'Stone';
+        return 'Minerals';
+    }
+
     private reportResult(
         commandId: string,
         result: CommandResult,
@@ -80,7 +169,7 @@ export class CommandDispatcher extends BaseSimSystem {
         const reason = result.ok ? undefined : (result as any).reason;
 
         // 2. Update UI-safe feedback
-        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'DELIVER_CONTRACT'];
+        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT'];
         if (!ok || (cmd && feedbackTypes.includes(cmd.type))) {
             state.ui.lastCommandResult = {
                 commandId,
