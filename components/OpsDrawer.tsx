@@ -35,23 +35,49 @@ const RoleIcon = ({ role, size = 14 }: { role: AgentRole, size?: number }) => {
     }
 };
 
+const getJobReason = (agent: Agent): string => {
+    const blockedTargets = Object.keys(agent.unreachableCooldowns || {}).length;
+    if (blockedTargets > 0 && agent.state === 'IDLE') return 'Cannot reach target';
+    if (agent.energy < 30 && agent.state !== 'SLEEPING') return 'Needs rest before work';
+    if (agent.hunger < 30 && agent.state !== 'EATING') return 'Needs food before work';
+    if (agent.state === 'SLEEPING') return 'Sleeping: night cycle or low energy';
+    if (agent.state === 'EATING') return 'Walking to food';
+    if (agent.state === 'DEPOSITING') return 'Walking to storage';
+    if (agent.state === 'MOVING' && agent.currentJobId?.startsWith('build_')) return 'Walking to construction site';
+    if (agent.state === 'WORKING' && agent.currentJobId?.startsWith('build_')) return 'Building scaffold';
+    if (agent.currentJobId?.includes('mine')) return agent.state === 'MOVING' ? 'Walking to resource' : 'Mining resource';
+    if (agent.currentJobId === 'sys_deposit') return 'Walking to storage';
+    if (agent.currentJobId === 'sys_wait_at_work') return 'Waiting at workplace';
+    if (agent.currentJobId === 'sys_sleep') return 'Sleeping: night cycle';
+    if (agent.currentJobId === 'sys_eat') return 'Walking to food';
+    if (agent.inventory?.amount > 0 && agent.state === 'IDLE') return 'Waiting: no storage available';
+    if (agent.state === 'IDLE') return 'Idle: no valid jobs';
+    if (agent.state === 'MOVING') return 'Walking to assignment';
+    if (agent.state === 'WORKING') return 'Working assignment';
+    if (agent.profession && agent.profession !== 'UNEMPLOYED') return `Waiting: ${agent.profession}`;
+    return 'Waiting for assignment';
+};
+
 const ColonistRow: React.FC<{ agent: Agent }> = ({ agent }) => (
     <div className="bg-slate-900 border-2 border-slate-700 p-2 rounded-[4px] shadow-[2px_2px_0_0_rgba(0,0,0,0.3)] space-y-2">
         <div className="flex justify-between items-center border-b border-slate-800 pb-1">
-            <div className="flex items-center gap-2">
-                <div className={`w-8 h-8 rounded-[2px] flex items-center justify-center font-black border-2 text-xs ${agent.type === 'ILLEGAL_MINER' ? 'bg-slate-950 text-slate-500 border-slate-800' : 'bg-amber-950 text-amber-500 border-amber-700'}`}>
+            <div className="flex items-center gap-2 min-w-0">
+                <div className={`w-8 h-8 rounded-[2px] flex items-center justify-center font-black border-2 text-xs shrink-0 ${agent.type === 'ILLEGAL_MINER' ? 'bg-slate-950 text-slate-500 border-slate-800' : 'bg-amber-950 text-amber-500 border-amber-700'}`}>
                     {agent.type === 'ILLEGAL_MINER' ? '?' : agent.name[0]}
                 </div>
-                <div>
-                    <h4 className="text-xs font-black text-white flex items-center gap-2 font-['Rajdhani'] uppercase tracking-wide">
+                <div className="min-w-0">
+                    <h4 className="text-xs font-black text-white flex items-center gap-2 font-['Rajdhani'] uppercase tracking-wide truncate">
                         {agent.name} <RoleIcon role={agent.type} size={10} />
                     </h4>
                     <span className={`text-[9px] uppercase font-bold font-mono ${agent.state === 'WORKING' ? 'text-emerald-400' : agent.state === 'SLEEPING' ? 'text-blue-400' : 'text-slate-500'}`}>
                         {agent.type} • {agent.state}
                     </span>
+                    <div className="text-[9px] font-bold text-cyan-300 truncate mt-0.5" title={getJobReason(agent)}>
+                        {getJobReason(agent)}
+                    </div>
                 </div>
             </div>
-            <div className="text-right">
+            <div className="text-right shrink-0">
                 <div className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Mood</div>
                 <div className="text-[10px] font-mono font-bold text-emerald-400">{Math.floor(agent.mood)}%</div>
             </div>
@@ -109,7 +135,6 @@ const TabButton = ({ id, label, icon: Icon, activeTab, setActiveTab, playSfx }: 
 export const OpsDrawer: React.FC<OpsDrawerProps> = ({ isOpen, onClose, state, dispatch, financials, ecoMult, trustMult, playSfx }) => {
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'RESEARCH' | 'COLONISTS' | 'BUREAUCRACY'>('OVERVIEW');
 
-    // Reset tab when drawer opens
     React.useEffect(() => {
         if (isOpen) setActiveTab('OVERVIEW');
     }, [isOpen]);
@@ -123,7 +148,6 @@ export const OpsDrawer: React.FC<OpsDrawerProps> = ({ isOpen, onClose, state, di
             className={`absolute inset-y-0 left-0 w-full sm:w-[500px] max-w-[100vw] bg-slate-950 border-r-2 border-slate-700 shadow-2xl transform transition-transform duration-300 z-50 flex flex-col pointer-events-auto ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
             onClick={(e) => e.stopPropagation()}
         >
-            {/* Header */}
             <div className="p-3 border-b-2 border-slate-700 bg-slate-800 flex justify-between items-center shadow-md z-10">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-slate-900 border-2 border-slate-600 flex items-center justify-center rounded-[4px] text-white shadow-inner">
@@ -139,7 +163,6 @@ export const OpsDrawer: React.FC<OpsDrawerProps> = ({ isOpen, onClose, state, di
                 </button>
             </div>
 
-            {/* Tabs */}
             <div className="flex border-b-2 border-slate-700 px-3 pt-3 bg-slate-900 gap-1 overflow-x-auto no-scrollbar">
                 <TabButton id="OVERVIEW" label="Stats" icon={BarChart3} activeTab={activeTab} setActiveTab={setActiveTab} playSfx={playSfx} />
                 <TabButton id="COLONISTS" label="Crew" icon={Users} activeTab={activeTab} setActiveTab={setActiveTab} playSfx={playSfx} />
@@ -150,7 +173,6 @@ export const OpsDrawer: React.FC<OpsDrawerProps> = ({ isOpen, onClose, state, di
             <div className="p-3 sm:p-4 flex-1 overflow-y-auto no-scrollbar bg-slate-950">
                 {activeTab === 'OVERVIEW' && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
-                        {/* Market Terminal */}
                         <div className="bg-slate-900 border-2 border-blue-600/50 rounded-[4px] shadow-[4px_4px_0_0_rgba(0,0,0,0.3)] overflow-hidden">
                             <div className="bg-blue-950/30 p-2 border-b-2 border-blue-600/30 flex items-center gap-2">
                                 <TrendingUp size={14} className="text-blue-400" />
@@ -177,7 +199,6 @@ export const OpsDrawer: React.FC<OpsDrawerProps> = ({ isOpen, onClose, state, di
                             </div>
                         </div>
 
-                        {/* Colony Vitals */}
                         <div className="bg-slate-900 border-2 border-slate-700 rounded-[4px] shadow-[4px_4px_0_0_rgba(0,0,0,0.3)]">
                             <div className="bg-slate-800 p-2 border-b-2 border-slate-700">
                                 <h3 className="text-slate-300 text-xs font-black uppercase tracking-widest font-['Rajdhani']">Colony Vitals</h3>
