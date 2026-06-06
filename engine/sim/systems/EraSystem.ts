@@ -53,12 +53,26 @@ export class EraSystem extends BaseSimSystem {
         if (conditions.minEco && state.resources.eco < conditions.minEco) return false;
         if (conditions.minTrust && state.resources.trust < conditions.minTrust) return false;
 
+        if (conditions.requiredBuildings?.length) {
+            const completedTypes = this.getCompletedBuildingTypes(state);
+            if (!conditions.requiredBuildings.every((type: BuildingType) => completedTypes.has(type))) return false;
+        }
+
         if (conditions.minBuildings) {
             const count = this.countCompletedBuildings(state);
             if (count < conditions.minBuildings) return false;
         }
 
         return true;
+    }
+
+    private getCompletedBuildingTypes(state: GameState): Set<BuildingType> {
+        return new Set(
+            Object.values(state.chunks)
+                .flatMap(c => c.tiles)
+                .filter(t => t.buildingType !== BuildingType.EMPTY && !t.isUnderConstruction && this.isStructureHead(t))
+                .map(t => t.buildingType)
+        );
     }
 
     private countCompletedBuildings(state: GameState): number {
