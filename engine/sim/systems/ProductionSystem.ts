@@ -5,7 +5,7 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
-import { BuildingType, FactoryNodeState, FactoryResourceType, FactoryState, GameState, IndustryState, SfxType } from '../../../types';
+import { BuildingType, Era, FactoryNodeState, FactoryResourceType, FactoryState, GameState, IndustryState, SfxType } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { getEcoMultiplier, HARVESTABLE_TREES, HARVESTABLE_ROCKS } from '../../utils/GameUtils';
 import { BASE_STORAGE_CAPACITY, DEPOT_CAPACITY_BONUS, STOCKPILE_CAPACITY_BONUS } from '../logic/SimulationLogic';
@@ -99,8 +99,12 @@ export class ProductionSystem extends BaseSimSystem {
                 }
 
                 if (tile.buildingType === BuildingType.MINING_HEADFRAME) {
-                    const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'SOURCE', state.tickCount);
-                    this.pushOutput(node, 'ORE', (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.05);
+                    if (state.currentEra === Era.SETTLEMENT) {
+                        mineralProd += (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.02;
+                    } else {
+                        const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'SOURCE', state.tickCount);
+                        this.pushOutput(node, 'ORE', (currentDef.production || 0) * modifiers.production * effectiveFactoryEfficiency * 0.05);
+                    }
                 } else if (tile.buildingType === BuildingType.SAWMILL) {
                     const node = this.getFactoryNode(factory, tile.x, tile.z, tile.buildingType, 'SOURCE', state.tickCount);
                     if (productionMult > 0) {
