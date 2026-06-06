@@ -40,8 +40,8 @@ export class MissionSystem extends BaseSimSystem {
         const goal = state.activeGoal;
         if (!goal || goal.completed) return;
 
-        if (goal.type === 'BUILD' && typeof goal.targetType === 'string' && goal.targetType in BuildingType) {
-            goal.currentValue = this.countCompletedBuildings(state, goal.targetType as BuildingType);
+        if (goal.type === 'BUILD' && this.isBuildingTarget(goal.targetType)) {
+            goal.currentValue = this.countCompletedBuildings(state, goal.targetType);
         } else if (goal.targetType === 'AGT') {
             goal.currentValue = state.resources.agt;
         } else if (goal.targetType === 'MINERALS') {
@@ -62,6 +62,10 @@ export class MissionSystem extends BaseSimSystem {
             .flatMap(chunk => chunk.tiles)
             .filter(tile => tile.buildingType === type && !tile.isUnderConstruction && this.isStructureHead(tile))
             .length;
+    }
+
+    private isBuildingTarget(targetType: unknown): targetType is BuildingType {
+        return Object.values(BuildingType).includes(targetType as BuildingType);
     }
 
     private isStructureHead(tile: GridTile): boolean {
