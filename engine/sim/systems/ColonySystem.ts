@@ -1,7 +1,7 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
-import { GameState, BuildingType, SfxType, AgentRole, Agent, Chunk } from '../../../types';
+import { GameState, BuildingType, SfxType, AgentRole, Agent, Chunk, GridTile } from '../../../types';
 import { createColonist, MAX_AGENTS, CAPACITY_PER_QUARTERS } from '../logic/SimulationLogic';
 
 export class ColonySystem extends BaseSimSystem {
@@ -27,7 +27,7 @@ export class ColonySystem extends BaseSimSystem {
         if (aliveColonists.length < MAX_AGENTS) {
             let quarters = 0;
             for (const chunk of Object.values(chunks)) {
-                quarters += chunk.tiles.filter(t => t.buildingType === BuildingType.STAFF_QUARTERS && !t.isUnderConstruction).length;
+                quarters += chunk.tiles.filter(t => t.buildingType === BuildingType.STAFF_QUARTERS && !t.isUnderConstruction && this.isStructureHead(t)).length;
             }
 
             const capacity = (quarters * CAPACITY_PER_QUARTERS) + 4;
@@ -40,12 +40,9 @@ export class ColonySystem extends BaseSimSystem {
             ) {
                 state.resources.agt -= this.RECRUITMENT_COST;
 
-                // Spawn at origin (0,0) or near the first agent
-                const spawnX = 8;
-                const spawnZ = 8;
-
+                const spawn = this.findRecruitmentSpawn(state, aliveColonists);
                 const role = this.determineNeededRole(chunks, agents);
-                const newAgent = createColonist(spawnX, spawnZ, role, ctx);
+                const newAgent = createColonist(spawn.x, spawn.z, role, ctx);
                 agents.push(newAgent);
 
                 const roleNames: Record<AgentRole, string> = {
@@ -110,6 +107,8 @@ export class ColonySystem extends BaseSimSystem {
 
         for (const chunk of Object.values(chunks)) {
             for (const tile of chunk.tiles) {
+                if (!this.isStructureHead(tile)) continue;
+
                 const type = tile.buildingType;
                 if (tile.isUnderConstruction) {
                     constructionSites++;
@@ -128,11 +127,32 @@ export class ColonySystem extends BaseSimSystem {
         const needsSecurity = securityPosts;
         const needsEngineers = Math.min(5, Math.ceil(constructionSites / 2));
 
-        if (roleCounts.MINER < needsMiners && washPlants > 0) return 'MINER';
+        if (roleCounts.MINER < needsMiners && needsMiners > 0) return 'MINER';
         if (roleCounts.ENGINEER < needsEngineers && constructionSites > 0) return 'ENGINEER';
         if (roleCounts.SECURITY < needsSecurity && securityPosts > 0) return 'SECURITY';
         if (roleCounts.BOTANIST < needsBotanists && gardens > 0) return 'BOTANIST';
 
         return 'WORKER';
+    }
+
+    private findRecruitmentSpawn(state: GameState, aliveColonists: Agent[]): { x: number; z: number } {
+        for (const chunk of Object.values(state.chunks)) {
+            const quarters = chunk.tiles.find(tile =>
+                tile.buildingType === BuildingType.STAFF_QUARTERS
+                && !tile.isUnderConstruction
+                && this.isStructureHead(tile)
+            );
+            if (quarters) return { x: quarters.x, z: quarters.z + 1 };
+        }
+
+        const anchor = aliveColonists[0];
+        if (anchor) return { x: Math.round(anchor.x), z: Math.round(anchor.z) + 1 };
+
+        return { x: state.spawnX, z: state.spawnZ };
+    }
+
+    private isStructureHead(tile: GridTile): boolean {
+        return tile.structureHeadX === undefined
+            || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
     }
 }
