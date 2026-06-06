@@ -29,7 +29,7 @@ export interface MarketState {
     eventDuration: number;
 }
 
-export type ContractStatus = 'AVAILABLE' | 'ACCEPTED' | 'COMPLETED' | 'FAILED';
+export type ContractStatus = 'AVAILABLE' | 'ACCEPTED' | 'READY_TO_DELIVER' | 'COMPLETED' | 'FAILED';
 
 export interface Contract {
     id: string;
@@ -43,5 +43,9 @@ export interface Contract {
     acceptedAtTick?: number;
     completedAtTick?: number;
     failedAtTick?: number;
+    abandonedAtTick?: number;
     deliveredAmount?: number;
+    trustReward?: number;
+    trustPenalty?: number;
+    failureReason?: string;
 }
