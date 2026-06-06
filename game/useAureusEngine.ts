@@ -173,6 +173,34 @@ function getPlannerZoom(buildingType?: BuildingType): number {
     return 2;
 }
 
+function claimCompletedGoal(state: GameState): GameState | null {
+    const goal = state.activeGoal;
+    if (!goal || !goal.completed) return null;
+
+    const resources = { ...state.resources };
+    if (goal.reward.type === 'AGT') {
+        resources.agt += goal.reward.amount;
+    } else {
+        resources.gems += goal.reward.amount;
+    }
+
+    return {
+        ...state,
+        resources,
+        activeGoal: null,
+        newsFeed: [
+            {
+                id: `goal_claim_${Date.now()}`,
+                headline: `MISSION COMPLETE: ${goal.title} reward claimed.`,
+                type: 'POSITIVE',
+                timestamp: state.tickCount,
+            },
+            ...state.newsFeed,
+        ].slice(0, 8),
+        pendingEffects: [...state.pendingEffects, { type: 'AUDIO', sfx: SfxType.COMPLETE }],
+    };
+}
+
 /**
  * Hook for integrating Aureus engine with React
  * Engine owns state, React subscribes for UI updates
@@ -424,6 +452,15 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
         }, [world, runtime]),
         dispatch: useCallback((action: any) => {
             if (!world) return;
+
+            if (action?.type === 'CLAIM_GOAL') {
+                const state = world.getState();
+                const updatedState = claimCompletedGoal(state);
+                if (updatedState) {
+                    world.loadGame(JSON.stringify(updatedState));
+                }
+                return;
+            }
 
             if (action?.type === 'UPDATE_SECTOR_POLICY') {
                 const state = world.getState();
