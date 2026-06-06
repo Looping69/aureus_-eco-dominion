@@ -7,6 +7,8 @@ const contractTrackerPath = path.join(process.cwd(), 'components', 'ContractTrac
 const contractPanelStorePath = path.join(process.cwd(), 'components', 'state', 'useContractPanelStore.ts');
 const contractLifecyclePath = path.join(process.cwd(), 'engine', 'stateMachines', 'contractLifecycle.ts');
 const productionSystemPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'ProductionSystem.ts');
+const colonySystemPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'ColonySystem.ts');
+const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
 
 function includesAll(source: string, snippets: string[]) {
   for (const snippet of snippets) {
@@ -67,5 +69,32 @@ test('Settlement mining produces global minerals so the starter contract cannot 
     'state.currentEra === Era.SETTLEMENT',
     'mineralProd += (currentDef.production || 0)',
     "this.pushOutput(node, 'ORE'",
+  ]);
+});
+
+test('automatic recruitment only fires when there is a concrete specialist shortage', () => {
+  assert.equal(existsSync(colonySystemPath), true, 'ColonySystem.ts is missing');
+
+  const colony = readFileSync(colonySystemPath, 'utf8');
+  includesAll(colony, [
+    'const role = this.determineNeededRole(chunks, agents);',
+    "const hasConcreteWorkforceDemand = role !== 'WORKER';",
+    'hasConcreteWorkforceDemand &&',
+    'Recruitment paused: current workforce covers known jobs',
+  ]);
+});
+
+test('era HUD shows named requirements using the same structure-head building counts as era unlocks', () => {
+  assert.equal(existsSync(hudPath), true, 'HUD.tsx is missing');
+
+  const hud = readFileSync(hudPath, 'utf8');
+  includesAll(hud, [
+    'import { BUILDINGS, ERAS }',
+    'const countCompletedBuildings',
+    'tile.buildingType !== BuildingType.EMPTY && !tile.isUnderConstruction && isStructureHead(tile)',
+    'const getEraRequirementRows',
+    'requiredBuildings?: BuildingType[]',
+    'BUILDINGS[buildingType]?.name',
+    'requirementRows.slice(0, 6).map',
   ]);
 });
