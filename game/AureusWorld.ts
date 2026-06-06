@@ -31,6 +31,7 @@ import { BuildingRenderSystem } from './render/systems/BuildingRenderSystem';
 import { AgentRenderSystem } from './render/systems/AgentRenderSystem';
 import { EnvironmentRenderSystem } from './render/systems/EnvironmentRenderSystem';
 import { DungeonRenderSystem } from './render/systems/DungeonRenderSystem';
+import { LinePlacementPreview } from './render/LinePlacementPreview';
 import { IsoCameraSystem } from './render/IsoCameraSystem';
 import { DungeonCameraSystem } from './render/DungeonCameraSystem';
 import { FPSCameraSystem } from './render/FPSCameraSystem';
@@ -81,6 +82,7 @@ export class AureusWorld extends BaseWorld {
     private foliageRenderSystem: FoliageRenderSystem;
     private buildingRenderSystem: BuildingRenderSystem;
     private environmentRenderSystem: EnvironmentRenderSystem;
+    private linePlacementPreview: LinePlacementPreview;
     protected cameraSystem!: IsoCameraSystem;
     protected dungeonCameraSystem!: DungeonCameraSystem;
     protected fpsCameraSystem!: FPSCameraSystem;
@@ -141,6 +143,7 @@ export class AureusWorld extends BaseWorld {
         this.foliageRenderSystem = new FoliageRenderSystem(this.render.getScene());
         this.buildingRenderSystem = new BuildingRenderSystem(this.render.getScene());
         this.environmentRenderSystem = new EnvironmentRenderSystem(this.render);
+        this.linePlacementPreview = new LinePlacementPreview(this.render.getScene(), getHeight);
         this.dungeonRenderSystem = new DungeonRenderSystem(this.render.getScene());
         this.cameraSystem = new IsoCameraSystem(this.render);
         this.dungeonCameraSystem = new DungeonCameraSystem(this.render);
@@ -243,6 +246,28 @@ export class AureusWorld extends BaseWorld {
         this.stateManager.pushEffect({ type: 'AUDIO', sfx: SfxType.BUILD });
     }
 
+    previewInfrastructureLine(startX: number, startZ: number, endX: number, endZ: number, type?: string): void {
+        const state = this.stateManager.getState();
+        const buildingType = (type || state.selectedBuilding) as BuildingType;
+        if (!INFRASTRUCTURE_LINE_TYPES.has(buildingType)) {
+            this.clearInfrastructureLinePreview();
+            return;
+        }
+
+        const deltaX = endX - startX;
+        const deltaZ = endZ - startZ;
+        const horizontal = Math.abs(deltaX) >= Math.abs(deltaZ);
+        const finalX = horizontal ? endX : startX;
+        const finalZ = horizontal ? startZ : endZ;
+        const requestedLength = Math.max(Math.abs(finalX - startX), Math.abs(finalZ - startZ)) + 1;
+        const available = state.cheatsEnabled ? requestedLength : (state.inventory?.[buildingType] || 0);
+        this.linePlacementPreview.setLine(startX, startZ, endX, endZ, buildingType, available);
+    }
+
+    clearInfrastructureLinePreview(): void {
+        this.linePlacementPreview.clear();
+    }
+
     placeInfrastructureLine(startX: number, startZ: number, endX: number, endZ: number, type?: string): void {
         const state = this.stateManager.getState();
         const buildingType = (type || state.selectedBuilding) as BuildingType;
@@ -251,6 +276,7 @@ export class AureusWorld extends BaseWorld {
             return;
         }
 
+        this.clearInfrastructureLinePreview();
         const deltaX = endX - startX;
         const deltaZ = endZ - startZ;
         const horizontal = Math.abs(deltaX) >= Math.abs(deltaZ);
@@ -301,6 +327,7 @@ export class AureusWorld extends BaseWorld {
         if (type) {
             this.stateManager.update({ selectedBuilding: type as BuildingType, interactionMode: 'BUILD' });
         } else {
+            this.clearInfrastructureLinePreview();
             this.stateManager.update({ selectedBuilding: null, selectedAgentId: null, interactionMode: 'INSPECT' });
         }
     }
@@ -328,6 +355,7 @@ export class AureusWorld extends BaseWorld {
     }
 
     setInteractionMode(mode: 'BUILD' | 'BULLDOZE' | 'INSPECT'): void {
+        if (mode !== 'BUILD') this.clearInfrastructureLinePreview();
         this.stateManager.update({ interactionMode: mode });
         this.buildingRenderSystem.setCursorMode(mode);
     }
@@ -460,6 +488,7 @@ export class AureusWorld extends BaseWorld {
     }
 
     protected async onTeardown(): Promise<void> {
+        this.linePlacementPreview.dispose();
         return teardownWorldRuntime(this.getLifecycleDeps());
     }
 
