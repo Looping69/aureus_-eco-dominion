@@ -36,21 +36,22 @@ export function generateGoal(ctx: FixedContext, state: GameState): Goal {
             type: 'RESOURCE',
             targetType: 'AGT',
             targetValue: state.resources.agt + 500,
-            currentValue: 0,
+            currentValue: state.resources.agt,
             reward: { type: 'GEMS', amount: 2 },
             completed: false
         };
     }
 
     if (r > 0.6) {
+        const currentStaffQuarters = getBuildingCount(state, BuildingType.STAFF_QUARTERS);
         return {
             id: ctx.getNextId?.('goal') || `goal_${Date.now()}`,
             title: 'Expansion Protocol',
             description: 'Construct more housing for workforce.',
             type: 'BUILD',
             targetType: BuildingType.STAFF_QUARTERS,
-            targetValue: getBuildingCount(state, BuildingType.STAFF_QUARTERS) + 1,
-            currentValue: getBuildingCount(state, BuildingType.STAFF_QUARTERS),
+            targetValue: currentStaffQuarters + 1,
+            currentValue: currentStaffQuarters,
             reward: { type: 'AGT', amount: 500 },
             completed: false
         };
@@ -231,5 +232,4 @@ export function checkAndGenerateEvent(ctx: FixedContext, state: GameState): { ev
 
     return { event, news, newChunks, newAgents };
 }
-
 
