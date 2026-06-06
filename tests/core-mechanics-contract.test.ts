@@ -18,7 +18,9 @@ test('era progression and generated build goals count completed structure heads,
 
     assert.match(aiSource, /const isStructureHead = \(tile: GridTile\) =>/);
     assert.match(aiSource, /filter\(t => t\.buildingType === type && !t\.isUnderConstruction && isStructureHead\(t\)\)/);
-    assert.match(aiSource, /currentValue: getBuildingCount\(state, BuildingType\.STAFF_QUARTERS\)/);
+    assert.match(aiSource, /const currentStaffQuarters = getBuildingCount\(state, BuildingType\.STAFF_QUARTERS\)/);
+    assert.match(aiSource, /currentValue: currentStaffQuarters/);
+    assert.match(aiSource, /currentValue: state\.resources\.agt/);
 });
 
 test('building placement validates the full footprint before mutating any tile', () => {
@@ -43,7 +45,8 @@ test('construction progress is worker-driven, not passive timer-driven', () => {
 test('goals update progress, complete, and can claim rewards through the engine bridge', () => {
     assert.match(missionSource, /private updateGoalProgress\(state: GameState\): void/);
     assert.match(missionSource, /goal\.completed = goal\.currentValue >= goal\.targetValue;/);
-    assert.match(missionSource, /this\.countCompletedBuildings\(state, goal\.targetType as BuildingType\)/);
+    assert.match(missionSource, /this\.isBuildingTarget\(goal\.targetType\)/);
+    assert.match(missionSource, /this\.countCompletedBuildings\(state, goal\.targetType\)/);
     assert.match(missionSource, /state\.resources\.agt/);
     assert.match(missionSource, /state\.resources\.trust/);
 
