@@ -181,28 +181,33 @@ function claimCompletedGoal(state: GameState): GameState | null {
     const goal = state.activeGoal;
     if (!goal || !goal.completed) return null;
 
-    const resources = { ...state.resources };
+    const resources: GameState['resources'] = { ...state.resources };
     if (goal.reward.type === 'AGT') {
         resources.agt += goal.reward.amount;
     } else {
         resources.gems += goal.reward.amount;
     }
 
-    return {
+    const newsItem: GameState['newsFeed'][number] = {
+        id: `goal_claim_${Date.now()}`,
+        headline: `MISSION COMPLETE: ${goal.title} reward claimed.`,
+        type: 'POSITIVE',
+        timestamp: state.tickCount,
+    };
+    const completeEffect: GameState['pendingEffects'][number] = {
+        type: 'AUDIO',
+        sfx: SfxType.COMPLETE,
+    };
+
+    const updatedState: GameState = {
         ...state,
         resources,
         activeGoal: null,
-        newsFeed: [
-            {
-                id: `goal_claim_${Date.now()}`,
-                headline: `MISSION COMPLETE: ${goal.title} reward claimed.`,
-                type: 'POSITIVE',
-                timestamp: state.tickCount,
-            },
-            ...state.newsFeed,
-        ].slice(0, 8),
-        pendingEffects: [...state.pendingEffects, { type: 'AUDIO', sfx: SfxType.COMPLETE }],
+        newsFeed: [newsItem, ...state.newsFeed].slice(0, 8),
+        pendingEffects: [...state.pendingEffects, completeEffect],
     };
+
+    return updatedState;
 }
 
 /**
