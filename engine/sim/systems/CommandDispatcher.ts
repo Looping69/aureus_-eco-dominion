@@ -52,6 +52,9 @@ export class CommandDispatcher extends BaseSimSystem {
         } else if (commandType === 'DELIVER_CONTRACT') {
             result = this.deliverContract(cmd, state);
             handledBy = this.id;
+        } else if (commandType === 'ABANDON_CONTRACT') {
+            result = this.abandonContract(cmd, state);
+            handledBy = this.id;
         }
 
         // Try each registered system in order
@@ -87,12 +90,15 @@ export class CommandDispatcher extends BaseSimSystem {
         }
         contract.status ??= 'AVAILABLE';
         if (contract.status !== 'AVAILABLE') {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Contract is already ${contract.status.toLowerCase()}.` };
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Contract is already ${contract.status.toLowerCase().replace(/_/g, ' ')}.` };
         }
 
         contract.status = 'ACCEPTED';
         contract.acceptedAtTick = state.tickCount;
         contract.deliveredAmount = 0;
+        contract.trustReward ??= 2;
+        contract.trustPenalty ??= 3;
+        contract.failureReason = undefined;
         contract.timeLeft = Math.max(1, contract.timeLeft);
         state.newsFeed.unshift({
             id: `contract_accept_${Date.now()}_${contract.id}`,
@@ -112,8 +118,8 @@ export class CommandDispatcher extends BaseSimSystem {
         if (contract.status === 'AVAILABLE') {
             return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Accept the contract before delivering.' };
         }
-        if (contract.status !== 'ACCEPTED') {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Contract is already ${contract.status.toLowerCase()}.` };
+        if (contract.status !== 'ACCEPTED' && contract.status !== 'READY_TO_DELIVER') {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Contract is already ${contract.status.toLowerCase().replace(/_/g, ' ')}.` };
         }
 
         const resourceKey = this.getResourceKey(contract.resource);
@@ -122,17 +128,48 @@ export class CommandDispatcher extends BaseSimSystem {
             return { ok: false, code: CommandErrorCode.INSUFFICIENT_RESOURCES, reason: `Need ${missing} more ${this.formatResource(contract.resource)}.` };
         }
 
+        const trustReward = contract.trustReward ?? 2;
         state.resources[resourceKey] -= contract.amount;
         state.resources.agt += contract.reward;
+        state.resources.trust = Math.min(100, state.resources.trust + trustReward);
         contract.status = 'COMPLETED';
         contract.completedAtTick = state.tickCount;
         contract.deliveredAmount = contract.amount;
+        contract.failureReason = undefined;
         contract.timeLeft = CONTRACT_COMPLETION_TTL;
         state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.COMPLETE });
         state.newsFeed.unshift({
             id: `contract_done_${Date.now()}_${contract.id}`,
-            headline: `Contract complete: +${contract.reward} AGT for ${this.formatResource(contract.resource)} delivery.`,
+            headline: `Contract complete: +${contract.reward} AGT, +${trustReward} Trust for ${this.formatResource(contract.resource)} delivery.`,
             type: 'POSITIVE',
+            timestamp: state.tickCount,
+        });
+        return { ok: true };
+    }
+
+    private abandonContract(cmd: GameCommand, state: GameState): CommandResult {
+        const contract = this.findContract(cmd, state);
+        if (!contract) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Contract not found.' };
+        }
+        contract.status ??= 'AVAILABLE';
+        if (contract.status !== 'ACCEPTED' && contract.status !== 'READY_TO_DELIVER') {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Only accepted contracts can be abandoned.` };
+        }
+
+        const trustPenalty = contract.trustPenalty ?? 3;
+        contract.status = 'FAILED';
+        contract.failedAtTick = state.tickCount;
+        contract.abandonedAtTick = state.tickCount;
+        contract.failureReason = 'Abandoned by player.';
+        contract.timeLeft = CONTRACT_COMPLETION_TTL;
+        state.resources.agt = Math.max(0, state.resources.agt - contract.penalty);
+        state.resources.trust = Math.max(0, state.resources.trust - trustPenalty);
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ERROR });
+        state.newsFeed.unshift({
+            id: `contract_abandon_${Date.now()}_${contract.id}`,
+            headline: `Contract abandoned: -${contract.penalty} AGT, -${trustPenalty} Trust.`,
+            type: 'NEGATIVE',
             timestamp: state.tickCount,
         });
         return { ok: true };
@@ -170,7 +207,7 @@ export class CommandDispatcher extends BaseSimSystem {
         const reason = result.ok ? undefined : (result as any).reason;
 
         // 2. Update UI-safe feedback
-        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT'];
+        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT'];
         if (!ok || (cmd && feedbackTypes.includes(cmd.type as string))) {
             state.ui.lastCommandResult = {
                 commandId,
