@@ -218,138 +218,163 @@ export interface FactoryCorridorState {
     trend: FactoryCorridorTrend;
     improvement: number;
     routeDebtShare: number;
-    pinned?: boolean;
-}
-
-export interface FactoryNodeState {
-    id: string;
-    x: number;
-    z: number;
-    buildingType: BuildingType;
-    role: 'SOURCE' | 'PROCESSOR' | 'SINK' | 'TRANSPORT' | 'STATION' | 'JUNCTION';
-    acceptedInputs: FactoryResourceType[];
-    producedOutputs: FactoryResourceType[];
-    buffer: Partial<Record<FactoryResourceType, number>>;
-    capacity: number;
-    congestion: number;
-    throughput: number;
-    sectorName?: string;
-}
-
-export interface FactoryPacketState {
-    id: string;
-    from: string;
-    to: string;
-    x: number;
-    z: number;
-    progress: number;
-    resource: FactoryResourceType;
-    amount: number;
-    transportMode?: FactoryPacketTransportMode;
-    sectorName?: string;
+    underfedProcessors: number;
+    hotspots: number;
+    congestionLevel: number;
+    satisfaction: number;
+    bonusChain: number;
+    recommendedBuilding: BuildingType;
+    followThrough: string;
 }
 
 export interface FactoryPressureState {
     routeDebt: number;
     underfedProcessors: number;
-    congestionHotspots: number;
-    points: FactoryPressurePoint[];
-    pinnedBottlenecks?: string[];
-    reliefSectors?: string[];
-    recommendations?: FactoryPlannerRecommendation[];
-    efficiencyPenalty?: number;
+    hotspots: number;
+    bottlenecks: FactoryPressurePoint[];
+    pinnedKeys: string[];
+    emergencyReliefSectors: string[];
+    recommendations: FactoryPlannerRecommendation[];
+    efficiencyPenalty: number;
+    corridors?: FactoryCorridorState[];
+}
+
+export interface FactoryNodeState {
+    key: string;
+    x: number;
+    z: number;
+    buildingType: BuildingType;
+    mode: 'SOURCE' | 'PROCESSOR' | 'TRANSPORT' | 'SINK';
+    buffer: Partial<Record<FactoryResourceType, number>>;
+    inputBuffer: Partial<Record<FactoryResourceType, number>>;
+    stalledTicks: number;
+    lastActiveTick: number;
+    sectorName?: string;
+}
+
+export interface FactoryPacketState {
+    id: string;
+    resource: FactoryResourceType;
+    amount: number;
+    fromKey: string;
+    toKey: string;
+    progress: number;
+    speed: number;
+    transportMode?: FactoryPacketTransportMode;
+    sectorFrom?: string;
+    sectorTo?: string;
 }
 
 export interface FactoryState {
     nodes: Record<string, FactoryNodeState>;
     packets: FactoryPacketState[];
-    overlayMode: LogisticsOverlayMode;
-    sectors?: Record<string, FactorySectorState>;
+    throughput: number;
+    backlog: number;
+    stalledNodes: number;
+    lastNetworkTick: number;
+    sectors?: FactorySectorState[];
+    regionalThroughput?: number;
+    dronePressure?: number;
+    droneTrips?: number;
+    droneCharge?: number;
+    droneUpkeep?: number;
+    rechargePads?: number;
     pressure?: FactoryPressureState;
-    corridors?: Record<string, FactoryCorridorState>;
-}
-
-export interface PowerGridState {
-    totalProduction: number;
-    totalConsumption: number;
-    connectedConsumption: number;
-    deficit: number;
-    industrialDemand?: number;
-    strandedDemand?: number;
-}
-
-export interface WaterNetworkState {
-    totalSupply: number;
-    totalConsumption: number;
-    connectedConsumption: number;
-    deficit: number;
 }
 
 export interface IndustryState {
     refinedMaterials: number;
     alloys: number;
     machineParts: number;
-    automationKits?: number;
+    automationKits: number;
+    automatedChains: number;
     gridLoad: number;
-    gridCapacity: number;
 }
 
 export interface GameState {
-    step: GameStep;
-    tickCount: number;
     resources: GameResources;
-    market: MarketState;
-    contracts: Contract[];
+    industry?: IndustryState;
+    chunks: Record<string, Chunk>;
+    agents: Agent[];
+    ambientNpcs: Agent[];
+    jobs: Job[];
+    inventory: Partial<Record<BuildingType, number>>;
+    selectedBuilding: BuildingType | null;
+    selectedAgentId: string | null;
+    interactionMode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT';
+    step: GameStep;
+    gameOver: boolean;
+    tickCount: number;
+    idCounter: number;
+    seed: number;
+    spawnX: number;
+    spawnZ: number;
+    logistics: LogisticsState;
+    factory?: FactoryState;
     activeGoal: Goal | null;
     newsFeed: NewsItem[];
     activeEvents: GlobalEvent[];
-    weather: WeatherState;
-    agents: Agent[];
-    jobs: Job[];
-    agentRequests?: AgentRequest[];
-    chunks: Record<string, Chunk>;
-    unlockedEras: Era[];
-    currentEra: Era;
     research: ResearchState;
-    bureaucracy: BureaucracyState;
-    dayNightCycle?: DayNightCycleState;
-    dungeon: DungeonState;
-    underground: UndergroundState;
-    factory: FactoryState;
-    powerGrid: PowerGridState;
-    waterNetwork: WaterNetworkState;
-    industry?: IndustryState;
-    inventory: Record<BuildingType, number>;
-    selectedBuilding: BuildingType | null;
-    selectedAgentId: string | null;
-    interactionMode: 'BUILD' | 'INSPECT' | 'BULLDOZE' | 'REHABILITATE' | 'MARK_HARVEST' | 'FPS';
+    debugMode: boolean;
+    cheatsEnabled: boolean;
+    pendingEffects: SimulationEffect[];
+    market: MarketState;
+    contracts: Contract[];
+    weather: WeatherState;
     activeView: 'SURFACE' | 'DUNGEON';
     isFPS: boolean;
-    commandQueue: GameCommand[];
-    pendingEffects: SimulationEffect[];
-    isLoading: boolean;
-    loadingMessage?: string;
-    eraUnlockedPopup?: Era | null;
-    buildingStats: Record<BuildingType, { count: number, level: number }>;
-    ui: {
-        lastCommandResult?: {
-            commandId: string;
-            type: string;
-            ok: boolean;
-            code?: string;
-            reason?: string;
-        };
+    dungeon: DungeonState;
+    underground: UndergroundState;
+    dayNightCycle: DayNightCycleState;
+    currentEra: Era;
+    unlockedEras: Era[];
+    eraUnlockedPopup: Era | null;
+    powerGrid: {
+        totalProduced: number;
+        totalConsumed: number;
+        industrialDemand: number;
+        strandedDemand: number;
+        deficit: number;
     };
+    waterNetwork: {
+        totalProduced: number;
+        totalConsumed: number;
+        deficit: number;
+    };
+    agentRequests: AgentRequest[];
+    experiments: {
+        BIOLUMINESCENCE: boolean;
+        GREEDY_MESHING_V2: boolean;
+        HIERARCHICAL_PATHFINDING: boolean;
+        SHARED_BUFFER_TRANSFER: boolean;
+    };
+    commandQueue: GameCommand[];
+    isLoading: boolean;
+    loadingMessage: string;
     debug: {
-        commandTrace: {
+        commandTrace: Array<{
             tick: number;
             commandId: string;
             commandType: string;
             payloadSummary: string;
             handledBy: string;
             result: { ok: boolean; code?: string; reason?: string };
-        }[];
+        }>;
     };
-    cheatsEnabled?: boolean;
-    debugMode?: boolean;
+    ui: {
+        lastCommandResult: {
+            commandId: string;
+            type: string;
+            ok: boolean;
+            code?: string;
+            reason?: string;
+        } | null;
+    };
+    bureaucracy: BureaucracyState;
+}
+
+export interface LogisticsState {
+    autoSell: boolean;
+    sellThreshold: number;
+    overlayMode: LogisticsOverlayMode;
 }
