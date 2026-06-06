@@ -51,6 +51,11 @@ const App: React.FC = () => {
     const [worldInstance, setWorldInstance] = useState<any>(null);
     const stateRef = useRef<any>(null);
 
+    const clearLinePlacement = useCallback(() => {
+        worldInstance?.clearInfrastructureLinePreview?.();
+        setLinePlacementStart(null);
+    }, [worldInstance]);
+
     const handleTileClick = useCallback((x: number, z: number, isTouch?: boolean) => {
         const currentState = stateRef.current;
         if (!currentState) return;
@@ -64,6 +69,7 @@ const App: React.FC = () => {
                     setPendingPlacementPos(null);
                     setPinnedTilePos({ x, z });
                     worldInstance?.pinBuildingForConfirmation(x, z);
+                    worldInstance?.previewInfrastructureLine?.(x, z, x, z, selectedBuilding);
                     return;
                 }
 
@@ -76,24 +82,41 @@ const App: React.FC = () => {
                 );
                 worldInstance?.selectBuilding(null);
                 worldInstance?.clearPinnedBuilding();
+                worldInstance?.clearInfrastructureLinePreview?.();
                 setLinePlacementStart(null);
                 setPendingPlacementPos(null);
                 setPinnedTilePos(null);
                 return;
             }
 
-            setLinePlacementStart(null);
+            clearLinePlacement();
             setPendingPlacementPos({ x, z });
             worldInstance?.pinBuildingForConfirmation(x, z);
         } else if (currentState.interactionMode === 'INSPECT' || (currentState.interactionMode === 'BUILD' && !currentState.selectedBuilding)) {
-            setLinePlacementStart(null);
+            clearLinePlacement();
             setSelectedTilePos({ x, z });
         }
+    }, [clearLinePlacement, linePlacementStart, worldInstance]);
+
+    const handleTileHover = useCallback((x: number | null, z: number | null) => {
+        if (!linePlacementStart || x === null || z === null) {
+            if (!linePlacementStart) worldInstance?.clearInfrastructureLinePreview?.();
+            return;
+        }
+
+        worldInstance?.previewInfrastructureLine?.(
+            linePlacementStart.x,
+            linePlacementStart.z,
+            x,
+            z,
+            linePlacementStart.type
+        );
     }, [linePlacementStart, worldInstance]);
 
     const { world, state, dispatch, getDebugStats, loading } = useAureusEngine({
         container,
         onTileClick: handleTileClick,
+        onTileHover: handleTileHover,
         onAgentClick: (id) => dispatch({ type: 'SELECT_AGENT', payload: id }),
         onSfx: (type) => console.log(`[Engine SFX] ${type}`)
     });
@@ -108,9 +131,9 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (!state?.selectedBuilding || !isLinePlacementType(state.selectedBuilding)) {
-            setLinePlacementStart(null);
+            clearLinePlacement();
         }
-    }, [state?.selectedBuilding]);
+    }, [clearLinePlacement, state?.selectedBuilding]);
 
     const financials = useMemo(() => {
         if (!state) return { income: 0, cost: 0, net: 0, ecoMult: 1, trustMult: 1 };
@@ -290,6 +313,7 @@ const App: React.FC = () => {
                                                 worldInstance.placeBuilding(pendingPlacementPos.x, pendingPlacementPos.z);
                                                 worldInstance.selectBuilding(null);
                                                 worldInstance.clearPinnedBuilding();
+                                                worldInstance.clearInfrastructureLinePreview?.();
                                                 setPendingPlacementPos(null);
                                                 setPinnedTilePos(null);
                                                 setLinePlacementStart(null);
@@ -298,6 +322,7 @@ const App: React.FC = () => {
                                         onCancel={() => {
                                             if (worldInstance) {
                                                 worldInstance.clearPinnedBuilding();
+                                                worldInstance.clearInfrastructureLinePreview?.();
                                             }
                                             setPendingPlacementPos(null);
                                             setPinnedTilePos(null);
