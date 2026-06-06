@@ -11,6 +11,7 @@ import { TradeTerminal } from './components/TradeTerminal';
 import { InventoryHUD } from './components/InventoryHUD';
 import { NewsTicker } from './components/NewsTicker';
 import { GoalWidget } from './components/GoalWidget';
+import { ContractTracker } from './components/ContractTracker';
 import {
     TutorialOverlay,
     ConstructionModal,
@@ -254,6 +255,7 @@ const App: React.FC = () => {
                                             <div className="absolute top-14 left-2 sm:left-4 z-40 flex flex-col gap-2 items-start pointer-events-none">
                                                 <TutorialOverlay step={state.step} dispatch={dispatch} setSidebarOpen={handleSidebarOpen} playSfx={playSfx} />
                                                 <GoalWidget goal={state.activeGoal} dispatch={dispatch} playSfx={playSfx} />
+                                                <ContractTracker state={state} world={worldInstance} playSfx={playSfx} />
                                                 <NewsTicker news={state.newsFeed} onDismiss={(id) => dispatch({ type: 'DISMISS_NEWS', payload: id })} playSfx={playSfx} />
                                             </div>
 
