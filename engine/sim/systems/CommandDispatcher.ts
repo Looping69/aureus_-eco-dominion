@@ -80,7 +80,7 @@ export class CommandDispatcher extends BaseSimSystem {
         const reason = result.ok ? undefined : (result as any).reason;
 
         // 2. Update UI-safe feedback
-        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE'];
+        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'DELIVER_CONTRACT'];
         if (!ok || (cmd && feedbackTypes.includes(cmd.type))) {
             state.ui.lastCommandResult = {
                 commandId,
