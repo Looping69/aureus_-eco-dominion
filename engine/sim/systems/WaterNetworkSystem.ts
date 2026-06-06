@@ -1,7 +1,7 @@
 /**
  * Water Network System
- * Calculates total water production and consumption across all buildings.
- * Buildings without sufficient water operate at reduced efficiency.
+ * Calculates water production and allocates connected demand by priority.
+ * Buildings that are piped but not supplied during a shortage are marked disconnected.
  */
 
 import { BaseSimSystem } from '../Simulation';
@@ -30,7 +30,6 @@ export class WaterNetworkSystem extends BaseSimSystem {
 
 
         let totalProduced = 0;
-        let totalConsumed = 0;
         const weatherEffects = getWeatherGameplayEffects(state.weather);
 
         // 1. Identify Sources and reset network state
@@ -62,7 +61,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
                     }
 
                     // Power dependency for Reservoirs
-                    if (tile.buildingType === BuildingType.RESERVOIR && state.powerGrid?.deficit > 0) {
+                    if (tile.buildingType === BuildingType.RESERVOIR && tile.powerStatus !== 'CONNECTED') {
                         production = Math.floor(def.water.produces * 0.25);
                     }
 
@@ -115,24 +114,72 @@ export class WaterNetworkSystem extends BaseSimSystem {
             }
         }
 
-        // 3. Calculate Consumption & Deficit. Only structure heads count demand.
+        // 3. Allocate connected demand by priority. A connected pipe is not enough during shortages.
+        const connectedConsumers: GridTile[] = [];
+        let strandedDemand = 0;
         for (const chunk of Object.values(state.chunks)) {
             for (const tile of chunk.tiles) {
                 if (!tile || !this.isStructureHead(tile)) continue;
                 const def = BUILDINGS[tile.buildingType];
-                if (def && def.water?.consumes) {
-                    totalConsumed += def.water.consumes;
+                if (!def?.water?.consumes) continue;
+
+                if (tile.waterStatus === 'CONNECTED') {
+                    connectedConsumers.push(tile);
+                } else {
+                    strandedDemand += def.water.consumes;
                 }
             }
         }
+
+        const connectedDemand = connectedConsumers.reduce((sum, tile) => sum + (BUILDINGS[tile.buildingType]?.water?.consumes || 0), 0);
+        const suppliedConsumers = this.allocateWaterBudget(state, connectedConsumers, totalProduced);
+        const totalConsumed = suppliedConsumers.reduce((sum, tile) => sum + (BUILDINGS[tile.buildingType]?.water?.consumes || 0), 0);
 
 
         // Update state
         state.waterNetwork = {
             totalProduced,
             totalConsumed,
-            deficit: Math.max(0, totalConsumed - totalProduced)
+            deficit: Math.max(0, connectedDemand - totalProduced + strandedDemand)
         };
+    }
+
+    private allocateWaterBudget(state: GameState, consumers: GridTile[], totalProduced: number): GridTile[] {
+        let remaining = totalProduced;
+        const supplied: GridTile[] = [];
+
+        for (const tile of [...consumers].sort((a, b) => this.getWaterPriority(b) - this.getWaterPriority(a))) {
+            const demand = BUILDINGS[tile.buildingType]?.water?.consumes || 0;
+            if (demand <= remaining) {
+                remaining -= demand;
+                this.markStructureWaterStatus(state, tile, 'CONNECTED');
+                supplied.push(tile);
+            } else {
+                this.markStructureWaterStatus(state, tile, 'DISCONNECTED');
+            }
+        }
+
+        return supplied;
+    }
+
+    private getWaterPriority(tile: GridTile): number {
+        if (tile.buildingType === BuildingType.STAFF_QUARTERS) return 100;
+        if (tile.buildingType === BuildingType.COMMUNITY_GARDEN) return 95;
+        if (tile.buildingType === BuildingType.WASTE_TREATMENT) return 90;
+        if (tile.buildingType === BuildingType.GREEN_TECH_LAB) return 80;
+        if (this.isIndustrialConsumer(tile.buildingType)) return 65;
+        return 50;
+    }
+
+    private isIndustrialConsumer(type: BuildingType): boolean {
+        return [
+            BuildingType.WASH_PLANT,
+            BuildingType.RECYCLING_PLANT,
+            BuildingType.ORE_FOUNDRY,
+            BuildingType.GEM_REFINERY,
+            BuildingType.WORKSHOP,
+            BuildingType.GREEN_TECH_LAB,
+        ].includes(type);
     }
 
     private isStructureHead(tile: GridTile): boolean {
