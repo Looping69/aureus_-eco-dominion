@@ -410,7 +410,11 @@ export class AureusWorld extends BaseWorld {
         this.stateManager.update({ isFPS: false });
     }
 
-    dismissEraPopup(): void { this.stateManager.pushCommand('DISMISS_POPUP', {}); }
+    dismissEraPopup(): void {
+        this.stateManager.update({ eraUnlockedPopup: null });
+        this.stateManager.notifyIfDirty();
+    }
+
     acceptContract(contractId: string): void { console.log(`[AureusWorld] Accept contract: ${contractId}`); }
     advanceTutorial(): void { this.stateManager.pushCommand('ADVANCE_TUTORIAL', {}); }
 
