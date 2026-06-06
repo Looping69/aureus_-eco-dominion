@@ -1,6 +1,6 @@
 
 export const INITIAL_RESOURCES = {
-    agt: 0,
+    agt: 10000,
     minerals: 0,
     gems: 10,
     wood: 200,
