@@ -117,10 +117,18 @@ test('Engine worker renders voxel terrain with LOD-limited textured block tops a
   const source = readFileSync(engineWorkerPath, 'utf8');
 
   for (const snippet of [
+    "import { createNoise2D } from 'simplex-noise';",
+    'const createSeededRandom = (seed: string) => {',
+    "const terrainTextureNoise = createNoise2D(createSeededRandom('aureus-terrain-texture-v1'));",
+    'const getTerrainNoise = (x: number, z: number, scale: number, salt = 0) => {',
+    'return terrainTextureNoise(nx, nz) * 0.5 + 0.5;',
     'const VOXEL_SIDE_EPSILON = 0.01;',
     'const BLOCK_TOP_NORMAL: [number, number, number] = [0, 1, 0];',
     'const terrainHash = (x: number, z: number, salt = 0) => {',
     'const getTexturedTerrainColor = (base: number[], biome: string, worldX: number, worldZ: number, height: number) => {',
+    'const grain = getTerrainNoise(worldX, worldZ, 0.72, 1) - 0.5;',
+    'const patch = getTerrainNoise(worldX, worldZ, 0.16, 2) - 0.5;',
+    'const biomeBand = getTerrainNoise(worldX, worldZ, 0.045, 3) - 0.5;',
     "if (biome === 'GRASS') {",
     "} else if (biome === 'SAND') {",
     "} else if (biome === 'DIRT') {",
@@ -143,6 +151,8 @@ test('Engine worker renders voxel terrain with LOD-limited textured block tops a
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 
+  assert.doesNotMatch(source, /const grain = terrainHash\(worldX, worldZ, 1\) - 0\.5;/);
+  assert.doesNotMatch(source, /const patch = terrainHash\(Math\.floor\(worldX \/ 2\), Math\.floor\(worldZ \/ 2\), 2\) - 0\.5;/);
   assert.doesNotMatch(source, /const color = PALETTE\[matKey\] \|\| \[1, 1, 1\];/);
   assert.doesNotMatch(source, /let topY = \(data\.h \* 0\.5\) - 0\.5;/);
   assert.doesNotMatch(source, /const waterY = data\.h === 0 \? 0 : \(data\.h \* 0\.5\) - 0\.5;/);
