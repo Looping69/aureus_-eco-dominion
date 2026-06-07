@@ -81,6 +81,36 @@ function enqueueWorldCommand(world: AureusWorld, type: GameCommand['type'], payl
     });
 }
 
+function setLayeredActiveY(state: GameState, requestedY: number): GameState {
+    const layeredWorld = state.layeredWorld;
+    const activeY = Math.max(layeredWorld.minY, Math.min(layeredWorld.maxY, Math.round(requestedY)));
+    return {
+        ...state,
+        layeredWorld: {
+            ...layeredWorld,
+            activeY,
+            renderVersion: (layeredWorld.renderVersion || 0) + 1,
+        },
+    };
+}
+
+function enterDigMode(state: GameState): GameState {
+    const layeredWorld = state.layeredWorld;
+    const fallbackLayer = Math.max(layeredWorld.minY, layeredWorld.surfaceY - 1);
+    const activeY = layeredWorld.activeY < layeredWorld.surfaceY ? layeredWorld.activeY : fallbackLayer;
+    return {
+        ...state,
+        selectedBuilding: null,
+        selectedAgentId: null,
+        interactionMode: 'DIG' as any,
+        layeredWorld: {
+            ...layeredWorld,
+            activeY,
+            renderVersion: (layeredWorld.renderVersion || 0) + 1,
+        },
+    };
+}
+
 function findPlannerTargetNode(state: GameState, payload: Record<string, any>) {
     const nodes = state.factory?.nodes || {};
     if (payload?.targetKey && nodes[payload.targetKey]) {
@@ -471,6 +501,18 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
         }, [world, runtime]),
         dispatch: useCallback((action: any) => {
             if (!world) return;
+
+            if (action?.type === 'SET_LAYERED_ACTIVE_Y') {
+                const state = world.getState();
+                reloadWorldState(world, setLayeredActiveY(state, Number(action.payload)));
+                return;
+            }
+
+            if (action?.type === 'SET_INTERACTION_MODE' && action.payload === 'DIG') {
+                const state = world.getState();
+                reloadWorldState(world, enterDigMode(state));
+                return;
+            }
 
             if (action?.type === 'CLAIM_GOAL') {
                 const state = world.getState();
