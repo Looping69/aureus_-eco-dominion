@@ -458,7 +458,7 @@ export class FoliageRenderSystem {
         mesh.visible = false;
         mesh.count = 0;
         if (this.grassMeshPool.length < this.maxGrassPoolSize) {
-            pool.push(mesh);
+            this.grassMeshPool.push(mesh);
             return;
         }
         mesh.dispose();
