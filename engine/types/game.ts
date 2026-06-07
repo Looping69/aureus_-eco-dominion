@@ -7,6 +7,7 @@ import { DungeonState } from '../dungeon/DungeonTypes';
 import { BureaucracyState } from './bureaucracy';
 import { DayNightCycleState } from '../sim/dayNightCycle';
 import { UndergroundState } from './underground';
+import { LayeredWorldState } from './layeredWorld';
 
 export enum Era {
     SETTLEMENT = 'SETTLEMENT',
@@ -295,6 +296,7 @@ export interface GameState {
     resources: GameResources;
     industry?: IndustryState;
     chunks: Record<string, Chunk>;
+    layeredWorld: LayeredWorldState;
     agents: Agent[];
     ambientNpcs: Agent[];
     jobs: Job[];
