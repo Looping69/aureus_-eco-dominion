@@ -1,14 +1,4 @@
 import * as THREE from 'three';
-// @three.ez/instanced-mesh preserves the InstancedMesh API while improving dense
-// instance management for packet and logistics overlay batches.
-// @ts-ignore
-import { InstancedMesh2 as RuntimeInstancedMesh2 } from '@three.ez/instanced-mesh';
-
-const EnhancedInstancedMeshCtor = RuntimeInstancedMesh2 as unknown as new (
-    geometry: THREE.BufferGeometry,
-    material: THREE.Material,
-    count: number
-) => THREE.InstancedMesh;
 
 export interface PacketInstanceSpec {
     bucketKey: string;
@@ -130,12 +120,12 @@ export class PacketInstancedLayer {
         const pooledIndex = pooled.findIndex((mesh) => (mesh.userData.capacity || 0) >= neededCapacity);
         const mesh = pooledIndex >= 0
             ? pooled.splice(pooledIndex, 1)[0]
-            : new EnhancedInstancedMeshCtor(geometry, material, neededCapacity);
+            : new THREE.InstancedMesh(geometry, material, neededCapacity);
 
         mesh.geometry = geometry;
         mesh.material = material;
         mesh.userData.capacity = neededCapacity;
-        mesh.userData.instanceLibrary = '@three.ez/instanced-mesh';
+        mesh.userData.instanceLibrary = 'three-instanced-mesh';
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.frustumCulled = true;
         mesh.visible = true;
