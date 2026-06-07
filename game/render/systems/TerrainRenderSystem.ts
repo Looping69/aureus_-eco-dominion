@@ -53,6 +53,7 @@ export class TerrainRenderSystem {
 
     // Callbacks for foliage system
     public onFoliageUpdate?: (key: string, items: any[]) => void;
+    public onGroundDetailUpdate?: (key: string, tiles: GridTile[]) => void;
     public onChunkDispose?: (key: string) => void;
 
     constructor(scene: THREE.Scene, jobSystem: JobSystem) {
@@ -366,6 +367,9 @@ export class TerrainRenderSystem {
         // Foliage callback
         if (this.onFoliageUpdate && res.foliage) {
             this.onFoliageUpdate(res.chunkId, res.foliage);
+        }
+        if (this.onGroundDetailUpdate) {
+            this.onGroundDetailUpdate(res.chunkId, this.tileCache.get(res.chunkId) || []);
         }
     }
 
