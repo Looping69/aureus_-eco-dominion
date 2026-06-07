@@ -158,16 +158,18 @@ function createLayeredTerrainTexture(
 function createTerrainSurfaceMaterial(): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
-    roughness: 0.96,
+    roughness: 0.98,
     vertexColors: true,
     side: THREE.DoubleSide,
     clipShadows: true
   });
 
+  mat.customProgramCacheKey = () => 'aureus-designed-terrain-textures-v2';
   mat.onBeforeCompile = (shader) => {
     shader.vertexShader = `
       varying vec3 vWorldPos;
       varying vec3 vBaseColor;
+      varying vec3 vTerrainNormal;
       ${shader.vertexShader}
     `
       .replace(
@@ -175,6 +177,13 @@ function createTerrainSurfaceMaterial(): THREE.MeshStandardMaterial {
         `
         #include <color_vertex>
         vBaseColor = color.xyz;
+        `
+      )
+      .replace(
+        '#include <beginnormal_vertex>',
+        `
+        #include <beginnormal_vertex>
+        vTerrainNormal = normalize(normalMatrix * objectNormal);
         `
       )
       .replace(
@@ -189,6 +198,7 @@ function createTerrainSurfaceMaterial(): THREE.MeshStandardMaterial {
     shader.fragmentShader = `
       varying vec3 vWorldPos;
       varying vec3 vBaseColor;
+      varying vec3 vTerrainNormal;
 
       float terrainHash(vec2 p) {
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -205,6 +215,15 @@ function createTerrainSurfaceMaterial(): THREE.MeshStandardMaterial {
         return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
       }
 
+      float terrainRidge(vec2 p) {
+        float n = terrainNoise(p);
+        return 1.0 - abs(n * 2.0 - 1.0);
+      }
+
+      float terrainFleck(vec2 p, float threshold) {
+        return smoothstep(threshold, 1.0, terrainHash(floor(p)));
+      }
+
       ${shader.fragmentShader}
     `.replace(
       '#include <color_fragment>',
@@ -212,9 +231,10 @@ function createTerrainSurfaceMaterial(): THREE.MeshStandardMaterial {
       #include <color_fragment>
 
       vec2 terrainUv = vWorldPos.xz;
-      float broadNoise = terrainNoise(terrainUv * 0.08);
-      float fineNoise = terrainNoise(terrainUv * 0.42);
-      float pebbleNoise = terrainNoise(terrainUv * 1.15);
+      float broadNoise = terrainNoise(terrainUv * 0.075);
+      float fineNoise = terrainNoise(terrainUv * 0.44);
+      float pebbleNoise = terrainNoise(terrainUv * 1.18);
+      float topFace = smoothstep(0.38, 0.72, vTerrainNormal.y);
 
       float grassMask = smoothstep(0.30, 0.58, vBaseColor.g) * (1.0 - smoothstep(0.50, 0.74, vBaseColor.r));
       float sandMask = smoothstep(0.58, 0.82, vBaseColor.r) * smoothstep(0.46, 0.74, vBaseColor.g) * (1.0 - smoothstep(0.40, 0.55, vBaseColor.b));
@@ -223,29 +243,41 @@ function createTerrainSurfaceMaterial(): THREE.MeshStandardMaterial {
 
       vec3 albedo = diffuseColor.rgb;
 
-      vec3 grassTint = vec3(0.96, 1.02, 0.94);
-      grassTint *= 0.96 + broadNoise * 0.10;
-      grassTint *= 0.97 + fineNoise * 0.07;
+      float grassBlade = smoothstep(0.56, 0.86, terrainRidge(vec2(terrainUv.x * 2.4 + fineNoise * 1.7, terrainUv.y * 8.4)));
+      float grassThatch = smoothstep(0.46, 0.78, terrainNoise(terrainUv * 2.6 + vec2(3.2, 7.1)));
+      float grassWildflower = terrainFleck(terrainUv * 3.8, 0.965) * topFace;
+      vec3 grassTint = mix(vec3(0.82, 0.94, 0.66), vec3(1.05, 1.10, 0.82), grassBlade * 0.55 + grassThatch * 0.25);
+      grassTint *= 0.88 + broadNoise * 0.18;
+      grassTint = mix(grassTint, vec3(1.14, 1.05, 0.72), grassWildflower * 0.18);
 
-      vec3 sandTint = vec3(1.02, 0.99, 0.92);
-      sandTint *= 0.95 + broadNoise * 0.08;
-      sandTint *= 0.98 + pebbleNoise * 0.04;
+      float dune = sin((terrainUv.x * 0.64) + (broadNoise * 2.8) + terrainUv.y * 0.12) * 0.5 + 0.5;
+      float sandGrain = smoothstep(0.62, 0.96, pebbleNoise) * topFace;
+      float shellFleck = terrainFleck(terrainUv * 4.2 + vec2(11.0, 2.0), 0.955) * topFace;
+      vec3 sandTint = vec3(1.05, 1.00, 0.86);
+      sandTint *= 0.92 + dune * 0.10 + sandGrain * 0.05;
+      sandTint = mix(sandTint, vec3(1.16, 1.08, 0.88), shellFleck * 0.20);
 
-      vec3 dirtTint = vec3(0.98, 0.92, 0.86);
-      dirtTint *= 0.94 + broadNoise * 0.10;
-      dirtTint *= 0.97 + fineNoise * 0.07;
+      float dirtClump = smoothstep(0.42, 0.78, terrainNoise(terrainUv * 1.75 + vec2(4.0, 1.5)));
+      float rootFiber = smoothstep(0.63, 0.90, terrainRidge(vec2(terrainUv.x * 5.5, terrainUv.y * 1.2 + broadNoise * 2.0)));
+      vec3 dirtTint = vec3(0.96, 0.86, 0.74);
+      dirtTint *= 0.84 + dirtClump * 0.18;
+      dirtTint = mix(dirtTint, vec3(0.78, 0.62, 0.48), rootFiber * 0.18 * topFace);
 
-      vec3 stoneTint = vec3(0.98, 0.99, 1.0);
-      stoneTint *= 0.92 + broadNoise * 0.12;
-      stoneTint *= 0.96 + fineNoise * 0.07;
+      float stonePlate = smoothstep(0.32, 0.74, terrainNoise(terrainUv * 0.82 + vec2(5.0, 9.0)));
+      float stoneCrack = smoothstep(0.80, 0.94, terrainRidge(terrainUv * 1.35 + vec2(fineNoise * 1.8, broadNoise * 1.4))) * topFace;
+      float mineralFleck = terrainFleck(terrainUv * 5.0 + vec2(17.0, 13.0), 0.94) * topFace;
+      vec3 stoneTint = mix(vec3(0.86, 0.90, 0.88), vec3(1.06, 1.08, 1.03), stonePlate);
+      stoneTint *= 0.82 + broadNoise * 0.20;
+      stoneTint = mix(stoneTint, vec3(0.50, 0.55, 0.55), stoneCrack * 0.30);
+      stoneTint = mix(stoneTint, vec3(1.12, 1.10, 0.95), mineralFleck * 0.12);
 
       albedo *= mix(vec3(1.0), grassTint, grassMask);
       albedo *= mix(vec3(1.0), sandTint, sandMask);
       albedo *= mix(vec3(1.0), dirtTint, dirtMask);
       albedo *= mix(vec3(1.0), stoneTint, stoneMask);
-      albedo = mix(albedo, vBaseColor, 0.18);
+      albedo = mix(albedo, vBaseColor, 0.12);
 
-      diffuseColor.rgb = albedo;
+      diffuseColor.rgb = clamp(albedo, vec3(0.0), vec3(1.0));
       `
     );
   };
