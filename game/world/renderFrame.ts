@@ -122,12 +122,13 @@ function updateFirstPersonView(
     if (deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(false);
     if (deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(false);
 
+    const camera = deps.render.getCamera();
     deps.fpsCameraSystem.update(ctx.dt, state.agents, deps.getTerrainHeight);
     deps.agentRenderSystem.setSelectedAgent(state.selectedAgentId);
 
     const allAgents = [...state.agents, ...state.ambientNpcs];
-    deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, 0.1);
-    deps.terrainRenderSystem.update(deps.render.getCamera().position, deps.render.getCamera());
+    deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, 0.1, camera);
+    deps.terrainRenderSystem.update(camera.position, camera);
     deps.buildingRenderSystem.update(
         ctx.dt,
         ctx.time,
@@ -160,8 +161,9 @@ function updateSurfaceView(
 
     const zoomLevel = deps.cameraSystem.cameraZoom;
     const allAgents = [...state.agents, ...state.ambientNpcs];
-    deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, zoomLevel);
-    deps.terrainRenderSystem.update(deps.cameraSystem.cameraFocus, deps.render.getCamera());
+    const camera = deps.render.getCamera();
+    deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, zoomLevel, camera);
+    deps.terrainRenderSystem.update(deps.cameraSystem.cameraFocus, camera);
     deps.buildingRenderSystem.update(
         ctx.dt,
         ctx.time,
