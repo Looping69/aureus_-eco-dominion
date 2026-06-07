@@ -10,6 +10,7 @@ export * from './engine/types/buildings';
 export * from './engine/types/economy';
 export * from './engine/types/game';
 export * from './engine/types/underground';
+export * from './engine/types/layeredWorld';
 
 export type SidebarMode = 'NONE' | 'OPS' | 'SHOP' | 'TRADE';
 
