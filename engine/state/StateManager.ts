@@ -5,6 +5,7 @@ import { DAY_NIGHT } from '../sim/dayNightCycle';
 import { ChunkStore } from '../space/ChunkStore';
 import { normalizeUndergroundState } from '../underground/UndergroundGenerator';
 import { createWeatherState } from '../weather/weatherModel';
+import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';
 
 export type StateListener = (newState: GameState) => void;
 
@@ -147,6 +148,7 @@ export class StateManager {
         const seed = overrides?.seed ?? Math.floor(Math.random() * 1000000);
         const spawnX = overrides?.spawnX ?? 0;
         const spawnZ = overrides?.spawnZ ?? 0;
+        const initialChunks = this.createInitialChunks(seed, overrides?.chunks);
 
         const baseState: GameState = {
             resources: {
@@ -169,7 +171,8 @@ export class StateManager {
                 automatedChains: 0,
                 gridLoad: 0,
             },
-            chunks: this.createInitialChunks(seed, overrides?.chunks),
+            chunks: initialChunks,
+            layeredWorld: normalizeLayeredWorldState(initialChunks, overrides?.layeredWorld),
             agents: createStarterAgents(spawnX, spawnZ),
             ambientNpcs: [],
             jobs: [],
@@ -277,6 +280,7 @@ export class StateManager {
         const eraUnlockedPopup = overrides?.eraUnlockedPopup && !unlockedEras.includes(overrides.eraUnlockedPopup)
             ? overrides.eraUnlockedPopup
             : null;
+        const chunks = this.createInitialChunks(seed, overrides?.chunks);
 
         return {
             ...baseState,
@@ -289,7 +293,8 @@ export class StateManager {
                 ...baseState.industry,
                 ...overrides?.industry,
             },
-            chunks: this.createInitialChunks(seed, overrides?.chunks),
+            chunks,
+            layeredWorld: normalizeLayeredWorldState(chunks, overrides?.layeredWorld),
             agents: overrides?.agents ?? baseState.agents,
             ambientNpcs: overrides?.ambientNpcs ?? baseState.ambientNpcs,
             jobs: overrides?.jobs ?? baseState.jobs,
