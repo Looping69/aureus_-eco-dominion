@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BuildingType } from '../../types';
+import { getInfrastructureAnchorY, getInfrastructurePreviewY } from '../../engine/render/utils/GroundAnchors';
 
 const PREVIEW_COLORS: Partial<Record<BuildingType, number>> = {
     [BuildingType.ROAD]: 0x94a3b8,
@@ -49,7 +50,7 @@ export class LinePlacementPreview {
         for (let i = 0; i < count; i++) {
             const x = startX + stepX * i;
             const z = startZ + stepZ * i;
-            const y = this.getTerrainHeight(x, z) + 0.09;
+            const y = getInfrastructurePreviewY(this.getTerrainHeight(x, z));
             const tile = new THREE.Mesh(
                 new THREE.BoxGeometry(0.86, 0.055, 0.86),
                 this.material
@@ -58,7 +59,7 @@ export class LinePlacementPreview {
             this.group.add(tile);
         }
 
-        const anchorY = this.getTerrainHeight(startX, startZ) + 0.18;
+        const anchorY = getInfrastructureAnchorY(this.getTerrainHeight(startX, startZ));
         const anchor = new THREE.Mesh(
             new THREE.BoxGeometry(0.34, 0.16, 0.34),
             this.anchorMaterial
