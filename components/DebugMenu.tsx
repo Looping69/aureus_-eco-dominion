@@ -77,7 +77,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
   );
 
   return (
-    <div className="fixed top-20 right-4 z-[60] w-64 pointer-events-auto animate-in slide-in-from-right-8 duration-300 flex flex-col max-h-[85vh]">
+    <div className="fixed top-20 right-4 z-[140] w-64 pointer-events-auto animate-in slide-in-from-right-8 duration-300 flex flex-col max-h-[85vh]">
       <div className="bg-slate-900 border-2 border-emerald-600 rounded-[4px] shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="bg-slate-800 p-2 border-b-2 border-slate-700 flex justify-between items-center select-none shrink-0">
