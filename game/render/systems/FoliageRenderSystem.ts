@@ -6,6 +6,7 @@
  */
 
 import * as THREE from 'three';
+import { InstancedUniformsMesh } from 'three-instanced-uniforms-mesh';
 import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
 import { foliageInstancedMaterial } from '../../../engine/render/materials/VoxelMaterials';
 import { mergeGroupGeometry } from '../../../engine/render/utils/VoxelUtils';
@@ -19,13 +20,27 @@ export interface FoliageItem {
     marked?: boolean;
 }
 
+type GrassBlade = {
+    x: number;
+    y: number;
+    z: number;
+    rotation: number;
+    width: number;
+    height: number;
+    color: number;
+    windPhase: number;
+    lean: number;
+};
+
+type GrassMesh = InstancedUniformsMesh<THREE.ShaderMaterial>;
+
 export class FoliageRenderSystem {
     private scene: THREE.Scene;
     private chunkMeshes: Map<string, Map<string, THREE.InstancedMesh>> = new Map();
-    private groundDetailMeshes: Map<string, THREE.InstancedMesh> = new Map();
+    private groundDetailMeshes: Map<string, GrassMesh> = new Map();
     private geometryCache: Map<string, THREE.BufferGeometry> = new Map();
     private meshPools: Map<string, THREE.InstancedMesh[]> = new Map();
-    private grassMeshPool: THREE.InstancedMesh[] = [];
+    private grassMeshPool: GrassMesh[] = [];
     private readonly maxPoolSizePerType = 6;
     private readonly maxGrassPoolSize = 16;
     private readonly dummy = new THREE.Object3D();
@@ -34,7 +49,7 @@ export class FoliageRenderSystem {
     private readonly grassColor = new THREE.Color();
     private groundDetailVisible = false;
     private grassGeometry: THREE.BufferGeometry | null = null;
-    private grassMaterial: THREE.MeshBasicMaterial | null = null;
+    private grassMaterial: THREE.ShaderMaterial | null = null;
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
@@ -103,15 +118,14 @@ export class FoliageRenderSystem {
             this.dummy.scale.set(blade.width, blade.height, blade.width);
             this.dummy.updateMatrix();
             mesh.setMatrixAt(idx, this.dummy.matrix);
-            mesh.setColorAt(idx, this.grassColor.set(blade.color));
+            mesh.setUniformAt('bladeTint', idx, this.grassColor.set(blade.color));
+            mesh.setUniformAt('windPhase', idx, blade.windPhase);
+            mesh.setUniformAt('bladeLean', idx, blade.lean);
         }
 
         mesh.count = blades.length;
         mesh.visible = this.groundDetailVisible;
         mesh.instanceMatrix.needsUpdate = true;
-        if (mesh.instanceColor) {
-            mesh.instanceColor.needsUpdate = true;
-        }
         mesh.computeBoundingSphere();
         this.groundDetailMeshes.set(key, mesh);
     }
@@ -122,6 +136,12 @@ export class FoliageRenderSystem {
         for (const mesh of this.groundDetailMeshes.values()) {
             mesh.visible = visible;
         }
+    }
+
+    public updateGroundDetailTime(time: number): void {
+        const material = this.grassMaterial;
+        if (!material) return;
+        material.uniforms.windTime.value = time;
     }
 
     /**
@@ -168,8 +188,8 @@ export class FoliageRenderSystem {
         this.grassMaterial?.dispose();
     }
 
-    private collectGrassBlades(tiles: GridTile[]): Array<{ x: number; y: number; z: number; rotation: number; width: number; height: number; color: number }> {
-        const blades: Array<{ x: number; y: number; z: number; rotation: number; width: number; height: number; color: number }> = [];
+    private collectGrassBlades(tiles: GridTile[]): GrassBlade[] {
+        const blades: GrassBlade[] = [];
         for (const tile of tiles) {
             if (tile.biome !== 'GRASS') continue;
             if (tile.locked || tile.buildingType !== BuildingType.EMPTY) continue;
@@ -181,8 +201,8 @@ export class FoliageRenderSystem {
                 const seed = this.seed(tile.x, tile.z, i + 17);
                 const offsetX = ((seed % 100) / 100 - 0.5) * 0.58;
                 const offsetZ = (((seed / 101) % 100) / 100 - 0.5) * 0.58;
-                const height = 0.7 + ((seed % 29) / 100);
-                const width = 0.72 + ((seed % 19) / 100);
+                const height = 0.78 + ((seed % 31) / 100);
+                const width = 0.78 + ((seed % 23) / 100);
                 blades.push({
                     x: tile.x + offsetX,
                     y: tile.terrainHeight * 0.5 + 0.035,
@@ -191,6 +211,8 @@ export class FoliageRenderSystem {
                     width,
                     height,
                     color: this.grassBladeColor(seed),
+                    windPhase: (seed % 628) / 100,
+                    lean: ((seed % 200) / 100) - 1,
                 });
             }
         }
@@ -238,10 +260,10 @@ export class FoliageRenderSystem {
 
         const geo = new THREE.BufferGeometry();
         const positions = new Float32Array([
-            -0.055, 0, 0, 0.055, 0, 0, 0.03, 0.24, 0,
-            -0.055, 0, 0, 0.03, 0.24, 0, -0.03, 0.18, 0,
-            0, 0, -0.055, 0, 0, 0.055, 0, 0.22, 0.03,
-            0, 0, -0.055, 0, 0.22, 0.03, 0, 0.17, -0.03,
+            -0.055, 0, 0, 0.055, 0, 0, 0.035, 0.3, 0,
+            -0.055, 0, 0, 0.035, 0.3, 0, -0.03, 0.2, 0,
+            0, 0, -0.055, 0, 0, 0.055, 0, 0.28, 0.035,
+            0, 0, -0.055, 0, 0.28, 0.035, 0, 0.19, -0.03,
         ]);
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geo.computeVertexNormals();
@@ -251,16 +273,50 @@ export class FoliageRenderSystem {
         return geo;
     }
 
-    private getGrassMaterial(): THREE.MeshBasicMaterial {
+    private getGrassMaterial(): THREE.ShaderMaterial {
         if (this.grassMaterial) return this.grassMaterial;
-        this.grassMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            vertexColors: true,
-            side: THREE.DoubleSide,
+        this.grassMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                windTime: { value: 0 },
+                windStrength: { value: 0.09 },
+                bladeTint: { value: new THREE.Color(0x5fa447) },
+                windPhase: { value: 0 },
+                bladeLean: { value: 0 },
+            },
+            vertexShader: `
+                uniform float windTime;
+                uniform float windStrength;
+                uniform vec3 bladeTint;
+                uniform float windPhase;
+                uniform float bladeLean;
+                varying vec3 vBladeColor;
+                varying float vBladeHeight;
+
+                void main() {
+                    vec3 transformed = position;
+                    float heightRatio = clamp(position.y / 0.3, 0.0, 1.0);
+                    float wind = sin(windTime * 1.55 + windPhase + position.x * 2.0) * windStrength * heightRatio;
+                    transformed.x += wind + bladeLean * heightRatio * 0.045;
+                    transformed.z += cos(windTime * 1.2 + windPhase) * windStrength * 0.32 * heightRatio;
+                    vBladeColor = mix(bladeTint * 0.72, bladeTint * 1.18, heightRatio);
+                    vBladeHeight = heightRatio;
+                    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(transformed, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vBladeColor;
+                varying float vBladeHeight;
+
+                void main() {
+                    float alpha = mix(0.72, 0.9, vBladeHeight);
+                    gl_FragColor = vec4(vBladeColor, alpha);
+                }
+            `,
             transparent: true,
-            opacity: 0.82,
+            side: THREE.DoubleSide,
             depthWrite: false,
         });
+        this.grassMaterial.name = 'animated-instanced-grass-material';
         return this.grassMaterial;
     }
 
@@ -294,7 +350,7 @@ export class FoliageRenderSystem {
         return mesh;
     }
 
-    private prepareGrassMesh(key: string, count: number, existing?: THREE.InstancedMesh): THREE.InstancedMesh {
+    private prepareGrassMesh(key: string, count: number, existing?: GrassMesh): GrassMesh {
         const existingCapacity = this.getMeshCapacity(existing);
         let mesh = existing;
         if (!mesh || existingCapacity < count) {
@@ -334,11 +390,11 @@ export class FoliageRenderSystem {
         return mesh;
     }
 
-    private acquireGrassMesh(count: number): THREE.InstancedMesh {
+    private acquireGrassMesh(count: number): GrassMesh {
         const pooledIndex = this.grassMeshPool.findIndex((mesh) => this.getMeshCapacity(mesh) >= count);
         const mesh = pooledIndex >= 0
             ? this.grassMeshPool.splice(pooledIndex, 1)[0]
-            : new THREE.InstancedMesh(this.getGrassGeometry(), this.getGrassMaterial(), this.getCapacity(count));
+            : new InstancedUniformsMesh(this.getGrassGeometry(), this.getGrassMaterial(), this.getCapacity(count));
 
         mesh.geometry = this.getGrassGeometry();
         mesh.material = this.getGrassMaterial();
@@ -374,7 +430,7 @@ export class FoliageRenderSystem {
         mesh.dispose();
     }
 
-    private releaseGrassMesh(mesh: THREE.InstancedMesh) {
+    private releaseGrassMesh(mesh: GrassMesh) {
         this.scene.remove(mesh);
         mesh.visible = false;
         mesh.count = 0;
