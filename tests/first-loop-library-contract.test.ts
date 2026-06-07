@@ -16,7 +16,7 @@ function includesAll(source: string, snippets: string[]) {
   }
 }
 
-test('contract tracker uses Zustand UI state so contracts can collapse without touching engine state', () => {
+test('contract tracker uses Zustand UI state so contracts collapse to an icon without touching engine state', () => {
   assert.equal(existsSync(contractPanelStorePath), true, 'contract panel store is missing');
   assert.equal(existsSync(contractTrackerPath), true, 'contract tracker is missing');
 
@@ -33,9 +33,15 @@ test('contract tracker uses Zustand UI state so contracts can collapse without t
     "import { useContractPanelStore } from './state/useContractPanelStore';",
     'const isCollapsed = useContractPanelStore',
     'toggleCollapsed();',
-    'Panel collapsed',
-    'Open to deliver',
+    'if (isCollapsed) {',
+    'aria-label={`Open contracts: ${collapsedTitle}`}',
+    'w-11 h-11 rounded-[6px]',
+    'title={collapsedTitle}',
+    'hasAttention || readyCount > 0',
   ]);
+
+  assert.doesNotMatch(tracker, /Panel collapsed/);
+  assert.doesNotMatch(tracker, /Open to deliver/);
 });
 
 test('contract lifecycle is represented by an XState machine and consumed by the tracker', () => {
