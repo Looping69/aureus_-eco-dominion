@@ -7,6 +7,7 @@ const terrainPath = path.join(process.cwd(), 'game', 'render', 'systems', 'Terra
 const foliagePath = path.join(process.cwd(), 'game', 'render', 'systems', 'FoliageRenderSystem.ts');
 const packetLayerPath = path.join(process.cwd(), 'game', 'render', 'systems', 'PacketInstancedLayer.ts');
 const agentRenderPath = path.join(process.cwd(), 'game', 'render', 'systems', 'AgentRenderSystem.ts');
+const buildingStatusLabelPath = path.join(process.cwd(), 'game', 'render', 'systems', 'BuildingStatusLabelLayer.ts');
 const renderFramePath = path.join(process.cwd(), 'game', 'world', 'renderFrame.ts');
 const engineWorkerPath = path.join(process.cwd(), 'engine', 'jobs', 'engine.worker.ts');
 
@@ -149,6 +150,42 @@ test('AgentRenderSystem uses Troika text for readable camera-facing agent intent
 
   assert.doesNotMatch(agentRender, /private createTextTexture/);
   assert.doesNotMatch(agentRender, /new THREE\.SpriteMaterial\(\{ map: this\.createTextTexture/);
+});
+
+test('BuildingStatusLabelLayer uses Troika labels for nearby construction and utility failure reasons', () => {
+  assert.equal(existsSync(buildingStatusLabelPath), true, 'BuildingStatusLabelLayer.ts is missing');
+  assert.equal(existsSync(renderFramePath), true, 'renderFrame.ts is missing');
+
+  const labelLayer = readFileSync(buildingStatusLabelPath, 'utf8');
+  const renderFrame = readFileSync(renderFramePath, 'utf8');
+
+  for (const snippet of [
+    "import { Text } from 'troika-three-text';",
+    'export class BuildingStatusLabelLayer {',
+    'private readonly scanIntervalSeconds = 0.35;',
+    'private readonly maxLabels = 12;',
+    'label.quaternion.copy(camera.quaternion);',
+    "`${name} offline: no power + water`",
+    "`${name} offline: no power`",
+    "`${name} water-starved`",
+    '`Building ${name}: ${Math.round(progress * 100)}%`',
+    'label.userData.isTroikaBuildingStatusLabel = true;',
+    'label.sync();',
+    'label.dispose();',
+  ]) {
+    assert.match(labelLayer, new RegExp(escapeRegExp(snippet)));
+  }
+
+  for (const snippet of [
+    "import { BuildingStatusLabelLayer } from '../render/systems/BuildingStatusLabelLayer';",
+    'let buildingStatusLabelLayer: BuildingStatusLabelLayer | null = null;',
+    'new BuildingStatusLabelLayer(deps.render.getScene())',
+    'buildingStatusLabelLayer?.clear();',
+    "getBuildingStatusLabelLayer(deps).update(state.chunks, camera, ctx.time, 0.1, 'FIRST_PERSON');",
+    "getBuildingStatusLabelLayer(deps).update(state.chunks, camera, ctx.time, zoomLevel, 'SURFACE');",
+  ]) {
+    assert.match(renderFrame, new RegExp(escapeRegExp(snippet)));
+  }
 });
 
 test('Engine worker renders voxel terrain with LOD-limited textured block tops aligned to actors and water', () => {
