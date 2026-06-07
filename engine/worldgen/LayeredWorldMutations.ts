@@ -1,13 +1,16 @@
-import type { GameResources } from '../types/economy';
-import type { LayeredWorldState, WorldVoxelCell, WorldVoxelMaterial } from '../types/layeredWorld';
-
 const CHUNK_SIZE = 16;
+
+type DigVoxelDrops = {
+    minerals?: number;
+    gems?: number;
+    stone?: number;
+};
 
 export interface DigVoxelSuccess {
     ok: true;
-    cell: WorldVoxelCell;
-    material: WorldVoxelMaterial;
-    drops: Partial<Pick<GameResources, 'minerals' | 'gems' | 'stone'>>;
+    cell: any;
+    material: string;
+    drops: DigVoxelDrops;
 }
 
 export interface DigVoxelFailure {
@@ -27,7 +30,7 @@ function getCellKey(x: number, y: number, z: number): string {
     return `${x},${y},${z}`;
 }
 
-function getDrops(material: WorldVoxelMaterial, resourceAmount: number = 1): Partial<Pick<GameResources, 'minerals' | 'gems' | 'stone'>> {
+function getDrops(material: string, resourceAmount: number = 1): DigVoxelDrops {
     if (material === 'ORE') return { minerals: Math.max(4, resourceAmount) };
     if (material === 'GEMS') return { gems: Math.max(1, resourceAmount) };
     if (material === 'AUREUS_VEIN') return { minerals: 25, gems: 2 };
@@ -36,12 +39,12 @@ function getDrops(material: WorldVoxelMaterial, resourceAmount: number = 1): Par
 }
 
 export function digLayeredWorldVoxel(
-    layeredWorld: LayeredWorldState,
+    layeredWorld: any,
     x: number,
     y: number,
     z: number,
 ): DigVoxelResult {
-    if (!layeredWorld.enabled) {
+    if (!layeredWorld?.enabled) {
         return { ok: false, reason: 'Layered world is disabled.' };
     }
     if (y >= layeredWorld.surfaceY) {
@@ -51,17 +54,17 @@ export function digLayeredWorldVoxel(
         return { ok: false, reason: 'Target layer is outside the generated world.' };
     }
 
-    const chunk = layeredWorld.chunks[getChunkKey(x, z)];
+    const chunk = layeredWorld.chunks?.[getChunkKey(x, z)];
     if (!chunk) {
         return { ok: false, reason: 'Target chunk is not generated.' };
     }
 
-    const layer = chunk.layers[y];
+    const layer = chunk.layers?.[y];
     if (!layer) {
         return { ok: false, reason: 'Target layer is not generated.' };
     }
 
-    const cell = layer.cells[getCellKey(x, y, z)];
+    const cell = layer.cells?.[getCellKey(x, y, z)];
     if (!cell) {
         return { ok: false, reason: 'Target cell is not generated.' };
     }
@@ -69,7 +72,7 @@ export function digLayeredWorldVoxel(
         return { ok: false, reason: `${cell.material} cannot be excavated here.` };
     }
 
-    const material = cell.material;
+    const material = String(cell.material);
     const drops = getDrops(material, cell.resourceAmount);
     cell.material = 'AIR';
     cell.contents = 'TUNNEL';
@@ -81,7 +84,7 @@ export function digLayeredWorldVoxel(
     cell.stability = Math.max(5, cell.stability - 12);
     layer.dirty = true;
     chunk.dirty = true;
-    layeredWorld.renderVersion += 1;
+    layeredWorld.renderVersion = (layeredWorld.renderVersion || 0) + 1;
 
     return { ok: true, cell, material, drops };
 }
