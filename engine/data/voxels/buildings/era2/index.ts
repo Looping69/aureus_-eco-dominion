@@ -1,6 +1,5 @@
 
 import { BuildingType } from '../../../../../types';
-import { FenceFactory } from './Fence';
 import { SocialHubFactory } from './SocialHub';
 import { SecurityPostFactory } from './SecurityPost';
 import { CommunityGardenFactory } from './CommunityGarden';
@@ -12,7 +11,6 @@ import { TrainingCenterFactory } from './TrainingCenter';
 import { OreExtractorFactory } from './OreExtractor';
 
 export const Era2Buildings = {
-    [BuildingType.FENCE]: FenceFactory,
     [BuildingType.SOCIAL_HUB]: SocialHubFactory,
     [BuildingType.SECURITY_POST]: SecurityPostFactory,
     [BuildingType.COMMUNITY_GARDEN]: CommunityGardenFactory,
