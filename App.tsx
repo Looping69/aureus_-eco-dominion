@@ -37,6 +37,8 @@ const LINE_PLACEMENT_TYPES = new Set<BuildingType>([
     BuildingType.FENCE,
 ]);
 
+type FPSAbility = 'SCAN' | 'HARVEST' | 'RESTORE' | 'DIG' | 'MOVE';
+
 const isLinePlacementType = (type: BuildingType | null | undefined): type is BuildingType => {
     return Boolean(type && LINE_PLACEMENT_TYPES.has(type));
 };
@@ -57,6 +59,40 @@ const CommandFailureToast: React.FC<{ result?: any }> = ({ result }) => {
     );
 };
 
+const FPSAbilityHUD: React.FC<{ message: string | null; onAbility: (ability: FPSAbility) => void }> = ({ message, onAbility }) => {
+    const abilities: Array<{ key: string; label: string; ability: FPSAbility }> = [
+        { key: 'Q', label: 'Scan', ability: 'SCAN' },
+        { key: 'E', label: 'Harvest', ability: 'HARVEST' },
+        { key: 'R', label: 'Restore', ability: 'RESTORE' },
+        { key: 'F', label: 'Dig', ability: 'DIG' },
+        { key: 'G', label: 'Move Order', ability: 'MOVE' },
+    ];
+
+    return (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto w-[min(46rem,calc(100vw-1rem))]">
+            <div className="bg-slate-950/86 border-2 border-slate-700 rounded-[6px] shadow-[4px_4px_0_rgba(0,0,0,0.45)] backdrop-blur-md px-3 py-2">
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-['Rajdhani'] mr-1">Influence</div>
+                    {abilities.map((item) => (
+                        <button
+                            key={item.ability}
+                            onClick={() => onAbility(item.ability)}
+                            className="h-8 px-2.5 rounded-[4px] bg-slate-800 hover:bg-emerald-700 border border-slate-600 hover:border-emerald-400 text-slate-200 hover:text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors font-['Rajdhani']"
+                        >
+                            <span className="min-w-5 h-5 px-1 rounded-[3px] bg-black/45 border border-white/10 text-emerald-300 font-mono text-[10px] flex items-center justify-center">{item.key}</span>
+                            {item.label}
+                        </button>
+                    ))}
+                    <div className="text-[9px] font-mono text-slate-500 ml-1">LMB aim / RMB order</div>
+                </div>
+                {message && (
+                    <div className="mt-2 text-center text-[11px] font-bold text-emerald-200 font-mono truncate">{message}</div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const App: React.FC = () => {
     const [container, setContainer] = useState<HTMLElement | null>(null);
     const [pendingPlacementPos, setPendingPlacementPos] = useState<{ x: number, z: number } | null>(null);
@@ -71,7 +107,9 @@ const App: React.FC = () => {
     const [showWorldMap, setShowWorldMap] = useState(false);
     const [activeHUDBlock, setActiveHUDBlock] = useState<string | null>(null);
     const [dismissedEraPopup, setDismissedEraPopup] = useState<string | null>(null);
+    const [fpsAbilityMessage, setFpsAbilityMessage] = useState<string | null>(null);
     const stateRef = useRef<any>(null);
+    const fpsMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const clearLinePlacement = useCallback(() => {
         worldInstance?.clearInfrastructureLinePreview?.();
@@ -85,6 +123,12 @@ const App: React.FC = () => {
         setPinnedTilePos(null);
         setLinePlacementStart(null);
     }, [worldInstance]);
+
+    const showFPSAbilityMessage = useCallback((message: string) => {
+        setFpsAbilityMessage(message);
+        if (fpsMessageTimerRef.current) clearTimeout(fpsMessageTimerRef.current);
+        fpsMessageTimerRef.current = setTimeout(() => setFpsAbilityMessage(null), 2600);
+    }, []);
 
     const handleTileClick = useCallback((x: number, z: number, isTouch?: boolean) => {
         const currentState = stateRef.current;
@@ -183,6 +227,18 @@ const App: React.FC = () => {
         }
     }, [clearLinePlacement, state?.selectedBuilding]);
 
+    useEffect(() => {
+        if (!state?.isFPS) {
+            setFpsAbilityMessage(null);
+        }
+    }, [state?.isFPS]);
+
+    useEffect(() => {
+        return () => {
+            if (fpsMessageTimerRef.current) clearTimeout(fpsMessageTimerRef.current);
+        };
+    }, []);
+
     const financials = useMemo(() => {
         if (!state) return { income: 0, cost: 0, net: 0, ecoMult: 1, trustMult: 1 };
         return {
@@ -205,6 +261,107 @@ const App: React.FC = () => {
     const floatingHudVisible = !blockingModalOpen && !state?.isFPS;
     const sidebarsVisible = !blockingModalOpen && !state?.isFPS;
     const debugVisible = Boolean(state?.debugMode && !eraModalOpen && !showWorldMap && !placementModalOpen && !tileModalOpen);
+
+    const findTileAt = useCallback((x: number, z: number) => {
+        const currentState = stateRef.current;
+        for (const chunk of Object.values(currentState?.chunks || {}) as any[]) {
+            const tile = chunk?.tiles?.find((candidate: any) => candidate.x === x && candidate.z === z);
+            if (tile) return tile;
+        }
+        return null;
+    }, []);
+
+    const getFPSAim = useCallback(() => {
+        const hit = worldInstance?.getFPSIntersection?.();
+        if (!hit) {
+            showFPSAbilityMessage('No target in sight. Aim lower at the terrain.');
+            return null;
+        }
+        const x = Math.round(hit.x);
+        const z = Math.round(hit.z);
+        const tile = findTileAt(x, z);
+        if (!tile) {
+            showFPSAbilityMessage('That target is outside the generated world.');
+            return null;
+        }
+        return { x, z, tile };
+    }, [findTileAt, showFPSAbilityMessage, worldInstance]);
+
+    const enqueueFPSCommand = useCallback((type: string, payload: any) => {
+        const currentState = worldInstance?.getState?.() || stateRef.current;
+        if (!currentState?.commandQueue) {
+            showFPSAbilityMessage('Command bridge is not ready yet.');
+            return false;
+        }
+        currentState.commandQueue.push({
+            id: `fps_${type.toLowerCase()}_${Date.now()}`,
+            type,
+            payload,
+            issuedAtTick: currentState.tickCount,
+        });
+        return true;
+    }, [showFPSAbilityMessage, worldInstance]);
+
+    const handleFPSAbility = useCallback((ability: FPSAbility) => {
+        const currentState = stateRef.current;
+        if (!currentState?.isFPS) return;
+        const aim = getFPSAim();
+        if (!aim) return;
+
+        if (ability === 'SCAN') {
+            const subject = aim.tile.buildingType !== BuildingType.EMPTY
+                ? String(aim.tile.buildingType).replace(/_/g, ' ')
+                : aim.tile.foliage && aim.tile.foliage !== 'NONE'
+                    ? String(aim.tile.foliage).replace(/_/g, ' ')
+                    : `${String(aim.tile.biome).toLowerCase()} ground`;
+            showFPSAbilityMessage(`Scan: ${subject} at ${aim.x}, ${aim.z}. Height ${aim.tile.terrainHeight}.`);
+            playSfx(SfxType.UI_CLICK);
+            return;
+        }
+
+        if (ability === 'HARVEST') {
+            if (!aim.tile.foliage || aim.tile.foliage === 'NONE') {
+                showFPSAbilityMessage('No harvestable foliage or surface resource on that tile.');
+                playSfx(SfxType.ERROR);
+                return;
+            }
+            if (enqueueFPSCommand('MARK_HARVEST', { x: aim.x, z: aim.z })) {
+                showFPSAbilityMessage(`Marked ${String(aim.tile.foliage).replace(/_/g, ' ')} for harvest.`);
+                playSfx(SfxType.UI_CLICK);
+            }
+            return;
+        }
+
+        if (ability === 'RESTORE') {
+            dispatch({ type: 'REHABILITATE_TILE', payload: { x: aim.x, z: aim.z } });
+            showFPSAbilityMessage(`Restoration order placed at ${aim.x}, ${aim.z}.`);
+            playSfx(SfxType.UI_CLICK);
+            return;
+        }
+
+        if (ability === 'DIG') {
+            const layeredWorld = currentState.layeredWorld;
+            const activeY = layeredWorld.activeY < layeredWorld.surfaceY
+                ? layeredWorld.activeY
+                : layeredWorld.surfaceY - 1;
+            if (enqueueFPSCommand('DIG_VOXEL', { x: aim.x, y: activeY, z: aim.z })) {
+                showFPSAbilityMessage(`Excavation order placed at layer ${activeY}.`);
+                playSfx(SfxType.MINING_HIT);
+            }
+            return;
+        }
+
+        if (ability === 'MOVE') {
+            if (!currentState.selectedAgentId) {
+                showFPSAbilityMessage('No agent is linked to this first-person view.');
+                playSfx(SfxType.ERROR);
+                return;
+            }
+            dispatch({ type: 'COMMAND_AGENT', payload: { agentId: currentState.selectedAgentId, x: aim.x, z: aim.z } });
+            showFPSAbilityMessage(`Move order sent to ${aim.x}, ${aim.z}.`);
+            playSfx(SfxType.UI_CLICK);
+        }
+    }, [dispatch, enqueueFPSCommand, getFPSAim, playSfx, showFPSAbilityMessage]);
 
     const handleEraModalClose = useCallback(() => {
         const era = stateRef.current?.eraUnlockedPopup;
@@ -319,6 +476,22 @@ const App: React.FC = () => {
                 }
             }
 
+            if (stateRef.current?.isFPS) {
+                const abilityByKey: Partial<Record<string, FPSAbility>> = {
+                    KeyQ: 'SCAN',
+                    KeyE: 'HARVEST',
+                    KeyR: 'RESTORE',
+                    KeyF: 'DIG',
+                    KeyG: 'MOVE',
+                };
+                const ability = abilityByKey[e.code];
+                if (ability) {
+                    e.preventDefault();
+                    handleFPSAbility(ability);
+                    return;
+                }
+            }
+
             if (e.code === 'KeyU') {
                 e.preventDefault();
                 handleToggleView();
@@ -327,7 +500,7 @@ const App: React.FC = () => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [clearPlacementPrompt, eraModalOpen, handleEraModalClose, handleExitFPS, handleToggleView, pendingPlacementPos, selectedTilePos, showHomePage, showWorldMap, sidebarOpen]);
+    }, [clearPlacementPrompt, eraModalOpen, handleEraModalClose, handleExitFPS, handleFPSAbility, handleToggleView, pendingPlacementPos, selectedTilePos, showHomePage, showWorldMap, sidebarOpen]);
 
     return (
         <div className="relative w-full h-full bg-slate-950 overflow-hidden select-none font-['Inter']">
@@ -459,24 +632,27 @@ const App: React.FC = () => {
                                             {floatingHudVisible && <DialogueOverlay state={state} dispatch={dispatch} playSfx={playSfx} />}
                                         </>
                                     ) : (
-                                        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto flex items-center gap-2">
-                                            <button
-                                                onClick={handleExitFPS}
-                                                className="bg-slate-900/80 backdrop-blur-md hover:bg-red-600 text-white px-6 py-4 rounded-[4px] border-2 border-slate-700 hover:border-red-900 shadow-2xl font-black text-sm tracking-widest uppercase flex items-center gap-3 transition-all active:scale-95 group font-['Rajdhani']"
-                                            >
-                                                <X size={20} className="group-hover:rotate-90 transition-transform" />
-                                                <span>Exit First Person</span>
-                                                <span className="text-[10px] opacity-50 ml-2 font-mono">[ESC]</span>
-                                            </button>
-                                            <button
-                                                onClick={handleToggleDebug}
-                                                className="bg-slate-900/80 backdrop-blur-md hover:bg-emerald-700 text-emerald-300 hover:text-white px-4 py-4 rounded-[4px] border-2 border-slate-700 hover:border-emerald-500 shadow-2xl font-black text-sm tracking-widest uppercase flex items-center gap-2 transition-all active:scale-95 font-['Rajdhani']"
-                                                title="Open debugger"
-                                            >
-                                                <Activity size={18} />
-                                                <span>Debug</span>
-                                            </button>
-                                        </div>
+                                        <>
+                                            <div className="absolute top-10 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto flex items-center gap-2">
+                                                <button
+                                                    onClick={handleExitFPS}
+                                                    className="bg-slate-900/80 backdrop-blur-md hover:bg-red-600 text-white px-6 py-4 rounded-[4px] border-2 border-slate-700 hover:border-red-900 shadow-2xl font-black text-sm tracking-widest uppercase flex items-center gap-3 transition-all active:scale-95 group font-['Rajdhani']"
+                                                >
+                                                    <X size={20} className="group-hover:rotate-90 transition-transform" />
+                                                    <span>Exit First Person</span>
+                                                    <span className="text-[10px] opacity-50 ml-2 font-mono">[ESC]</span>
+                                                </button>
+                                                <button
+                                                    onClick={handleToggleDebug}
+                                                    className="bg-slate-900/80 backdrop-blur-md hover:bg-emerald-700 text-emerald-300 hover:text-white px-4 py-4 rounded-[4px] border-2 border-slate-700 hover:border-emerald-500 shadow-2xl font-black text-sm tracking-widest uppercase flex items-center gap-2 transition-all active:scale-95 font-['Rajdhani']"
+                                                    title="Open debugger"
+                                                >
+                                                    <Activity size={18} />
+                                                    <span>Debug</span>
+                                                </button>
+                                            </div>
+                                            <FPSAbilityHUD message={fpsAbilityMessage} onAbility={handleFPSAbility} />
+                                        </>
                                     )}
 
                                     {placementModalOpen && (
