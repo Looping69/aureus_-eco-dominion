@@ -1,5 +1,6 @@
-import { BuildingType, Chunk, GridTile } from '../../types';
-import { LayeredChunkState, LayeredWorldState, WorldLayerState, WorldVoxelCell, WorldVoxelMaterial } from '../types/layeredWorld';
+import { BuildingType } from '../../types';
+import type { Chunk, GridTile } from '../../types';
+import type { LayeredChunkState, LayeredWorldState, WorldLayerState, WorldVoxelCell, WorldVoxelMaterial } from '../types/layeredWorld';
 
 export const LAYERED_WORLD_MIGRATION_VERSION = 1;
 export const DEFAULT_LAYER_MIN_Y = -8;
