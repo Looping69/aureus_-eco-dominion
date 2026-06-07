@@ -45,7 +45,7 @@ test('water mesh generation anchors surfaces to carved voxel basins instead of f
     'if (!data.in && data.h === 0) return getCarvedWaterbedY(data.h);',
     'return getTerrainSurfaceY(data.h);',
     'y: getTerrainSurfaceY(data.h),',
-    'addBlockTop(\n                    water,',
+    'addBlockTop(',
     'getWaterSurfaceY(data.h),',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
