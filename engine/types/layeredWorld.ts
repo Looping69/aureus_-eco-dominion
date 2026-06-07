@@ -1,4 +1,4 @@
-import { BuildingType } from './buildings';
+import type { BuildingType } from './buildings';
 
 export type WorldVoxelMaterial =
     | 'AIR'
