@@ -8,6 +8,10 @@ import * as THREE from 'three';
 import { ThreeRenderAdapter } from '../render/ThreeRenderAdapter';
 import { shouldHandlePointerUp } from './pointerSequence';
 
+type TerrainPickSceneData = THREE.Scene['userData'] & {
+    intersectTerrain?: (raycaster: THREE.Raycaster) => THREE.Intersection | null;
+};
+
 export class InputSystem {
     private raycaster: THREE.Raycaster;
     private mouse: THREE.Vector2;
@@ -181,6 +185,12 @@ export class InputSystem {
 
         this.raycaster.setFromCamera(this.mouse, this.renderAdapter.getCamera());
 
+        const preciseHit = this.getPreciseTerrainHit();
+        if (preciseHit) {
+            const point = preciseHit.point.clone();
+            return { x: Math.round(point.x), z: Math.round(point.z), point };
+        }
+
         const target = new THREE.Vector3();
         let currentPlaneHeight = -this.rayPlane.constant;
 
@@ -211,6 +221,11 @@ export class InputSystem {
         const tileZ = Math.round(target.z);
         target.y = this.getTerrainHeight(target.x, target.z);
         return { x: tileX, z: tileZ, point: target };
+    }
+
+    private getPreciseTerrainHit(): THREE.Intersection | null {
+        const sceneData = this.renderAdapter.getScene().userData as TerrainPickSceneData;
+        return sceneData.intersectTerrain?.(this.raycaster) ?? null;
     }
 
     private handleClick(x: number, y: number, isRight: boolean, isTouch: boolean) {
