@@ -6,7 +6,10 @@
  */
 
 import * as THREE from 'three';
-import { InstancedUniformsMesh } from 'three-instanced-uniforms-mesh';
+// The package runtime exports this class, but its published declaration file is incomplete.
+// Keep the adapter local so the grass renderer can use it without coupling to brittle types.
+// @ts-ignore
+import { InstancedUniformsMesh as RuntimeInstancedUniformsMesh } from 'three-instanced-uniforms-mesh';
 import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
 import { foliageInstancedMaterial } from '../../../engine/render/materials/VoxelMaterials';
 import { mergeGroupGeometry } from '../../../engine/render/utils/VoxelUtils';
@@ -32,7 +35,15 @@ type GrassBlade = {
     lean: number;
 };
 
-type GrassMesh = InstancedUniformsMesh<THREE.ShaderMaterial>;
+type GrassMesh = THREE.InstancedMesh & {
+    setUniformAt: (name: string, index: number, value: number | THREE.Color) => void;
+};
+
+const InstancedUniformsMeshCtor = RuntimeInstancedUniformsMesh as unknown as new (
+    geometry: THREE.BufferGeometry,
+    material: THREE.ShaderMaterial,
+    count: number
+) => GrassMesh;
 
 export class FoliageRenderSystem {
     private scene: THREE.Scene;
@@ -394,7 +405,7 @@ export class FoliageRenderSystem {
         const pooledIndex = this.grassMeshPool.findIndex((mesh) => this.getMeshCapacity(mesh) >= count);
         const mesh = pooledIndex >= 0
             ? this.grassMeshPool.splice(pooledIndex, 1)[0]
-            : new InstancedUniformsMesh(this.getGrassGeometry(), this.getGrassMaterial(), this.getCapacity(count));
+            : new InstancedUniformsMeshCtor(this.getGrassGeometry(), this.getGrassMaterial(), this.getCapacity(count));
 
         mesh.geometry = this.getGrassGeometry();
         mesh.material = this.getGrassMaterial();
