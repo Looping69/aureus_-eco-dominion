@@ -6,6 +6,8 @@ import test from 'node:test';
 const terrainPath = path.join(process.cwd(), 'game', 'render', 'systems', 'TerrainRenderSystem.ts');
 const foliagePath = path.join(process.cwd(), 'game', 'render', 'systems', 'FoliageRenderSystem.ts');
 const packetLayerPath = path.join(process.cwd(), 'game', 'render', 'systems', 'PacketInstancedLayer.ts');
+const agentRenderPath = path.join(process.cwd(), 'game', 'render', 'systems', 'AgentRenderSystem.ts');
+const renderFramePath = path.join(process.cwd(), 'game', 'world', 'renderFrame.ts');
 const engineWorkerPath = path.join(process.cwd(), 'engine', 'jobs', 'engine.worker.ts');
 
 function escapeRegExp(value: string) {
@@ -109,6 +111,44 @@ test('PacketInstancedLayer now supports pooled bucketed instancing with render-o
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
+});
+
+test('AgentRenderSystem uses Troika text for readable camera-facing agent intent labels', () => {
+  assert.equal(existsSync(agentRenderPath), true, 'AgentRenderSystem.ts is missing');
+  assert.equal(existsSync(renderFramePath), true, 'renderFrame.ts is missing');
+
+  const agentRender = readFileSync(agentRenderPath, 'utf8');
+  const renderFrame = readFileSync(renderFramePath, 'utf8');
+
+  for (const snippet of [
+    "import { Text } from 'troika-three-text';",
+    'type IntentText = InstanceType<typeof Text>;',
+    'const INTENT_TONE_STYLE',
+    'private createIntentLabel(explanation: AgentExplanation): IntentText {',
+    'const label = new Text() as IntentText;',
+    "label.name = 'intentLabel';",
+    'label.maxWidth = 1.45;',
+    'label.userData.isTroikaIntentLabel = true;',
+    'this.applyIntentLabelStyle(label, explanation);',
+    'private applyIntentLabelStyle(label: IntentText, explanation: AgentExplanation): void {',
+    'label.sync();',
+    'camera?: THREE.Camera',
+    'intentLabel.quaternion.copy(camera.quaternion);',
+    'intentLabel.dispose();',
+  ]) {
+    assert.match(agentRender, new RegExp(escapeRegExp(snippet)));
+  }
+
+  for (const snippet of [
+    'const camera = deps.render.getCamera();',
+    'deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, zoomLevel, camera);',
+    'deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, 0.1, camera);',
+  ]) {
+    assert.match(renderFrame, new RegExp(escapeRegExp(snippet)));
+  }
+
+  assert.doesNotMatch(agentRender, /private createTextTexture/);
+  assert.doesNotMatch(agentRender, /new THREE\.SpriteMaterial\(\{ map: this\.createTextTexture/);
 });
 
 test('Engine worker renders voxel terrain with LOD-limited textured block tops aligned to actors and water', () => {
