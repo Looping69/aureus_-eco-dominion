@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { Activity, X } from 'lucide-react';
 import { useAureusEngine } from './game/useAureusEngine';
 import { BuildingType, SfxType, SidebarMode } from './types';
 import { HUD } from './components/HUD';
@@ -78,6 +78,14 @@ const App: React.FC = () => {
         setLinePlacementStart(null);
     }, [worldInstance]);
 
+    const clearPlacementPrompt = useCallback(() => {
+        worldInstance?.clearPinnedBuilding?.();
+        worldInstance?.clearInfrastructureLinePreview?.();
+        setPendingPlacementPos(null);
+        setPinnedTilePos(null);
+        setLinePlacementStart(null);
+    }, [worldInstance]);
+
     const handleTileClick = useCallback((x: number, z: number, isTouch?: boolean) => {
         const currentState = stateRef.current;
         if (!currentState) return;
@@ -86,6 +94,10 @@ const App: React.FC = () => {
             const selectedBuilding = currentState.selectedBuilding as BuildingType;
 
             if (isLinePlacementType(selectedBuilding)) {
+                setShowWorldMap(false);
+                setSidebarOpen('NONE');
+                setSelectedTilePos(null);
+
                 if (!linePlacementStart || linePlacementStart.type !== selectedBuilding) {
                     setLinePlacementStart({ x, z, type: selectedBuilding });
                     setPendingPlacementPos(null);
@@ -112,10 +124,17 @@ const App: React.FC = () => {
             }
 
             clearLinePlacement();
+            setShowWorldMap(false);
+            setSidebarOpen('NONE');
+            setSelectedTilePos(null);
             setPendingPlacementPos({ x, z });
             worldInstance?.pinBuildingForConfirmation(x, z);
         } else if (currentState.interactionMode === 'INSPECT' || (currentState.interactionMode === 'BUILD' && !currentState.selectedBuilding)) {
             clearLinePlacement();
+            setShowWorldMap(false);
+            setSidebarOpen('NONE');
+            setPendingPlacementPos(null);
+            setPinnedTilePos(null);
             setSelectedTilePos({ x, z });
         }
     }, [clearLinePlacement, linePlacementStart, worldInstance]);
@@ -179,6 +198,14 @@ const App: React.FC = () => {
         console.log(`[SFX] ${type}`);
     }, []);
 
+    const eraModalOpen = Boolean(!showHomePage && !isIntroAnim && state?.eraUnlockedPopup && state.eraUnlockedPopup !== dismissedEraPopup);
+    const placementModalOpen = Boolean(!eraModalOpen && !showWorldMap && !state?.isFPS && pendingPlacementPos && state?.selectedBuilding && !isLinePlacementType(state.selectedBuilding));
+    const tileModalOpen = Boolean(!eraModalOpen && !showWorldMap && !placementModalOpen && !state?.isFPS && selectedTilePos);
+    const blockingModalOpen = eraModalOpen || showWorldMap || placementModalOpen || tileModalOpen;
+    const floatingHudVisible = !blockingModalOpen && !state?.isFPS;
+    const sidebarsVisible = !blockingModalOpen && !state?.isFPS;
+    const debugVisible = Boolean(state?.debugMode && !eraModalOpen && !showWorldMap && !placementModalOpen && !tileModalOpen);
+
     const handleEraModalClose = useCallback(() => {
         const era = stateRef.current?.eraUnlockedPopup;
         if (era) {
@@ -187,9 +214,41 @@ const App: React.FC = () => {
         world?.dismissEraPopup?.();
     }, [world]);
 
+    const handleExitFPS = useCallback(() => {
+        world?.exitFPS?.();
+        dispatch({ type: 'EXIT_FPS' });
+        playSfx(SfxType.UI_CLICK);
+    }, [dispatch, playSfx, world]);
+
+    const handleToggleDebug = useCallback(() => {
+        dispatch({ type: 'TOGGLE_DEBUG' });
+        playSfx(SfxType.UI_CLICK);
+    }, [dispatch, playSfx]);
+
+    const handleSidebarOpen = useCallback((mode: SidebarMode) => {
+        clearPlacementPrompt();
+        setShowWorldMap(false);
+        setSelectedTilePos(null);
+        setActiveHUDBlock(null);
+        setSidebarOpen(mode);
+    }, [clearPlacementPrompt]);
+
+    const handleOpenMap = useCallback(() => {
+        clearPlacementPrompt();
+        setSidebarOpen('NONE');
+        setSelectedTilePos(null);
+        setActiveHUDBlock(null);
+        setShowWorldMap(true);
+        playSfx(SfxType.UI_OPEN);
+    }, [clearPlacementPrompt, playSfx]);
+
     const handleNewGame = () => {
         setDismissedEraPopup(null);
         world?.dismissEraPopup?.();
+        setShowWorldMap(false);
+        setSidebarOpen('NONE');
+        setSelectedTilePos(null);
+        clearPlacementPrompt();
         setShowHomePage(false);
         setIsIntroAnim(true);
         setTimeout(() => setIsIntroAnim(false), 2000);
@@ -199,13 +258,16 @@ const App: React.FC = () => {
         if (world?.hasSave()) {
             setDismissedEraPopup(null);
             world?.dismissEraPopup?.();
+            setShowWorldMap(false);
+            setSidebarOpen('NONE');
+            setSelectedTilePos(null);
+            clearPlacementPrompt();
             setShowHomePage(false);
             playSfx(SfxType.UI_CLICK);
         }
     };
 
     const handleHUDToggle = (id: string | null) => setActiveHUDBlock(id);
-    const handleSidebarOpen = (mode: SidebarMode) => setSidebarOpen(mode);
 
     const handleToggleView = useCallback(() => {
         dispatch({ type: 'TOGGLE_VIEW' });
@@ -213,8 +275,51 @@ const App: React.FC = () => {
     }, [dispatch, playSfx]);
 
     useEffect(() => {
+        if (eraModalOpen || showWorldMap || placementModalOpen || tileModalOpen || state?.isFPS) {
+            if (sidebarOpen !== 'NONE') setSidebarOpen('NONE');
+            if (activeHUDBlock !== null) setActiveHUDBlock(null);
+        }
+    }, [activeHUDBlock, eraModalOpen, placementModalOpen, showWorldMap, sidebarOpen, state?.isFPS, tileModalOpen]);
+
+    useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (!showHomePage && e.code === 'KeyU') {
+            if (showHomePage) return;
+
+            if (e.code === 'Escape') {
+                e.preventDefault();
+
+                if (stateRef.current?.isFPS) {
+                    handleExitFPS();
+                    return;
+                }
+
+                if (eraModalOpen) {
+                    handleEraModalClose();
+                    return;
+                }
+
+                if (showWorldMap) {
+                    setShowWorldMap(false);
+                    return;
+                }
+
+                if (pendingPlacementPos) {
+                    clearPlacementPrompt();
+                    return;
+                }
+
+                if (selectedTilePos) {
+                    setSelectedTilePos(null);
+                    return;
+                }
+
+                if (sidebarOpen !== 'NONE') {
+                    setSidebarOpen('NONE');
+                    return;
+                }
+            }
+
+            if (e.code === 'KeyU') {
                 e.preventDefault();
                 handleToggleView();
             }
@@ -222,7 +327,7 @@ const App: React.FC = () => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showHomePage, handleToggleView]);
+    }, [clearPlacementPrompt, eraModalOpen, handleEraModalClose, handleExitFPS, handleToggleView, pendingPlacementPos, selectedTilePos, showHomePage, showWorldMap, sidebarOpen]);
 
     return (
         <div className="relative w-full h-full bg-slate-950 overflow-hidden select-none font-['Inter']">
@@ -257,6 +362,10 @@ const App: React.FC = () => {
                                         onStartDemo={() => {
                                             setDismissedEraPopup(null);
                                             world?.dismissEraPopup?.();
+                                            clearPlacementPrompt();
+                                            setShowWorldMap(false);
+                                            setSidebarOpen('NONE');
+                                            setSelectedTilePos(null);
                                             dispatch({ type: 'START_DEMO' });
                                             setShowHomePage(false);
                                         }}
@@ -266,7 +375,7 @@ const App: React.FC = () => {
                                 </div>
                             )}
 
-                            {!showHomePage && !isIntroAnim && state?.eraUnlockedPopup && state.eraUnlockedPopup !== dismissedEraPopup && (
+                            {eraModalOpen && (
                                 <EraUnlockedModal era={state.eraUnlockedPopup} onClose={handleEraModalClose} playSfx={playSfx} />
                             )}
 
@@ -276,105 +385,119 @@ const App: React.FC = () => {
                                     {state.activeView === 'DUNGEON' && <UndergroundHUD underground={state.underground} />}
                                     {!state.isFPS ? (
                                         <>
-                                            <HUD
-                                                resources={state.resources}
-                                                financials={{ net: financials.net }}
-                                                population={state.agents.filter(a => a.type !== 'ILLEGAL_MINER').length}
-                                                currentEra={state.currentEra}
-                                                state={state}
-                                                activeBlock={activeHUDBlock}
-                                                onToggleBlock={handleHUDToggle}
-                                            />
-                                            <Minimap chunks={state.chunks} agents={state.agents} onOpenMap={() => { setShowWorldMap(true); playSfx(SfxType.UI_OPEN); }} />
-                                            <WorldMap isOpen={showWorldMap} onClose={() => setShowWorldMap(false)} chunks={state.chunks} agents={state.agents} playSfx={playSfx} />
+                                            {floatingHudVisible && (
+                                                <>
+                                                    <HUD
+                                                        resources={state.resources}
+                                                        financials={{ net: financials.net }}
+                                                        population={state.agents.filter(a => a.type !== 'ILLEGAL_MINER').length}
+                                                        currentEra={state.currentEra}
+                                                        state={state}
+                                                        activeBlock={activeHUDBlock}
+                                                        onToggleBlock={handleHUDToggle}
+                                                    />
+                                                    <Minimap chunks={state.chunks} agents={state.agents} onOpenMap={handleOpenMap} />
 
-                                            <div className="absolute top-14 left-2 sm:left-4 z-40 flex flex-col gap-2 items-start pointer-events-none">
-                                                <TutorialOverlay step={state.step} dispatch={dispatch} setSidebarOpen={handleSidebarOpen} playSfx={playSfx} />
-                                                <GoalWidget goal={state.activeGoal} dispatch={dispatch} playSfx={playSfx} />
-                                                <ContractTracker state={state} world={worldInstance} playSfx={playSfx} />
-                                                <NewsTicker news={state.newsFeed} onDismiss={(id) => dispatch({ type: 'DISMISS_NEWS', payload: id })} playSfx={playSfx} />
-                                            </div>
+                                                    <div className="absolute top-14 left-2 sm:left-4 z-40 flex flex-col gap-2 items-start pointer-events-none">
+                                                        <TutorialOverlay step={state.step} dispatch={dispatch} setSidebarOpen={handleSidebarOpen} playSfx={playSfx} />
+                                                        <GoalWidget goal={state.activeGoal} dispatch={dispatch} playSfx={playSfx} />
+                                                        <ContractTracker state={state} world={worldInstance} playSfx={playSfx} />
+                                                        <NewsTicker news={state.newsFeed} onDismiss={(id) => dispatch({ type: 'DISMISS_NEWS', payload: id })} playSfx={playSfx} />
+                                                    </div>
 
-                                            <CommandFailureToast result={state.ui?.lastCommandResult} />
-                                            <InventoryHUD inventory={state.inventory} selectedBuilding={state.selectedBuilding} dispatch={dispatch} playSfx={playSfx} step={state.step} />
+                                                    <CommandFailureToast result={state.ui?.lastCommandResult} />
+                                                    <InventoryHUD inventory={state.inventory} selectedBuilding={state.selectedBuilding} dispatch={dispatch} playSfx={playSfx} step={state.step} />
 
-                                            <Controls
-                                                selectedBuilding={state.selectedBuilding}
-                                                dispatch={dispatch}
-                                                setSidebarOpen={handleSidebarOpen}
-                                                playSfx={playSfx}
-                                                step={state.step}
-                                                debugMode={state.debugMode}
-                                                interactionMode={state.interactionMode as any}
-                                                undergroundUnlocked={state.underground.unlocked || state.dungeon.unlocked}
-                                                activeView={state.activeView}
-                                                overlayMode={state.logistics.overlayMode}
-                                                selectedAgentId={state.selectedAgentId}
-                                                activeLayer={state.layeredWorld.activeY}
-                                                minLayer={state.layeredWorld.minY}
-                                                maxLayer={state.layeredWorld.surfaceY - 1}
-                                                onToggleView={handleToggleView}
-                                            />
+                                                    <Controls
+                                                        selectedBuilding={state.selectedBuilding}
+                                                        dispatch={dispatch}
+                                                        setSidebarOpen={handleSidebarOpen}
+                                                        playSfx={playSfx}
+                                                        step={state.step}
+                                                        debugMode={state.debugMode}
+                                                        interactionMode={state.interactionMode as any}
+                                                        undergroundUnlocked={state.underground.unlocked || state.dungeon.unlocked}
+                                                        activeView={state.activeView}
+                                                        overlayMode={state.logistics.overlayMode}
+                                                        selectedAgentId={state.selectedAgentId}
+                                                        activeLayer={state.layeredWorld.activeY}
+                                                        minLayer={state.layeredWorld.minY}
+                                                        maxLayer={state.layeredWorld.surfaceY - 1}
+                                                        onToggleView={handleToggleView}
+                                                    />
+                                                </>
+                                            )}
 
-                                            <OpsDrawer
-                                                isOpen={sidebarOpen === 'OPS'}
-                                                onClose={() => setSidebarOpen('NONE')}
-                                                state={state}
-                                                dispatch={dispatch}
-                                                financials={{ income: financials.income, cost: financials.cost, net: financials.net }}
-                                                ecoMult={financials.ecoMult}
-                                                trustMult={financials.trustMult}
-                                                playSfx={playSfx}
-                                            />
-                                            <SupplySidebar isOpen={sidebarOpen === 'SHOP'} onClose={() => setSidebarOpen('NONE')} state={state} world={worldInstance} dispatch={dispatch} playSfx={playSfx} />
-                                            <TradeTerminal isOpen={sidebarOpen === 'TRADE'} onClose={() => setSidebarOpen('NONE')} state={state} dispatch={dispatch} playSfx={playSfx} />
+                                            {!eraModalOpen && (
+                                                <WorldMap isOpen={showWorldMap} onClose={() => setShowWorldMap(false)} chunks={state.chunks} agents={state.agents} playSfx={playSfx} />
+                                            )}
 
-                                            <ConstructionModal selectedTile={selectedTilePos} chunks={state.chunks} gems={state.resources.gems} dispatch={dispatch} onClose={() => setSelectedTilePos(null)} playSfx={playSfx} />
-                                            <BuildingInspectorModal selectedTile={selectedTilePos} chunks={state.chunks} unlockedEras={state.unlockedEras} resources={state.resources} cheatsEnabled={state.cheatsEnabled} dispatch={dispatch} onClose={() => setSelectedTilePos(null)} playSfx={playSfx} />
-                                            <DialogueOverlay state={state} dispatch={dispatch} playSfx={playSfx} />
+                                            {sidebarsVisible && (
+                                                <>
+                                                    <OpsDrawer
+                                                        isOpen={sidebarOpen === 'OPS'}
+                                                        onClose={() => setSidebarOpen('NONE')}
+                                                        state={state}
+                                                        dispatch={dispatch}
+                                                        financials={{ income: financials.income, cost: financials.cost, net: financials.net }}
+                                                        ecoMult={financials.ecoMult}
+                                                        trustMult={financials.trustMult}
+                                                        playSfx={playSfx}
+                                                    />
+                                                    <SupplySidebar isOpen={sidebarOpen === 'SHOP'} onClose={() => setSidebarOpen('NONE')} state={state} world={worldInstance} dispatch={dispatch} playSfx={playSfx} />
+                                                    <TradeTerminal isOpen={sidebarOpen === 'TRADE'} onClose={() => setSidebarOpen('NONE')} state={state} dispatch={dispatch} playSfx={playSfx} />
+                                                </>
+                                            )}
+
+                                            {tileModalOpen && (
+                                                <>
+                                                    <ConstructionModal selectedTile={selectedTilePos} chunks={state.chunks} gems={state.resources.gems} dispatch={dispatch} onClose={() => setSelectedTilePos(null)} playSfx={playSfx} />
+                                                    <BuildingInspectorModal selectedTile={selectedTilePos} chunks={state.chunks} unlockedEras={state.unlockedEras} resources={state.resources} cheatsEnabled={state.cheatsEnabled} dispatch={dispatch} onClose={() => setSelectedTilePos(null)} playSfx={playSfx} />
+                                                </>
+                                            )}
+
+                                            {floatingHudVisible && <DialogueOverlay state={state} dispatch={dispatch} playSfx={playSfx} />}
                                         </>
                                     ) : (
-                                        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto">
+                                        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto flex items-center gap-2">
                                             <button
-                                                onClick={() => dispatch({ type: 'EXIT_FPS' })}
-                                                className="bg-slate-900/80 backdrop-blur-md hover:bg-red-600 text-white px-8 py-4 rounded-[4px] border-2 border-slate-700 hover:border-red-900 shadow-2xl font-black text-sm tracking-widest uppercase flex items-center gap-3 transition-all active:scale-95 group font-['Rajdhani']"
+                                                onClick={handleExitFPS}
+                                                className="bg-slate-900/80 backdrop-blur-md hover:bg-red-600 text-white px-6 py-4 rounded-[4px] border-2 border-slate-700 hover:border-red-900 shadow-2xl font-black text-sm tracking-widest uppercase flex items-center gap-3 transition-all active:scale-95 group font-['Rajdhani']"
                                             >
                                                 <X size={20} className="group-hover:rotate-90 transition-transform" />
                                                 <span>Exit First Person</span>
                                                 <span className="text-[10px] opacity-50 ml-2 font-mono">[ESC]</span>
                                             </button>
+                                            <button
+                                                onClick={handleToggleDebug}
+                                                className="bg-slate-900/80 backdrop-blur-md hover:bg-emerald-700 text-emerald-300 hover:text-white px-4 py-4 rounded-[4px] border-2 border-slate-700 hover:border-emerald-500 shadow-2xl font-black text-sm tracking-widest uppercase flex items-center gap-2 transition-all active:scale-95 font-['Rajdhani']"
+                                                title="Open debugger"
+                                            >
+                                                <Activity size={18} />
+                                                <span>Debug</span>
+                                            </button>
                                         </div>
                                     )}
 
-                                    <MobileBuildingConfirmation
-                                        buildingType={state.selectedBuilding && isLinePlacementType(state.selectedBuilding) ? null : state.selectedBuilding}
-                                        tilePos={pendingPlacementPos}
-                                        onConfirm={() => {
-                                            if (worldInstance && pendingPlacementPos !== null) {
-                                                worldInstance.placeBuilding(pendingPlacementPos.x, pendingPlacementPos.z);
-                                                worldInstance.selectBuilding(null);
-                                                worldInstance.clearPinnedBuilding();
-                                                worldInstance.clearInfrastructureLinePreview?.();
-                                                setPendingPlacementPos(null);
-                                                setPinnedTilePos(null);
-                                                setLinePlacementStart(null);
-                                            }
-                                        }}
-                                        onCancel={() => {
-                                            if (worldInstance) {
-                                                worldInstance.clearPinnedBuilding();
-                                                worldInstance.clearInfrastructureLinePreview?.();
-                                            }
-                                            setPendingPlacementPos(null);
-                                            setPinnedTilePos(null);
-                                            setLinePlacementStart(null);
-                                        }}
-                                        playSfx={playSfx}
-                                    />
+                                    {placementModalOpen && (
+                                        <MobileBuildingConfirmation
+                                            buildingType={state.selectedBuilding && isLinePlacementType(state.selectedBuilding) ? null : state.selectedBuilding}
+                                            tilePos={pendingPlacementPos}
+                                            onConfirm={() => {
+                                                if (worldInstance && pendingPlacementPos !== null) {
+                                                    worldInstance.placeBuilding(pendingPlacementPos.x, pendingPlacementPos.z);
+                                                    worldInstance.selectBuilding(null);
+                                                    clearPlacementPrompt();
+                                                }
+                                            }}
+                                            onCancel={clearPlacementPrompt}
+                                            playSfx={playSfx}
+                                        />
+                                    )}
 
                                     <LoadingOverlay isVisible={state.isLoading} message={state.loadingMessage || 'Preparing systems...'} />
 
-                                    {state.debugMode && (
+                                    {debugVisible && (
                                         <div className="pointer-events-auto">
                                             <DebugMenu getDebugStats={getDebugStats} state={state} onClose={() => dispatch({ type: 'TOGGLE_DEBUG' })} dispatch={dispatch} />
                                             <AgentDebugOverlay agents={state.agents} jobs={state.jobs} tickCount={state.tickCount} />
