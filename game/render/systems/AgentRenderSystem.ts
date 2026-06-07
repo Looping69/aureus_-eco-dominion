@@ -1,6 +1,7 @@
 
 // (|/) Klaasvaakie
 import * as THREE from 'three';
+import { Text } from 'troika-three-text';
 import { Agent, AgentRole } from '../../../types';
 import { createAgentGroup } from '../../../engine/data/voxels/Agent';
 import { createEagle } from '../../../engine/data/voxels/Eagle';
@@ -9,7 +10,7 @@ import { createEagle } from '../../../engine/data/voxels/Eagle';
 const STATUS_CONFIG = {
     height: 0.7,           // Height above agent
     scale: 0.15,           // Base scale of indicators
-    textScale: 0.34,       // Scale for intent labels
+    textScale: 1,          // Troika labels are sized through fontSize/maxWidth
     warningThreshold: 30,  // Show warning below this need level
     criticalThreshold: 15, // Critical warning level
 };
@@ -51,6 +52,14 @@ const WARNING_ICONS = {
 type AgentExplanation = {
     label: string;
     tone: 'normal' | 'warning' | 'blocked';
+};
+
+type IntentText = InstanceType<typeof Text>;
+
+const INTENT_TONE_STYLE: Record<AgentExplanation['tone'], { color: string; outlineColor: string }> = {
+    normal: { color: '#e0f2fe', outlineColor: '#0f172a' },
+    warning: { color: '#fde68a', outlineColor: '#451a03' },
+    blocked: { color: '#fecdd3', outlineColor: '#450a0a' },
 };
 
 function getJobLabel(jobId: string | null): string {
@@ -133,12 +142,12 @@ export class AgentRenderSystem {
         // this.scene.add(this.eagle);
     }
 
-    public update(dt: number, totalTime: number, agents: Agent[], zoomLevel: number = 20) {
+    public update(dt: number, totalTime: number, agents: Agent[], zoomLevel: number = 20, camera?: THREE.Camera) {
         // Sync Agents
         this.syncMeshes(agents);
 
         // Animate
-        this.animate(dt, totalTime, zoomLevel);
+        this.animate(dt, totalTime, zoomLevel, camera);
     }
 
     public setSelectedAgent(id: string | null) {
@@ -176,7 +185,10 @@ export class AgentRenderSystem {
 
     public dispose() {
         this.agentMeshes.forEach(mesh => this.scene.remove(mesh));
-        this.statusSprites.forEach(sprite => this.scene.remove(sprite));
+        this.statusSprites.forEach(sprite => {
+            this.disposeStatusGroup(sprite);
+            this.scene.remove(sprite);
+        });
         if (this.eagle) this.scene.remove(this.eagle);
         this.scene.remove(this.agentSelectionRing);
     }
@@ -198,6 +210,7 @@ export class AgentRenderSystem {
                 this.agentMeshes.delete(agent.id);
                 const statusGroup = this.statusSprites.get(agent.id);
                 if (statusGroup) {
+                    this.disposeStatusGroup(statusGroup);
                     this.scene.remove(statusGroup);
                     this.statusSprites.delete(agent.id);
                 }
@@ -264,6 +277,7 @@ export class AgentRenderSystem {
                 this.agentMeshes.delete(id);
                 const s = this.statusSprites.get(id);
                 if (s) {
+                    this.disposeStatusGroup(s);
                     this.scene.remove(s);
                     this.statusSprites.delete(id);
                 }
@@ -271,7 +285,7 @@ export class AgentRenderSystem {
         });
     }
 
-    private animate(dt: number, time: number, zoomLevel: number) {
+    private animate(dt: number, time: number, zoomLevel: number, camera?: THREE.Camera) {
         const LOD_LOW = 160;
 
         // Eagle
@@ -315,7 +329,7 @@ export class AgentRenderSystem {
             if (statusGroup) {
                 statusGroup.position.set(meshGroup.position.x, meshGroup.position.y + STATUS_CONFIG.height, meshGroup.position.z);
                 if (meshGroup.userData.agentData) {
-                    this.updateStatusIndicators(meshGroup.userData.agentData, statusGroup, time);
+                    this.updateStatusIndicators(meshGroup.userData.agentData, statusGroup, time, camera);
                 }
                 statusGroup.visible = meshGroup.visible && zoomLevel <= 130;
             }
@@ -432,35 +446,38 @@ export class AgentRenderSystem {
         return tex;
     }
 
-    private createTextTexture(text: string, tone: AgentExplanation['tone']): THREE.CanvasTexture {
-        const cacheKey = `label_${tone}_${text}`;
-        if (this.spriteTextures.has(cacheKey)) return this.spriteTextures.get(cacheKey)!;
+    private createIntentLabel(explanation: AgentExplanation): IntentText {
+        const label = new Text() as IntentText;
+        label.name = 'intentLabel';
+        label.fontSize = 0.085;
+        label.maxWidth = 1.45;
+        label.textAlign = 'center';
+        label.anchorX = 'center';
+        label.anchorY = 'middle';
+        label.position.set(0.1, 0.18, 0);
+        label.renderOrder = 20;
+        label.userData.isTroikaIntentLabel = true;
+        label.userData.intentText = '';
+        label.userData.intentTone = null;
+        (label as any).depthOffset = -1;
+        this.applyIntentLabelStyle(label, explanation);
+        return label;
+    }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 72;
-        const ctx = canvas.getContext('2d')!;
-        const bg = tone === 'blocked' ? 'rgba(127, 29, 29, 0.88)' : tone === 'warning' ? 'rgba(120, 53, 15, 0.88)' : 'rgba(15, 23, 42, 0.86)';
-        const stroke = tone === 'blocked' ? '#fb7185' : tone === 'warning' ? '#fbbf24' : '#38bdf8';
+    private applyIntentLabelStyle(label: IntentText, explanation: AgentExplanation): void {
+        const nextText = explanation.label.slice(0, 28);
+        const style = INTENT_TONE_STYLE[explanation.tone];
+        if (label.userData.intentText === nextText && label.userData.intentTone === explanation.tone) {
+            return;
+        }
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = bg;
-        ctx.strokeStyle = stroke;
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.roundRect(8, 10, 240, 44, 10);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.font = 'bold 18px Arial';
-        ctx.fillStyle = '#f8fafc';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text.slice(0, 24), 128, 32);
-
-        const tex = new THREE.CanvasTexture(canvas);
-        this.spriteTextures.set(cacheKey, tex);
-        return tex;
+        label.text = nextText;
+        label.color = style.color;
+        label.outlineColor = style.outlineColor;
+        label.outlineWidth = explanation.tone === 'normal' ? 0.008 : 0.012;
+        label.userData.intentText = nextText;
+        label.userData.intentTone = explanation.tone;
+        label.sync();
     }
 
     private createStatusGroup(agent: Agent): THREE.Group {
@@ -481,23 +498,17 @@ export class AgentRenderSystem {
         group.add(stateSprite);
 
         const explanation = getAgentExplanation(agent);
-        const textMat = new THREE.SpriteMaterial({ map: this.createTextTexture(explanation.label, explanation.tone), depthTest: false, transparent: true });
-        const textSprite = new THREE.Sprite(textMat);
-        textSprite.name = 'intentLabel';
-        textSprite.scale.set(STATUS_CONFIG.textScale, STATUS_CONFIG.textScale * 0.28, 1);
-        textSprite.position.set(0.07, 0.17, 0);
-        group.add(textSprite);
+        const textLabel = this.createIntentLabel(explanation);
+        group.add(textLabel);
 
         group.userData.stateSprite = stateSprite;
-        group.userData.intentLabel = textSprite;
+        group.userData.intentLabel = textLabel;
         group.userData.stateIcon = 'IDLE';
-        group.userData.intentText = explanation.label;
-        group.userData.intentTone = explanation.tone;
 
         return group;
     }
 
-    private updateStatusIndicators(agent: Agent, group: THREE.Group, time: number) {
+    private updateStatusIndicators(agent: Agent, group: THREE.Group, time: number, camera?: THREE.Camera) {
         const stateSprite = group.userData.stateSprite as THREE.Sprite | undefined;
         if (stateSprite) {
             const icon = STATE_ICONS[agent.state] || STATE_ICONS.IDLE;
@@ -507,16 +518,22 @@ export class AgentRenderSystem {
             }
         }
 
-        const intentLabel = group.userData.intentLabel as THREE.Sprite | undefined;
+        const intentLabel = group.userData.intentLabel as IntentText | undefined;
         if (intentLabel) {
             const explanation = getAgentExplanation(agent);
-            if (group.userData.intentText !== explanation.label || group.userData.intentTone !== explanation.tone) {
-                (intentLabel.material as THREE.SpriteMaterial).map = this.createTextTexture(explanation.label, explanation.tone);
-                group.userData.intentText = explanation.label;
-                group.userData.intentTone = explanation.tone;
+            this.applyIntentLabelStyle(intentLabel, explanation);
+            if (camera) {
+                intentLabel.quaternion.copy(camera.quaternion);
             }
             const pulse = explanation.tone === 'blocked' ? 1 + Math.sin(time * 6) * 0.08 : 1;
-            intentLabel.scale.set(STATUS_CONFIG.textScale * pulse, STATUS_CONFIG.textScale * 0.28 * pulse, 1);
+            intentLabel.scale.setScalar(pulse * STATUS_CONFIG.textScale);
+        }
+    }
+
+    private disposeStatusGroup(group: THREE.Group): void {
+        const intentLabel = group.userData.intentLabel as IntentText | undefined;
+        if (intentLabel?.dispose) {
+            intentLabel.dispose();
         }
     }
 }
