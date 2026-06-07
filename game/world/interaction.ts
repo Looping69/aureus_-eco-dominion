@@ -17,6 +17,26 @@ export interface SurfaceInteractionDeps {
     bulldozeTile: (x: number, z: number) => void;
 }
 
+const findAgentNearTile = (agents: any[], x: number, z: number) => {
+    let closestAgent: any = null;
+    let closestDistanceSq = Number.POSITIVE_INFINITY;
+
+    for (const candidate of agents) {
+        const ax = candidate.visualX ?? candidate.x;
+        const az = candidate.visualZ ?? candidate.z;
+        const dx = ax - x;
+        const dz = az - z;
+        const distanceSq = (dx * dx) + (dz * dz);
+
+        if (distanceSq < closestDistanceSq) {
+            closestAgent = candidate;
+            closestDistanceSq = distanceSq;
+        }
+    }
+
+    return closestDistanceSq <= 1.7 ? closestAgent : null;
+};
+
 export function handleSurfaceInteraction(
     x: number,
     z: number,
@@ -57,21 +77,18 @@ export function handleSurfaceInteraction(
     const hasBuilding = tile.buildingType !== BuildingType.EMPTY && tile.buildingType !== BuildingType.POND;
     const isInspecting = state.interactionMode === 'INSPECT' || (state.interactionMode === 'BUILD' && !state.selectedBuilding);
 
+    if (isInspecting) {
+        const agent = findAgentNearTile(state.agents, x, z);
+        if (agent) {
+            deps.selectAgent(agent.id);
+            deps.config.onAgentClick?.(agent.id);
+            return;
+        }
+    }
+
     if (hasBuilding && isInspecting) {
         deps.selectAgent(null);
         deps.config.onTileClick?.(x, z, isTouch);
-        return;
-    }
-
-    const agent = state.agents.find((candidate: any) => {
-        const ax = Math.round(candidate.visualX ?? candidate.x);
-        const az = Math.round(candidate.visualZ ?? candidate.z);
-        return ax === x && az === z;
-    });
-
-    if (agent && isInspecting) {
-        deps.selectAgent(agent.id);
-        deps.config.onAgentClick?.(agent.id);
         return;
     }
 
