@@ -6,6 +6,7 @@
  * (|/) Klaasvaakie
  */
 
+import { createNoise2D } from 'simplex-noise';
 import { GridTile, Chunk } from '../../types';
 import { getTerrainMacroStep } from '../render/utils/TerrainLod';
 import { getBiomeAt as getBiomeAtImpl, getFoliageAt as getFoliageAtImpl } from '../worldgen/Core';
@@ -41,29 +42,54 @@ const PALETTE: Record<string, number[]> = {
 
 const clampColor = (value: number) => Math.min(1, Math.max(0, value));
 
+const createSeededRandom = (seed: string) => {
+    let hash = 2166136261;
+    for (let i = 0; i < seed.length; i++) {
+        hash ^= seed.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+
+    return () => {
+        hash += 0x6D2B79F5;
+        let t = hash;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+};
+
+const terrainTextureNoise = createNoise2D(createSeededRandom('aureus-terrain-texture-v1'));
+
+const getTerrainNoise = (x: number, z: number, scale: number, salt = 0) => {
+    const nx = (x + salt * 97.13) * scale;
+    const nz = (z - salt * 57.91) * scale;
+    return terrainTextureNoise(nx, nz) * 0.5 + 0.5;
+};
+
 const terrainHash = (x: number, z: number, salt = 0) => {
     const n = Math.sin((x * 127.1) + (z * 311.7) + (salt * 74.7)) * 43758.5453123;
     return n - Math.floor(n);
 };
 
 const getTexturedTerrainColor = (base: number[], biome: string, worldX: number, worldZ: number, height: number) => {
-    const grain = terrainHash(worldX, worldZ, 1) - 0.5;
-    const patch = terrainHash(Math.floor(worldX / 2), Math.floor(worldZ / 2), 2) - 0.5;
+    const grain = getTerrainNoise(worldX, worldZ, 0.72, 1) - 0.5;
+    const patch = getTerrainNoise(worldX, worldZ, 0.16, 2) - 0.5;
+    const biomeBand = getTerrainNoise(worldX, worldZ, 0.045, 3) - 0.5;
     const fleck = terrainHash(worldX, worldZ, 3);
     let tint: [number, number, number] = [grain * 0.06 + patch * 0.05, grain * 0.06 + patch * 0.05, grain * 0.06 + patch * 0.05];
 
     if (biome === 'GRASS') {
-        tint = [grain * 0.035 - patch * 0.025, grain * 0.075 + patch * 0.06, grain * 0.025 - patch * 0.02];
+        tint = [grain * 0.035 - patch * 0.025 - biomeBand * 0.018, grain * 0.075 + patch * 0.06 + biomeBand * 0.05, grain * 0.025 - patch * 0.02];
         if (fleck > 0.84) tint = [tint[0] + 0.035, tint[1] + 0.055, tint[2] + 0.015];
         if (fleck < 0.10) tint = [tint[0] - 0.035, tint[1] - 0.05, tint[2] - 0.02];
     } else if (biome === 'SAND') {
-        tint = [grain * 0.06 + patch * 0.04, grain * 0.045 + patch * 0.03, grain * 0.018 - patch * 0.015];
+        tint = [grain * 0.06 + patch * 0.04 + biomeBand * 0.035, grain * 0.045 + patch * 0.03 + biomeBand * 0.018, grain * 0.018 - patch * 0.015 - biomeBand * 0.012];
         if (fleck > 0.88) tint = [tint[0] + 0.025, tint[1] + 0.02, tint[2] + 0.006];
     } else if (biome === 'DIRT') {
-        tint = [grain * 0.06 + patch * 0.04, grain * 0.035 + patch * 0.025, grain * 0.018];
+        tint = [grain * 0.06 + patch * 0.04 + biomeBand * 0.025, grain * 0.035 + patch * 0.025, grain * 0.018 - biomeBand * 0.012];
         if (fleck < 0.14) tint = [tint[0] - 0.035, tint[1] - 0.025, tint[2] - 0.012];
     } else if (biome === 'STONE') {
-        tint = [grain * 0.045 + patch * 0.04, grain * 0.045 + patch * 0.04, grain * 0.05 + patch * 0.045];
+        tint = [grain * 0.045 + patch * 0.04 + biomeBand * 0.018, grain * 0.045 + patch * 0.04 + biomeBand * 0.018, grain * 0.05 + patch * 0.045 + biomeBand * 0.02];
         if (fleck > 0.82) tint = [tint[0] + 0.04, tint[1] + 0.04, tint[2] + 0.035];
         if (fleck < 0.12) tint = [tint[0] - 0.04, tint[1] - 0.04, tint[2] - 0.035];
     }
