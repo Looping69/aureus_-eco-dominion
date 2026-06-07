@@ -9,6 +9,7 @@
 import { createNoise2D } from 'simplex-noise';
 import { GridTile, Chunk } from '../../types';
 import { getTerrainMacroStep } from '../render/utils/TerrainLod';
+import { getCarvedWaterbedY, getTerrainSurfaceY, getWaterSurfaceY } from '../render/utils/GroundAnchors';
 import { getBiomeAt as getBiomeAtImpl, getFoliageAt as getFoliageAtImpl } from '../worldgen/Core';
 import { Job, PathfindJob, PathfindResult, MeshChunkJob, MeshChunkResult, ENGINE_SCHEMA_VERSION } from './jobs.types';
 import { findPath } from '../sim/algorithms/Pathfinding';
@@ -331,10 +332,9 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
     };
 
     const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {
-        let topY = data.h * 0.5;
-        if (data.bt === 'POND' || data.bt === 'RESERVOIR') topY -= 1;
-        else if (!data.in && data.h === 0) topY = -1;
-        return topY;
+        if (data.bt === 'POND' || data.bt === 'RESERVOIR') return getCarvedWaterbedY(data.h);
+        if (!data.in && data.h === 0) return getCarvedWaterbedY(data.h);
+        return getTerrainSurfaceY(data.h);
     };
 
     const getMacroData = (worldX: number, worldZ: number, cellWidth: number, cellDepth: number) => {
@@ -379,7 +379,7 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
             if (x % foliageStep === 0 && z % foliageStep === 0 && macro.foliageType && macro.foliageType !== 'NONE' && macro.foliageType !== 'GOLD_VEIN') {
                 foliageItems.push({
                     x: macro.sampleX,
-                    y: data.h * 0.5,
+                    y: getTerrainSurfaceY(data.h),
                     z: macro.sampleZ,
                     type: macro.foliageType,
                     marked: data.marked
@@ -422,17 +422,14 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
             });
 
             if (isWater) {
-                const waterY = data.h === 0 ? -0.5 : (data.h * 0.5) - 0.5;
-                addFace(
+                addBlockTop(
                     water,
                     macro.localCenterX,
-                    waterY,
                     macro.localCenterZ,
-                    2,
-                    PALETTE['water'],
                     cellWidth * 0.5,
-                    0.5,
-                    cellDepth * 0.5
+                    cellDepth * 0.5,
+                    getWaterSurfaceY(data.h),
+                    PALETTE['water']
                 );
             }
         }
