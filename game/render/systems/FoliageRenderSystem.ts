@@ -1,6 +1,6 @@
 /**
  * Foliage Render System
- * Renders trees, rocks, and resources using InstancedMesh.
+ * Renders trees, rocks, resources, and close-range ground grass using InstancedMesh.
  * Receives data from TerrainRenderSystem.
  * (|/) Klaasvaakie
  */
@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
 import { foliageInstancedMaterial } from '../../../engine/render/materials/VoxelMaterials';
 import { mergeGroupGeometry } from '../../../engine/render/utils/VoxelUtils';
+import { BuildingType, GridTile } from '../../../types';
 
 export interface FoliageItem {
     x: number;
@@ -21,12 +22,19 @@ export interface FoliageItem {
 export class FoliageRenderSystem {
     private scene: THREE.Scene;
     private chunkMeshes: Map<string, Map<string, THREE.InstancedMesh>> = new Map();
+    private groundDetailMeshes: Map<string, THREE.InstancedMesh> = new Map();
     private geometryCache: Map<string, THREE.BufferGeometry> = new Map();
     private meshPools: Map<string, THREE.InstancedMesh[]> = new Map();
+    private grassMeshPool: THREE.InstancedMesh[] = [];
     private readonly maxPoolSizePerType = 6;
+    private readonly maxGrassPoolSize = 16;
     private readonly dummy = new THREE.Object3D();
     private readonly markedColor = new THREE.Color(1, 0.3, 0.3);
     private readonly defaultColor = new THREE.Color(1, 1, 1);
+    private readonly grassColor = new THREE.Color();
+    private groundDetailVisible = false;
+    private grassGeometry: THREE.BufferGeometry | null = null;
+    private grassMaterial: THREE.MeshBasicMaterial | null = null;
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
@@ -79,16 +87,53 @@ export class FoliageRenderSystem {
         }
     }
 
+    public updateGroundDetailChunk(key: string, tiles: GridTile[]): void {
+        const blades = this.collectGrassBlades(tiles);
+        if (blades.length === 0) {
+            this.removeGroundDetailChunk(key);
+            return;
+        }
+
+        const existing = this.groundDetailMeshes.get(key);
+        const mesh = this.prepareGrassMesh(key, blades.length, existing);
+        for (let idx = 0; idx < blades.length; idx += 1) {
+            const blade = blades[idx];
+            this.dummy.position.set(blade.x, blade.y, blade.z);
+            this.dummy.rotation.set(0, blade.rotation, 0);
+            this.dummy.scale.set(blade.width, blade.height, blade.width);
+            this.dummy.updateMatrix();
+            mesh.setMatrixAt(idx, this.dummy.matrix);
+            mesh.setColorAt(idx, this.grassColor.set(blade.color));
+        }
+
+        mesh.count = blades.length;
+        mesh.visible = this.groundDetailVisible;
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) {
+            mesh.instanceColor.needsUpdate = true;
+        }
+        mesh.computeBoundingSphere();
+        this.groundDetailMeshes.set(key, mesh);
+    }
+
+    public setGroundDetailVisible(visible: boolean): void {
+        if (this.groundDetailVisible === visible) return;
+        this.groundDetailVisible = visible;
+        for (const mesh of this.groundDetailMeshes.values()) {
+            mesh.visible = visible;
+        }
+    }
+
     /**
      * Remove foliage for a chunk (unloaded)
      */
     public removeChunk(key: string) {
         const existingMeshes = this.chunkMeshes.get(key);
-        if (!existingMeshes) {
-            return;
+        if (existingMeshes) {
+            this.releaseChunkMeshes(key, existingMeshes);
+            this.chunkMeshes.delete(key);
         }
-        this.releaseChunkMeshes(key, existingMeshes);
-        this.chunkMeshes.delete(key);
+        this.removeGroundDetailChunk(key);
     }
 
     public dispose() {
@@ -96,6 +141,16 @@ export class FoliageRenderSystem {
             this.releaseChunkMeshes(key, meshes);
         }
         this.chunkMeshes.clear();
+
+        for (const key of Array.from(this.groundDetailMeshes.keys())) {
+            this.removeGroundDetailChunk(key);
+        }
+        while (this.grassMeshPool.length > 0) {
+            const mesh = this.grassMeshPool.pop();
+            if (!mesh) continue;
+            this.scene.remove(mesh);
+            mesh.dispose();
+        }
 
         for (const pool of this.meshPools.values()) {
             for (const mesh of pool) {
@@ -109,6 +164,56 @@ export class FoliageRenderSystem {
             geometry.dispose();
         }
         this.geometryCache.clear();
+        this.grassGeometry?.dispose();
+        this.grassMaterial?.dispose();
+    }
+
+    private collectGrassBlades(tiles: GridTile[]): Array<{ x: number; y: number; z: number; rotation: number; width: number; height: number; color: number }> {
+        const blades: Array<{ x: number; y: number; z: number; rotation: number; width: number; height: number; color: number }> = [];
+        for (const tile of tiles) {
+            if (tile.biome !== 'GRASS') continue;
+            if (tile.locked || tile.buildingType !== BuildingType.EMPTY) continue;
+            if (tile.foliage && tile.foliage !== 'NONE') continue;
+            if (!this.shouldGrowGrass(tile.x, tile.z)) continue;
+
+            const bladeCount = this.grassBladeCount(tile.x, tile.z);
+            for (let i = 0; i < bladeCount; i += 1) {
+                const seed = this.seed(tile.x, tile.z, i + 17);
+                const offsetX = ((seed % 100) / 100 - 0.5) * 0.58;
+                const offsetZ = (((seed / 101) % 100) / 100 - 0.5) * 0.58;
+                const height = 0.7 + ((seed % 29) / 100);
+                const width = 0.72 + ((seed % 19) / 100);
+                blades.push({
+                    x: tile.x + offsetX,
+                    y: tile.terrainHeight * 0.5 + 0.035,
+                    z: tile.z + offsetZ,
+                    rotation: (seed % 628) / 100,
+                    width,
+                    height,
+                    color: this.grassBladeColor(seed),
+                });
+            }
+        }
+        return blades;
+    }
+
+    private shouldGrowGrass(x: number, z: number): boolean {
+        return this.seed(x, z, 3) % 5 !== 0;
+    }
+
+    private grassBladeCount(x: number, z: number): number {
+        const seed = this.seed(x, z, 9);
+        return 1 + (seed % 3 === 0 ? 1 : 0);
+    }
+
+    private grassBladeColor(seed: number): number {
+        const palette = [0x4f8f3a, 0x5fa447, 0x6fb24a, 0x3f7d35, 0x7bbf58];
+        return palette[seed % palette.length];
+    }
+
+    private seed(x: number, z: number, salt: number): number {
+        const n = Math.sin((x * 127.1) + (z * 311.7) + (salt * 19.19)) * 43758.5453;
+        return Math.abs(Math.floor((n - Math.floor(n)) * 100000));
     }
 
     private getGeometry(type: string): THREE.BufferGeometry | null {
@@ -126,6 +231,37 @@ export class FoliageRenderSystem {
         const geometry = mergeGroupGeometry(group);
         this.geometryCache.set(type, geometry);
         return geometry;
+    }
+
+    private getGrassGeometry(): THREE.BufferGeometry {
+        if (this.grassGeometry) return this.grassGeometry;
+
+        const geo = new THREE.BufferGeometry();
+        const positions = new Float32Array([
+            -0.055, 0, 0, 0.055, 0, 0, 0.03, 0.24, 0,
+            -0.055, 0, 0, 0.03, 0.24, 0, -0.03, 0.18, 0,
+            0, 0, -0.055, 0, 0, 0.055, 0, 0.22, 0.03,
+            0, 0, -0.055, 0, 0.22, 0.03, 0, 0.17, -0.03,
+        ]);
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geo.computeVertexNormals();
+        geo.computeBoundingBox();
+        geo.computeBoundingSphere();
+        this.grassGeometry = geo;
+        return geo;
+    }
+
+    private getGrassMaterial(): THREE.MeshBasicMaterial {
+        if (this.grassMaterial) return this.grassMaterial;
+        this.grassMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            vertexColors: true,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.82,
+            depthWrite: false,
+        });
+        return this.grassMaterial;
     }
 
     private prepareChunkMesh(
@@ -158,6 +294,26 @@ export class FoliageRenderSystem {
         return mesh;
     }
 
+    private prepareGrassMesh(key: string, count: number, existing?: THREE.InstancedMesh): THREE.InstancedMesh {
+        const existingCapacity = this.getMeshCapacity(existing);
+        let mesh = existing;
+        if (!mesh || existingCapacity < count) {
+            if (mesh) {
+                this.releaseGrassMesh(mesh);
+            }
+            mesh = this.acquireGrassMesh(count);
+        }
+
+        mesh.count = count;
+        mesh.visible = this.groundDetailVisible;
+        mesh.frustumCulled = true;
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.userData.chunkKey = key;
+        mesh.userData.foliageType = 'GROUND_GRASS';
+        mesh.userData.capacity = this.getMeshCapacity(mesh);
+        return mesh;
+    }
+
     private acquireMesh(type: string, geometry: THREE.BufferGeometry, count: number): THREE.InstancedMesh {
         const pool = this.meshPools.get(type) || [];
         this.meshPools.set(type, pool);
@@ -175,6 +331,25 @@ export class FoliageRenderSystem {
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.userData.capacity = this.getMeshCapacity(mesh);
         this.scene.add(mesh);
+        return mesh;
+    }
+
+    private acquireGrassMesh(count: number): THREE.InstancedMesh {
+        const pooledIndex = this.grassMeshPool.findIndex((mesh) => this.getMeshCapacity(mesh) >= count);
+        const mesh = pooledIndex >= 0
+            ? this.grassMeshPool.splice(pooledIndex, 1)[0]
+            : new THREE.InstancedMesh(this.getGrassGeometry(), this.getGrassMaterial(), this.getCapacity(count));
+
+        mesh.geometry = this.getGrassGeometry();
+        mesh.material = this.getGrassMaterial();
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        mesh.frustumCulled = true;
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.userData.capacity = this.getMeshCapacity(mesh);
+        if (!this.scene.children.includes(mesh)) {
+            this.scene.add(mesh);
+        }
         return mesh;
     }
 
@@ -199,11 +374,29 @@ export class FoliageRenderSystem {
         mesh.dispose();
     }
 
+    private releaseGrassMesh(mesh: THREE.InstancedMesh) {
+        this.scene.remove(mesh);
+        mesh.visible = false;
+        mesh.count = 0;
+        if (this.grassMeshPool.length < this.maxGrassPoolSize) {
+            this.grassMeshPool.push(mesh);
+            return;
+        }
+        mesh.dispose();
+    }
+
     private releaseChunkMeshes(key: string, meshes: Map<string, THREE.InstancedMesh>) {
         for (const mesh of meshes.values()) {
             this.releaseMesh(mesh);
         }
         this.chunkMeshes.delete(key);
+    }
+
+    private removeGroundDetailChunk(key: string): void {
+        const mesh = this.groundDetailMeshes.get(key);
+        if (!mesh) return;
+        this.releaseGrassMesh(mesh);
+        this.groundDetailMeshes.delete(key);
     }
 
     private populateMesh(mesh: THREE.InstancedMesh, items: FoliageItem[]) {
