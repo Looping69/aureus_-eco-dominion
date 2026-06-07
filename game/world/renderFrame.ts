@@ -2,6 +2,7 @@ import { FrameContext } from '../../engine/kernel';
 import { ChunkStore } from '../../engine/space/ChunkStore';
 import { DungeonEngine } from '../../engine/dungeon/DungeonEngine';
 import { waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial } from '../../engine/render/materials/VoxelMaterials';
+import { BuildingStatusLabelLayer } from '../render/systems/BuildingStatusLabelLayer';
 
 export interface RenderFrameDeps {
     stateManager: any;
@@ -19,6 +20,15 @@ export interface RenderFrameDeps {
     dungeonInputHandler: any;
     getTerrainHeight: (worldX: number, worldZ: number) => number;
     onSfx?: (sfx: any) => void;
+}
+
+let buildingStatusLabelLayer: BuildingStatusLabelLayer | null = null;
+
+function getBuildingStatusLabelLayer(deps: RenderFrameDeps): BuildingStatusLabelLayer {
+    if (!buildingStatusLabelLayer) {
+        buildingStatusLabelLayer = new BuildingStatusLabelLayer(deps.render.getScene());
+    }
+    return buildingStatusLabelLayer;
 }
 
 export function drawWorldFrame(ctx: FrameContext, deps: RenderFrameDeps): void {
@@ -100,6 +110,7 @@ function updateActiveView(
 function updateDungeonView(state: any, deps: RenderFrameDeps): void {
     deps.dungeonRenderSystem.setVisible(true);
     deps.dungeonRenderSystem.update(state.dungeon);
+    buildingStatusLabelLayer?.clear();
 
     if (!deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(true);
     if (deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(false);
@@ -141,6 +152,7 @@ function updateFirstPersonView(
         0.1,
         deps.render.getRuntimeQuality().smoothDetail
     );
+    getBuildingStatusLabelLayer(deps).update(state.chunks, camera, ctx.time, 0.1, 'FIRST_PERSON');
 }
 
 function updateSurfaceView(
@@ -176,6 +188,7 @@ function updateSurfaceView(
         zoomLevel,
         deps.render.getRuntimeQuality().smoothDetail
     );
+    getBuildingStatusLabelLayer(deps).update(state.chunks, camera, ctx.time, zoomLevel, 'SURFACE');
 }
 
 function updateCursor(state: any, deps: RenderFrameDeps): void {
