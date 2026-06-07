@@ -69,7 +69,7 @@ test('game state and public type exports expose layered world state', () => {
   const barrel = readFileSync(typesBarrelPath, 'utf8');
 
   for (const snippet of [
-    "import { LayeredWorldState } from './layeredWorld';",
+    "import type { LayeredWorldState } from './layeredWorld';",
     'layeredWorld: LayeredWorldState;',
   ]) {
     assert.match(gameTypes, new RegExp(escapeRegExp(snippet)));
