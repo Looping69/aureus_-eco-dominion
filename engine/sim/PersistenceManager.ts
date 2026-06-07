@@ -7,6 +7,7 @@
 import { GameState, Agent, GridTile, BuildingType } from '../../types';
 import { DEFAULT_VIEW_RADIUS } from '../utils/GameUtils';
 import { applyDeepLedgerSurvey } from '../underground/UndergroundGenerator';
+import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';
 
 export class PersistenceManager {
     private readonly STORAGE_KEY = 'aureus_save_v2';
@@ -48,6 +49,20 @@ export class PersistenceManager {
                         };
                     }
                     return prunedChunks;
+                }
+
+                if (key === 'layeredWorld' && value && typeof value === 'object') {
+                    return {
+                        enabled: value.enabled,
+                        minY: value.minY,
+                        maxY: value.maxY,
+                        surfaceY: value.surfaceY,
+                        activeY: value.activeY,
+                        accessPoints: value.accessPoints || {},
+                        renderVersion: value.renderVersion || 0,
+                        migrationVersion: value.migrationVersion || 0,
+                        chunks: {},
+                    };
                 }
 
                 // Exclude large transient objects if any
@@ -106,6 +121,28 @@ export class PersistenceManager {
         state.powerGrid.deficit ??= 0;
     }
 
+    private reviveTiles(state: GameState): void {
+        if (!state.chunks) return;
+
+        for (const chunk of Object.values(state.chunks)) {
+            for (const tile of chunk.tiles) {
+                // Fill in defaults for pruned fields
+                if (tile.buildingType === undefined) tile.buildingType = BuildingType.EMPTY;
+                if (tile.level === undefined) tile.level = 1;
+                if (tile.foliage === undefined) tile.foliage = 'NONE';
+                if (tile.terrainHeight === undefined) tile.terrainHeight = 0;
+
+                // Ensure explored and unlocked
+                tile.locked = false;
+                tile.explored = true;
+            }
+        }
+    }
+
+    private ensureLayeredWorldState(state: GameState): void {
+        state.layeredWorld = normalizeLayeredWorldState(state.chunks || {}, state.layeredWorld);
+    }
+
     /**
      * Loads and deserializes the game state
      */
@@ -130,23 +167,10 @@ export class PersistenceManager {
             if (!state.commandQueue) state.commandQueue = [];
             this.ensureIndustryState(state);
             this.ensurePowerGridState(state);
+            this.reviveTiles(state);
+            this.ensureLayeredWorldState(state);
 
-            // MIGRATION & REVIVAL: Ensure all tiles have required properties
             if (state.chunks) {
-                for (const chunk of Object.values(state.chunks)) {
-                    for (const tile of chunk.tiles) {
-                        // Fill in defaults for pruned fields
-                        if (tile.buildingType === undefined) tile.buildingType = BuildingType.EMPTY;
-                        if (tile.level === undefined) tile.level = 1;
-                        if (tile.foliage === undefined) tile.foliage = 'NONE';
-                        if (tile.terrainHeight === undefined) tile.terrainHeight = 0;
-
-
-                        // Ensure explored and unlocked
-                        tile.locked = false;
-                        tile.explored = true;
-                    }
-                }
                 console.log('[PersistenceManager] Revived and migrated chunk tiles.');
             }
 
@@ -183,24 +207,8 @@ export class PersistenceManager {
             if (!state.commandQueue) state.commandQueue = [];
             this.ensureIndustryState(state);
             this.ensurePowerGridState(state);
-
-            // MIGRATION & REVIVAL: Ensure all tiles have required properties
-            if (state.chunks) {
-                for (const chunk of Object.values(state.chunks)) {
-                    for (const tile of chunk.tiles) {
-                        // Fill in defaults for pruned fields
-                        if (tile.buildingType === undefined) tile.buildingType = BuildingType.EMPTY;
-                        if (tile.level === undefined) tile.level = 1;
-                        if (tile.foliage === undefined) tile.foliage = 'NONE';
-                        if (tile.terrainHeight === undefined) tile.terrainHeight = 0;
-
-
-                        // Ensure explored and unlocked
-                        tile.locked = false;
-                        tile.explored = true;
-                    }
-                }
-            }
+            this.reviveTiles(state);
+            this.ensureLayeredWorldState(state);
 
             applyDeepLedgerSurvey(state as any);
 
