@@ -10,6 +10,10 @@ import * as THREE from 'three';
 // Keep the adapter local so the grass renderer can use it without coupling to brittle types.
 // @ts-ignore
 import { InstancedUniformsMesh as RuntimeInstancedUniformsMesh } from 'three-instanced-uniforms-mesh';
+// @three.ez/instanced-mesh keeps InstancedMesh compatibility while adding stronger
+// instance management for dense foliage batches.
+// @ts-ignore
+import { InstancedMesh2 as RuntimeInstancedMesh2 } from '@three.ez/instanced-mesh';
 import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
 import { foliageInstancedMaterial } from '../../../engine/render/materials/VoxelMaterials';
 import { mergeGroupGeometry } from '../../../engine/render/utils/VoxelUtils';
@@ -38,6 +42,12 @@ type GrassBlade = {
 type GrassMesh = THREE.InstancedMesh & {
     setUniformAt: (name: string, index: number, value: number | THREE.Color) => void;
 };
+
+const EnhancedInstancedMeshCtor = RuntimeInstancedMesh2 as unknown as new (
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material,
+    count: number
+) => THREE.InstancedMesh;
 
 const InstancedUniformsMeshCtor = RuntimeInstancedUniformsMesh as unknown as new (
     geometry: THREE.BufferGeometry,
@@ -388,7 +398,7 @@ export class FoliageRenderSystem {
         const pooledIndex = pool.findIndex((mesh) => this.getMeshCapacity(mesh) >= count);
         const mesh = pooledIndex >= 0
             ? pool.splice(pooledIndex, 1)[0]
-            : new THREE.InstancedMesh(geometry, foliageInstancedMaterial, this.getCapacity(count));
+            : new EnhancedInstancedMeshCtor(geometry, foliageInstancedMaterial, this.getCapacity(count));
 
         mesh.geometry = geometry;
         mesh.visible = true;
@@ -397,6 +407,7 @@ export class FoliageRenderSystem {
         mesh.frustumCulled = true;
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.userData.capacity = this.getMeshCapacity(mesh);
+        mesh.userData.instanceLibrary = '@three.ez/instanced-mesh';
         this.scene.add(mesh);
         return mesh;
     }
@@ -414,6 +425,7 @@ export class FoliageRenderSystem {
         mesh.frustumCulled = true;
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.userData.capacity = this.getMeshCapacity(mesh);
+        mesh.userData.instanceLibrary = 'three-instanced-uniforms-mesh';
         if (!this.scene.children.includes(mesh)) {
             this.scene.add(mesh);
         }
@@ -446,7 +458,7 @@ export class FoliageRenderSystem {
         mesh.visible = false;
         mesh.count = 0;
         if (this.grassMeshPool.length < this.maxGrassPoolSize) {
-            this.grassMeshPool.push(mesh);
+            pool.push(mesh);
             return;
         }
         mesh.dispose();
