@@ -307,11 +307,14 @@ const App: React.FC = () => {
                                                 playSfx={playSfx}
                                                 step={state.step}
                                                 debugMode={state.debugMode}
-                                                interactionMode={state.interactionMode}
+                                                interactionMode={state.interactionMode as any}
                                                 undergroundUnlocked={state.underground.unlocked || state.dungeon.unlocked}
                                                 activeView={state.activeView}
                                                 overlayMode={state.logistics.overlayMode}
                                                 selectedAgentId={state.selectedAgentId}
+                                                activeLayer={state.layeredWorld.activeY}
+                                                minLayer={state.layeredWorld.minY}
+                                                maxLayer={state.layeredWorld.surfaceY - 1}
                                                 onToggleView={handleToggleView}
                                             />
 
