@@ -24,7 +24,6 @@ import { WorldMap } from './components/WorldMap';
 import { Minimap } from './components/Minimap';
 import { WeatherOverlay } from './components/WeatherOverlay';
 import { UndergroundHUD } from './components/UndergroundHUD';
-import { SurveyDrillQuickBuild } from './components/SurveyDrillQuickBuild';
 import { DialogueOverlay } from './components/DialogueOverlay';
 import { MobileBuildingConfirmation } from './components/MobileBuildingConfirmation';
 import { DebugMenu } from './components/DebugMenu';
@@ -298,7 +297,6 @@ const App: React.FC = () => {
 
                                             <CommandFailureToast result={state.ui?.lastCommandResult} />
                                             <InventoryHUD inventory={state.inventory} selectedBuilding={state.selectedBuilding} dispatch={dispatch} playSfx={playSfx} step={state.step} />
-                                            {state.activeView === 'SURFACE' && <SurveyDrillQuickBuild state={state} dispatch={dispatch} playSfx={playSfx} />}
 
                                             <Controls
                                                 selectedBuilding={state.selectedBuilding}
