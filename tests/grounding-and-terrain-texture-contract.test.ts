@@ -33,9 +33,11 @@ test('agent rendering warms Rapier grounding and snaps agents to terrain height'
 
   for (const snippet of [
     "import { computeGroundedHeight, warmRapierGroundingProbe } from '../../../engine/physics/RapierGroundingProbe';",
+    "import { getAgentWaterWadeY } from '../../../engine/render/utils/GroundAnchors';",
     'warmRapierGroundingProbe();',
     'const terrainHeight = this.getHeightAt(meshGroup.position.x, meshGroup.position.z);',
-    'meshGroup.position.y = computeGroundedHeight(meshGroup.position.y, terrainHeight, dt);',
+    'const targetHeight = terrainHeight <= 0.01 ? getAgentWaterWadeY(0) : terrainHeight;',
+    'meshGroup.position.y = computeGroundedHeight(meshGroup.position.y, targetHeight, dt);',
   ]) {
     assert.match(agentRender, new RegExp(escapeRegExp(snippet)));
   }
