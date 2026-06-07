@@ -2,6 +2,7 @@ export * from './AgentSystem';
 export * from './JobGenerationSystem';
 export * from './EnvironmentSystem';
 export * from './UndergroundSurveySystem';
+export * from './LayeredWorldCommandSystem';
 export * from './EconomySystem';
 export * from './ColonySystem';
 export * from './LogisticsSystem';
