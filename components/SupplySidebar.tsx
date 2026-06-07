@@ -151,6 +151,7 @@ const STARTER_SHOP_TYPES = new Set<BuildingType>([
     BuildingType.STAFF_QUARTERS,
     BuildingType.STORAGE_DEPOT,
     BuildingType.MINING_HEADFRAME,
+    BuildingType.SURVEY_DRILL,
 ]);
 
 export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, world, dispatch, onClose, playSfx }) => {
