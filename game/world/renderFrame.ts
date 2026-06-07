@@ -11,6 +11,7 @@ export interface RenderFrameDeps {
     workerPool: any;
     inputSystem: any;
     terrainRenderSystem: any;
+    foliageRenderSystem: any;
     buildingRenderSystem: any;
     agentRenderSystem: any;
     environmentRenderSystem: any;
@@ -141,6 +142,46 @@ function getLayeredWorldOverlay(deps: RenderFrameDeps): LayeredWorldOverlay {
     return layeredWorldOverlay;
 }
 
+function setObjectVisible(object: THREE.Object3D | null | undefined, visible: boolean): void {
+    if (object) object.visible = visible;
+}
+
+function setSurfaceRenderVisible(deps: RenderFrameDeps, visible: boolean): void {
+    const terrainChunks = deps.terrainRenderSystem?.['chunks'] as Map<string, any> | undefined;
+    terrainChunks?.forEach((chunk) => {
+        setObjectVisible(chunk.mesh, visible);
+        setObjectVisible(chunk.waterMesh, visible);
+        setObjectVisible(chunk.ghostMesh, visible);
+    });
+
+    const foliageChunks = deps.foliageRenderSystem?.['chunkMeshes'] as Map<string, Map<string, THREE.Object3D>> | undefined;
+    foliageChunks?.forEach((meshes) => {
+        meshes.forEach((mesh) => setObjectVisible(mesh, visible));
+    });
+
+    const buildingMeshes = deps.buildingRenderSystem?.['buildingMeshes'] as Map<number, THREE.Object3D> | undefined;
+    buildingMeshes?.forEach((mesh) => setObjectVisible(mesh, visible));
+    setObjectVisible(deps.buildingRenderSystem?.['packetGroup'], visible);
+    setObjectVisible(deps.buildingRenderSystem?.['overlayGroup'], visible);
+    setObjectVisible(deps.buildingRenderSystem?.['packetInstanceLayer']?.['root'], visible);
+    setObjectVisible(deps.buildingRenderSystem?.['overlayInstanceLayer']?.['root'], visible);
+
+    const particles = deps.buildingRenderSystem?.['particles'] as Array<{ mesh?: THREE.Object3D }> | undefined;
+    particles?.forEach((particle) => setObjectVisible(particle.mesh, visible));
+
+    const agentMeshes = deps.agentRenderSystem?.['agentMeshes'] as Map<string, THREE.Object3D> | undefined;
+    agentMeshes?.forEach((mesh) => setObjectVisible(mesh, visible));
+    const statusSprites = deps.agentRenderSystem?.['statusSprites'] as Map<string, THREE.Object3D> | undefined;
+    statusSprites?.forEach((sprite) => setObjectVisible(sprite, visible));
+
+    if (!visible) {
+        setObjectVisible(deps.buildingRenderSystem?.['selectionCursor'], false);
+        setObjectVisible(deps.buildingRenderSystem?.['ghostBuilding'], false);
+        setObjectVisible(deps.agentRenderSystem?.['agentSelectionRing'], false);
+        setObjectVisible(deps.agentRenderSystem?.['eagle'], false);
+    }
+}
+
 export function drawWorldFrame(ctx: FrameContext, deps: RenderFrameDeps): void {
     const state = deps.stateManager.getState();
     const affectedBuildingChunks = new Set<string>();
@@ -218,6 +259,7 @@ function updateActiveView(
 }
 
 function updateDungeonView(state: any, deps: RenderFrameDeps): void {
+    setSurfaceRenderVisible(deps, false);
     deps.dungeonRenderSystem.setVisible(true);
     deps.dungeonRenderSystem.update(state.dungeon);
     buildingStatusLabelLayer?.clear();
@@ -239,6 +281,7 @@ function updateFirstPersonView(
     renderDirtyKeys: Set<string>,
     deps: RenderFrameDeps
 ): void {
+    setSurfaceRenderVisible(deps, true);
     deps.dungeonRenderSystem.setVisible(false);
     layeredWorldOverlay?.setVisible(false);
 
@@ -274,6 +317,7 @@ function updateSurfaceView(
     renderDirtyKeys: Set<string>,
     deps: RenderFrameDeps
 ): void {
+    setSurfaceRenderVisible(deps, true);
     deps.dungeonRenderSystem.setVisible(false);
 
     if (!deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(true);
@@ -305,6 +349,12 @@ function updateSurfaceView(
 }
 
 function updateCursor(state: any, deps: RenderFrameDeps): void {
+    if (state.activeView === 'DUNGEON') {
+        deps.render.getRenderer().localClippingEnabled = false;
+        deps.buildingRenderSystem.updateCursor(null, null);
+        return;
+    }
+
     const cursor = deps.inputSystem?.getCurrentCursor() || null;
     if (cursor) {
         const gx = Math.round(cursor.x);
