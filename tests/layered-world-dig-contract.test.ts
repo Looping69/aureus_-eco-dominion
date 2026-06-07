@@ -7,8 +7,8 @@ const mutationPath = path.join(process.cwd(), 'engine', 'worldgen', 'LayeredWorl
 const dispatcherPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
 const supplySidebarPath = path.join(process.cwd(), 'components', 'SupplySidebar.tsx');
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function assertIncludes(source: string, snippet: string) {
+  assert.equal(source.includes(snippet), true, `Missing expected snippet: ${snippet}`);
 }
 
 test('layered world voxels can be excavated into tunnels with resource drops', () => {
@@ -29,7 +29,7 @@ test('layered world voxels can be excavated into tunnels with resource drops', (
     'chunk.dirty = true;',
     'layeredWorld.renderVersion += 1;',
   ]) {
-    assert.match(source, new RegExp(escapeRegExp(snippet)));
+    assertIncludes(source, snippet);
   }
 });
 
@@ -48,7 +48,7 @@ test('command dispatcher handles DIG_VOXEL through layered world mutation', () =
     "state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.MINING_HIT });",
     "'DIG_VOXEL'",
   ]) {
-    assert.match(source, new RegExp(escapeRegExp(snippet)));
+    assertIncludes(source, snippet);
   }
 });
 
@@ -62,6 +62,6 @@ test('survey drill is available from the starter build menu', () => {
     'BuildingType.MINING_HEADFRAME, BuildingType.SURVEY_DRILL, BuildingType.MINE_SHAFT,',
     'BuildingType.SURVEY_DRILL,',
   ]) {
-    assert.match(source, new RegExp(escapeRegExp(snippet)));
+    assertIncludes(source, snippet);
   }
 });
