@@ -6,7 +6,6 @@
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
 import { Contract, GameState, GameCommand, SfxType } from '../../../types';
-import { digLayeredWorldVoxel } from '../../worldgen/LayeredWorldMutations';
 
 const CONTRACT_COMPLETION_TTL = 75;
 
@@ -56,9 +55,6 @@ export class CommandDispatcher extends BaseSimSystem {
         } else if (commandType === 'ABANDON_CONTRACT') {
             result = this.abandonContract(cmd, state);
             handledBy = this.id;
-        } else if (commandType === 'DIG_VOXEL') {
-            result = this.digVoxel(cmd, state);
-            handledBy = this.id;
         }
 
         // Try each registered system in order
@@ -85,25 +81,6 @@ export class CommandDispatcher extends BaseSimSystem {
         }
 
         this.reportResult(cmd.id, result, state, handledBy, cmd);
-    }
-
-    private digVoxel(cmd: GameCommand, state: GameState): CommandResult {
-        const x = Math.round(Number(cmd.payload?.x));
-        const y = Math.round(Number(cmd.payload?.y));
-        const z = Math.round(Number(cmd.payload?.z));
-        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Dig target must include x, y, and z.' };
-        }
-
-        const result = digLayeredWorldVoxel(state.layeredWorld, x, y, z);
-        if (!result.ok) {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: result.reason };
-        }
-
-        state.resources.minerals += result.drops.minerals || 0;
-        state.resources.gems += result.drops.gems || 0;
-        state.resources.stone += result.drops.stone || 0;
-        return { ok: true };
     }
 
     private acceptContract(cmd: GameCommand, state: GameState): CommandResult {
@@ -230,7 +207,7 @@ export class CommandDispatcher extends BaseSimSystem {
         const reason = result.ok ? undefined : (result as any).reason;
 
         // 2. Update UI-safe feedback
-        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT', 'DIG_VOXEL'];
+        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT'];
         if (!ok || (cmd && feedbackTypes.includes(cmd.type as string))) {
             state.ui.lastCommandResult = {
                 commandId,
