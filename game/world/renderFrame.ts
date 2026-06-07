@@ -183,6 +183,7 @@ function setSurfaceRenderVisible(deps: RenderFrameDeps, visible: boolean): void 
     statusSprites?.forEach((sprite) => setObjectVisible(sprite, visible));
 
     if (!visible) {
+        deps.foliageRenderSystem?.setGroundDetailVisible?.(false);
         setObjectVisible(deps.buildingRenderSystem?.['selectionCursor'], false);
         setObjectVisible(deps.buildingRenderSystem?.['ghostBuilding'], false);
         setObjectVisible(deps.agentRenderSystem?.['agentSelectionRing'], false);
@@ -290,6 +291,7 @@ function updateFirstPersonView(
     deps: RenderFrameDeps
 ): void {
     setSurfaceRenderVisible(deps, true);
+    deps.foliageRenderSystem?.setGroundDetailVisible?.(true);
     deps.dungeonRenderSystem.setVisible(false);
     layeredWorldOverlay?.setVisible(false);
 
@@ -336,6 +338,7 @@ function updateSurfaceView(
     deps.agentRenderSystem.setSelectedAgent(state.selectedAgentId);
 
     const zoomLevel = deps.cameraSystem.cameraZoom;
+    deps.foliageRenderSystem?.setGroundDetailVisible?.(zoomLevel <= 18);
     const allAgents = [...state.agents, ...state.ambientNpcs];
     const camera = deps.render.getCamera();
     deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, zoomLevel, camera);
