@@ -1,8 +1,5 @@
 
 import { BuildingType } from '../../../../../types';
-import { RoadFactory } from './Road';
-import { PipeFactory } from './Pipe';
-import { PowerLineFactory } from './PowerLine';
 import { StaffQuartersFactory } from './StaffQuarters';
 import { CanteenFactory } from './Canteen';
 import { WashPlantFactory } from './WashPlant';
@@ -17,9 +14,6 @@ import { MineShaftFactory } from './MineShaft';
 import { SurveyDrillFactory } from './SurveyDrill';
 
 export const Era1Buildings = {
-    [BuildingType.ROAD]: RoadFactory,
-    [BuildingType.PIPE]: PipeFactory,
-    [BuildingType.POWER_LINE]: PowerLineFactory,
     [BuildingType.STAFF_QUARTERS]: StaffQuartersFactory,
     [BuildingType.CANTEEN]: CanteenFactory,
     [BuildingType.WASH_PLANT]: WashPlantFactory,
