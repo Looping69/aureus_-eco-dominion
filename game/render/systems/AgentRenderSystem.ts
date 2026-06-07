@@ -6,6 +6,7 @@ import { Agent, AgentRole } from '../../../types';
 import { createAgentGroup } from '../../../engine/data/voxels/Agent';
 import { createEagle } from '../../../engine/data/voxels/Eagle';
 import { computeGroundedHeight, warmRapierGroundingProbe } from '../../../engine/physics/RapierGroundingProbe';
+import { getAgentWaterWadeY } from '../../../engine/render/utils/GroundAnchors';
 
 // Status indicator configuration
 const STATUS_CONFIG = {
@@ -311,7 +312,8 @@ export class AgentRenderSystem {
 
                 // Get terrain height at agent position and snap through the grounding probe.
                 const terrainHeight = this.getHeightAt(meshGroup.position.x, meshGroup.position.z);
-                meshGroup.position.y = computeGroundedHeight(meshGroup.position.y, terrainHeight, dt);
+                const targetHeight = terrainHeight <= 0.01 ? getAgentWaterWadeY(0) : terrainHeight;
+                meshGroup.position.y = computeGroundedHeight(meshGroup.position.y, targetHeight, dt);
             }
 
             // Always visible on surface
