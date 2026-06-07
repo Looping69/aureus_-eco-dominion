@@ -44,6 +44,16 @@ export function handleSurfaceInteraction(
     const tile = ChunkStore.getTile(state.chunks, x, z);
     if (!tile) return;
 
+    if ((state.interactionMode as string) === 'DIG') {
+        const layeredWorld = state.layeredWorld;
+        const activeY = layeredWorld.activeY < layeredWorld.surfaceY
+            ? layeredWorld.activeY
+            : layeredWorld.surfaceY - 1;
+        deps.stateManager.pushCommand('DIG_VOXEL', { x, y: activeY, z });
+        deps.config.onTileClick?.(x, z, isTouch);
+        return;
+    }
+
     const hasBuilding = tile.buildingType !== BuildingType.EMPTY && tile.buildingType !== BuildingType.POND;
     const isInspecting = state.interactionMode === 'INSPECT' || (state.interactionMode === 'BUILD' && !state.selectedBuilding);
 
