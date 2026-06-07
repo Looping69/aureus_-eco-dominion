@@ -154,6 +154,9 @@ export class AureusWorld extends BaseWorld {
         this.terrainRenderSystem.onFoliageUpdate = (key: string, items: any[]) => {
             this.foliageRenderSystem.updateChunk(key, items);
         };
+        this.terrainRenderSystem.onGroundDetailUpdate = (key: string, tiles: any[]) => {
+            this.foliageRenderSystem.updateGroundDetailChunk(key, tiles);
+        };
         this.terrainRenderSystem.onChunkDispose = (key: string) => {
             this.foliageRenderSystem.removeChunk(key);
         };
@@ -585,6 +588,7 @@ export class AureusWorld extends BaseWorld {
             workerPool: this.workerPool,
             inputSystem: this.inputSystem,
             terrainRenderSystem: this.terrainRenderSystem,
+            foliageRenderSystem: this.foliageRenderSystem,
             buildingRenderSystem: this.buildingRenderSystem,
             agentRenderSystem: this.agentRenderSystem,
             environmentRenderSystem: this.environmentRenderSystem,
