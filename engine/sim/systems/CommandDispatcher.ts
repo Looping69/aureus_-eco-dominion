@@ -103,13 +103,6 @@ export class CommandDispatcher extends BaseSimSystem {
         state.resources.minerals += result.drops.minerals || 0;
         state.resources.gems += result.drops.gems || 0;
         state.resources.stone += result.drops.stone || 0;
-        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.MINING_HIT });
-        state.newsFeed.unshift({
-            id: `dig_voxel_${Date.now()}_${x}_${y}_${z}`,
-            headline: `Excavated ${result.material.toLowerCase().replace(/_/g, ' ')} at layer ${y}.`,
-            type: Object.keys(result.drops).length > 0 ? 'POSITIVE' : 'NEUTRAL',
-            timestamp: state.tickCount,
-        });
         return { ok: true };
     }
 
