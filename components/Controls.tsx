@@ -4,7 +4,7 @@
 */
 
 import React from 'react';
-import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye } from 'lucide-react';
+import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe } from 'lucide-react';
 import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import '../components/ViewSwitchButton.css';
@@ -16,12 +16,15 @@ interface ControlsProps {
     playSfx: (type: any) => void;
     step: GameStep;
     debugMode: boolean;
-    interactionMode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT';
+    interactionMode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT' | 'DIG';
     undergroundUnlocked: boolean;
     activeView: 'SURFACE' | 'DUNGEON';
     overlayMode: LogisticsOverlayMode;
     onToggleView: () => void;
     selectedAgentId: string | null;
+    activeLayer: number;
+    minLayer: number;
+    maxLayer: number;
 }
 
 const OVERLAY_SEQUENCE: LogisticsOverlayMode[] = ['OFF', 'FLOW', 'CONGESTION', 'JUNCTIONS'];
@@ -29,7 +32,7 @@ const OVERLAY_SEQUENCE: LogisticsOverlayMode[] = ['OFF', 'FLOW', 'CONGESTION', '
 export const Controls: React.FC<ControlsProps> = React.memo(({
     selectedBuilding, dispatch, setSidebarOpen, playSfx, step,
     debugMode, interactionMode, undergroundUnlocked, activeView, overlayMode, onToggleView,
-    selectedAgentId
+    selectedAgentId, activeLayer, minLayer, maxLayer
 }) => {
     if (selectedBuilding) {
         return (
@@ -56,6 +59,9 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     const highlightOps = step === GameStep.TUTORIAL_SELL;
     const highlightBuild = step === GameStep.TUTORIAL_MINE || step === GameStep.TUTORIAL_BUY;
     const nextOverlayMode = OVERLAY_SEQUENCE[(OVERLAY_SEQUENCE.indexOf(overlayMode) + 1) % OVERLAY_SEQUENCE.length];
+    const canUseLayerTools = activeView === 'SURFACE' && (undergroundUnlocked || debugMode);
+    const lowerLayer = Math.max(minLayer, activeLayer - 1);
+    const upperLayer = Math.min(maxLayer, activeLayer + 1);
 
     return (
         <div className="absolute bottom-16 sm:bottom-6 left-3 right-3 sm:left-6 sm:right-6 z-20 flex justify-between pointer-events-none gap-4">
@@ -105,6 +111,43 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                 >
                     <Layers size={20} className={overlayMode === 'OFF' ? 'text-slate-500' : 'text-cyan-400'} />
                 </button>
+
+                {canUseLayerTools && (
+                    <div className="flex items-center gap-1 bg-slate-950/80 border-2 border-b-[4px] border-slate-950 rounded-[4px] p-1 shadow-[4px_4px_0_rgba(0,0,0,0.25)]">
+                        <button
+                            onClick={() => {
+                                dispatch({ type: 'SET_LAYERED_ACTIVE_Y', payload: lowerLayer });
+                                playSfx('UI_CLICK');
+                            }}
+                            disabled={activeLayer <= minLayer}
+                            className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 disabled:opacity-35 disabled:hover:bg-slate-800 flex items-center justify-center text-slate-300"
+                            title="Lower underground layer"
+                        >
+                            <ArrowDown size={16} />
+                        </button>
+                        <button
+                            onClick={() => {
+                                dispatch({ type: 'SET_INTERACTION_MODE', payload: interactionMode === 'DIG' ? 'INSPECT' : 'DIG' });
+                                playSfx('UI_CLICK');
+                            }}
+                            className={`h-9 min-w-16 rounded-[3px] px-2 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'DIG' ? 'bg-amber-500 text-amber-950' : 'bg-slate-800 text-amber-300 hover:bg-slate-700'}`}
+                            title="Dig selected underground layer"
+                        >
+                            <Pickaxe size={15} /> L{activeLayer}
+                        </button>
+                        <button
+                            onClick={() => {
+                                dispatch({ type: 'SET_LAYERED_ACTIVE_Y', payload: upperLayer });
+                                playSfx('UI_CLICK');
+                            }}
+                            disabled={activeLayer >= maxLayer}
+                            className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 disabled:opacity-35 disabled:hover:bg-slate-800 flex items-center justify-center text-slate-300"
+                            title="Raise underground layer"
+                        >
+                            <ArrowUp size={16} />
+                        </button>
+                    </div>
+                )}
 
                 <button
                     onClick={() => {
