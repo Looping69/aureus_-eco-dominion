@@ -11,7 +11,7 @@ export interface RenderFrameDeps {
     workerPool: any;
     inputSystem: any;
     terrainRenderSystem: any;
-    foliageRenderSystem: any;
+    foliageRenderSystem?: any;
     buildingRenderSystem: any;
     agentRenderSystem: any;
     environmentRenderSystem: any;
@@ -155,9 +155,17 @@ function setSurfaceRenderVisible(deps: RenderFrameDeps, visible: boolean): void 
     });
 
     const foliageChunks = deps.foliageRenderSystem?.['chunkMeshes'] as Map<string, Map<string, THREE.Object3D>> | undefined;
-    foliageChunks?.forEach((meshes) => {
-        meshes.forEach((mesh) => setObjectVisible(mesh, visible));
-    });
+    if (foliageChunks) {
+        foliageChunks.forEach((meshes) => {
+            meshes.forEach((mesh) => setObjectVisible(mesh, visible));
+        });
+    } else {
+        deps.render.getScene().traverse((object: THREE.Object3D) => {
+            if (object.userData?.foliageType) {
+                object.visible = visible;
+            }
+        });
+    }
 
     const buildingMeshes = deps.buildingRenderSystem?.['buildingMeshes'] as Map<number, THREE.Object3D> | undefined;
     buildingMeshes?.forEach((mesh) => setObjectVisible(mesh, visible));
