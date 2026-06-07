@@ -10,8 +10,8 @@ const generatorPath = path.join(process.cwd(), 'engine', 'worldgen', 'LayeredWor
 const stateManagerPath = path.join(process.cwd(), 'engine', 'state', 'StateManager.ts');
 const persistencePath = path.join(process.cwd(), 'engine', 'sim', 'PersistenceManager.ts');
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function assertIncludes(source: string, snippet: string) {
+  assert.equal(source.includes(snippet), true, `Missing expected snippet: ${snippet}`);
 }
 
 test('layered world state defines destructible vertical voxel cells', () => {
@@ -37,7 +37,7 @@ test('layered world state defines destructible vertical voxel cells', () => {
     'activeY: number;',
     'accessPoints: Record<string, { x: number; y: number; z: number;',
   ]) {
-    assert.match(source, new RegExp(escapeRegExp(snippet)));
+    assertIncludes(source, snippet);
   }
 });
 
@@ -60,7 +60,7 @@ test('surface chunks can be migrated into downward layers without replacing surf
     'export function normalizeLayeredWorldState(',
     'generatedFromSurfaceVersion: chunk.version ?? 0,',
   ]) {
-    assert.match(source, new RegExp(escapeRegExp(snippet)));
+    assertIncludes(source, snippet);
   }
 });
 
@@ -72,7 +72,7 @@ test('game state and public type exports expose layered world state', () => {
     "import type { LayeredWorldState } from './layeredWorld';",
     'layeredWorld: LayeredWorldState;',
   ]) {
-    assert.match(gameTypes, new RegExp(escapeRegExp(snippet)));
+    assertIncludes(gameTypes, snippet);
   }
 
   assert.match(barrel, /export \* from '\.\/engine\/types\/layeredWorld';/);
@@ -89,7 +89,7 @@ test('initial state and persistence backfill layered world from current chunks',
     'const chunks = this.createInitialChunks(seed, overrides?.chunks);',
     'layeredWorld: normalizeLayeredWorldState(chunks, overrides?.layeredWorld),',
   ]) {
-    assert.match(stateManager, new RegExp(escapeRegExp(snippet)));
+    assertIncludes(stateManager, snippet);
   }
 
   for (const snippet of [
@@ -100,6 +100,6 @@ test('initial state and persistence backfill layered world from current chunks',
     'state.layeredWorld = normalizeLayeredWorldState(state.chunks || {}, state.layeredWorld);',
     'this.ensureLayeredWorldState(state);',
   ]) {
-    assert.match(persistence, new RegExp(escapeRegExp(snippet)));
+    assertIncludes(persistence, snippet);
   }
 });
