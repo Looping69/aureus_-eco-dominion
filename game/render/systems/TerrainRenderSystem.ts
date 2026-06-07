@@ -11,6 +11,13 @@ import { GridTile } from '../../../types';
 import { terrainSurfaceMaterial, mats } from '../../../engine/render/materials/VoxelMaterials';
 import { getTerrainChunkLod } from '../../../engine/render/utils/TerrainLod';
 import { CHUNK_SIZE, worldToChunk, worldToLocal, toChunkKey } from '../../../engine/utils/coords';
+import {
+    buildTerrainBoundsTree,
+    disposeTerrainBoundsTree,
+    installTerrainBvhRaycast,
+    pickClosestTerrainHit,
+    TerrainPickHandler,
+} from './TerrainPickAccelerator';
 
 interface ChunkRenderData {
     mesh: THREE.Mesh | null;
@@ -33,6 +40,7 @@ export class TerrainRenderSystem {
     private waterMeshPool: THREE.Mesh[] = [];
     private ghostMeshPool: THREE.Mesh[] = [];
     private readonly maxPoolSizePerType = 12;
+    private readonly terrainPickHandler: TerrainPickHandler = (raycaster) => this.intersectTerrain(raycaster);
 
     // Voxel terrain emits more faces than the smoothed shell, so keep the active
     // chunk ring tighter while LOD preserves the blocky silhouette in the distance.
@@ -50,6 +58,8 @@ export class TerrainRenderSystem {
     constructor(scene: THREE.Scene, jobSystem: JobSystem) {
         this.scene = scene;
         this.jobSystem = jobSystem;
+        installTerrainBvhRaycast();
+        this.scene.userData.intersectTerrain = this.terrainPickHandler;
     }
 
     public setViewMode(mode: 'SURFACE' | 'FIRST_PERSON'): void {
@@ -336,7 +346,7 @@ export class TerrainRenderSystem {
 
         // Terrain should receive shadows from buildings/foliage, but not cast its own
         // broad self-shadow bands back onto itself.
-        chunk.mesh = this.upsertChunkMesh(chunk.mesh, res.solid, terrainSurfaceMaterial, false, xPos, zPos, this.terrainMeshPool);
+        chunk.mesh = this.upsertChunkMesh(chunk.mesh, res.solid, terrainSurfaceMaterial, false, xPos, zPos, this.terrainMeshPool, true);
         if (chunk.mesh) {
             chunk.mesh.receiveShadow = true;
         } else {
@@ -359,6 +369,18 @@ export class TerrainRenderSystem {
         }
     }
 
+    public intersectTerrain(raycaster: THREE.Raycaster): THREE.Intersection | null {
+        return pickClosestTerrainHit(raycaster, this.getActiveTerrainMeshes());
+    }
+
+    private *getActiveTerrainMeshes(): Iterable<THREE.Mesh> {
+        for (const chunk of this.chunks.values()) {
+            if (chunk.mesh?.visible) {
+                yield chunk.mesh;
+            }
+        }
+    }
+
     private upsertChunkMesh(
         existing: THREE.Mesh | null,
         data: any,
@@ -366,7 +388,8 @@ export class TerrainRenderSystem {
         castShadow: boolean,
         xPos: number,
         zPos: number,
-        pool: THREE.Mesh[]
+        pool: THREE.Mesh[],
+        buildBoundsTree: boolean = false
     ): THREE.Mesh | null {
         if (!data || !data.p || data.p.length === 0) {
             if (existing) {
@@ -376,7 +399,7 @@ export class TerrainRenderSystem {
         }
 
         const mesh = existing || this.acquirePooledMesh(material, castShadow, pool);
-        this.applyMeshGeometry(mesh, data);
+        this.applyMeshGeometry(mesh, data, buildBoundsTree);
         mesh.position.set(xPos, 0, zPos);
         mesh.castShadow = castShadow;
         mesh.receiveShadow = true;
@@ -401,6 +424,7 @@ export class TerrainRenderSystem {
     private releaseChunkMesh(mesh: THREE.Mesh, pool: THREE.Mesh[]): void {
         this.scene.remove(mesh);
         if (mesh.geometry) {
+            disposeTerrainBoundsTree(mesh.geometry);
             mesh.geometry.dispose();
             mesh.geometry = new THREE.BufferGeometry();
         }
@@ -410,8 +434,9 @@ export class TerrainRenderSystem {
         }
     }
 
-    private applyMeshGeometry(mesh: THREE.Mesh, data: any): void {
+    private applyMeshGeometry(mesh: THREE.Mesh, data: any, buildBoundsTree: boolean = false): void {
         if (mesh.geometry) {
+            disposeTerrainBoundsTree(mesh.geometry);
             mesh.geometry.dispose();
         }
 
@@ -422,6 +447,12 @@ export class TerrainRenderSystem {
         geo.setAttribute('uv', new THREE.BufferAttribute(data.u, 2));
         geo.computeBoundingSphere();
         geo.computeBoundingBox();
+        if (buildBoundsTree) {
+            buildTerrainBoundsTree(geo);
+            mesh.userData.isBvhTerrainPickTarget = true;
+        } else {
+            delete mesh.userData.isBvhTerrainPickTarget;
+        }
         mesh.geometry = geo;
     }
 
@@ -444,6 +475,9 @@ export class TerrainRenderSystem {
         for (const [key, chunk] of this.chunks) {
             this.disposeChunk(key, chunk);
         }
+        if (this.scene.userData.intersectTerrain === this.terrainPickHandler) {
+            delete this.scene.userData.intersectTerrain;
+        }
         this.chunks.clear();
         this.tileCache.clear();
         this.disposeMeshPool(this.terrainMeshPool);
@@ -456,6 +490,7 @@ export class TerrainRenderSystem {
             const mesh = pool.pop();
             if (!mesh) continue;
             this.scene.remove(mesh);
+            disposeTerrainBoundsTree(mesh.geometry);
             mesh.geometry.dispose();
         }
     }
