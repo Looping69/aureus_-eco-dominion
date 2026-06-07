@@ -4,7 +4,6 @@
  */
 
 import { GridTile, BuildingType, Chunk } from '../../../types';
-import { ChunkStore } from '../../space/ChunkStore';
 import { BinaryHeap } from '../../utils/BinaryHeap';
 import { CHUNK_SIZE, worldToChunk, worldToLocal } from '../../utils/coords';
 
@@ -13,7 +12,8 @@ export const COST = {
     ROAD: 0.5,
     BASE: 1.0,
     ROUGH: 1.5,
-    OBSTACLE: 2.0
+    OBSTACLE: 2.0,
+    WATER: 48.0
 };
 
 // Node wrapper for Heap
@@ -28,9 +28,14 @@ const getDistance2D = (ax: number, az: number, bx: number, bz: number) => {
     return Math.max(Math.abs(ax - bx), Math.abs(az - bz));
 };
 
+const isWaterTile = (tile: GridTile): boolean => {
+    return tile.terrainHeight === 0 || tile.buildingType === BuildingType.POND || tile.buildingType === BuildingType.RESERVOIR;
+};
+
 const getTileCost = (tile: GridTile): number => {
     if (tile.buildingType === BuildingType.ROAD) return COST.ROAD;
-    if (tile.buildingType !== BuildingType.EMPTY && !tile.isUnderConstruction && tile.buildingType !== BuildingType.POND) return 1.0; // Indoors
+    if (isWaterTile(tile)) return COST.WATER;
+    if (tile.buildingType !== BuildingType.EMPTY && !tile.isUnderConstruction) return 1.0; // Indoors
 
     switch (tile.biome) {
         case 'SAND': return COST.OBSTACLE;
