@@ -1,4 +1,4 @@
-import { GameResources } from '../types/economy';
+import type { GameResources } from '../types/economy';
 import { LayeredWorldState, WorldVoxelCell, WorldVoxelMaterial } from '../types/layeredWorld';
 
 const CHUNK_SIZE = 16;
