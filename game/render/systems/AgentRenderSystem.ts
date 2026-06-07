@@ -5,6 +5,7 @@ import { Text } from 'troika-three-text';
 import { Agent, AgentRole } from '../../../types';
 import { createAgentGroup } from '../../../engine/data/voxels/Agent';
 import { createEagle } from '../../../engine/data/voxels/Eagle';
+import { computeGroundedHeight, warmRapierGroundingProbe } from '../../../engine/physics/RapierGroundingProbe';
 
 // Status indicator configuration
 const STATUS_CONFIG = {
@@ -123,6 +124,7 @@ export class AgentRenderSystem {
     ) {
         this.scene = scene;
         this.getHeightAt = getHeightAt;
+        warmRapierGroundingProbe();
 
         // Selection Ring
         this.agentSelectionRing = new THREE.Mesh(
@@ -307,9 +309,9 @@ export class AgentRenderSystem {
                 meshGroup.position.x = THREE.MathUtils.lerp(meshGroup.position.x, targetPos.x, 0.08); // Softened from 0.15
                 meshGroup.position.z = THREE.MathUtils.lerp(meshGroup.position.z, targetPos.z, 0.08); // Softened from 0.15
 
-                // Get terrain height at agent position
+                // Get terrain height at agent position and snap through the grounding probe.
                 const terrainHeight = this.getHeightAt(meshGroup.position.x, meshGroup.position.z);
-                meshGroup.position.y = THREE.MathUtils.lerp(meshGroup.position.y, terrainHeight, 0.15); // Softened from 0.3
+                meshGroup.position.y = computeGroundedHeight(meshGroup.position.y, terrainHeight, dt);
             }
 
             // Always visible on surface
