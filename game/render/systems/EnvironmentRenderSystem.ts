@@ -8,8 +8,29 @@ import * as THREE from 'three';
 import { WeatherState } from '../../../types';
 import { COLORS } from '../../../engine/data/VoxelConstants';
 import { ThreeRenderAdapter } from '../../../engine/render/ThreeRenderAdapter';
+import { oilWaterMaterial, reservoirWaterMaterial, waterFlowMaterial } from '../../../engine/render/materials/VoxelMaterials';
 import { getCelestialPosition, getDaylightFactor, isDaytime } from '../../../engine/sim/dayNightCycle';
 import { isRainWeather, isStormWeather, normalizeWeatherState } from '../../../engine/weather/weatherModel';
+
+const WATER_REFLECTION_MATERIALS = [waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial] as THREE.Material[];
+
+function tuneWaterReflectionForNight(isNight: boolean): void {
+    WATER_REFLECTION_MATERIALS.forEach((material) => {
+        const standard = material as THREE.MeshStandardMaterial;
+        if (typeof standard.roughness === 'number') {
+            standard.roughness = isNight ? 0.86 : 0.22;
+        }
+        if (typeof standard.metalness === 'number') {
+            standard.metalness = isNight ? 0.0 : 0.08;
+        }
+        if (typeof standard.opacity === 'number') {
+            standard.opacity = isNight ? 0.68 : 0.74;
+        }
+        if ('envMapIntensity' in standard) {
+            standard.envMapIntensity = isNight ? 0.02 : 1.0;
+        }
+    });
+}
 
 export class EnvironmentRenderSystem {
     private scene: THREE.Scene;
@@ -268,6 +289,7 @@ export class EnvironmentRenderSystem {
         // Update Sun/Moon Position
         const sunPos = this.calculateSunPosition(this.timeOfDay);
         const isNight = !isDaytime(this.timeOfDay);
+        tuneWaterReflectionForNight(isNight);
 
         // Position sun relative to camera focus
         this.sunMesh.position.set(
