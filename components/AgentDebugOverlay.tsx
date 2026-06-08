@@ -41,6 +41,12 @@ const ROLE_ICONS: Record<string, React.ReactNode> = {
     'UNEMPLOYED': <Users size={10} />
 };
 
+const getReasonClass = (agent: Agent): string => {
+    if (agent.statusTone === 'blocked') return 'border-rose-500/40 bg-rose-950/35 text-rose-200';
+    if (agent.statusTone === 'warning') return 'border-amber-500/40 bg-amber-950/35 text-amber-200';
+    return 'border-cyan-500/25 bg-slate-950/55 text-slate-200';
+};
+
 export const AgentDebugOverlay: React.FC<AgentDebugOverlayProps> = ({ agents, jobs, tickCount }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -148,6 +154,13 @@ export const AgentDebugOverlay: React.FC<AgentDebugOverlayProps> = ({ agents, jo
                                         </div>
                                     </div>
 
+                                    {agent.statusReason && (
+                                        <div className={`mt-1 flex items-start gap-1 rounded border px-1.5 py-1 text-[8px] leading-tight ${getReasonClass(agent)}`}>
+                                            <Brain size={9} className="mt-0.5 shrink-0" />
+                                            <span className="line-clamp-2">{agent.statusReason}</span>
+                                        </div>
+                                    )}
+
                                     {/* Expanded Agent Details */}
                                     {selectedAgentId === agent.id && (
                                         <div className="mt-2 pt-2 border-t border-slate-700 space-y-1.5">
@@ -179,6 +192,14 @@ export const AgentDebugOverlay: React.FC<AgentDebugOverlayProps> = ({ agents, jo
                                                     <span className="font-mono text-emerald-400 truncate max-w-[120px]">
                                                         {agent.currentJobId}
                                                     </span>
+                                                </div>
+                                            )}
+
+                                            {agent.statusReason && (
+                                                <div className={`flex items-start gap-1 rounded border px-1.5 py-1 text-[8px] leading-snug ${getReasonClass(agent)}`}>
+                                                    <Brain size={10} className="mt-0.5 shrink-0" />
+                                                    <span className="text-slate-400">Why:</span>
+                                                    <span>{agent.statusReason}</span>
                                                 </div>
                                             )}
 
