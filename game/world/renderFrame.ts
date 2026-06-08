@@ -181,6 +181,8 @@ function setSurfaceRenderVisible(deps: RenderFrameDeps, visible: boolean): void 
     agentMeshes?.forEach((mesh) => setObjectVisible(mesh, visible));
     const statusSprites = deps.agentRenderSystem?.['statusSprites'] as Map<string, THREE.Object3D> | undefined;
     statusSprites?.forEach((sprite) => setObjectVisible(sprite, visible));
+    const contactShadows = deps.agentRenderSystem?.['agentContactShadows'] as Map<string, THREE.Object3D> | undefined;
+    contactShadows?.forEach((shadow) => setObjectVisible(shadow, visible));
 
     if (!visible) {
         deps.foliageRenderSystem?.setGroundDetailVisible?.(false);
