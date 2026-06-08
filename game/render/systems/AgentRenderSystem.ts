@@ -111,7 +111,9 @@ export class AgentRenderSystem {
     private agentMeshes: Map<string, THREE.Group> = new Map();
     private statusSprites: Map<string, THREE.Group> = new Map();
     private spriteTextures: Map<string, THREE.CanvasTexture> = new Map();
+    private agentContactShadows: Map<string, THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>> = new Map();
 
+    private readonly contactShadowGeometry = new THREE.CircleGeometry(0.34, 28).rotateX(-Math.PI / 2);
     private agentSelectionRing: THREE.Mesh;
     private eagle: THREE.Group | null = null;
 
@@ -129,10 +131,11 @@ export class AgentRenderSystem {
 
         // Selection Ring
         this.agentSelectionRing = new THREE.Mesh(
-            new THREE.RingGeometry(0.2, 0.25, 32),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, side: THREE.DoubleSide })
+            new THREE.RingGeometry(0.32, 0.44, 48),
+            new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.92, depthWrite: false, side: THREE.DoubleSide })
         );
         this.agentSelectionRing.rotation.x = -Math.PI / 2;
+        this.agentSelectionRing.renderOrder = 7;
         this.agentSelectionRing.visible = false;
         this.scene.add(this.agentSelectionRing);
 
@@ -176,6 +179,10 @@ export class AgentRenderSystem {
             this.scene.remove(sprite);
             scene.add(sprite);
         });
+        this.agentContactShadows.forEach(shadow => {
+            this.scene.remove(shadow);
+            scene.add(shadow);
+        });
         if (this.eagle) {
             this.scene.remove(this.eagle);
             scene.add(this.eagle);
@@ -192,13 +199,44 @@ export class AgentRenderSystem {
             this.disposeStatusGroup(sprite);
             this.scene.remove(sprite);
         });
+        this.agentContactShadows.forEach(shadow => {
+            this.scene.remove(shadow);
+            shadow.material.dispose();
+        });
+        this.agentContactShadows.clear();
+        this.contactShadowGeometry.dispose();
         if (this.eagle) this.scene.remove(this.eagle);
         this.scene.remove(this.agentSelectionRing);
+        this.agentSelectionRing.geometry.dispose();
+        const selectionMaterial = this.agentSelectionRing.material;
+        if (Array.isArray(selectionMaterial)) {
+            selectionMaterial.forEach(material => material.dispose());
+        } else {
+            selectionMaterial.dispose();
+        }
     }
 
     // =========================================================================
     // INTERNAL
     // =========================================================================
+
+    private createContactShadow(): THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial> {
+        const shadow = new THREE.Mesh(
+            this.contactShadowGeometry,
+            new THREE.MeshBasicMaterial({ color: 0x020617, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide })
+        );
+        shadow.renderOrder = 4;
+        return shadow;
+    }
+
+    private removeContactShadow(agentId: string): void {
+        const shadow = this.agentContactShadows.get(agentId);
+        if (!shadow) return;
+
+        this.scene.remove(shadow);
+        shadow.material.dispose();
+        this.agentContactShadows.delete(agentId);
+    }
 
     private syncMeshes(agents: Agent[]) {
         const seen = new Set<string>();
@@ -211,6 +249,7 @@ export class AgentRenderSystem {
             if (meshGroup && meshGroup.userData.role !== agent.type) {
                 this.scene.remove(meshGroup);
                 this.agentMeshes.delete(agent.id);
+                this.removeContactShadow(agent.id);
                 const statusGroup = this.statusSprites.get(agent.id);
                 if (statusGroup) {
                     this.disposeStatusGroup(statusGroup);
@@ -226,6 +265,10 @@ export class AgentRenderSystem {
                 meshGroup.userData.role = agent.type;
                 this.scene.add(meshGroup);
                 this.agentMeshes.set(agent.id, meshGroup);
+
+                const contactShadow = this.createContactShadow();
+                this.scene.add(contactShadow);
+                this.agentContactShadows.set(agent.id, contactShadow);
 
                 const statusGroup = this.createStatusGroup(agent);
                 this.scene.add(statusGroup);
@@ -278,6 +321,7 @@ export class AgentRenderSystem {
             if (!seen.has(id)) {
                 this.scene.remove(m);
                 this.agentMeshes.delete(id);
+                this.removeContactShadow(id);
                 const s = this.statusSprites.get(id);
                 if (s) {
                     this.disposeStatusGroup(s);
@@ -319,6 +363,17 @@ export class AgentRenderSystem {
             // Always visible on surface
             meshGroup.visible = true;
 
+            const contactShadow = this.agentContactShadows.get(agentId);
+            if (contactShadow) {
+                const isSelected = this.selectedAgentId === agentId;
+                const isManual = agentData?.state === 'MANUAL';
+                const pulse = isSelected || isManual ? 1 + Math.sin(time * 7) * 0.05 : 1;
+                contactShadow.position.set(meshGroup.position.x, meshGroup.position.y + 0.012, meshGroup.position.z);
+                contactShadow.scale.setScalar((isManual ? 1.2 : 1) * pulse);
+                contactShadow.visible = meshGroup.visible && zoomLevel <= 150;
+                contactShadow.material.opacity = isManual ? 0.26 : 0.2;
+            }
+
             // Rot Lerp
             const targetRot = meshGroup.userData.targetRot;
             if (targetRot !== undefined && !isNaN(targetRot)) {
@@ -340,8 +395,10 @@ export class AgentRenderSystem {
 
             // Selection Ring
             if (this.selectedAgentId === agentId) {
-                this.agentSelectionRing.position.set(meshGroup.position.x, meshGroup.position.y + 0.02, meshGroup.position.z);
-                this.agentSelectionRing.scale.setScalar(1 + Math.sin(time * 10) * 0.05);
+                const selectionMaterial = this.agentSelectionRing.material as THREE.MeshBasicMaterial;
+                selectionMaterial.color.set(agentData?.state === 'MANUAL' ? 0xa78bfa : 0x38bdf8);
+                this.agentSelectionRing.position.set(meshGroup.position.x, meshGroup.position.y + 0.035, meshGroup.position.z);
+                this.agentSelectionRing.scale.setScalar(1.08 + Math.sin(time * 8) * 0.08);
                 this.agentSelectionRing.visible = meshGroup.visible;
             }
 
