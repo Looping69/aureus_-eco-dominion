@@ -1,6 +1,6 @@
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext, CommandContext, CommandResult } from '../../kernel/Types';
-import { BuildingType, Contract, GameCommand, GameState, GridTile, SfxType } from '../../../types';
+import { BuildingType, Contract, Era, GameCommand, GameState, GridTile, SfxType } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { ChunkStore } from '../../space/ChunkStore';
 import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../utils/GameUtils';
@@ -24,6 +24,8 @@ type ResourceKey = 'minerals' | 'gems' | 'wood' | 'stone';
 type BuildIntent = {
     type: BuildingType;
     reason: string;
+    desiredCount?: number;
+    minEra?: Era;
 };
 
 const DEFAULT_OVERSEER: OverseerState = {
@@ -36,6 +38,14 @@ const DEFAULT_OVERSEER: OverseerState = {
     lastAction: null,
     nextReviewAt: 0,
     actionLog: [],
+};
+
+const ERA_ORDER: Record<Era, number> = {
+    [Era.SETTLEMENT]: 1,
+    [Era.GROWTH]: 2,
+    [Era.INDUSTRY]: 3,
+    [Era.SUSTAINABILITY]: 4,
+    [Era.PROSPERITY]: 5,
 };
 
 const RESOURCE_KEY: Record<Contract['resource'], ResourceKey> = {
@@ -64,6 +74,39 @@ const STARTER_SPINE: BuildIntent[] = [
     { type: BuildingType.STORAGE_DEPOT, reason: 'storage for deliveries and worker deposits' },
     { type: BuildingType.WASH_PLANT, reason: 'first mineral production chain' },
     { type: BuildingType.MINING_HEADFRAME, reason: 'stronger mineral production for contracts' },
+];
+
+const FULL_GAME_BUILD_PLAN: BuildIntent[] = [
+    ...STARTER_SPINE,
+    { type: BuildingType.SOLAR_ARRAY, reason: 'baseline clean power', desiredCount: 2 },
+    { type: BuildingType.WATER_WELL, reason: 'baseline water supply', desiredCount: 1 },
+    { type: BuildingType.CANTEEN, reason: 'agent hunger recovery', desiredCount: 1 },
+    { type: BuildingType.STAFF_QUARTERS, reason: 'capacity for recruitment and era growth', desiredCount: 3, minEra: Era.GROWTH },
+    { type: BuildingType.STOCKPILE, reason: 'larger storage for industrial resources', desiredCount: 1, minEra: Era.GROWTH },
+    { type: BuildingType.GENERATOR, reason: 'backup power for heavier production', desiredCount: 1, minEra: Era.GROWTH },
+    { type: BuildingType.WIND_TURBINE, reason: 'cleaner power and eco recovery', desiredCount: 1, minEra: Era.GROWTH },
+    { type: BuildingType.COMMUNITY_GARDEN, reason: 'trust and eco-friendly development', desiredCount: 2, minEra: Era.GROWTH },
+    { type: BuildingType.MEDICAL_BAY, reason: 'colonist support for larger workforce', desiredCount: 1, minEra: Era.GROWTH },
+    { type: BuildingType.TRAINING_CENTER, reason: 'faster workforce skill growth', desiredCount: 1, minEra: Era.GROWTH },
+    { type: BuildingType.SECURITY_POST, reason: 'trust and settlement safety', desiredCount: 1, minEra: Era.GROWTH },
+    { type: BuildingType.SOCIAL_HUB, reason: 'higher morale and trust', desiredCount: 1, minEra: Era.GROWTH },
+    { type: BuildingType.ORE_FOUNDRY, reason: 'industrial materials and alloys', desiredCount: 1, minEra: Era.INDUSTRY },
+    { type: BuildingType.WORKSHOP, reason: 'machine parts and automation support', desiredCount: 1, minEra: Era.INDUSTRY },
+    { type: BuildingType.DISTRIBUTION_HUB, reason: 'automated logistics throughput', desiredCount: 1, minEra: Era.INDUSTRY },
+    { type: BuildingType.TRAIN_STATION, reason: 'regional bulk logistics', desiredCount: 1, minEra: Era.INDUSTRY },
+    { type: BuildingType.RAIL_LINE, reason: 'rail network connection', desiredCount: 8, minEra: Era.INDUSTRY },
+    { type: BuildingType.GEM_REFINERY, reason: 'premium resource production', desiredCount: 1, minEra: Era.INDUSTRY },
+    { type: BuildingType.RECYCLING_PLANT, reason: 'cleaner mineral processing', desiredCount: 1, minEra: Era.INDUSTRY },
+    { type: BuildingType.GEOTHERMAL_PLANT, reason: 'stable late-game power', desiredCount: 1, minEra: Era.SUSTAINABILITY },
+    { type: BuildingType.WASTE_TREATMENT, reason: 'pollution control for eco recovery', desiredCount: 1, minEra: Era.SUSTAINABILITY },
+    { type: BuildingType.NATURE_RESERVE, reason: 'major eco and trust recovery', desiredCount: 1, minEra: Era.SUSTAINABILITY },
+    { type: BuildingType.HYDROPONICS, reason: 'advanced food and sustainability support', desiredCount: 1, minEra: Era.SUSTAINABILITY },
+    { type: BuildingType.DRONE_DEPOT, reason: 'late-game delivery automation', desiredCount: 1, minEra: Era.SUSTAINABILITY },
+    { type: BuildingType.RESERVOIR, reason: 'large-scale water stability', desiredCount: 1, minEra: Era.SUSTAINABILITY },
+    { type: BuildingType.MONUMENT, reason: 'prosperity victory landmark', desiredCount: 1, minEra: Era.PROSPERITY },
+    { type: BuildingType.SPACEPORT, reason: 'endgame export economy', desiredCount: 1, minEra: Era.PROSPERITY },
+    { type: BuildingType.SAFARI_LODGE, reason: 'prosperity income and eco tourism', desiredCount: 1, minEra: Era.PROSPERITY },
+    { type: BuildingType.GREEN_TECH_LAB, reason: 'planetary restoration technology', desiredCount: 1, minEra: Era.PROSPERITY },
 ];
 
 function getOverseer(state: GameState): OverseerState {
@@ -159,12 +202,12 @@ export class AIOverseerSystem extends BaseSimSystem {
             };
         }
 
-        const starterIntent = this.getStarterBuildIntent(state);
-        if (starterIntent) {
-            const def = BUILDINGS[starterIntent.type];
+        const strategicIntent = this.getStrategicBuildIntent(state);
+        if (strategicIntent) {
+            const def = BUILDINGS[strategicIntent.type];
             return {
-                focus: `Starter spine: ${def.name}`,
-                recommendation: `Next autonomous build: ${def.name} for ${starterIntent.reason}.`,
+                focus: `Autonomous plan: ${def.name}`,
+                recommendation: `Next Pilot build: ${def.name} for ${strategicIntent.reason}.`,
                 confidence: 0.8,
             };
         }
@@ -218,7 +261,7 @@ export class AIOverseerSystem extends BaseSimSystem {
 
         return {
             focus: 'Balanced operations',
-            recommendation: 'No urgent bottleneck. Expand deliberately or switch AI to Pilot for hands-on colony support.',
+            recommendation: 'No urgent bottleneck. Pilot can continue toward full-era completion when Auto Act is enabled.',
             confidence: 0.58,
         };
     }
@@ -257,9 +300,10 @@ export class AIOverseerSystem extends BaseSimSystem {
         }
 
         if (overseer.mode === 'GROWTH' || overseer.mode === 'AUTOPILOT') {
-            const starterIntent = this.getStarterBuildIntent(state);
-            if (starterIntent && this.trySupportBuild(ctx, state, overseer, starterIntent)) return;
+            const strategicIntent = this.getStrategicBuildIntent(state);
+            if (strategicIntent && this.trySupportBuild(ctx, state, overseer, strategicIntent)) return;
 
+            if (this.tryRaiseAgt(ctx, state, overseer, 10000)) return;
             if (this.tryMarkUsefulHarvest(ctx, state, overseer)) return;
         }
     }
@@ -285,34 +329,102 @@ export class AIOverseerSystem extends BaseSimSystem {
         return true;
     }
 
-    private getStarterBuildIntent(state: GameState): BuildIntent | null {
-        for (const intent of STARTER_SPINE) {
-            if (this.hasBuildingOrInventory(state, intent.type)) continue;
+    private getStrategicBuildIntent(state: GameState): BuildIntent | null {
+        const storagePressure = this.getStoragePressure(state);
+        if (storagePressure > 0.82 && this.isEraAvailable(state, Era.GROWTH)) {
+            const type = this.countPlacedBuildings(state, BuildingType.STOCKPILE) > 0 ? BuildingType.STORAGE_DEPOT : BuildingType.STOCKPILE;
+            return { type, reason: 'storage is close to capacity', desiredCount: this.countPlacedBuildings(state, type) + 1 };
+        }
+
+        const nextEraIntent = this.getNextEraIntent(state);
+        if (nextEraIntent) return nextEraIntent;
+
+        for (const intent of FULL_GAME_BUILD_PLAN) {
+            if (!this.isBuildIntentAvailable(state, intent)) continue;
+            const desired = intent.desiredCount || 1;
+            if (this.countPlacedAndOwned(state, intent.type) >= desired) continue;
             return intent;
         }
+
+        return null;
+    }
+
+    private getNextEraIntent(state: GameState): BuildIntent | null {
+        if (state.currentEra === Era.SETTLEMENT) {
+            return STARTER_SPINE.find(intent => this.countPlacedAndOwned(state, intent.type) < (intent.desiredCount || 1)) || null;
+        }
+
+        if (state.currentEra === Era.GROWTH) {
+            if (state.agents.filter(agent => agent.type !== 'ILLEGAL_MINER').length < 12) {
+                return { type: BuildingType.STAFF_QUARTERS, reason: 'more housing capacity for colonist recruitment', desiredCount: this.countPlacedBuildings(state, BuildingType.STAFF_QUARTERS) + 1 };
+            }
+            if (state.resources.eco < 40) return { type: BuildingType.WIND_TURBINE, reason: 'eco recovery for Industry unlock', desiredCount: 2 };
+            if (state.resources.agt < 20000) return { type: BuildingType.MINING_HEADFRAME, reason: 'more mineral output for Industry funding', desiredCount: 2 };
+        }
+
+        if (state.currentEra === Era.INDUSTRY) {
+            if (state.resources.eco < 70) return { type: BuildingType.RECYCLING_PLANT, reason: 'cleaner industry and eco recovery', desiredCount: 1 };
+            if (state.resources.trust < 60) return { type: BuildingType.COMMUNITY_GARDEN, reason: 'trust growth for Sustainability unlock', desiredCount: 3 };
+            if (state.resources.agt < 50000) return { type: BuildingType.ORE_FOUNDRY, reason: 'industrial production and cash base', desiredCount: 2 };
+        }
+
+        if (state.currentEra === Era.SUSTAINABILITY) {
+            if (state.resources.eco < 90) return { type: BuildingType.NATURE_RESERVE, reason: 'eco recovery for Prosperity unlock', desiredCount: 2 };
+            if (state.resources.trust < 90) return { type: BuildingType.NATURE_RESERVE, reason: 'trust recovery for Prosperity unlock', desiredCount: 2 };
+            if (state.agents.filter(agent => agent.type !== 'ILLEGAL_MINER').length < 25) {
+                return { type: BuildingType.STAFF_QUARTERS, reason: 'population capacity for Prosperity unlock', desiredCount: this.countPlacedBuildings(state, BuildingType.STAFF_QUARTERS) + 1 };
+            }
+        }
+
+        if (state.currentEra === Era.PROSPERITY) {
+            if (this.countPlacedAndOwned(state, BuildingType.MONUMENT) === 0) return { type: BuildingType.MONUMENT, reason: 'victory landmark', desiredCount: 1 };
+            if (this.countPlacedAndOwned(state, BuildingType.SPACEPORT) === 0) return { type: BuildingType.SPACEPORT, reason: 'final export engine', desiredCount: 1 };
+        }
+
         return null;
     }
 
     private getStabilityBuildIntent(state: GameState): BuildIntent | null {
         if ((state.powerGrid?.deficit || 0) > 0 || (state.powerGrid?.strandedDemand || 0) > 0) {
+            if (this.isEraAvailable(state, Era.SUSTAINABILITY) && !this.hasBuildingOrInventory(state, BuildingType.GEOTHERMAL_PLANT)) {
+                return { type: BuildingType.GEOTHERMAL_PLANT, reason: 'stable late-game power capacity' };
+            }
             if (!this.hasBuildingOrInventory(state, BuildingType.SOLAR_ARRAY)) {
                 return { type: BuildingType.SOLAR_ARRAY, reason: 'clean early power capacity' };
             }
-            return { type: BuildingType.POWER_LINE, reason: 'connecting stranded power demand' };
+            return { type: BuildingType.POWER_LINE, reason: 'connecting stranded power demand', desiredCount: this.countPlacedBuildings(state, BuildingType.POWER_LINE) + 2 };
         }
 
         if ((state.waterNetwork?.deficit || 0) > 0) {
+            if (this.isEraAvailable(state, Era.SUSTAINABILITY) && !this.hasBuildingOrInventory(state, BuildingType.RESERVOIR)) {
+                return { type: BuildingType.RESERVOIR, reason: 'large-scale water stability' };
+            }
             if (!this.hasBuildingOrInventory(state, BuildingType.WATER_WELL)) {
                 return { type: BuildingType.WATER_WELL, reason: 'basic water supply' };
             }
-            return { type: BuildingType.PIPE, reason: 'connecting stranded water demand' };
+            return { type: BuildingType.PIPE, reason: 'connecting stranded water demand', desiredCount: this.countPlacedBuildings(state, BuildingType.PIPE) + 2 };
         }
 
         return null;
     }
 
+    private isBuildIntentAvailable(state: GameState, intent: BuildIntent): boolean {
+        const def = BUILDINGS[intent.type];
+        if (!def || intent.type === BuildingType.EMPTY) return false;
+        const requiredEra = intent.minEra || def.era || Era.SETTLEMENT;
+        return this.isEraAvailable(state, requiredEra);
+    }
+
+    private isEraAvailable(state: GameState, era: Era): boolean {
+        return ERA_ORDER[state.currentEra] >= ERA_ORDER[era] || Boolean(state.unlockedEras?.includes(era));
+    }
+
     private hasBuildingOrInventory(state: GameState, buildingType: BuildingType): boolean {
-        return this.countPlacedBuildings(state, buildingType) > 0 || (state.inventory?.[buildingType] || 0) > 0;
+        return this.countPlacedAndOwned(state, buildingType) > 0;
+    }
+
+    private countPlacedAndOwned(state: GameState, buildingType: BuildingType): number {
+        return this.countPlacedBuildings(state, buildingType) + (state.inventory?.[buildingType] || 0);
     }
 
     private countPlacedBuildings(state: GameState, buildingType: BuildingType): number {
@@ -334,6 +446,7 @@ export class AIOverseerSystem extends BaseSimSystem {
     private trySupportBuild(ctx: FixedContext, state: GameState, overseer: OverseerState, intent: BuildIntent): boolean {
         const def = BUILDINGS[intent.type];
         if (!def || intent.type === BuildingType.EMPTY) return false;
+        if (!this.isBuildIntentAvailable(state, intent)) return false;
 
         if ((state.inventory?.[intent.type] || 0) > 0) {
             const placement = this.findPlacement(state, intent.type);
@@ -343,6 +456,13 @@ export class AIOverseerSystem extends BaseSimSystem {
             }
             this.queueCommand(ctx, state, 'PLACE_BUILDING', { x: placement.x, z: placement.z, buildingType: intent.type });
             this.log(state, overseer, `Placed ${def.name}`);
+            return true;
+        }
+
+        if (!this.hasEnoughAgtForBuild(state, intent.type)) {
+            if (!this.tryRaiseAgt(ctx, state, overseer, this.getAgtCost(intent.type))) {
+                this.log(state, overseer, `Waiting for AGT to buy ${def.name}`);
+            }
             return true;
         }
 
@@ -360,11 +480,18 @@ export class AIOverseerSystem extends BaseSimSystem {
         return true;
     }
 
+    private hasEnoughAgtForBuild(state: GameState, buildingType: BuildingType): boolean {
+        return state.resources.agt >= this.getAgtCost(buildingType);
+    }
+
+    private getAgtCost(buildingType: BuildingType): number {
+        const def = BUILDINGS[buildingType];
+        return Number(def?.costs?.agt ?? def?.cost ?? 0);
+    }
+
     private getMissingBuildResources(state: GameState, buildingType: BuildingType): Array<{ resource: ResourceKey; amount: number }> {
         const def = BUILDINGS[buildingType];
-        if (!def?.costs) {
-            return state.resources.agt >= def.cost ? [] : [{ resource: 'minerals', amount: 0 }];
-        }
+        if (!def?.costs) return [];
 
         return Object.entries(def.costs)
             .map(([resource, amount]) => ({
@@ -372,6 +499,25 @@ export class AIOverseerSystem extends BaseSimSystem {
                 amount: Math.ceil(Math.max(0, Number(amount) - Number((state.resources as any)[resource] || 0))),
             }))
             .filter(item => item.amount > 0 && ['minerals', 'gems', 'wood', 'stone'].includes(item.resource));
+    }
+
+    private tryRaiseAgt(ctx: FixedContext, state: GameState, overseer: OverseerState, targetAgt: number): boolean {
+        if (state.resources.agt >= targetAgt) return false;
+
+        const sellOrder: ResourceKey[] = ['minerals', 'stone', 'wood', 'gems'];
+        const sellTarget = sellOrder.find(resource => state.resources[resource] > this.getReserveForResource(resource));
+        if (!sellTarget) return false;
+
+        this.queueCommand(ctx, state, 'SELL_RESOURCE', { resource: sellTarget });
+        this.log(state, overseer, `Sold surplus ${BUILD_RESOURCE_LABEL[sellTarget]} for AGT`);
+        return true;
+    }
+
+    private getReserveForResource(resource: ResourceKey): number {
+        if (resource === 'gems') return 20;
+        if (resource === 'minerals') return 800;
+        if (resource === 'stone') return 800;
+        return 800;
     }
 
     private tryImportMissingResource(ctx: FixedContext, state: GameState, overseer: OverseerState, missing: Array<{ resource: ResourceKey; amount: number }>): boolean {
@@ -394,7 +540,7 @@ export class AIOverseerSystem extends BaseSimSystem {
         const centerX = Math.round(state.spawnX || 0);
         const centerZ = Math.round(state.spawnZ || 0);
 
-        for (let radius = 2; radius <= 18; radius++) {
+        for (let radius = 2; radius <= 28; radius++) {
             for (let dz = -radius; dz <= radius; dz++) {
                 for (let dx = -radius; dx <= radius; dx++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) continue;
@@ -424,8 +570,14 @@ export class AIOverseerSystem extends BaseSimSystem {
         return true;
     }
 
+    private getStoragePressure(state: GameState): number {
+        const cap = Math.max(1, state.resources.maxCapacity || 1);
+        const stored = state.resources.minerals + state.resources.wood + state.resources.stone;
+        return stored / cap;
+    }
+
     private tryMarkUsefulHarvest(ctx: FixedContext, state: GameState, overseer: OverseerState): boolean {
-        if (state.jobs.length > state.agents.length) return false;
+        if (state.jobs.length > state.agents.length + 2) return false;
 
         const resource = this.pickNeededHarvestResource(state);
         const target = this.findHarvestTarget(state, resource);
@@ -437,9 +589,9 @@ export class AIOverseerSystem extends BaseSimSystem {
     }
 
     private pickNeededHarvestResource(state: GameState): ResourceKey {
-        if (state.resources.wood < 600) return 'wood';
-        if (state.resources.stone < 600) return 'stone';
-        if (state.resources.minerals < 250) return 'minerals';
+        if (state.resources.wood < 1200) return 'wood';
+        if (state.resources.stone < 1200) return 'stone';
+        if (state.resources.minerals < 600) return 'minerals';
         return 'wood';
     }
 
