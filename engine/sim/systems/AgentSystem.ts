@@ -24,6 +24,8 @@ const CONFIG = {
     NEED_SATISFIED: 95,    // Threshold to stop seeking help
 };
 
+type AgentStatusTone = 'normal' | 'warning' | 'blocked';
+
 export class AgentSystem extends BaseSimSystem {
     readonly id = 'agents';
     readonly priority = 100;
@@ -53,6 +55,7 @@ export class AgentSystem extends BaseSimSystem {
             agent.targetX = x;
             agent.targetZ = z;
             agent.currentJobId = null;
+            this.explain(agent, `Following player order to ${x}, ${z}.`);
             if (agent.path) {
                 PathPool.release(agent.path);
                 agent.path = null;
@@ -74,6 +77,7 @@ export class AgentSystem extends BaseSimSystem {
             // Set state to MANUAL to prevent AI takeover
             agent.state = 'MANUAL';
             agent.currentJobId = null;
+            this.explain(agent, 'Player controlled in first-person mode.');
             if (agent.path) {
                 PathPool.release(agent.path);
                 agent.path = null;
@@ -93,6 +97,9 @@ export class AgentSystem extends BaseSimSystem {
             // Backward compatibility: Initialize inventory if missing
             if (!agent.inventory) {
                 agent.inventory = { type: null, amount: 0, capacity: 20 };
+            }
+            if (!agent.statusReason) {
+                this.explain(agent, 'Planning next task.');
             }
 
             // 1. Update Needs (Decay)
@@ -121,6 +128,38 @@ export class AgentSystem extends BaseSimSystem {
         }
     }
 
+    private explain(agent: Agent, reason: string, tone: AgentStatusTone = 'normal'): void {
+        agent.statusReason = reason;
+        agent.statusTone = tone;
+    }
+
+    private getJobReason(jobId: string | null): string {
+        if (!jobId) return 'Planning next task.';
+        if (jobId === 'sys_sleep') return 'Sleeping: night cycle or low energy.';
+        if (jobId === 'sys_eat') return 'Eating: hunger is low.';
+        if (jobId === 'sys_deposit') return 'Walking to storage.';
+        if (jobId === 'sys_wait_at_work') return 'Waiting: no valid jobs near workplace.';
+        if (jobId === 'sys_wander') return 'Patrolling nearby: no urgent job.';
+        if (jobId.startsWith('build_')) return 'Building assigned structure.';
+        if (jobId.includes('mine')) return 'Harvesting assigned resource.';
+        if (jobId.includes('rehab')) return 'Restoring damaged land.';
+        if (jobId.startsWith('manual_')) return 'Following player order.';
+        return 'Working assigned job.';
+    }
+
+    private getTravelReason(jobId: string): string {
+        if (jobId === 'sys_sleep') return 'Walking to Staff Quarters.';
+        if (jobId === 'sys_eat') return 'Walking to Canteen.';
+        if (jobId === 'sys_deposit') return 'Walking to storage.';
+        if (jobId === 'sys_wait_at_work') return 'Walking to workplace.';
+        if (jobId === 'sys_wander') return 'Patrolling nearby: no urgent job.';
+        if (jobId.startsWith('build_')) return 'Walking to build site.';
+        if (jobId.includes('mine')) return 'Walking to resource target.';
+        if (jobId.includes('rehab')) return 'Walking to restoration site.';
+        if (jobId.startsWith('manual_')) return 'Following player order.';
+        return 'Walking to assigned task.';
+    }
+
     private updateNeeds(agent: Agent, dt: number, state: GameState): void {
         const weatherEffects = getWeatherGameplayEffects(state.weather);
         const eventEffects = getEventEnvironmentModifiers(state.activeEvents);
@@ -139,6 +178,7 @@ export class AgentSystem extends BaseSimSystem {
         agent.currentJobId = null;
         agent.targetX = null;
         agent.targetZ = null;
+        this.explain(agent, 'Finished task; looking for next job.');
         if (agent.path) {
             PathPool.release(agent.path);
             agent.path = null;
@@ -160,6 +200,7 @@ export class AgentSystem extends BaseSimSystem {
             else if (jobId === 'sys_eat') agent.state = 'EATING';
             else if (jobId.startsWith('build_') || jobId.includes('mine')) agent.state = 'WORKING';
             else agent.state = 'IDLE';
+            this.explain(agent, this.getJobReason(jobId));
             return;
         }
 
@@ -183,6 +224,7 @@ export class AgentSystem extends BaseSimSystem {
                 agent.currentJobId = jobId;
                 agent.targetX = targetX;
                 agent.targetZ = targetZ;
+                this.explain(agent, this.getTravelReason(jobId));
             } else {
                 const targetKey = `${targetX},${targetZ}`;
                 console.warn(`[Agent ${agent.name}] Pathfinding failed from (${ax},${az}) to (${targetX}, ${targetZ}). Job: ${jobId}. Cooldown started.`);
@@ -194,6 +236,7 @@ export class AgentSystem extends BaseSimSystem {
                 PathPool.release(agent.path);
                 agent.path = null;
                 agent.state = 'IDLE';
+                this.explain(agent, `Cannot reach target ${targetX}, ${targetZ}.`, 'blocked');
                 // Release job
                 if (agent.currentJobId) {
                     const job = state.jobs.find(j => j.id === jobId);
@@ -203,6 +246,7 @@ export class AgentSystem extends BaseSimSystem {
         } catch (e) {
             console.error(`[AgentSystem] Pathfinding crashed for ${agent.name}:`, e);
             agent.state = 'IDLE';
+            this.explain(agent, 'Cannot pathfind: route calculation failed.', 'blocked');
         }
     }
 
@@ -295,6 +339,7 @@ export class AgentSystem extends BaseSimSystem {
                     // Try to find ANY shelter? Or just sleep on ground.
                     // Let's make them sleep on the ground if no bed found at night.
                     agent.state = 'SLEEPING'; // Forced sleep on ground
+                    this.explain(agent, 'Sleeping: night cycle, no Staff Quarters found.', 'warning');
                     return;
                 }
             }
@@ -311,6 +356,7 @@ export class AgentSystem extends BaseSimSystem {
                     this.goTo(agent, storage.x, storage.z, 'sys_deposit', state);
                     return;
                 }
+                this.explain(agent, 'Waiting: carrying resources but no storage is available.', 'warning');
             }
         }
 
@@ -329,6 +375,7 @@ export class AgentSystem extends BaseSimSystem {
                     this.goTo(agent, bed.x, bed.z, 'sys_sleep', state);
                     return;
                 }
+                this.explain(agent, 'Waiting: low energy but no Staff Quarters found.', 'warning');
             }
             if (agent.hunger < CONFIG.NEED_CRITICAL) {
                 const food = this.findNearest(agent, BuildingType.CANTEEN, chunks);
@@ -336,6 +383,7 @@ export class AgentSystem extends BaseSimSystem {
                     this.goTo(agent, food.x, food.z, 'sys_eat', state);
                     return;
                 }
+                this.explain(agent, 'Waiting: hungry but no Canteen found.', 'warning');
             }
         }
 
@@ -390,6 +438,7 @@ export class AgentSystem extends BaseSimSystem {
             if (availableJob) {
                 // CLAIM JOB
                 availableJob.assignedAgentId = agent.id;
+                this.explain(agent, `Claimed ${availableJob.type.toLowerCase()} job.`);
                 this.goTo(agent, availableJob.targetX, availableJob.targetZ, availableJob.id, state);
                 return;
             }
@@ -401,6 +450,8 @@ export class AgentSystem extends BaseSimSystem {
                     this.goTo(agent, agent.workPlaceX, agent.workPlaceZ!, 'sys_wait_at_work', state);
                     return;
                 }
+                this.explain(agent, 'Waiting: no valid jobs near workplace.');
+                return;
             }
         }
 
@@ -415,6 +466,11 @@ export class AgentSystem extends BaseSimSystem {
             }
 
             this.goTo(agent, wanderTarget.x, wanderTarget.z, 'sys_wander', state);
+            return;
+        }
+
+        if (agent.state === 'IDLE') {
+            this.explain(agent, isNight ? 'Waiting: night routine has no reachable bed.' : 'Idle: no valid jobs right now.', isNight ? 'warning' : 'normal');
         }
     }
 
@@ -426,20 +482,24 @@ export class AgentSystem extends BaseSimSystem {
                 break;
 
             case 'SLEEPING':
+                this.explain(agent, 'Sleeping: recovering energy.');
                 agent.energy = Math.min(100, agent.energy + 15 * dt);
                 if (agent.energy >= CONFIG.NEED_SATISFIED) this.finishActivity(ctx, agent, state);
                 break;
 
             case 'EATING':
+                this.explain(agent, 'Eating: recovering hunger.');
                 agent.hunger = Math.min(100, agent.hunger + 20 * dt);
                 if (agent.hunger >= CONFIG.NEED_SATISFIED) this.finishActivity(ctx, agent, state);
                 break;
 
             case 'WORKING':
+                this.explain(agent, this.getJobReason(agent.currentJobId));
                 this.performWork(ctx, agent, state);
                 break;
 
             case 'DEPOSITING':
+                this.explain(agent, 'Depositing carried resources.');
                 this.performDeposit(ctx, agent, state);
                 break;
         }
@@ -462,6 +522,7 @@ export class AgentSystem extends BaseSimSystem {
             else {
                 this.finishActivity(ctx, agent, state); // Wander or manual move finished
             }
+            this.explain(agent, this.getJobReason(agent.currentJobId));
             return;
         }
 
@@ -524,6 +585,7 @@ export class AgentSystem extends BaseSimSystem {
         const dt = ctx.fixedDt;
         const jobIdx = state.jobs.findIndex(j => j.id === agent.currentJobId);
         if (jobIdx === -1) {
+            this.explain(agent, 'Waiting: assigned job disappeared.', 'warning');
             this.finishActivity(ctx, agent, state);
             return;
         }
@@ -532,6 +594,7 @@ export class AgentSystem extends BaseSimSystem {
         const chunks = state.chunks;
         const tile = ChunkStore.getTile(chunks, job.targetX, job.targetZ);
         if (!tile) {
+            this.explain(agent, 'Cannot work: target tile is missing.', 'blocked');
             this.finishActivity(ctx, agent, state);
             return;
         }
@@ -560,6 +623,7 @@ export class AgentSystem extends BaseSimSystem {
             if (resType) {
                 if (agent.inventory.type && agent.inventory.type !== resType && agent.inventory.amount > 0) {
                     job.assignedAgentId = null;
+                    this.explain(agent, 'Waiting: carrying a different resource; needs storage.', 'warning');
                     this.finishActivity(ctx, agent, state);
                     return;
                 }
@@ -589,6 +653,7 @@ export class AgentSystem extends BaseSimSystem {
                 }
             } else {
                 state.jobs.splice(jobIdx, 1);
+                this.explain(agent, 'Waiting: resource target is already cleared.', 'warning');
                 this.finishActivity(ctx, agent, state);
             }
         } else {
