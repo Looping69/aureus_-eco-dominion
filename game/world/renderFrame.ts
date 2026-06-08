@@ -13,6 +13,7 @@ export interface RenderFrameDeps {
     terrainRenderSystem: any;
     foliageRenderSystem?: any;
     buildingRenderSystem: any;
+    wildlifeRenderSystem?: any;
     agentRenderSystem: any;
     environmentRenderSystem: any;
     dungeonRenderSystem: any;
@@ -183,6 +184,7 @@ function setSurfaceRenderVisible(deps: RenderFrameDeps, visible: boolean): void 
     statusSprites?.forEach((sprite) => setObjectVisible(sprite, visible));
     const contactShadows = deps.agentRenderSystem?.['agentContactShadows'] as Map<string, THREE.Object3D> | undefined;
     contactShadows?.forEach((shadow) => setObjectVisible(shadow, visible));
+    deps.wildlifeRenderSystem?.setVisible?.(visible);
 
     if (!visible) {
         deps.foliageRenderSystem?.setGroundDetailVisible?.(false);
@@ -271,6 +273,7 @@ function updateActiveView(
 
 function updateDungeonView(state: any, deps: RenderFrameDeps): void {
     setSurfaceRenderVisible(deps, false);
+    deps.wildlifeRenderSystem?.setVisible?.(false);
     deps.dungeonRenderSystem.setVisible(true);
     deps.dungeonRenderSystem.update(state.dungeon);
     buildingStatusLabelLayer?.clear();
@@ -308,6 +311,7 @@ function updateFirstPersonView(
     const allAgents = [...state.agents, ...state.ambientNpcs];
     deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, 0.1, camera);
     deps.terrainRenderSystem.update(camera.position, camera);
+    deps.wildlifeRenderSystem?.update?.(ctx.time, { x: camera.position.x, z: camera.position.z }, deps.getTerrainHeight, 0.1, true);
     deps.buildingRenderSystem.update(
         ctx.dt,
         ctx.time,
@@ -349,6 +353,7 @@ function updateSurfaceView(
     const camera = deps.render.getCamera();
     deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, zoomLevel, camera);
     deps.terrainRenderSystem.update(deps.cameraSystem.cameraFocus, camera);
+    deps.wildlifeRenderSystem?.update?.(ctx.time, deps.cameraSystem.cameraFocus, deps.getTerrainHeight, zoomLevel, false);
     getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight);
     deps.buildingRenderSystem.update(
         ctx.dt,
