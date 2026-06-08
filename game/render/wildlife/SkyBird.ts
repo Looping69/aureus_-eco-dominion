@@ -27,7 +27,7 @@ export function createSkyBirdMaterial(): THREE.MeshBasicMaterial {
         map: getSkyBirdWingTexture(),
         vertexColors: true,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.92,
         side: THREE.DoubleSide,
         depthWrite: false,
     });
@@ -46,15 +46,15 @@ function getSkyBirdWingTexture(): THREE.CanvasTexture {
     }
 
     const baseGradient = ctx.createLinearGradient(0, 0, 96, 96);
-    baseGradient.addColorStop(0, '#f4f7fb');
-    baseGradient.addColorStop(0.5, '#cbd5e1');
-    baseGradient.addColorStop(1, '#8fa0b8');
+    baseGradient.addColorStop(0, '#ffffff');
+    baseGradient.addColorStop(0.5, '#dce8f5');
+    baseGradient.addColorStop(1, '#aebfd4');
     ctx.fillStyle = baseGradient;
     ctx.fillRect(0, 0, 96, 96);
 
     for (let i = 0; i < 12; i += 1) {
         const x = i * 8;
-        ctx.fillStyle = i % 2 === 0 ? 'rgba(55, 68, 88, 0.28)' : 'rgba(255, 255, 255, 0.26)';
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(76, 91, 116, 0.22)' : 'rgba(255, 255, 255, 0.34)';
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x + 14, 0);
@@ -63,7 +63,7 @@ function getSkyBirdWingTexture(): THREE.CanvasTexture {
         ctx.fill();
     }
 
-    ctx.strokeStyle = 'rgba(40, 52, 70, 0.3)';
+    ctx.strokeStyle = 'rgba(58, 72, 94, 0.24)';
     ctx.lineWidth = 1.4;
     for (let y = 12; y < 96; y += 14) {
         ctx.beginPath();
@@ -72,7 +72,7 @@ function getSkyBirdWingTexture(): THREE.CanvasTexture {
         ctx.stroke();
     }
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.36)';
     ctx.lineWidth = 1;
     for (let y = 6; y < 96; y += 14) {
         ctx.beginPath();
@@ -90,4 +90,4 @@ function getSkyBirdWingTexture(): THREE.CanvasTexture {
     return wingTexture;
 }
 
-export const SKY_BIRD_COLORS = [0xe5e7eb, 0xcbd5e1, 0x94a3b8, 0xf8fafc];
+export const SKY_BIRD_COLORS = [0xffffff, 0xe8eef6, 0xb9c9dc, 0xf8fafc];
