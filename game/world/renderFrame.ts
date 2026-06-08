@@ -294,7 +294,7 @@ function updateFirstPersonView(
 ): void {
     setSurfaceRenderVisible(deps, true);
     deps.foliageRenderSystem?.setGroundDetailVisible?.(true);
-    deps.foliageRenderSystem?.updateGroundDetailTime?.(ctx.time);
+    deps.foliageRenderSystem?.updateGroundDetailTime?.(ctx.time, state.dayNightCycle?.timeOfDay ?? 12000);
     deps.dungeonRenderSystem.setVisible(false);
     layeredWorldOverlay?.setVisible(false);
 
@@ -343,7 +343,7 @@ function updateSurfaceView(
     const zoomLevel = deps.cameraSystem.cameraZoom;
     deps.foliageRenderSystem?.setGroundDetailVisible?.(zoomLevel <= 18);
     if (zoomLevel <= 18) {
-        deps.foliageRenderSystem?.updateGroundDetailTime?.(ctx.time);
+        deps.foliageRenderSystem?.updateGroundDetailTime?.(ctx.time, state.dayNightCycle?.timeOfDay ?? 12000);
     }
     const allAgents = [...state.agents, ...state.ambientNpcs];
     const camera = deps.render.getCamera();
