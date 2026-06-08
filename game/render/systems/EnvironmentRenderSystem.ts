@@ -50,6 +50,8 @@ export class EnvironmentRenderSystem {
     private appliedFogColor = new THREE.Color(COLORS.BG);
     private lightningBgColor = new THREE.Color(0xf6fbff);
     private lightningFogColor = new THREE.Color(0xe4eefc);
+    private coolFillColor = new THREE.Color(0x8fb4ff);
+    private warmGroundColor = new THREE.Color(0x6b5338);
 
     constructor(adapter: ThreeRenderAdapter) {
         this.adapter = adapter;
@@ -119,7 +121,7 @@ export class EnvironmentRenderSystem {
         this.updateStormFlash(dt, normalizedWeather);
 
         // 3. Interpolate visuals
-        this.interpolate(dt);
+        this.interpolate(dt, normalizedWeather);
 
         // 4. Update Particles
         this.updateRain(dt, normalizedWeather);
@@ -217,7 +219,7 @@ export class EnvironmentRenderSystem {
         }
     }
 
-    private interpolate(dt: number) {
+    private interpolate(dt: number, weather: WeatherState) {
         const lerpSpeed = dt * 1.5;
         const fogLerpSpeed = dt * 2.5; // Snapshot fog even faster
 
@@ -247,9 +249,20 @@ export class EnvironmentRenderSystem {
         }
 
         if (this.adapter.ambientLight) {
-            this.adapter.ambientLight.color = this.currentLightColor;
-            // Ambient is softer
-            this.adapter.ambientLight.intensity = Math.max(0.4, this.currentLightIntensity * 0.8 + this.stormFlash * 0.35);
+            this.adapter.ambientLight.color.copy(this.currentLightColor).lerp(this.appliedFogColor, 0.42);
+            this.adapter.ambientLight.intensity = Math.max(0.22, this.currentLightIntensity * 0.42 + this.stormFlash * 0.22);
+        }
+
+        if (this.adapter.hemisphereLight) {
+            this.adapter.hemisphereLight.color.copy(this.appliedFogColor).lerp(this.currentLightColor, 0.35);
+            this.adapter.hemisphereLight.groundColor.copy(this.warmGroundColor).lerp(this.appliedFogColor, isRainWeather(weather.current) ? 0.55 : 0.18);
+            this.adapter.hemisphereLight.intensity = Math.max(0.24, this.currentLightIntensity * 0.46 + this.stormFlash * 0.16);
+        }
+
+        if (this.adapter.fillLight) {
+            this.adapter.fillLight.color.copy(this.coolFillColor).lerp(this.currentLightColor, isDaytime(this.timeOfDay) ? 0.18 : 0.02);
+            this.adapter.fillLight.intensity = Math.max(0.12, this.currentLightIntensity * (isRainWeather(weather.current) ? 0.34 : 0.24));
+            this.adapter.fillLight.position.set(this.cameraFocus.x - 42, 36, this.cameraFocus.z - 48);
         }
 
         // Update Sun/Moon Position
