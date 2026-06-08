@@ -43,6 +43,13 @@ const isLinePlacementType = (type: BuildingType | null | undefined): type is Bui
     return Boolean(type && LINE_PLACEMENT_TYPES.has(type));
 };
 
+const canTileOpenModal = (tile: any): boolean => {
+    if (!tile) return false;
+    if (tile.foliage === 'MINE_HOLE') return true;
+    if (tile.isUnderConstruction) return true;
+    return tile.buildingType !== undefined && tile.buildingType !== BuildingType.EMPTY;
+};
+
 const CommandFailureToast: React.FC<{ result?: any }> = ({ result }) => {
     if (!result || result.ok) return null;
 
@@ -254,9 +261,18 @@ const App: React.FC = () => {
         console.log(`[SFX] ${type}`);
     }, []);
 
+    const selectedTileCanOpenModal = useMemo(() => {
+        if (!selectedTilePos || !state?.chunks) return false;
+        for (const chunk of Object.values(state.chunks) as any[]) {
+            const tile = chunk?.tiles?.find((candidate: any) => candidate.x === selectedTilePos.x && candidate.z === selectedTilePos.z);
+            if (tile) return canTileOpenModal(tile);
+        }
+        return false;
+    }, [selectedTilePos?.x, selectedTilePos?.z, state?.chunks]);
+
     const eraModalOpen = Boolean(!showHomePage && !isIntroAnim && state?.eraUnlockedPopup && state.eraUnlockedPopup !== dismissedEraPopup);
     const placementModalOpen = Boolean(!eraModalOpen && !showWorldMap && !state?.isFPS && pendingPlacementPos && state?.selectedBuilding && !isLinePlacementType(state.selectedBuilding));
-    const tileModalOpen = Boolean(!eraModalOpen && !showWorldMap && !placementModalOpen && !state?.isFPS && selectedTilePos);
+    const tileModalOpen = Boolean(!eraModalOpen && !showWorldMap && !placementModalOpen && !state?.isFPS && selectedTilePos && selectedTileCanOpenModal);
     const blockingModalOpen = eraModalOpen || showWorldMap || placementModalOpen || tileModalOpen;
     const floatingHudVisible = !blockingModalOpen && !state?.isFPS;
     const sidebarsVisible = !blockingModalOpen && !state?.isFPS;
