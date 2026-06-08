@@ -15,6 +15,20 @@ import {
     createGroundAnimalTailMaterial,
 } from '../wildlife/GroundAnimal';
 import {
+    GROUND_BIRD_COLORS,
+    createGroundBirdBeakGeometry,
+    createGroundBirdBeakMaterial,
+    createGroundBirdBodyGeometry,
+    createGroundBirdFeatherMaterial,
+    createGroundBirdHeadGeometry,
+    createGroundBirdLegGeometry,
+    createGroundBirdLegMaterial,
+    createGroundBirdNeckGeometry,
+    createGroundBirdShadowGeometry,
+    createGroundBirdShadowMaterial,
+    createGroundBirdWingGeometry,
+} from '../wildlife/GroundBird';
+import {
     SKY_BIRD_COLORS,
     createSkyBirdGeometry,
     createSkyBirdMaterial,
@@ -32,6 +46,10 @@ type AnimalSeed = {
     color: number;
 };
 
+type GroundBirdSeed = AnimalSeed & {
+    accentColor: number;
+};
+
 type BirdSeed = {
     anchorX: number;
     anchorZ: number;
@@ -44,6 +62,7 @@ type BirdSeed = {
 };
 
 const ANIMAL_COUNT = 10;
+const GROUND_BIRD_COUNT = 5;
 const BIRD_COUNT = 14;
 const DEFAULT_SETTLEMENT_ANCHOR = { x: 8, z: 8 };
 
@@ -55,8 +74,16 @@ export class AmbientWildlifeRenderSystem {
     private readonly animalEarMesh: THREE.InstancedMesh;
     private readonly animalTailMesh: THREE.InstancedMesh;
     private readonly animalShadowMesh: THREE.InstancedMesh;
+    private readonly groundBirdBodyMesh: THREE.InstancedMesh;
+    private readonly groundBirdNeckMesh: THREE.InstancedMesh;
+    private readonly groundBirdHeadMesh: THREE.InstancedMesh;
+    private readonly groundBirdBeakMesh: THREE.InstancedMesh;
+    private readonly groundBirdLegMesh: THREE.InstancedMesh;
+    private readonly groundBirdWingMesh: THREE.InstancedMesh;
+    private readonly groundBirdShadowMesh: THREE.InstancedMesh;
     private readonly birdMesh: THREE.InstancedMesh;
     private readonly animalSeeds: AnimalSeed[];
+    private readonly groundBirdSeeds: GroundBirdSeed[];
     private readonly birdSeeds: BirdSeed[];
     private readonly matrix = new THREE.Matrix4();
     private readonly position = new THREE.Vector3();
@@ -75,9 +102,19 @@ export class AmbientWildlifeRenderSystem {
         this.animalEarMesh = new THREE.InstancedMesh(createGroundAnimalEarGeometry(), createGroundAnimalEarMaterial(), ANIMAL_COUNT * 2);
         this.animalTailMesh = new THREE.InstancedMesh(createGroundAnimalTailGeometry(), createGroundAnimalTailMaterial(), ANIMAL_COUNT);
         this.animalShadowMesh = new THREE.InstancedMesh(createGroundAnimalShadowGeometry(), createGroundAnimalShadowMaterial(), ANIMAL_COUNT);
+
+        const groundBirdFeatherMaterial = createGroundBirdFeatherMaterial();
+        this.groundBirdBodyMesh = new THREE.InstancedMesh(createGroundBirdBodyGeometry(), groundBirdFeatherMaterial, GROUND_BIRD_COUNT);
+        this.groundBirdNeckMesh = new THREE.InstancedMesh(createGroundBirdNeckGeometry(), groundBirdFeatherMaterial.clone(), GROUND_BIRD_COUNT);
+        this.groundBirdHeadMesh = new THREE.InstancedMesh(createGroundBirdHeadGeometry(), groundBirdFeatherMaterial.clone(), GROUND_BIRD_COUNT);
+        this.groundBirdBeakMesh = new THREE.InstancedMesh(createGroundBirdBeakGeometry(), createGroundBirdBeakMaterial(), GROUND_BIRD_COUNT);
+        this.groundBirdLegMesh = new THREE.InstancedMesh(createGroundBirdLegGeometry(), createGroundBirdLegMaterial(), GROUND_BIRD_COUNT * 2);
+        this.groundBirdWingMesh = new THREE.InstancedMesh(createGroundBirdWingGeometry(), groundBirdFeatherMaterial.clone(), GROUND_BIRD_COUNT * 2);
+        this.groundBirdShadowMesh = new THREE.InstancedMesh(createGroundBirdShadowGeometry(), createGroundBirdShadowMaterial(), GROUND_BIRD_COUNT);
+
         this.birdMesh = new THREE.InstancedMesh(createSkyBirdGeometry(), createSkyBirdMaterial(), BIRD_COUNT);
 
-        for (const mesh of this.getAnimalPartMeshes()) {
+        for (const mesh of [...this.getAnimalPartMeshes(), ...this.getGroundBirdPartMeshes()]) {
             mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
             mesh.frustumCulled = true;
             mesh.castShadow = true;
@@ -86,11 +123,13 @@ export class AmbientWildlifeRenderSystem {
             this.root.add(mesh);
         }
 
-        this.animalShadowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        this.animalShadowMesh.frustumCulled = true;
-        this.animalShadowMesh.renderOrder = 2;
-        this.animalShadowMesh.userData.foliageType = 'AMBIENT_WILDLIFE';
-        this.root.add(this.animalShadowMesh);
+        for (const mesh of [this.animalShadowMesh, this.groundBirdShadowMesh]) {
+            mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            mesh.frustumCulled = true;
+            mesh.renderOrder = 2;
+            mesh.userData.foliageType = 'AMBIENT_WILDLIFE';
+            this.root.add(mesh);
+        }
 
         this.birdMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.birdMesh.frustumCulled = true;
@@ -98,6 +137,7 @@ export class AmbientWildlifeRenderSystem {
         this.root.add(this.birdMesh);
 
         this.animalSeeds = this.createAnimalSeeds(anchor);
+        this.groundBirdSeeds = this.createGroundBirdSeeds(anchor);
         this.birdSeeds = this.createBirdSeeds(anchor);
         this.applyInstanceColors();
     }
@@ -111,14 +151,15 @@ export class AmbientWildlifeRenderSystem {
     ): void {
         if (!this.visible) return;
 
-        const showAnimals = firstPerson || zoomLevel <= 22;
-        for (const mesh of [...this.getAnimalPartMeshes(), this.animalShadowMesh]) {
-            mesh.visible = showAnimals;
+        const showGroundWildlife = firstPerson || zoomLevel <= 22;
+        for (const mesh of [...this.getAnimalPartMeshes(), this.animalShadowMesh, ...this.getGroundBirdPartMeshes(), this.groundBirdShadowMesh]) {
+            mesh.visible = showGroundWildlife;
         }
         this.birdMesh.visible = true;
 
-        if (showAnimals) {
+        if (showGroundWildlife) {
             this.updateAnimals(time, focus, getHeightAt, firstPerson);
+            this.updateGroundBirds(time, focus, getHeightAt, firstPerson);
         }
         this.updateBirds(time, focus, firstPerson);
     }
@@ -130,7 +171,13 @@ export class AmbientWildlifeRenderSystem {
 
     dispose(): void {
         this.root.parent?.remove(this.root);
-        for (const mesh of [...this.getAnimalPartMeshes(), this.animalShadowMesh, this.birdMesh]) {
+        for (const mesh of [
+            ...this.getAnimalPartMeshes(),
+            this.animalShadowMesh,
+            ...this.getGroundBirdPartMeshes(),
+            this.groundBirdShadowMesh,
+            this.birdMesh,
+        ]) {
             mesh.geometry.dispose();
             const material = mesh.material;
             if (Array.isArray(material)) {
@@ -241,6 +288,89 @@ export class AmbientWildlifeRenderSystem {
         }
     }
 
+    private updateGroundBirds(
+        time: number,
+        focus: WildlifeFocus,
+        getHeightAt: (x: number, z: number) => number,
+        firstPerson: boolean
+    ): void {
+        for (let i = 0; i < this.groundBirdSeeds.length; i += 1) {
+            const seed = this.groundBirdSeeds[i];
+            const t = time * seed.speed + seed.phase;
+            const wanderX = Math.cos(t * 0.9) * seed.radius + Math.sin(t * 0.43 + seed.phase) * 1.2;
+            const wanderZ = Math.sin(t) * seed.radius + Math.cos(t * 0.31 + seed.phase) * 1.1;
+            const x = seed.anchorX + wanderX;
+            const z = seed.anchorZ + wanderZ;
+            const nextX = seed.anchorX + Math.cos((t + 0.05) * 0.9) * seed.radius;
+            const nextZ = seed.anchorZ + Math.sin(t + 0.05) * seed.radius;
+            const yaw = Math.atan2(nextX - x, nextZ - z);
+            const groundY = getHeightAt(x, z);
+            const stride = Math.sin(time * 7.4 + seed.phase) * 0.06 * seed.scale;
+            const peck = Math.max(0, Math.sin(time * 2.2 + seed.phase)) * 0.12 * seed.scale;
+            const bodyY = groundY + 0.36 * seed.scale;
+            const nearFocus = this.isNearFocus(x, z, focus, firstPerson ? 42 : 70);
+            const hiddenY = -1000;
+            const y = nearFocus ? bodyY : hiddenY;
+
+            this.composeAnimalPart(x, y, z, yaw, 0, 0, 0, seed.scale, seed.scale, seed.scale);
+            this.groundBirdBodyMesh.setMatrixAt(i, this.matrix);
+
+            this.composeAnimalPart(x, nearFocus ? bodyY + 0.28 * seed.scale - peck : hiddenY, z, yaw, 0, 0, 0.24 * seed.scale, seed.scale, seed.scale, seed.scale);
+            this.groundBirdNeckMesh.setMatrixAt(i, this.matrix);
+
+            this.composeAnimalPart(x, nearFocus ? bodyY + 0.52 * seed.scale - peck : hiddenY, z, yaw, 0, 0, 0.32 * seed.scale, seed.scale, seed.scale, seed.scale);
+            this.groundBirdHeadMesh.setMatrixAt(i, this.matrix);
+
+            this.composeAnimalPart(x, nearFocus ? bodyY + 0.5 * seed.scale - peck : hiddenY, z, yaw, 0, 0, 0.5 * seed.scale, seed.scale, seed.scale, seed.scale);
+            this.groundBirdBeakMesh.setMatrixAt(i, this.matrix);
+
+            const legOffsets = [-0.11, 0.11];
+            for (let leg = 0; leg < 2; leg += 1) {
+                this.composeAnimalPart(
+                    x,
+                    nearFocus ? groundY + 0.18 * seed.scale : hiddenY,
+                    z,
+                    yaw,
+                    legOffsets[leg] * seed.scale,
+                    leg === 0 ? stride : -stride,
+                    -0.04 * seed.scale,
+                    seed.scale,
+                    seed.scale,
+                    seed.scale
+                );
+                this.groundBirdLegMesh.setMatrixAt(i * 2 + leg, this.matrix);
+            }
+
+            const wingOffsets = [-0.25, 0.25];
+            for (let wing = 0; wing < 2; wing += 1) {
+                this.composeAnimalPart(
+                    x,
+                    nearFocus ? bodyY + 0.03 * seed.scale : hiddenY,
+                    z,
+                    yaw,
+                    wingOffsets[wing] * seed.scale,
+                    Math.sin(time * 4.6 + seed.phase) * 0.035 * seed.scale,
+                    -0.02 * seed.scale,
+                    seed.scale,
+                    seed.scale,
+                    seed.scale
+                );
+                this.groundBirdWingMesh.setMatrixAt(i * 2 + wing, this.matrix);
+            }
+
+            this.position.set(x, nearFocus ? groundY + 0.018 : hiddenY, z);
+            this.euler.set(0, yaw, 0);
+            this.quaternion.setFromEuler(this.euler);
+            this.scale.set(seed.scale * 0.9, seed.scale * 0.72, seed.scale * 0.76);
+            this.matrix.compose(this.position, this.quaternion, this.scale);
+            this.groundBirdShadowMesh.setMatrixAt(i, this.matrix);
+        }
+
+        for (const mesh of [...this.getGroundBirdPartMeshes(), this.groundBirdShadowMesh]) {
+            mesh.instanceMatrix.needsUpdate = true;
+        }
+    }
+
     private updateBirds(time: number, focus: WildlifeFocus, firstPerson: boolean): void {
         for (let i = 0; i < this.birdSeeds.length; i += 1) {
             const seed = this.birdSeeds[i];
@@ -274,6 +404,19 @@ export class AmbientWildlifeRenderSystem {
         }));
     }
 
+    private createGroundBirdSeeds(anchor: WildlifeFocus): GroundBirdSeed[] {
+        return Array.from({ length: GROUND_BIRD_COUNT }, (_, i) => ({
+            anchorX: anchor.x + ((i * 31) % 33) - 16,
+            anchorZ: anchor.z + ((i * 11) % 27) - 13,
+            radius: 1.4 + (i % 3) * 0.5,
+            speed: 0.12 + (i % 4) * 0.02,
+            phase: i * 2.17,
+            scale: 0.72 + (i % 2) * 0.08,
+            color: GROUND_BIRD_COLORS[i % GROUND_BIRD_COLORS.length],
+            accentColor: GROUND_BIRD_COLORS[(i + 2) % GROUND_BIRD_COLORS.length],
+        }));
+    }
+
     private createBirdSeeds(anchor: WildlifeFocus): BirdSeed[] {
         return Array.from({ length: BIRD_COUNT }, (_, i) => ({
             anchorX: anchor.x + ((i * 19) % 43) - 21,
@@ -301,10 +444,19 @@ export class AmbientWildlifeRenderSystem {
                 this.animalEarMesh.setColorAt(i * 2 + ear, color.offsetHSL(0, 0, 0.1));
             }
         });
+        this.groundBirdSeeds.forEach((seed, i) => {
+            color.set(seed.color);
+            this.groundBirdBodyMesh.setColorAt(i, color);
+            this.groundBirdNeckMesh.setColorAt(i, color.offsetHSL(0, 0, 0.08));
+            this.groundBirdHeadMesh.setColorAt(i, color.offsetHSL(0, 0, 0.12));
+            for (let wing = 0; wing < 2; wing += 1) {
+                this.groundBirdWingMesh.setColorAt(i * 2 + wing, color.set(seed.accentColor));
+            }
+        });
         this.birdSeeds.forEach((seed, i) => {
             this.birdMesh.setColorAt(i, color.set(seed.color));
         });
-        for (const mesh of [...this.getAnimalPartMeshes(), this.birdMesh]) {
+        for (const mesh of [...this.getAnimalPartMeshes(), ...this.getGroundBirdPartMeshes(), this.birdMesh]) {
             if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         }
     }
@@ -341,6 +493,17 @@ export class AmbientWildlifeRenderSystem {
             this.animalLegMesh,
             this.animalEarMesh,
             this.animalTailMesh,
+        ];
+    }
+
+    private getGroundBirdPartMeshes(): THREE.InstancedMesh[] {
+        return [
+            this.groundBirdBodyMesh,
+            this.groundBirdNeckMesh,
+            this.groundBirdHeadMesh,
+            this.groundBirdBeakMesh,
+            this.groundBirdLegMesh,
+            this.groundBirdWingMesh,
         ];
     }
 
