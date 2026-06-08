@@ -53,6 +53,10 @@ function getOverseer(state: GameState): OverseerState {
     return normalized;
 }
 
+function hasActiveRouteCooldown(agent: GameState['agents'][number], tickCount: number): boolean {
+    return Object.values(agent.unreachableCooldowns || {}).some(expiresAt => tickCount < expiresAt);
+}
+
 export class AIOverseerSystem extends BaseSimSystem {
     readonly id = 'ai-overseer';
     readonly priority = 9;
@@ -98,7 +102,7 @@ export class AIOverseerSystem extends BaseSimSystem {
             };
         }
 
-        const blockedAgents = state.agents.filter(agent => agent.statusTone === 'blocked');
+        const blockedAgents = state.agents.filter(agent => agent.statusTone === 'blocked' || hasActiveRouteCooldown(agent, state.tickCount));
         if (blockedAgents.length > 0) {
             const sample = blockedAgents[0];
             return {
@@ -192,7 +196,7 @@ export class AIOverseerSystem extends BaseSimSystem {
         }
 
         if (overseer.mode === 'STABILITY') {
-            const blockedAgents = state.agents.filter(agent => agent.statusTone === 'blocked').length;
+            const blockedAgents = state.agents.filter(agent => agent.statusTone === 'blocked' || hasActiveRouteCooldown(agent, state.tickCount)).length;
             if (blockedAgents > 0) {
                 this.log(state, overseer, `Held expansion: ${blockedAgents} blocked agent route${blockedAgents === 1 ? '' : 's'}`);
                 return;
