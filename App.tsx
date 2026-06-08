@@ -47,7 +47,9 @@ const canTileOpenModal = (tile: any): boolean => {
     if (!tile) return false;
     if (tile.foliage === 'MINE_HOLE') return true;
     if (tile.isUnderConstruction) return true;
-    return tile.buildingType !== undefined && tile.buildingType !== BuildingType.EMPTY;
+    return tile.buildingType !== undefined
+        && tile.buildingType !== BuildingType.EMPTY
+        && tile.buildingType !== BuildingType.POND;
 };
 
 const CommandFailureToast: React.FC<{ result?: any }> = ({ result }) => {
