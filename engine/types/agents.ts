@@ -83,6 +83,8 @@ export interface AgentInventory {
     capacity: number;
 }
 
+export type AgentStatusTone = 'normal' | 'warning' | 'blocked';
+
 export interface Agent {
     id: string;
     name: string;
@@ -98,6 +100,8 @@ export interface Agent {
     visualZ?: number;
 
     state: 'MOVING' | 'WORKING' | 'IDLE' | 'SLEEPING' | 'EATING' | 'RELAXING' | 'SOCIALIZING' | 'PATROLLING' | 'OFF_DUTY' | 'PLANNING' | 'DEPOSITING' | 'MANUAL';
+    statusReason?: string;
+    statusTone?: AgentStatusTone;
 
     // Needs (0-100)
     energy: number;
