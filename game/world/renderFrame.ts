@@ -3,6 +3,8 @@ import { FrameContext } from '../../engine/kernel';
 import { ChunkStore } from '../../engine/space/ChunkStore';
 import { DungeonEngine } from '../../engine/dungeon/DungeonEngine';
 import { waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial } from '../../engine/render/materials/VoxelMaterials';
+import { getWaterSurfaceY } from '../../engine/render/utils/GroundAnchors';
+import { BuildingType } from '../../types';
 import { BuildingStatusLabelLayer } from '../render/systems/BuildingStatusLabelLayer';
 
 export interface RenderFrameDeps {
@@ -126,7 +128,111 @@ class LayeredWorldOverlay {
     }
 }
 
+class ShorelineOverlay {
+    private group = new THREE.Group();
+    private geometry = new THREE.PlaneGeometry(0.92, 0.16).rotateX(-Math.PI / 2);
+    private material = new THREE.MeshBasicMaterial({
+        color: 0xd8f2ed,
+        transparent: true,
+        opacity: 0.34,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+    });
+    private mesh: THREE.InstancedMesh | null = null;
+    private matrix = new THREE.Matrix4();
+    private quaternion = new THREE.Quaternion();
+    private position = new THREE.Vector3();
+    private scale = new THREE.Vector3(1, 1, 1);
+    private lastSignature = '';
+
+    constructor(scene: THREE.Scene) {
+        this.group.name = 'shoreline-polish-overlay';
+        this.group.renderOrder = 7;
+        scene.add(this.group);
+    }
+
+    setVisible(visible: boolean): void {
+        this.group.visible = visible;
+    }
+
+    update(state: any, visibleTerrainChunks?: Map<string, any>): void {
+        if (state.activeView !== 'SURFACE') {
+            this.setVisible(false);
+            return;
+        }
+
+        const visibleKeys = visibleTerrainChunks ? Array.from(visibleTerrainChunks.keys()).sort() : Object.keys(state.chunks || {}).sort();
+        const signature = `${visibleKeys.join('|')}|${state.activeView}|${state.layeredWorld?.renderVersion || 0}`;
+        if (signature === this.lastSignature && this.mesh) {
+            this.setVisible(true);
+            return;
+        }
+        this.lastSignature = signature;
+
+        const edges: Array<{ x: number; z: number; y: number; rot: number }> = [];
+        const chunks = state.chunks || {};
+        const isWaterTile = (tile: any) => tile?.buildingType === BuildingType.POND || tile?.buildingType === BuildingType.RESERVOIR;
+        const addEdge = (tile: any, dx: number, dz: number, rot: number) => {
+            const neighbor = ChunkStore.getTile(chunks, tile.x + dx, tile.z + dz);
+            if (isWaterTile(neighbor)) return;
+            edges.push({
+                x: tile.x + dx * 0.47,
+                z: tile.z + dz * 0.47,
+                y: getWaterSurfaceY(tile.terrainHeight) + 0.026,
+                rot,
+            });
+        };
+
+        for (const key of visibleKeys) {
+            const chunk = chunks[key];
+            if (!chunk?.tiles) continue;
+            for (const tile of chunk.tiles) {
+                if (!isWaterTile(tile)) continue;
+                addEdge(tile, 1, 0, Math.PI / 2);
+                addEdge(tile, -1, 0, Math.PI / 2);
+                addEdge(tile, 0, 1, 0);
+                addEdge(tile, 0, -1, 0);
+                if (edges.length >= 1800) break;
+            }
+            if (edges.length >= 1800) break;
+        }
+
+        if (edges.length === 0) {
+            this.setVisible(false);
+            return;
+        }
+
+        this.ensureMesh(edges.length);
+        if (!this.mesh) return;
+
+        edges.forEach((edge, index) => {
+            this.position.set(edge.x, edge.y, edge.z);
+            this.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), edge.rot);
+            this.matrix.compose(this.position, this.quaternion, this.scale);
+            this.mesh!.setMatrixAt(index, this.matrix);
+        });
+
+        this.mesh.count = edges.length;
+        this.mesh.instanceMatrix.needsUpdate = true;
+        this.setVisible(true);
+    }
+
+    private ensureMesh(count: number): void {
+        if (this.mesh && this.mesh.instanceMatrix.count >= count) return;
+        if (this.mesh) {
+            this.group.remove(this.mesh);
+            this.mesh.dispose();
+        }
+        this.mesh = new THREE.InstancedMesh(this.geometry, this.material, count);
+        this.mesh.name = 'shoreline-foam-strips';
+        this.mesh.renderOrder = 7;
+        this.mesh.frustumCulled = true;
+        this.group.add(this.mesh);
+    }
+}
+
 let layeredWorldOverlay: LayeredWorldOverlay | null = null;
+let shorelineOverlay: ShorelineOverlay | null = null;
 
 function getBuildingStatusLabelLayer(deps: RenderFrameDeps): BuildingStatusLabelLayer {
     if (!buildingStatusLabelLayer) {
@@ -140,6 +246,13 @@ function getLayeredWorldOverlay(deps: RenderFrameDeps): LayeredWorldOverlay {
         layeredWorldOverlay = new LayeredWorldOverlay(deps.render.getScene());
     }
     return layeredWorldOverlay;
+}
+
+function getShorelineOverlay(deps: RenderFrameDeps): ShorelineOverlay {
+    if (!shorelineOverlay) {
+        shorelineOverlay = new ShorelineOverlay(deps.render.getScene());
+    }
+    return shorelineOverlay;
 }
 
 function setObjectVisible(object: THREE.Object3D | null | undefined, visible: boolean): void {
@@ -181,6 +294,7 @@ function setSurfaceRenderVisible(deps: RenderFrameDeps, visible: boolean): void 
     agentMeshes?.forEach((mesh) => setObjectVisible(mesh, visible));
     const statusSprites = deps.agentRenderSystem?.['statusSprites'] as Map<string, THREE.Object3D> | undefined;
     statusSprites?.forEach((sprite) => setObjectVisible(sprite, visible));
+    shorelineOverlay?.setVisible(visible);
 
     if (!visible) {
         deps.foliageRenderSystem?.setGroundDetailVisible?.(false);
@@ -273,6 +387,7 @@ function updateDungeonView(state: any, deps: RenderFrameDeps): void {
     deps.dungeonRenderSystem.update(state.dungeon);
     buildingStatusLabelLayer?.clear();
     layeredWorldOverlay?.setVisible(false);
+    shorelineOverlay?.setVisible(false);
 
     if (!deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(true);
     if (deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(false);
@@ -306,6 +421,7 @@ function updateFirstPersonView(
     const allAgents = [...state.agents, ...state.ambientNpcs];
     deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, 0.1, camera);
     deps.terrainRenderSystem.update(camera.position, camera);
+    getShorelineOverlay(deps).update(state, deps.terrainRenderSystem?.['chunks']);
     deps.buildingRenderSystem.update(
         ctx.dt,
         ctx.time,
@@ -347,6 +463,7 @@ function updateSurfaceView(
     const camera = deps.render.getCamera();
     deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, zoomLevel, camera);
     deps.terrainRenderSystem.update(deps.cameraSystem.cameraFocus, camera);
+    getShorelineOverlay(deps).update(state, deps.terrainRenderSystem?.['chunks']);
     getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight);
     deps.buildingRenderSystem.update(
         ctx.dt,
