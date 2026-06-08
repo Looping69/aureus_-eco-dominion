@@ -1,11 +1,11 @@
 
 export const INITIAL_RESOURCES = {
-    agt: 10000,
-    minerals: 0,
-    gems: 10,
-    wood: 200,
-    stone: 200,
+    agt: 100000,
+    minerals: 2500,
+    gems: 25,
+    wood: 10000,
+    stone: 12000,
     eco: 75,
-    trust: 20,
-    maxCapacity: 500
+    trust: 60,
+    maxCapacity: 25000
 };
