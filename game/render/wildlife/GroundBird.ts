@@ -38,7 +38,6 @@ export function createGroundBirdFeatherMaterial(): THREE.MeshStandardMaterial {
         metalness: 0,
         emissive: 0x27321f,
         emissiveIntensity: 0.16,
-        vertexColors: true,
     });
 }
 
