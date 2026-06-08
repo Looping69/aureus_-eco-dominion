@@ -69,36 +69,49 @@ function getGroundAnimalFurTexture(): THREE.CanvasTexture {
     if (furTexture) return furTexture;
 
     const canvas = document.createElement('canvas');
-    canvas.width = 64;
-    canvas.height = 64;
+    canvas.width = 96;
+    canvas.height = 96;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
         furTexture = new THREE.CanvasTexture(canvas);
         return furTexture;
     }
 
-    ctx.fillStyle = '#9a7a53';
-    ctx.fillRect(0, 0, 64, 64);
+    const baseGradient = ctx.createLinearGradient(0, 0, 96, 96);
+    baseGradient.addColorStop(0, '#b08a5d');
+    baseGradient.addColorStop(0.45, '#8a6845');
+    baseGradient.addColorStop(1, '#c39b68');
+    ctx.fillStyle = baseGradient;
+    ctx.fillRect(0, 0, 96, 96);
 
-    for (let y = 0; y < 64; y += 4) {
-        ctx.fillStyle = y % 8 === 0 ? 'rgba(54, 38, 24, 0.18)' : 'rgba(255, 245, 220, 0.1)';
-        ctx.fillRect(0, y, 64, 1);
+    for (let y = 0; y < 96; y += 5) {
+        ctx.fillStyle = y % 15 === 0 ? 'rgba(48, 32, 19, 0.32)' : 'rgba(255, 233, 190, 0.12)';
+        ctx.fillRect(0, y, 96, y % 15 === 0 ? 2 : 1);
     }
 
-    for (let i = 0; i < 34; i += 1) {
-        const x = (i * 17) % 64;
-        const y = (i * 29) % 64;
-        const r = 1.5 + (i % 3);
+    for (let i = 0; i < 46; i += 1) {
+        const x = (i * 23) % 96;
+        const y = (i * 37) % 96;
+        const r = 2.4 + (i % 4);
         ctx.beginPath();
-        ctx.fillStyle = i % 2 === 0 ? 'rgba(60, 42, 26, 0.34)' : 'rgba(230, 205, 160, 0.18)';
-        ctx.ellipse(x, y, r * 1.4, r, (i % 6) * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = i % 3 === 0 ? 'rgba(42, 30, 20, 0.46)' : 'rgba(225, 195, 140, 0.24)';
+        ctx.ellipse(x, y, r * 1.8, r, (i % 8) * 0.35, 0, Math.PI * 2);
         ctx.fill();
+    }
+
+    ctx.strokeStyle = 'rgba(35, 24, 17, 0.22)';
+    ctx.lineWidth = 1.4;
+    for (let x = -24; x < 120; x += 18) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.quadraticCurveTo(x + 18, 42, x + 6, 96);
+        ctx.stroke();
     }
 
     furTexture = new THREE.CanvasTexture(canvas);
     furTexture.wrapS = THREE.RepeatWrapping;
     furTexture.wrapT = THREE.RepeatWrapping;
-    furTexture.repeat.set(2, 1);
+    furTexture.repeat.set(1.65, 1.15);
     furTexture.colorSpace = THREE.SRGBColorSpace;
     furTexture.needsUpdate = true;
     return furTexture;
