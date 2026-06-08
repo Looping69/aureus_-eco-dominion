@@ -175,7 +175,7 @@ export class ThreeRenderAdapter implements RenderAdapter {
         this.renderer.setClearColor(this.config.clearColor, 0); // Transparent clear
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 0.96;
+        this.renderer.toneMappingExposure = 1.04;
         this.renderer.localClippingEnabled = true; // Required for material clippingPlanes
 
         if (this.config.shadowMap) {
@@ -223,16 +223,18 @@ export class ThreeRenderAdapter implements RenderAdapter {
 
     public directionalLight: THREE.DirectionalLight | null = null;
     public ambientLight: THREE.AmbientLight | null = null;
+    public hemisphereLight: THREE.HemisphereLight | null = null;
+    public fillLight: THREE.DirectionalLight | null = null;
 
     /**
      * Setup default scene lighting
      */
     private setupDefaultLighting(): void {
-        this.ambientLight = new THREE.AmbientLight(0xf3f0df, 0.82);
+        this.ambientLight = new THREE.AmbientLight(0xe7e0cc, 0.48);
         this.scene.add(this.ambientLight);
 
-        this.directionalLight = new THREE.DirectionalLight(0xffedcf, 1.18);
-        this.directionalLight.position.set(55, 90, 38);
+        this.directionalLight = new THREE.DirectionalLight(0xffe0ac, 1.42);
+        this.directionalLight.position.set(58, 92, 36);
         this.directionalLight.castShadow = this.config.shadowMap;
         if (this.config.shadowMap) {
             this.directionalLight.shadow.mapSize.set(this.config.shadowMapSize, this.config.shadowMapSize);
@@ -242,12 +244,19 @@ export class ThreeRenderAdapter implements RenderAdapter {
             this.directionalLight.shadow.camera.right = 90;
             this.directionalLight.shadow.camera.top = 90;
             this.directionalLight.shadow.camera.bottom = -90;
+            this.directionalLight.shadow.bias = -0.00003;
+            this.directionalLight.shadow.normalBias = 0.024;
         }
         this.scene.add(this.directionalLight);
         this.scene.add(this.directionalLight.target);
 
-        const hemi = new THREE.HemisphereLight(0xd7e5df, 0x4a3a28, 0.62);
-        this.scene.add(hemi);
+        this.hemisphereLight = new THREE.HemisphereLight(0xdceeff, 0x65513c, 0.78);
+        this.scene.add(this.hemisphereLight);
+
+        this.fillLight = new THREE.DirectionalLight(0x8fb4ff, 0.28);
+        this.fillLight.position.set(-38, 34, -52);
+        this.fillLight.castShadow = false;
+        this.scene.add(this.fillLight);
     }
 
     /**
