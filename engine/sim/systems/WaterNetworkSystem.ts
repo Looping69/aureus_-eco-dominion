@@ -25,7 +25,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
 
         // Ensure waterNetwork exists (handles old saves)
         if (!state.waterNetwork) {
-            state.waterNetwork = { totalProduced: 0, totalConsumed: 0, strandedDemand: 0, deficit: 0 };
+            state.waterNetwork = { totalProduced: 0, totalConsumed: 0, deficit: 0 };
         }
 
 
@@ -145,9 +145,9 @@ export class WaterNetworkSystem extends BaseSimSystem {
         state.waterNetwork = {
             totalProduced,
             totalConsumed,
-            strandedDemand,
             deficit: Math.max(0, connectedDemand - totalProduced)
         };
+        (state.waterNetwork as any).strandedDemand = strandedDemand;
     }
 
     private allocateWaterBudget(state: GameState, consumers: GridTile[], totalProduced: number): GridTile[] {
