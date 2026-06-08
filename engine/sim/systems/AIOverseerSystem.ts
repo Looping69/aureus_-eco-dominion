@@ -98,6 +98,26 @@ export class AIOverseerSystem extends BaseSimSystem {
             };
         }
 
+        const blockedAgents = state.agents.filter(agent => agent.statusTone === 'blocked');
+        if (blockedAgents.length > 0) {
+            const sample = blockedAgents[0];
+            return {
+                focus: 'Blocked agent route',
+                recommendation: `${blockedAgents.length} agent${blockedAgents.length === 1 ? '' : 's'} cannot complete a route. ${sample.name}: ${sample.statusReason || 'No route to target.'}`,
+                confidence: 0.88,
+            };
+        }
+
+        const waitingAgents = state.agents.filter(agent => agent.statusTone === 'warning');
+        if (waitingAgents.length > 0) {
+            const sample = waitingAgents[0];
+            return {
+                focus: 'Agent needs attention',
+                recommendation: `${waitingAgents.length} agent${waitingAgents.length === 1 ? '' : 's'} waiting on colony support. ${sample.name}: ${sample.statusReason || 'Needs support.'}`,
+                confidence: 0.78,
+            };
+        }
+
         const available = state.contracts.find(contract => (contract.status || 'AVAILABLE') === 'AVAILABLE');
         if (available) {
             const stock = state.resources[RESOURCE_KEY[available.resource]] || 0;
@@ -129,10 +149,11 @@ export class AIOverseerSystem extends BaseSimSystem {
 
         const idleWorkers = state.agents.filter(agent => agent.state === 'IDLE' && agent.type !== 'ILLEGAL_MINER').length;
         if (idleWorkers > 0 && state.jobs.length > 0) {
+            const stuckIdle = state.agents.find(agent => agent.state === 'IDLE' && agent.statusReason);
             return {
                 focus: 'Workforce routing',
-                recommendation: `${idleWorkers} worker${idleWorkers === 1 ? '' : 's'} idle while ${state.jobs.length} job${state.jobs.length === 1 ? '' : 's'} exist. Inspect unreachable jobs or missing resources.`,
-                confidence: 0.7,
+                recommendation: `${idleWorkers} worker${idleWorkers === 1 ? '' : 's'} idle while ${state.jobs.length} job${state.jobs.length === 1 ? '' : 's'} exist. ${stuckIdle?.statusReason || 'Inspect unreachable jobs, professions, or missing resources.'}`,
+                confidence: 0.74,
             };
         }
 
@@ -171,6 +192,11 @@ export class AIOverseerSystem extends BaseSimSystem {
         }
 
         if (overseer.mode === 'STABILITY') {
+            const blockedAgents = state.agents.filter(agent => agent.statusTone === 'blocked').length;
+            if (blockedAgents > 0) {
+                this.log(state, overseer, `Held expansion: ${blockedAgents} blocked agent route${blockedAgents === 1 ? '' : 's'}`);
+                return;
+            }
             if (state.powerGrid?.deficit > 0 || state.waterNetwork?.deficit > 0) {
                 this.log(state, overseer, 'Held expansion: utilities need attention');
             }
