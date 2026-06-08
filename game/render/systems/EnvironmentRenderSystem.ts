@@ -14,20 +14,20 @@ import { isRainWeather, isStormWeather, normalizeWeatherState } from '../../../e
 
 const WATER_REFLECTION_MATERIALS = [waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial] as THREE.Material[];
 
-function tuneWaterReflectionForNight(isNight: boolean): void {
+function tuneWaterReflectionForPhase(isNight: boolean): void {
     WATER_REFLECTION_MATERIALS.forEach((material) => {
         const standard = material as THREE.MeshStandardMaterial;
         if (typeof standard.roughness === 'number') {
-            standard.roughness = isNight ? 0.86 : 0.22;
+            standard.roughness = isNight ? 0.42 : 0.22;
         }
         if (typeof standard.metalness === 'number') {
-            standard.metalness = isNight ? 0.0 : 0.08;
+            standard.metalness = isNight ? 0.03 : 0.08;
         }
         if (typeof standard.opacity === 'number') {
-            standard.opacity = isNight ? 0.68 : 0.74;
+            standard.opacity = isNight ? 0.72 : 0.74;
         }
         if ('envMapIntensity' in standard) {
-            standard.envMapIntensity = isNight ? 0.02 : 1.0;
+            standard.envMapIntensity = isNight ? 0.28 : 1.0;
         }
     });
 }
@@ -281,15 +281,13 @@ export class EnvironmentRenderSystem {
         }
 
         if (this.adapter.fillLight) {
-            this.adapter.fillLight.color.copy(this.coolFillColor).lerp(this.currentLightColor, isDaytime(this.timeOfDay) ? 0.18 : 0.02);
-            this.adapter.fillLight.intensity = Math.max(0.12, this.currentLightIntensity * (isRainWeather(weather.current) ? 0.34 : 0.24));
-            this.adapter.fillLight.position.set(this.cameraFocus.x - 42, 36, this.cameraFocus.z - 48);
+            this.adapter.fillLight.intensity = 0;
         }
 
         // Update Sun/Moon Position
         const sunPos = this.calculateSunPosition(this.timeOfDay);
         const isNight = !isDaytime(this.timeOfDay);
-        tuneWaterReflectionForNight(isNight);
+        tuneWaterReflectionForPhase(isNight);
 
         // Position sun relative to camera focus
         this.sunMesh.position.set(
