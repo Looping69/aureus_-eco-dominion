@@ -45,41 +45,28 @@ export const EraUnlockedModal: React.FC<EraUnlockedModalProps> = ({ era, onClose
             aria-labelledby="era-unlocked-title"
             onClick={(e) => e.stopPropagation()}
         >
-            {/* Backdrop with particles */}
             <button
                 type="button"
                 aria-label="Close era unlocked modal"
-                className="absolute left-0 top-0 h-full w-full cursor-default bg-black/80 backdrop-blur-sm"
+                className="absolute left-0 top-0 h-full w-full cursor-default bg-black/84 backdrop-blur-sm"
                 onClick={handleClose}
             />
 
-            {/* Celebration rays */}
             <div className="absolute left-0 top-0 h-full w-full overflow-hidden pointer-events-none">
                 <div
-                    className="absolute top-1/2 left-1/2 w-[200vw] h-[200vh] -translate-x-1/2 -translate-y-1/2"
+                    className="absolute left-1/2 top-1/2 h-[120vmax] w-[120vmax] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-35"
                     style={{
-                        background: `conic-gradient(from 0deg, transparent, ${eraDef.color}20, transparent, ${eraDef.color}10, transparent)`,
-                        animation: 'spin 20s linear infinite'
+                        background: `radial-gradient(circle, ${eraDef.color}22 0%, ${eraDef.color}0f 28%, transparent 62%)`
                     }}
                 />
-            </div>
-
-            {/* Floating particles */}
-            <div className="absolute left-0 top-0 h-full w-full pointer-events-none overflow-hidden">
-                {[...Array(20)].map((_, i) => (
-                    <div
-                        key={i}
-                        className="absolute w-2 h-2 rounded-full"
-                        style={{
-                            background: eraDef.color,
-                            left: `${Math.random() * 100}%`,
-                            top: `${Math.random() * 100}%`,
-                            animation: `float ${3 + Math.random() * 4}s ease-in-out infinite`,
-                            animationDelay: `${Math.random() * 2}s`,
-                            opacity: 0.6
-                        }}
-                    />
-                ))}
+                <div
+                    className="absolute left-1/2 top-1/2 h-[78vmax] w-[78vmax] -translate-x-1/2 -translate-y-1/2 rounded-full border opacity-25"
+                    style={{ borderColor: eraDef.color }}
+                />
+                <div
+                    className="absolute left-1/2 top-1/2 h-[52vmax] w-[52vmax] -translate-x-1/2 -translate-y-1/2 rounded-full border opacity-20"
+                    style={{ borderColor: eraDef.color }}
+                />
             </div>
 
             {/* Modal Content */}
@@ -198,18 +185,6 @@ export const EraUnlockedModal: React.FC<EraUnlockedModalProps> = ({ era, onClose
                     </button>
                 </div>
             </div>
-
-            {/* CSS Animations */}
-            <style>{`
-                @keyframes spin {
-                    from { transform: translate(-50%, -50%) rotate(0deg); }
-                    to { transform: translate(-50%, -50%) rotate(360deg); }
-                }
-                @keyframes float {
-                    0%, 100% { transform: translateY(0) scale(1); opacity: 0.6; }
-                    50% { transform: translateY(-20px) scale(1.2); opacity: 1; }
-                }
-            `}</style>
         </div>
     );
 };
