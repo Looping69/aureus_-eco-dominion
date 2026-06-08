@@ -155,7 +155,7 @@ export class FoliageRenderSystem {
         if (!material) return;
         const daylight = getDaylightFactor(timeOfDay);
         material.uniforms.windTime.value = time;
-        material.uniforms.lightFactor.value = 0.16 + daylight * 0.84;
+        material.uniforms.lightFactor.value = 0.24 + daylight * 0.76;
     }
 
     /**
@@ -213,20 +213,20 @@ export class FoliageRenderSystem {
             const bladeCount = this.grassBladeCount(tile.x, tile.z);
             for (let i = 0; i < bladeCount; i += 1) {
                 const seed = this.seed(tile.x, tile.z, i + 17);
-                const offsetX = ((seed % 100) / 100 - 0.5) * 0.42;
-                const offsetZ = (((seed / 101) % 100) / 100 - 0.5) * 0.42;
-                const height = 0.16 + ((seed % 17) / 260);
-                const width = 0.16 + ((seed % 13) / 320);
+                const offsetX = ((seed % 100) / 100 - 0.5) * 0.46;
+                const offsetZ = (((seed / 101) % 100) / 100 - 0.5) * 0.46;
+                const height = 0.24 + ((seed % 17) / 230);
+                const width = 0.20 + ((seed % 13) / 360);
                 blades.push({
                     x: tile.x + offsetX,
-                    y: tile.terrainHeight * 0.5 + 0.018,
+                    y: tile.terrainHeight * 0.5 + 0.022,
                     z: tile.z + offsetZ,
                     rotation: (seed % 628) / 100,
                     width,
                     height,
                     color: this.grassBladeColor(seed),
                     windPhase: (seed % 628) / 100,
-                    lean: (((seed % 200) / 100) - 1) * 0.35,
+                    lean: (((seed % 200) / 100) - 1) * 0.28,
                 });
             }
         }
@@ -234,16 +234,16 @@ export class FoliageRenderSystem {
     }
 
     private shouldGrowGrass(x: number, z: number): boolean {
-        return this.seed(x, z, 3) % 4 === 0;
+        return this.seed(x, z, 3) % 3 === 0;
     }
 
     private grassBladeCount(x: number, z: number): number {
         const seed = this.seed(x, z, 9);
-        return seed % 5 === 0 ? 2 : 1;
+        return seed % 4 === 0 ? 2 : 1;
     }
 
     private grassBladeColor(seed: number): number {
-        const palette = [0x355d2f, 0x3f6a34, 0x496f38, 0x2f5230, 0x4d783d];
+        const palette = [0x47783b, 0x548a42, 0x608f49, 0x3f6f37, 0x5f9847];
         return palette[seed % palette.length];
     }
 
@@ -274,10 +274,10 @@ export class FoliageRenderSystem {
 
         const geo = new THREE.BufferGeometry();
         const positions = new Float32Array([
-            -0.014, 0, 0, 0.014, 0, 0, 0.009, 0.18, 0,
-            -0.014, 0, 0, 0.009, 0.18, 0, -0.008, 0.12, 0,
-            0, 0, -0.014, 0, 0, 0.014, 0, 0.16, 0.009,
-            0, 0, -0.014, 0, 0.16, 0.009, 0, 0.11, -0.008,
+            -0.018, 0, 0, 0.018, 0, 0, 0.011, 0.22, 0,
+            -0.018, 0, 0, 0.011, 0.22, 0, -0.01, 0.15, 0,
+            0, 0, -0.018, 0, 0, 0.018, 0, 0.2, 0.011,
+            0, 0, -0.018, 0, 0.2, 0.011, 0, 0.14, -0.01,
         ]);
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geo.computeVertexNormals();
@@ -292,9 +292,9 @@ export class FoliageRenderSystem {
         this.grassMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 windTime: { value: 0 },
-                windStrength: { value: 0.018 },
+                windStrength: { value: 0.016 },
                 lightFactor: { value: 1 },
-                bladeTint: { value: new THREE.Color(0x496f38) },
+                bladeTint: { value: new THREE.Color(0x548a42) },
                 windPhase: { value: 0 },
                 bladeLean: { value: 0 },
             },
@@ -310,12 +310,12 @@ export class FoliageRenderSystem {
 
                 void main() {
                     vec3 transformed = position;
-                    float heightRatio = clamp(position.y / 0.18, 0.0, 1.0);
+                    float heightRatio = clamp(position.y / 0.22, 0.0, 1.0);
                     float wind = sin(windTime * 1.2 + windPhase + position.x * 1.4) * windStrength * heightRatio;
-                    transformed.x += wind + bladeLean * heightRatio * 0.014;
-                    transformed.z += cos(windTime * 0.9 + windPhase) * windStrength * 0.14 * heightRatio;
+                    transformed.x += wind + bladeLean * heightRatio * 0.012;
+                    transformed.z += cos(windTime * 0.9 + windPhase) * windStrength * 0.12 * heightRatio;
                     vec3 shadedTint = bladeTint * lightFactor;
-                    vBladeColor = mix(shadedTint * 0.64, shadedTint * 0.92, heightRatio);
+                    vBladeColor = mix(shadedTint * 0.78, shadedTint * 1.08, heightRatio);
                     vBladeHeight = heightRatio;
                     gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(transformed, 1.0);
                 }
@@ -325,7 +325,7 @@ export class FoliageRenderSystem {
                 varying float vBladeHeight;
 
                 void main() {
-                    float alpha = mix(0.18, 0.32, vBladeHeight);
+                    float alpha = mix(0.42, 0.58, vBladeHeight);
                     gl_FragColor = vec4(vBladeColor, alpha);
                 }
             `,
