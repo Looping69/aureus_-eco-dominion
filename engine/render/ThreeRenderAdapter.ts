@@ -294,7 +294,7 @@ export class ThreeRenderAdapter implements RenderAdapter {
      */
     dispose(): void {
         this.resizeObserver?.disconnect();
-        this.renderer?.dispose();
+        this.resizeObserver = null;
 
         // Dispose scene objects
         this.scene.traverse((obj) => {
@@ -309,6 +309,13 @@ export class ThreeRenderAdapter implements RenderAdapter {
         });
 
         this.scene.clear();
+        this.renderer?.dispose();
+
+        const canvas = this.renderer?.domElement;
+        if (canvas?.parentElement) {
+            canvas.parentElement.removeChild(canvas);
+        }
+        this.container = null;
     }
 
     /**
