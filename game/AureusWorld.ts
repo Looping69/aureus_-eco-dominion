@@ -17,7 +17,8 @@ import {
     ProductionSystem, ConstructionSystem, EraSystem,
     PowerGridSystem, WaterNetworkSystem,
     TutorialDemoSystem, CommandDispatcher, UndergroundSurveySystem,
-    ResearchSystem, EmploymentSystem, BureaucracySystem, AmbientNPCSystem
+    ResearchSystem, EmploymentSystem, BureaucracySystem, AmbientNPCSystem,
+    AIOverseerSystem
 } from '../engine/sim/systems';
 import { DungeonMinerSystem } from '../engine/sim/systems/DungeonMinerSystem';
 import { DungeonStabilitySystem } from '../engine/sim/systems/DungeonStabilitySystem';
@@ -77,6 +78,7 @@ export class AureusWorld extends BaseWorld {
     private agentSystem: AgentSystem;
     private constructionSystem: ConstructionSystem;
     private commandDispatcher: CommandDispatcher;
+    private aiOverseerSystem: AIOverseerSystem;
 
     private agentRenderSystem: AgentRenderSystem;
     private terrainRenderSystem: TerrainRenderSystem;
@@ -127,6 +129,7 @@ export class AureusWorld extends BaseWorld {
             this.constructionSystem,
             this.agentSystem,
             researchSystem,
+            this.aiOverseerSystem,
             this.simSystems.tutorialDemo,
             this.simSystems.bureaucracySystem
         ]);
@@ -196,6 +199,8 @@ export class AureusWorld extends BaseWorld {
         this.sim.addSystem(new LogisticsSystem());
         this.sim.addSystem(new EventSystem());
         this.sim.addSystem(new MissionSystem());
+        this.aiOverseerSystem = new AIOverseerSystem();
+        this.sim.addSystem(this.aiOverseerSystem);
         this.sim.addSystem(new PowerGridSystem());
         this.sim.addSystem(new WaterNetworkSystem());
         this.sim.addSystem(new ProductionSystem());
