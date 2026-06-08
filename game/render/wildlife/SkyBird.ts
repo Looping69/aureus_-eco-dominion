@@ -37,40 +37,54 @@ function getSkyBirdWingTexture(): THREE.CanvasTexture {
     if (wingTexture) return wingTexture;
 
     const canvas = document.createElement('canvas');
-    canvas.width = 64;
-    canvas.height = 64;
+    canvas.width = 96;
+    canvas.height = 96;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
         wingTexture = new THREE.CanvasTexture(canvas);
         return wingTexture;
     }
 
-    ctx.fillStyle = '#d9e2ef';
-    ctx.fillRect(0, 0, 64, 64);
+    const baseGradient = ctx.createLinearGradient(0, 0, 96, 96);
+    baseGradient.addColorStop(0, '#f4f7fb');
+    baseGradient.addColorStop(0.5, '#cbd5e1');
+    baseGradient.addColorStop(1, '#8fa0b8');
+    ctx.fillStyle = baseGradient;
+    ctx.fillRect(0, 0, 96, 96);
 
-    for (let i = 0; i < 9; i += 1) {
+    for (let i = 0; i < 12; i += 1) {
         const x = i * 8;
-        ctx.fillStyle = i % 2 === 0 ? 'rgba(80, 96, 120, 0.16)' : 'rgba(255, 255, 255, 0.18)';
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(55, 68, 88, 0.28)' : 'rgba(255, 255, 255, 0.26)';
         ctx.beginPath();
         ctx.moveTo(x, 0);
-        ctx.lineTo(x + 10, 0);
-        ctx.lineTo(x + 2, 64);
-        ctx.lineTo(x - 6, 64);
+        ctx.lineTo(x + 14, 0);
+        ctx.lineTo(x + 4, 96);
+        ctx.lineTo(x - 8, 96);
         ctx.fill();
     }
 
-    ctx.strokeStyle = 'rgba(55, 65, 81, 0.18)';
-    for (let y = 10; y < 64; y += 12) {
+    ctx.strokeStyle = 'rgba(40, 52, 70, 0.3)';
+    ctx.lineWidth = 1.4;
+    for (let y = 12; y < 96; y += 14) {
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.quadraticCurveTo(32, y + 6, 64, y);
+        ctx.quadraticCurveTo(48, y + 9, 96, y);
+        ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = 1;
+    for (let y = 6; y < 96; y += 14) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.quadraticCurveTo(48, y + 5, 96, y);
         ctx.stroke();
     }
 
     wingTexture = new THREE.CanvasTexture(canvas);
     wingTexture.wrapS = THREE.RepeatWrapping;
     wingTexture.wrapT = THREE.RepeatWrapping;
-    wingTexture.repeat.set(1.2, 1);
+    wingTexture.repeat.set(1.15, 1);
     wingTexture.colorSpace = THREE.SRGBColorSpace;
     wingTexture.needsUpdate = true;
     return wingTexture;
