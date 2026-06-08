@@ -8,6 +8,7 @@ import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '.
 import { Contract, GameState, GameCommand, SfxType } from '../../../types';
 
 const CONTRACT_COMPLETION_TTL = 75;
+const CONTRACT_WORK_SECONDS = 300;
 const LAYER_CHUNK_SIZE = 16;
 
 function layeredChunkKey(x: number, z: number): string {
@@ -154,7 +155,7 @@ export class CommandDispatcher extends BaseSimSystem {
         contract.trustReward ??= 2;
         contract.trustPenalty ??= 3;
         contract.failureReason = undefined;
-        contract.timeLeft = Math.max(1, contract.timeLeft);
+        contract.timeLeft = CONTRACT_WORK_SECONDS;
         state.newsFeed.unshift({
             id: `contract_accept_${Date.now()}_${contract.id}`,
             headline: `Contract accepted: deliver ${contract.amount} ${this.formatResource(contract.resource)}.`,
