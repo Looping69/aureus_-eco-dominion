@@ -25,7 +25,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
 
         // Ensure waterNetwork exists (handles old saves)
         if (!state.waterNetwork) {
-            state.waterNetwork = { totalProduced: 0, totalConsumed: 0, deficit: 0 };
+            state.waterNetwork = { totalProduced: 0, totalConsumed: 0, strandedDemand: 0, deficit: 0 };
         }
 
 
@@ -45,7 +45,12 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 if (!def) continue;
 
                 // Reset status primarily for Pipes and Consumers
-                if (tile.buildingType === BuildingType.PIPE || def.water?.produces || def.water?.consumes) {
+                const isWaterParticipant = tile.buildingType === BuildingType.PIPE || Boolean(def.water?.produces || def.water?.consumes);
+                if (isWaterParticipant) {
+                    if (tile.isUnderConstruction) {
+                        tile.waterStatus = undefined;
+                        continue;
+                    }
                     tile.waterStatus = 'DISCONNECTED';
                 }
 
@@ -94,7 +99,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 if (suppliedTiles.has(key)) continue;
 
                 const neighbor = ChunkStore.getTile(state.chunks, nx, nz);
-                if (!neighbor) continue;
+                if (!neighbor || neighbor.isUnderConstruction) continue;
 
                 const nDef = BUILDINGS[neighbor.buildingType];
                 if (!nDef) continue;
@@ -119,7 +124,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
         let strandedDemand = 0;
         for (const chunk of Object.values(state.chunks)) {
             for (const tile of chunk.tiles) {
-                if (!tile || !this.isStructureHead(tile)) continue;
+                if (!tile || tile.isUnderConstruction || !this.isStructureHead(tile)) continue;
                 const def = BUILDINGS[tile.buildingType];
                 if (!def?.water?.consumes) continue;
 
@@ -140,7 +145,8 @@ export class WaterNetworkSystem extends BaseSimSystem {
         state.waterNetwork = {
             totalProduced,
             totalConsumed,
-            deficit: Math.max(0, connectedDemand - totalProduced + strandedDemand)
+            strandedDemand,
+            deficit: Math.max(0, connectedDemand - totalProduced)
         };
     }
 
@@ -206,7 +212,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
         for (let dz = 0; dz < depth; dz++) {
             for (let dx = 0; dx < width; dx++) {
                 const tile = ChunkStore.getTile(state.chunks, headTile.x + dx, headTile.z + dz);
-                if (!tile || tile.buildingType !== headTile.buildingType) continue;
+                if (!tile || tile.buildingType !== headTile.buildingType || tile.isUnderConstruction) continue;
 
                 tile.waterStatus = status;
                 if (suppliedTiles) {
