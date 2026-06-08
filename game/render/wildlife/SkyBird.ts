@@ -25,7 +25,6 @@ export function createSkyBirdMaterial(): THREE.MeshBasicMaterial {
     return new THREE.MeshBasicMaterial({
         color: 0xffffff,
         map: getSkyBirdWingTexture(),
-        vertexColors: true,
         transparent: true,
         opacity: 0.92,
         side: THREE.DoubleSide,
