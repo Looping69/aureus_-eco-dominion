@@ -69,41 +69,63 @@ function getGroundBirdFeatherTexture(): THREE.CanvasTexture {
     if (featherTexture) return featherTexture;
 
     const canvas = document.createElement('canvas');
-    canvas.width = 64;
-    canvas.height = 64;
+    canvas.width = 96;
+    canvas.height = 96;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
         featherTexture = new THREE.CanvasTexture(canvas);
         return featherTexture;
     }
 
-    ctx.fillStyle = '#586344';
-    ctx.fillRect(0, 0, 64, 64);
+    const baseGradient = ctx.createLinearGradient(0, 0, 96, 96);
+    baseGradient.addColorStop(0, '#6a744d');
+    baseGradient.addColorStop(0.5, '#3f4a34');
+    baseGradient.addColorStop(1, '#7a6546');
+    ctx.fillStyle = baseGradient;
+    ctx.fillRect(0, 0, 96, 96);
 
-    for (let y = 0; y < 64; y += 8) {
-        ctx.fillStyle = 'rgba(25, 35, 28, 0.28)';
+    for (let y = 0; y < 96; y += 10) {
+        ctx.fillStyle = 'rgba(18, 28, 22, 0.38)';
         ctx.beginPath();
-        ctx.moveTo(0, y + 4);
-        for (let x = 0; x <= 64; x += 8) {
-            ctx.quadraticCurveTo(x + 4, y, x + 8, y + 4);
+        ctx.moveTo(0, y + 6);
+        for (let x = 0; x <= 96; x += 10) {
+            ctx.quadraticCurveTo(x + 5, y, x + 10, y + 6);
         }
-        ctx.lineTo(64, y + 7);
-        ctx.lineTo(0, y + 7);
+        ctx.lineTo(96, y + 10);
+        ctx.lineTo(0, y + 10);
         ctx.fill();
+
+        ctx.strokeStyle = 'rgba(230, 215, 160, 0.2)';
+        ctx.beginPath();
+        ctx.moveTo(0, y + 3);
+        for (let x = 0; x <= 96; x += 10) {
+            ctx.quadraticCurveTo(x + 5, y - 1, x + 10, y + 3);
+        }
+        ctx.stroke();
     }
 
-    for (let x = 4; x < 64; x += 9) {
-        ctx.strokeStyle = 'rgba(230, 220, 170, 0.16)';
+    for (let x = 6; x < 104; x += 11) {
+        ctx.strokeStyle = x % 22 === 0 ? 'rgba(32, 42, 29, 0.34)' : 'rgba(235, 224, 180, 0.18)';
+        ctx.lineWidth = x % 22 === 0 ? 1.6 : 1;
         ctx.beginPath();
         ctx.moveTo(x, 0);
-        ctx.lineTo(x - 10, 64);
+        ctx.lineTo(x - 16, 96);
         ctx.stroke();
+    }
+
+    for (let i = 0; i < 28; i += 1) {
+        const x = (i * 31) % 96;
+        const y = (i * 19) % 96;
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(15, 23, 18, 0.3)' : 'rgba(240, 220, 160, 0.18)';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 2.5, 1.3, i * 0.4, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     featherTexture = new THREE.CanvasTexture(canvas);
     featherTexture.wrapS = THREE.RepeatWrapping;
     featherTexture.wrapT = THREE.RepeatWrapping;
-    featherTexture.repeat.set(1.4, 1.2);
+    featherTexture.repeat.set(1.35, 1.15);
     featherTexture.colorSpace = THREE.SRGBColorSpace;
     featherTexture.needsUpdate = true;
     return featherTexture;
