@@ -2,7 +2,7 @@ import React from 'react';
 import { Bot, Briefcase, Eye, Play, Shield, TrendingUp, Zap } from 'lucide-react';
 import { GameState, SfxType } from '../types';
 
-type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH';
+type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
 
 type OverseerState = {
     enabled?: boolean;
@@ -26,6 +26,7 @@ const MODES: Array<{ mode: OverseerMode; label: string; icon: React.ElementType;
     { mode: 'CONTRACTS', label: 'Cash', icon: Briefcase, title: 'Prioritize accepting and delivering safe contracts' },
     { mode: 'STABILITY', label: 'Stable', icon: Shield, title: 'Prioritize power, water, idle workers, and risk' },
     { mode: 'GROWTH', label: 'Grow', icon: TrendingUp, title: 'Push toward the next objective and cash loop' },
+    { mode: 'AUTOPILOT', label: 'Pilot', icon: Bot, title: 'Autonomously support the starter loop through real game commands' },
 ];
 
 const DEFAULT_OVERSEER: Required<Pick<OverseerState, 'enabled' | 'mode' | 'autoAct' | 'confidence' | 'currentFocus' | 'recommendation'>> = {
@@ -54,7 +55,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
     const [collapsed, setCollapsed] = React.useState(false);
     const liveState = world?.getState?.() || state;
     const overseer = { ...DEFAULT_OVERSEER, ...((liveState as any).aiOverseer || {}) } as OverseerState & typeof DEFAULT_OVERSEER;
-    const actionLog = Array.isArray(overseer.actionLog) ? overseer.actionLog.slice(0, 3) : [];
+    const actionLog = Array.isArray(overseer.actionLog) ? overseer.actionLog.slice(0, 4) : [];
     const confidence = Math.round((overseer.confidence || 0) * 100);
 
     React.useEffect(() => {
@@ -88,7 +89,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
     }
 
     return (
-        <div className="w-[21rem] max-w-[calc(100vw-1rem)] pointer-events-auto">
+        <div className="w-[22rem] max-w-[calc(100vw-1rem)] pointer-events-auto">
             <div className="bg-slate-950/88 backdrop-blur-md border border-cyan-900/70 shadow-[4px_4px_0_rgba(0,0,0,0.35)] rounded-[6px] overflow-hidden">
                 <button
                     onClick={() => {
@@ -110,15 +111,15 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                 </button>
 
                 <div className="p-2 space-y-2">
-                    <div className="grid grid-cols-4 gap-1">
+                    <div className="grid grid-cols-5 gap-1">
                         {MODES.map(({ mode, label, icon: Icon, title }) => (
                             <button
                                 key={mode}
                                 onClick={() => send({ enabled: true, mode })}
                                 title={title}
-                                className={`h-8 rounded-[4px] border text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-colors ${overseer.mode === mode ? 'bg-cyan-600 border-cyan-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-600'}`}
+                                className={`h-8 rounded-[4px] border text-[8px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-colors ${overseer.mode === mode ? 'bg-cyan-600 border-cyan-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-600'}`}
                             >
-                                <Icon size={12} />
+                                <Icon size={11} />
                                 {label}
                             </button>
                         ))}
