@@ -14,6 +14,7 @@ import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
 import { foliageInstancedMaterial } from '../../../engine/render/materials/VoxelMaterials';
 import { mergeGroupGeometry } from '../../../engine/render/utils/VoxelUtils';
 import { BuildingType, GridTile } from '../../../types';
+import { getDaylightFactor } from '../../../engine/sim/dayNightCycle';
 
 export interface FoliageItem {
     x: number;
@@ -149,10 +150,12 @@ export class FoliageRenderSystem {
         }
     }
 
-    public updateGroundDetailTime(time: number): void {
+    public updateGroundDetailTime(time: number, timeOfDay: number = 12000): void {
         const material = this.grassMaterial;
         if (!material) return;
+        const daylight = getDaylightFactor(timeOfDay);
         material.uniforms.windTime.value = time;
+        material.uniforms.lightFactor.value = 0.16 + daylight * 0.84;
     }
 
     /**
@@ -210,20 +213,20 @@ export class FoliageRenderSystem {
             const bladeCount = this.grassBladeCount(tile.x, tile.z);
             for (let i = 0; i < bladeCount; i += 1) {
                 const seed = this.seed(tile.x, tile.z, i + 17);
-                const offsetX = ((seed % 100) / 100 - 0.5) * 0.58;
-                const offsetZ = (((seed / 101) % 100) / 100 - 0.5) * 0.58;
-                const height = 0.78 + ((seed % 31) / 100);
-                const width = 0.78 + ((seed % 23) / 100);
+                const offsetX = ((seed % 100) / 100 - 0.5) * 0.42;
+                const offsetZ = (((seed / 101) % 100) / 100 - 0.5) * 0.42;
+                const height = 0.16 + ((seed % 17) / 260);
+                const width = 0.16 + ((seed % 13) / 320);
                 blades.push({
                     x: tile.x + offsetX,
-                    y: tile.terrainHeight * 0.5 + 0.035,
+                    y: tile.terrainHeight * 0.5 + 0.018,
                     z: tile.z + offsetZ,
                     rotation: (seed % 628) / 100,
                     width,
                     height,
                     color: this.grassBladeColor(seed),
                     windPhase: (seed % 628) / 100,
-                    lean: ((seed % 200) / 100) - 1,
+                    lean: (((seed % 200) / 100) - 1) * 0.35,
                 });
             }
         }
@@ -231,16 +234,16 @@ export class FoliageRenderSystem {
     }
 
     private shouldGrowGrass(x: number, z: number): boolean {
-        return this.seed(x, z, 3) % 5 !== 0;
+        return this.seed(x, z, 3) % 4 === 0;
     }
 
     private grassBladeCount(x: number, z: number): number {
         const seed = this.seed(x, z, 9);
-        return 1 + (seed % 3 === 0 ? 1 : 0);
+        return seed % 5 === 0 ? 2 : 1;
     }
 
     private grassBladeColor(seed: number): number {
-        const palette = [0x4f8f3a, 0x5fa447, 0x6fb24a, 0x3f7d35, 0x7bbf58];
+        const palette = [0x355d2f, 0x3f6a34, 0x496f38, 0x2f5230, 0x4d783d];
         return palette[seed % palette.length];
     }
 
@@ -271,10 +274,10 @@ export class FoliageRenderSystem {
 
         const geo = new THREE.BufferGeometry();
         const positions = new Float32Array([
-            -0.055, 0, 0, 0.055, 0, 0, 0.035, 0.3, 0,
-            -0.055, 0, 0, 0.035, 0.3, 0, -0.03, 0.2, 0,
-            0, 0, -0.055, 0, 0, 0.055, 0, 0.28, 0.035,
-            0, 0, -0.055, 0, 0.28, 0.035, 0, 0.19, -0.03,
+            -0.014, 0, 0, 0.014, 0, 0, 0.009, 0.18, 0,
+            -0.014, 0, 0, 0.009, 0.18, 0, -0.008, 0.12, 0,
+            0, 0, -0.014, 0, 0, 0.014, 0, 0.16, 0.009,
+            0, 0, -0.014, 0, 0.16, 0.009, 0, 0.11, -0.008,
         ]);
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geo.computeVertexNormals();
@@ -289,14 +292,16 @@ export class FoliageRenderSystem {
         this.grassMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 windTime: { value: 0 },
-                windStrength: { value: 0.09 },
-                bladeTint: { value: new THREE.Color(0x5fa447) },
+                windStrength: { value: 0.018 },
+                lightFactor: { value: 1 },
+                bladeTint: { value: new THREE.Color(0x496f38) },
                 windPhase: { value: 0 },
                 bladeLean: { value: 0 },
             },
             vertexShader: `
                 uniform float windTime;
                 uniform float windStrength;
+                uniform float lightFactor;
                 uniform vec3 bladeTint;
                 uniform float windPhase;
                 uniform float bladeLean;
@@ -305,11 +310,12 @@ export class FoliageRenderSystem {
 
                 void main() {
                     vec3 transformed = position;
-                    float heightRatio = clamp(position.y / 0.3, 0.0, 1.0);
-                    float wind = sin(windTime * 1.55 + windPhase + position.x * 2.0) * windStrength * heightRatio;
-                    transformed.x += wind + bladeLean * heightRatio * 0.045;
-                    transformed.z += cos(windTime * 1.2 + windPhase) * windStrength * 0.32 * heightRatio;
-                    vBladeColor = mix(bladeTint * 0.72, bladeTint * 1.18, heightRatio);
+                    float heightRatio = clamp(position.y / 0.18, 0.0, 1.0);
+                    float wind = sin(windTime * 1.2 + windPhase + position.x * 1.4) * windStrength * heightRatio;
+                    transformed.x += wind + bladeLean * heightRatio * 0.014;
+                    transformed.z += cos(windTime * 0.9 + windPhase) * windStrength * 0.14 * heightRatio;
+                    vec3 shadedTint = bladeTint * lightFactor;
+                    vBladeColor = mix(shadedTint * 0.64, shadedTint * 0.92, heightRatio);
                     vBladeHeight = heightRatio;
                     gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(transformed, 1.0);
                 }
@@ -319,7 +325,7 @@ export class FoliageRenderSystem {
                 varying float vBladeHeight;
 
                 void main() {
-                    float alpha = mix(0.72, 0.9, vBladeHeight);
+                    float alpha = mix(0.18, 0.32, vBladeHeight);
                     gl_FragColor = vec4(vBladeColor, alpha);
                 }
             `,
