@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+let featherTexture: THREE.CanvasTexture | null = null;
+
 export function createGroundBirdBodyGeometry(): THREE.BoxGeometry {
     return new THREE.BoxGeometry(0.42, 0.28, 0.58);
 }
@@ -31,6 +33,7 @@ export function createGroundBirdShadowGeometry(): THREE.CircleGeometry {
 export function createGroundBirdFeatherMaterial(): THREE.MeshStandardMaterial {
     return new THREE.MeshStandardMaterial({
         color: 0xffffff,
+        map: getGroundBirdFeatherTexture(),
         roughness: 0.78,
         metalness: 0,
         vertexColors: true,
@@ -60,6 +63,50 @@ export function createGroundBirdShadowMaterial(): THREE.MeshBasicMaterial {
         opacity: 0.2,
         depthWrite: false,
     });
+}
+
+function getGroundBirdFeatherTexture(): THREE.CanvasTexture {
+    if (featherTexture) return featherTexture;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        featherTexture = new THREE.CanvasTexture(canvas);
+        return featherTexture;
+    }
+
+    ctx.fillStyle = '#586344';
+    ctx.fillRect(0, 0, 64, 64);
+
+    for (let y = 0; y < 64; y += 8) {
+        ctx.fillStyle = 'rgba(25, 35, 28, 0.28)';
+        ctx.beginPath();
+        ctx.moveTo(0, y + 4);
+        for (let x = 0; x <= 64; x += 8) {
+            ctx.quadraticCurveTo(x + 4, y, x + 8, y + 4);
+        }
+        ctx.lineTo(64, y + 7);
+        ctx.lineTo(0, y + 7);
+        ctx.fill();
+    }
+
+    for (let x = 4; x < 64; x += 9) {
+        ctx.strokeStyle = 'rgba(230, 220, 170, 0.16)';
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x - 10, 64);
+        ctx.stroke();
+    }
+
+    featherTexture = new THREE.CanvasTexture(canvas);
+    featherTexture.wrapS = THREE.RepeatWrapping;
+    featherTexture.wrapT = THREE.RepeatWrapping;
+    featherTexture.repeat.set(1.4, 1.2);
+    featherTexture.colorSpace = THREE.SRGBColorSpace;
+    featherTexture.needsUpdate = true;
+    return featherTexture;
 }
 
 export const GROUND_BIRD_COLORS = [0x3f4f3a, 0x5f6b46, 0x7a6a4a, 0x40556a];
