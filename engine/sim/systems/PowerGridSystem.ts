@@ -41,7 +41,12 @@ export class PowerGridSystem extends BaseSimSystem {
                 const def = BUILDINGS[tile.buildingType];
                 if (!def) continue;
 
-                if (tile.buildingType === BuildingType.POWER_LINE || def.power?.produces || def.power?.consumes) {
+                const isPowerParticipant = tile.buildingType === BuildingType.POWER_LINE || Boolean(def.power?.produces || def.power?.consumes);
+                if (isPowerParticipant) {
+                    if (tile.isUnderConstruction) {
+                        tile.powerStatus = undefined;
+                        continue;
+                    }
                     tile.powerStatus = 'DISCONNECTED';
                 }
 
@@ -94,7 +99,7 @@ export class PowerGridSystem extends BaseSimSystem {
 
                 // Look up tile in chunks
                 const neighbor = ChunkStore.getTile(state.chunks, nx, nz);
-                if (!neighbor) continue;
+                if (!neighbor || neighbor.isUnderConstruction) continue;
 
                 const nDef = BUILDINGS[neighbor.buildingType];
                 if (!nDef) continue;
@@ -115,7 +120,7 @@ export class PowerGridSystem extends BaseSimSystem {
         const connectedConsumers: GridTile[] = [];
         for (const chunk of Object.values(state.chunks)) {
             for (const tile of chunk.tiles) {
-                if (!tile || !this.isStructureHead(tile)) continue;
+                if (!tile || tile.isUnderConstruction || !this.isStructureHead(tile)) continue;
                 const def = BUILDINGS[tile.buildingType];
                 if (!def?.power?.consumes) continue;
 
@@ -193,7 +198,7 @@ export class PowerGridSystem extends BaseSimSystem {
         for (let dz = 0; dz < depth; dz++) {
             for (let dx = 0; dx < width; dx++) {
                 const tile = ChunkStore.getTile(state.chunks, headTile.x + dx, headTile.z + dz);
-                if (!tile || tile.buildingType !== headTile.buildingType) continue;
+                if (!tile || tile.buildingType !== headTile.buildingType || tile.isUnderConstruction) continue;
 
                 tile.powerStatus = status;
                 if (empoweredTiles) {
