@@ -29,6 +29,7 @@ import { TerrainRenderSystem } from './render/systems/TerrainRenderSystem';
 import { FoliageRenderSystem } from './render/systems/FoliageRenderSystem';
 import { BuildingRenderSystem } from './render/systems/BuildingRenderSystem';
 import { AgentRenderSystem } from './render/systems/AgentRenderSystem';
+import { AmbientWildlifeRenderSystem } from './render/systems/AmbientWildlifeRenderSystem';
 import { EnvironmentRenderSystem } from './render/systems/EnvironmentRenderSystem';
 import { DungeonRenderSystem } from './render/systems/DungeonRenderSystem';
 import { LinePlacementPreview } from './render/LinePlacementPreview';
@@ -81,6 +82,7 @@ export class AureusWorld extends BaseWorld {
     private terrainRenderSystem: TerrainRenderSystem;
     private foliageRenderSystem: FoliageRenderSystem;
     private buildingRenderSystem: BuildingRenderSystem;
+    private wildlifeRenderSystem: AmbientWildlifeRenderSystem;
     private environmentRenderSystem: EnvironmentRenderSystem;
     private linePlacementPreview: LinePlacementPreview;
     protected cameraSystem!: IsoCameraSystem;
@@ -142,6 +144,7 @@ export class AureusWorld extends BaseWorld {
         this.terrainRenderSystem = new TerrainRenderSystem(this.render.getScene(), this.jobs);
         this.foliageRenderSystem = new FoliageRenderSystem(this.render.getScene());
         this.buildingRenderSystem = new BuildingRenderSystem(this.render.getScene());
+        this.wildlifeRenderSystem = new AmbientWildlifeRenderSystem(this.render.getScene());
         this.environmentRenderSystem = new EnvironmentRenderSystem(this.render);
         this.linePlacementPreview = new LinePlacementPreview(this.render.getScene(), getHeight);
         this.dungeonRenderSystem = new DungeonRenderSystem(this.render.getScene());
@@ -496,6 +499,7 @@ export class AureusWorld extends BaseWorld {
 
     protected async onTeardown(): Promise<void> {
         this.linePlacementPreview.dispose();
+        this.wildlifeRenderSystem.dispose();
         return teardownWorldRuntime(this.getLifecycleDeps());
     }
 
@@ -590,6 +594,7 @@ export class AureusWorld extends BaseWorld {
             terrainRenderSystem: this.terrainRenderSystem,
             foliageRenderSystem: this.foliageRenderSystem,
             buildingRenderSystem: this.buildingRenderSystem,
+            wildlifeRenderSystem: this.wildlifeRenderSystem,
             agentRenderSystem: this.agentRenderSystem,
             environmentRenderSystem: this.environmentRenderSystem,
             dungeonRenderSystem: this.dungeonRenderSystem,
