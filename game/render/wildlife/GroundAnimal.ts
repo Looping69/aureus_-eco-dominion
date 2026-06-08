@@ -63,7 +63,6 @@ function createTexturedFurMaterial(roughness: number): THREE.MeshStandardMateria
         metalness: 0,
         emissive: 0x3a2412,
         emissiveIntensity: 0.18,
-        vertexColors: true,
     });
 }
 
