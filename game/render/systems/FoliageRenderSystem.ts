@@ -215,8 +215,8 @@ export class FoliageRenderSystem {
                 const seed = this.seed(tile.x, tile.z, i + 17);
                 const offsetX = ((seed % 100) / 100 - 0.5) * 0.46;
                 const offsetZ = (((seed / 101) % 100) / 100 - 0.5) * 0.46;
-                const height = 0.24 + ((seed % 17) / 230);
-                const width = 0.20 + ((seed % 13) / 360);
+                const height = 0.22 + ((seed % 17) / 260);
+                const width = 0.16 + ((seed % 13) / 420);
                 blades.push({
                     x: tile.x + offsetX,
                     y: tile.terrainHeight * 0.5 + 0.022,
@@ -274,10 +274,10 @@ export class FoliageRenderSystem {
 
         const geo = new THREE.BufferGeometry();
         const positions = new Float32Array([
-            -0.018, 0, 0, 0.018, 0, 0, 0.011, 0.22, 0,
-            -0.018, 0, 0, 0.011, 0.22, 0, -0.01, 0.15, 0,
-            0, 0, -0.018, 0, 0, 0.018, 0, 0.2, 0.011,
-            0, 0, -0.018, 0, 0.2, 0.011, 0, 0.14, -0.01,
+            -0.05, 0, 0, 0.05, 0, 0, 0.028, 1, 0,
+            -0.05, 0, 0, 0.028, 1, 0, -0.024, 0.68, 0,
+            0, 0, -0.05, 0, 0, 0.05, 0, 0.92, 0.028,
+            0, 0, -0.05, 0, 0.92, 0.028, 0, 0.62, -0.024,
         ]);
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geo.computeVertexNormals();
@@ -310,9 +310,9 @@ export class FoliageRenderSystem {
 
                 void main() {
                     vec3 transformed = position;
-                    float heightRatio = clamp(position.y / 0.22, 0.0, 1.0);
+                    float heightRatio = clamp(position.y, 0.0, 1.0);
                     float wind = sin(windTime * 1.2 + windPhase + position.x * 1.4) * windStrength * heightRatio;
-                    transformed.x += wind + bladeLean * heightRatio * 0.012;
+                    transformed.x += wind + bladeLean * heightRatio * 0.06;
                     transformed.z += cos(windTime * 0.9 + windPhase) * windStrength * 0.12 * heightRatio;
                     vec3 shadedTint = bladeTint * lightFactor;
                     vBladeColor = mix(shadedTint * 0.78, shadedTint * 1.08, heightRatio);
@@ -325,7 +325,7 @@ export class FoliageRenderSystem {
                 varying float vBladeHeight;
 
                 void main() {
-                    float alpha = mix(0.42, 0.58, vBladeHeight);
+                    float alpha = mix(0.52, 0.72, vBladeHeight);
                     gl_FragColor = vec4(vBladeColor, alpha);
                 }
             `,
