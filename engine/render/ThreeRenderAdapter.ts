@@ -123,6 +123,14 @@ const DEFAULT_CONFIG: ThreeRenderConfig = {
     fogFar: 120,
 };
 
+const RENDER_CANVAS_ATTR = 'data-aureus-render-canvas';
+
+function removeStaleRenderCanvases(container: HTMLElement): void {
+    container.querySelectorAll(`canvas[${RENDER_CANVAS_ATTR}="true"]`).forEach((canvas) => {
+        canvas.parentElement?.removeChild(canvas);
+    });
+}
+
 export class ThreeRenderAdapter implements RenderAdapter {
     private renderer!: THREE.WebGLRenderer;
     private scene: THREE.Scene;
@@ -163,6 +171,7 @@ export class ThreeRenderAdapter implements RenderAdapter {
      */
     init(container: HTMLElement): void {
         this.container = container;
+        removeStaleRenderCanvases(container);
 
         // Create renderer
         this.renderer = new THREE.WebGLRenderer({
@@ -184,6 +193,7 @@ export class ThreeRenderAdapter implements RenderAdapter {
         }
 
         // Style for overlay
+        this.renderer.domElement.setAttribute(RENDER_CANVAS_ATTR, 'true');
         this.renderer.domElement.style.position = 'absolute';
         this.renderer.domElement.style.top = '0';
         this.renderer.domElement.style.left = '0';
