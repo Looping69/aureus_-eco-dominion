@@ -57,10 +57,12 @@ export function createGroundAnimalShadowMaterial(): THREE.MeshBasicMaterial {
 
 function createTexturedFurMaterial(roughness: number): THREE.MeshStandardMaterial {
     return new THREE.MeshStandardMaterial({
-        color: 0xffffff,
+        color: 0xfff3de,
         map: getGroundAnimalFurTexture(),
         roughness,
         metalness: 0,
+        emissive: 0x3a2412,
+        emissiveIntensity: 0.18,
         vertexColors: true,
     });
 }
@@ -78,14 +80,14 @@ function getGroundAnimalFurTexture(): THREE.CanvasTexture {
     }
 
     const baseGradient = ctx.createLinearGradient(0, 0, 96, 96);
-    baseGradient.addColorStop(0, '#b08a5d');
-    baseGradient.addColorStop(0.45, '#8a6845');
-    baseGradient.addColorStop(1, '#c39b68');
+    baseGradient.addColorStop(0, '#d1a06a');
+    baseGradient.addColorStop(0.45, '#a6784d');
+    baseGradient.addColorStop(1, '#e2b877');
     ctx.fillStyle = baseGradient;
     ctx.fillRect(0, 0, 96, 96);
 
     for (let y = 0; y < 96; y += 5) {
-        ctx.fillStyle = y % 15 === 0 ? 'rgba(48, 32, 19, 0.32)' : 'rgba(255, 233, 190, 0.12)';
+        ctx.fillStyle = y % 15 === 0 ? 'rgba(70, 43, 22, 0.28)' : 'rgba(255, 241, 205, 0.16)';
         ctx.fillRect(0, y, 96, y % 15 === 0 ? 2 : 1);
     }
 
@@ -94,12 +96,12 @@ function getGroundAnimalFurTexture(): THREE.CanvasTexture {
         const y = (i * 37) % 96;
         const r = 2.4 + (i % 4);
         ctx.beginPath();
-        ctx.fillStyle = i % 3 === 0 ? 'rgba(42, 30, 20, 0.46)' : 'rgba(225, 195, 140, 0.24)';
+        ctx.fillStyle = i % 3 === 0 ? 'rgba(58, 36, 20, 0.38)' : 'rgba(255, 224, 165, 0.3)';
         ctx.ellipse(x, y, r * 1.8, r, (i % 8) * 0.35, 0, Math.PI * 2);
         ctx.fill();
     }
 
-    ctx.strokeStyle = 'rgba(35, 24, 17, 0.22)';
+    ctx.strokeStyle = 'rgba(50, 30, 16, 0.2)';
     ctx.lineWidth = 1.4;
     for (let x = -24; x < 120; x += 18) {
         ctx.beginPath();
@@ -117,4 +119,4 @@ function getGroundAnimalFurTexture(): THREE.CanvasTexture {
     return furTexture;
 }
 
-export const GROUND_ANIMAL_COLORS = [0x7c5a3f, 0x9a7a53, 0x5f6f4a, 0x84613d, 0x6b7280];
+export const GROUND_ANIMAL_COLORS = [0xb98255, 0xd0a36c, 0x8fa665, 0xaa764b, 0xb3bac4];
