@@ -84,17 +84,17 @@ export class FoliageRenderSystem {
         }
     }
 
-    public updateGroundDetailChunk(key: string): void {
+    public updateGroundDetailChunk(key: string, _tiles?: unknown[]): void {
         this.removeGroundDetailChunk(key);
     }
 
-    public setGroundDetailVisible(): void {
+    public setGroundDetailVisible(_visible: boolean): void {
         for (const mesh of this.groundDetailMeshes.values()) {
             mesh.visible = false;
         }
     }
 
-    public updateGroundDetailTime(): void {
+    public updateGroundDetailTime(_time?: number, _timeOfDay?: number): void {
         // Ground grass has been disabled; keep this hook so render-frame calls stay harmless.
     }
 
