@@ -32,7 +32,6 @@ export class FoliageRenderSystem {
     private readonly dummy = new THREE.Object3D();
     private readonly markedColor = new THREE.Color(1, 0.3, 0.3);
     private readonly defaultColor = new THREE.Color(1, 1, 1);
-    private groundDetailVisible = false;
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
@@ -89,8 +88,7 @@ export class FoliageRenderSystem {
         this.removeGroundDetailChunk(key);
     }
 
-    public setGroundDetailVisible(visible: boolean): void {
-        this.groundDetailVisible = visible;
+    public setGroundDetailVisible(): void {
         for (const mesh of this.groundDetailMeshes.values()) {
             mesh.visible = false;
         }
