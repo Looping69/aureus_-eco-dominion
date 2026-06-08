@@ -263,10 +263,9 @@ export class ThreeRenderAdapter implements RenderAdapter {
         this.hemisphereLight = new THREE.HemisphereLight(0xdceeff, 0x65513c, 0.78);
         this.scene.add(this.hemisphereLight);
 
-        this.fillLight = new THREE.DirectionalLight(0x8fb4ff, 0.28);
-        this.fillLight.position.set(-38, 34, -52);
-        this.fillLight.castShadow = false;
-        this.scene.add(this.fillLight);
+        // Fill is intentionally ambient/hemisphere-only now. A second directional
+        // fill light creates a second fixed specular highlight on water.
+        this.fillLight = null;
     }
 
     /**
