@@ -8,8 +8,39 @@ import * as THREE from 'three';
 import { WeatherState } from '../../../types';
 import { COLORS } from '../../../engine/data/VoxelConstants';
 import { ThreeRenderAdapter } from '../../../engine/render/ThreeRenderAdapter';
+import { oilWaterMaterial, reservoirWaterMaterial, waterFlowMaterial } from '../../../engine/render/materials/VoxelMaterials';
 import { getCelestialPosition, getDaylightFactor, isDaytime } from '../../../engine/sim/dayNightCycle';
 import { isRainWeather, isStormWeather, normalizeWeatherState } from '../../../engine/weather/weatherModel';
+
+const WATER_LIGHTING_PRESETS = [
+    {
+        material: waterFlowMaterial,
+        day: 0x2f8fa3,
+        night: 0x17394f,
+        foamDay: 0xb9dde2,
+        foamNight: 0x6f8fa3,
+        dayOpacity: 0.74,
+        nightOpacity: 0.66,
+    },
+    {
+        material: oilWaterMaterial,
+        day: 0x24384a,
+        night: 0x101923,
+        foamDay: 0x41515c,
+        foamNight: 0x27313b,
+        dayOpacity: 0.74,
+        nightOpacity: 0.68,
+    },
+    {
+        material: reservoirWaterMaterial,
+        day: 0x2d7888,
+        night: 0x16394c,
+        foamDay: 0x7fc2cc,
+        foamNight: 0x547f91,
+        dayOpacity: 0.76,
+        nightOpacity: 0.68,
+    },
+];
 
 export class EnvironmentRenderSystem {
     private scene: THREE.Scene;
@@ -52,6 +83,8 @@ export class EnvironmentRenderSystem {
     private lightningFogColor = new THREE.Color(0xe4eefc);
     private coolFillColor = new THREE.Color(0x8fb4ff);
     private warmGroundColor = new THREE.Color(0x6b5338);
+    private waterColor = new THREE.Color();
+    private waterFoamColor = new THREE.Color();
 
     constructor(adapter: ThreeRenderAdapter) {
         this.adapter = adapter;
@@ -138,7 +171,7 @@ export class EnvironmentRenderSystem {
         const severity = weather.intensity;
 
         // Base Intensity
-        let intensity = isNight ? 0.4 : 0.4 + daylightFactor * 1.0;
+        let intensity = isNight ? 0.28 : 0.4 + daylightFactor * 1.0;
 
         // Weather Modifiers
         this.isRaining = false;
@@ -167,7 +200,7 @@ export class EnvironmentRenderSystem {
                 this.targetFogNear = 70;
                 this.targetFogFar = 180;
                 this.targetLightColor.setHex(0xc7d7ff);
-                this.targetLightIntensity = Math.max(0.3, intensity * (0.45 - severity * 0.08));
+                this.targetLightIntensity = Math.max(0.18, intensity * (0.45 - severity * 0.08));
                 this.isRaining = true;
                 break;
             case 'HEATWAVE':
@@ -184,7 +217,7 @@ export class EnvironmentRenderSystem {
                 this.targetFogNear = 50;
                 this.targetFogFar = 140;
                 this.targetLightColor.setHex(0xe3b377);
-                this.targetLightIntensity = Math.max(0.35, intensity * (0.56 - severity * 0.12));
+                this.targetLightIntensity = Math.max(0.22, intensity * (0.56 - severity * 0.12));
                 break;
             case 'CLEAR':
             default:
@@ -243,6 +276,11 @@ export class EnvironmentRenderSystem {
             this.scene.fog = new THREE.Fog(this.appliedFogColor, this.currentFogNear, this.currentFogFar);
         }
 
+        const daylightFactor = getDaylightFactor(this.timeOfDay);
+        const isNight = daylightFactor <= 0;
+        const celestialFactor = isNight ? 0 : daylightFactor;
+        this.updateWaterLighting(celestialFactor, weather);
+
         if (this.adapter.directionalLight) {
             this.adapter.directionalLight.color = this.currentLightColor;
             this.adapter.directionalLight.intensity = this.currentLightIntensity + this.stormFlash * 1.2;
@@ -250,24 +288,23 @@ export class EnvironmentRenderSystem {
 
         if (this.adapter.ambientLight) {
             this.adapter.ambientLight.color.copy(this.currentLightColor).lerp(this.appliedFogColor, 0.42);
-            this.adapter.ambientLight.intensity = Math.max(0.22, this.currentLightIntensity * 0.42 + this.stormFlash * 0.22);
+            this.adapter.ambientLight.intensity = Math.max(isNight ? 0.12 : 0.22, this.currentLightIntensity * (isNight ? 0.30 : 0.42) + this.stormFlash * 0.22);
         }
 
         if (this.adapter.hemisphereLight) {
-            this.adapter.hemisphereLight.color.copy(this.appliedFogColor).lerp(this.currentLightColor, 0.35);
+            this.adapter.hemisphereLight.color.copy(this.appliedFogColor).lerp(this.currentLightColor, isNight ? 0.18 : 0.35);
             this.adapter.hemisphereLight.groundColor.copy(this.warmGroundColor).lerp(this.appliedFogColor, isRainWeather(weather.current) ? 0.55 : 0.18);
-            this.adapter.hemisphereLight.intensity = Math.max(0.24, this.currentLightIntensity * 0.46 + this.stormFlash * 0.16);
+            this.adapter.hemisphereLight.intensity = Math.max(isNight ? 0.14 : 0.24, this.currentLightIntensity * (isNight ? 0.32 : 0.46) + this.stormFlash * 0.16);
         }
 
         if (this.adapter.fillLight) {
             this.adapter.fillLight.color.copy(this.coolFillColor).lerp(this.currentLightColor, isDaytime(this.timeOfDay) ? 0.18 : 0.02);
-            this.adapter.fillLight.intensity = Math.max(0.12, this.currentLightIntensity * (isRainWeather(weather.current) ? 0.34 : 0.24));
+            this.adapter.fillLight.intensity = Math.max(isNight ? 0.04 : 0.12, this.currentLightIntensity * (isRainWeather(weather.current) ? 0.24 : isNight ? 0.12 : 0.24));
             this.adapter.fillLight.position.set(this.cameraFocus.x - 42, 36, this.cameraFocus.z - 48);
         }
 
         // Update Sun/Moon Position
         const sunPos = this.calculateSunPosition(this.timeOfDay);
-        const isNight = !isDaytime(this.timeOfDay);
 
         // Position sun relative to camera focus
         this.sunMesh.position.set(
@@ -280,7 +317,7 @@ export class EnvironmentRenderSystem {
         const sunMat = this.sunMesh.material as THREE.MeshBasicMaterial;
         if (isNight) {
             sunMat.color.setHex(0xccccff); // Moon: blueish white
-            sunMat.opacity = 0.7;
+            sunMat.opacity = 0.64;
             this.sunMesh.scale.setScalar(0.6); // Moon is smaller
         } else {
             sunMat.color.setHex(0xffdd44); // Sun: warm yellow
@@ -312,6 +349,30 @@ export class EnvironmentRenderSystem {
             const isZoomedOut = zoom < 0.6;
             this.adapter.directionalLight.castShadow = this.adapter.getRuntimeQuality().shadowMap && !isNight && !isZoomedOut;
         }
+    }
+
+    private updateWaterLighting(daylightFactor: number, weather: WeatherState): void {
+        const stormLift = this.stormFlash * 0.22;
+        const rainDull = isRainWeather(weather.current) ? 0.14 : 0;
+        const phase = THREE.MathUtils.clamp(daylightFactor + stormLift - rainDull, 0, 1);
+
+        WATER_LIGHTING_PRESETS.forEach((preset) => {
+            const material = preset.material as unknown as THREE.MeshStandardMaterial & { uniforms?: Record<string, { value: any }> };
+            this.waterColor.setHex(preset.night).lerp(new THREE.Color(preset.day), phase);
+            this.waterFoamColor.setHex(preset.foamNight).lerp(new THREE.Color(preset.foamDay), phase);
+
+            material.color.copy(this.waterColor);
+            material.roughness = THREE.MathUtils.lerp(0.76, 0.22, phase);
+            material.metalness = THREE.MathUtils.lerp(0.02, 0.08, phase);
+            material.opacity = THREE.MathUtils.lerp(preset.nightOpacity, preset.dayOpacity, phase);
+
+            if (material.uniforms?.waterColor?.value) {
+                material.uniforms.waterColor.value.copy(this.waterColor);
+            }
+            if (material.uniforms?.foamColor?.value) {
+                material.uniforms.foamColor.value.copy(this.waterFoamColor);
+            }
+        });
     }
 
     private updateRain(dt: number, weather: WeatherState) {
