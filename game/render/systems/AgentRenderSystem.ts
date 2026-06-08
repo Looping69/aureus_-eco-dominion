@@ -83,6 +83,11 @@ function getActiveCooldownCount(agent: Agent): number {
 }
 
 function getAgentExplanation(agent: Agent): AgentExplanation {
+    if (typeof agent.statusReason === 'string' && agent.statusReason.trim().length > 0) {
+        const tone = agent.statusTone === 'warning' || agent.statusTone === 'blocked' ? agent.statusTone : 'normal';
+        return { label: agent.statusReason, tone };
+    }
+
     const blockedTargets = getActiveCooldownCount(agent);
     if (blockedTargets > 0 && agent.state === 'IDLE') {
         return { label: 'Blocked: no route', tone: 'blocked' };
