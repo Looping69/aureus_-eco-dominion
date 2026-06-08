@@ -1,15 +1,11 @@
 /**
  * Foliage Render System
- * Renders trees, rocks, resources, and close-range ground grass using InstancedMesh.
+ * Renders trees, rocks, and resources using InstancedMesh.
  * Receives data from TerrainRenderSystem.
  * (|/) Klaasvaakie
  */
 
 import * as THREE from 'three';
-// The package runtime exports this class, but its published declaration file is incomplete.
-// Keep the adapter local so the grass renderer can use it without coupling to brittle types.
-// @ts-ignore
-import { InstancedUniformsMesh as RuntimeInstancedUniformsMesh } from 'three-instanced-uniforms-mesh';
 import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
 import { foliageInstancedMaterial } from '../../../engine/render/materials/VoxelMaterials';
 import { mergeGroupGeometry } from '../../../engine/render/utils/VoxelUtils';
@@ -22,15 +18,7 @@ export interface FoliageItem {
     marked?: boolean;
 }
 
-type GrassMesh = THREE.InstancedMesh & {
-    setUniformAt: (name: string, index: number, value: number | THREE.Color) => void;
-};
-
-const InstancedUniformsMeshCtor = RuntimeInstancedUniformsMesh as unknown as new (
-    geometry: THREE.BufferGeometry,
-    material: THREE.ShaderMaterial,
-    count: number
-) => GrassMesh;
+type GrassMesh = THREE.InstancedMesh;
 
 export class FoliageRenderSystem {
     private scene: THREE.Scene;
