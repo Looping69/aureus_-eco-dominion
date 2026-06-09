@@ -1,6 +1,7 @@
 import React from 'react';
 import { Bot, Briefcase, Eye, Maximize2, Minimize2, Play, Shield, TrendingUp, Zap } from 'lucide-react';
 import { GameState, SfxType } from '../types';
+import { NarrativePanel } from './NarrativePanel';
 
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
 
@@ -88,25 +89,21 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
         playSfx(SfxType.UI_CLICK);
     };
 
-    if (collapsed) {
-        return (
-            <button
-                onClick={toggleCollapsed}
-                title={`AI Overseer: ${overseer.currentFocus}`}
-                aria-label="Expand AI Overseer"
-                className={`relative pointer-events-auto w-11 h-11 rounded-[6px] border shadow-[3px_3px_0_rgba(0,0,0,0.35)] backdrop-blur-md flex items-center justify-center transition-colors ${overseer.autoAct ? 'bg-cyan-950/90 border-cyan-600 hover:bg-cyan-900/90' : 'bg-slate-950/88 border-slate-800 hover:bg-slate-900/90'}`}
-            >
-                <Bot size={20} className={overseer.autoAct ? 'text-cyan-300' : 'text-slate-300'} />
-                <Maximize2 size={9} className="absolute top-1 right-1 text-slate-500" />
-                {overseer.autoAct && <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-cyan-400 border-2 border-slate-950 animate-pulse" />}
-                <span className="absolute -bottom-1 left-1 rounded bg-slate-950 px-1 text-[7px] font-black uppercase tracking-wider text-cyan-300 border border-cyan-900/70">
-                    {overseer.mode === 'AUTOPILOT' ? 'Pilot' : overseer.mode.slice(0, 4)}
-                </span>
-            </button>
-        );
-    }
-
-    return (
+    const overseerPanel = collapsed ? (
+        <button
+            onClick={toggleCollapsed}
+            title={`AI Overseer: ${overseer.currentFocus}`}
+            aria-label="Expand AI Overseer"
+            className={`relative pointer-events-auto w-11 h-11 rounded-[6px] border shadow-[3px_3px_0_rgba(0,0,0,0.35)] backdrop-blur-md flex items-center justify-center transition-colors ${overseer.autoAct ? 'bg-cyan-950/90 border-cyan-600 hover:bg-cyan-900/90' : 'bg-slate-950/88 border-slate-800 hover:bg-slate-900/90'}`}
+        >
+            <Bot size={20} className={overseer.autoAct ? 'text-cyan-300' : 'text-slate-300'} />
+            <Maximize2 size={9} className="absolute top-1 right-1 text-slate-500" />
+            {overseer.autoAct && <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-cyan-400 border-2 border-slate-950 animate-pulse" />}
+            <span className="absolute -bottom-1 left-1 rounded bg-slate-950 px-1 text-[7px] font-black uppercase tracking-wider text-cyan-300 border border-cyan-900/70">
+                {overseer.mode === 'AUTOPILOT' ? 'Pilot' : overseer.mode.slice(0, 4)}
+            </span>
+        </button>
+    ) : (
         <div className="w-[22rem] max-w-[calc(100vw-1rem)] pointer-events-auto">
             <div className="bg-slate-950/88 backdrop-blur-md border border-cyan-900/70 shadow-[4px_4px_0_rgba(0,0,0,0.35)] rounded-[6px] overflow-hidden">
                 <div className="w-full flex items-center justify-between gap-2 px-3 py-2 border-b border-cyan-950/80 bg-slate-900/80 text-left">
@@ -173,5 +170,12 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                 </div>
             </div>
         </div>
+    );
+
+    return (
+        <>
+            <NarrativePanel state={liveState} playSfx={playSfx} />
+            {overseerPanel}
+        </>
     );
 };
