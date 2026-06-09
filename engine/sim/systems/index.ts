@@ -15,7 +15,7 @@ export * from './WaterNetworkSystem';
 export * from './AmbientNPCSystem';
 export * from './BureaucracySystem';
 export * from './EmploymentSystem';
-export * from './AIOverseerSystem';
+export * from './AIOverseerAutopilotSystem';
 
 export * from './TutorialDemoSystem';
 
