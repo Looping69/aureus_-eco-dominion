@@ -65,6 +65,8 @@ const ANIMAL_COUNT = 10;
 const GROUND_BIRD_COUNT = 5;
 const BIRD_COUNT = 14;
 const DEFAULT_SETTLEMENT_ANCHOR = { x: 8, z: 8 };
+const FACING_SAMPLE_DT = 0.12;
+const MIN_FACING_DELTA = 0.0001;
 
 export class AmbientWildlifeRenderSystem {
     private readonly root = new THREE.Group();
@@ -196,23 +198,17 @@ export class AmbientWildlifeRenderSystem {
     ): void {
         for (let i = 0; i < this.animalSeeds.length; i += 1) {
             const seed = this.animalSeeds[i];
-            const t = time * seed.speed + seed.phase;
-            const wanderX = Math.cos(t) * seed.radius + Math.sin(t * 0.37 + seed.phase) * 2.4;
-            const wanderZ = Math.sin(t * 0.82) * seed.radius + Math.cos(t * 0.29 + seed.phase) * 2.2;
-            const x = seed.anchorX + wanderX;
-            const z = seed.anchorZ + wanderZ;
-            const nextX = seed.anchorX + Math.cos(t + 0.05) * seed.radius;
-            const nextZ = seed.anchorZ + Math.sin((t + 0.05) * 0.82) * seed.radius;
-            const yaw = Math.atan2(nextX - x, nextZ - z);
+            const current = this.getAnimalPosition(seed, time);
+            const next = this.getAnimalPosition(seed, time + FACING_SAMPLE_DT);
+            const x = current.x;
+            const z = current.z;
+            const yaw = this.getFacingYaw(current, next, seed.phase);
             const groundY = getHeightAt(x, z);
             const bob = Math.sin(time * 7 + seed.phase) * 0.018;
             const y = groundY + 0.32 * seed.scale + bob;
             const nearFocus = this.isNearFocus(x, z, focus, firstPerson ? 42 : 70);
             const hiddenY = -1000;
             const visibleY = nearFocus ? y : hiddenY;
-
-            this.euler.set(0, yaw, 0);
-            this.quaternion.setFromEuler(this.euler);
 
             this.composeAnimalPart(x, visibleY, z, yaw, 0, 0, 0, seed.scale, seed.scale, seed.scale);
             this.animalBodyMesh.setMatrixAt(i, this.matrix);
@@ -296,14 +292,11 @@ export class AmbientWildlifeRenderSystem {
     ): void {
         for (let i = 0; i < this.groundBirdSeeds.length; i += 1) {
             const seed = this.groundBirdSeeds[i];
-            const t = time * seed.speed + seed.phase;
-            const wanderX = Math.cos(t * 0.9) * seed.radius + Math.sin(t * 0.43 + seed.phase) * 1.2;
-            const wanderZ = Math.sin(t) * seed.radius + Math.cos(t * 0.31 + seed.phase) * 1.1;
-            const x = seed.anchorX + wanderX;
-            const z = seed.anchorZ + wanderZ;
-            const nextX = seed.anchorX + Math.cos((t + 0.05) * 0.9) * seed.radius;
-            const nextZ = seed.anchorZ + Math.sin(t + 0.05) * seed.radius;
-            const yaw = Math.atan2(nextX - x, nextZ - z);
+            const current = this.getGroundBirdPosition(seed, time);
+            const next = this.getGroundBirdPosition(seed, time + FACING_SAMPLE_DT);
+            const x = current.x;
+            const z = current.z;
+            const yaw = this.getFacingYaw(current, next, seed.phase);
             const groundY = getHeightAt(x, z);
             const stride = Math.sin(time * 7.4 + seed.phase) * 0.06 * seed.scale;
             const peck = Math.max(0, Math.sin(time * 2.2 + seed.phase)) * 0.12 * seed.scale;
@@ -374,12 +367,13 @@ export class AmbientWildlifeRenderSystem {
     private updateBirds(time: number, focus: WildlifeFocus, firstPerson: boolean): void {
         for (let i = 0; i < this.birdSeeds.length; i += 1) {
             const seed = this.birdSeeds[i];
-            const t = time * seed.speed + seed.phase;
-            const x = seed.anchorX + Math.cos(t) * seed.radius;
-            const z = seed.anchorZ + Math.sin(t * 0.93) * seed.radius;
+            const current = this.getSkyBirdPosition(seed, time);
+            const next = this.getSkyBirdPosition(seed, time + FACING_SAMPLE_DT);
+            const x = current.x;
+            const z = current.z;
             const nearFocus = this.isNearFocus(x, z, focus, firstPerson ? 80 : 120);
             const y = nearFocus ? seed.height + Math.sin(time * 1.9 + seed.phase) * 0.85 : -1000;
-            const yaw = Math.atan2(-Math.sin(t), Math.cos(t * 0.93));
+            const yaw = this.getFacingYaw(current, next, seed.phase);
             const flap = 1 + Math.sin(time * 9.5 + seed.phase) * 0.18;
 
             this.euler.set(Math.sin(time + seed.phase) * 0.08, yaw, 0);
@@ -390,6 +384,39 @@ export class AmbientWildlifeRenderSystem {
             this.birdMesh.setMatrixAt(i, this.matrix);
         }
         this.birdMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    private getAnimalPosition(seed: AnimalSeed, time: number): WildlifeFocus {
+        const t = time * seed.speed + seed.phase;
+        return {
+            x: seed.anchorX + Math.cos(t) * seed.radius + Math.sin(t * 0.37 + seed.phase) * 2.4,
+            z: seed.anchorZ + Math.sin(t * 0.82) * seed.radius + Math.cos(t * 0.29 + seed.phase) * 2.2,
+        };
+    }
+
+    private getGroundBirdPosition(seed: GroundBirdSeed, time: number): WildlifeFocus {
+        const t = time * seed.speed + seed.phase;
+        return {
+            x: seed.anchorX + Math.cos(t * 0.9) * seed.radius + Math.sin(t * 0.43 + seed.phase) * 1.2,
+            z: seed.anchorZ + Math.sin(t) * seed.radius + Math.cos(t * 0.31 + seed.phase) * 1.1,
+        };
+    }
+
+    private getSkyBirdPosition(seed: BirdSeed, time: number): WildlifeFocus {
+        const t = time * seed.speed + seed.phase;
+        return {
+            x: seed.anchorX + Math.cos(t) * seed.radius,
+            z: seed.anchorZ + Math.sin(t * 0.93) * seed.radius,
+        };
+    }
+
+    private getFacingYaw(current: WildlifeFocus, next: WildlifeFocus, fallbackPhase: number): number {
+        const dx = next.x - current.x;
+        const dz = next.z - current.z;
+        if (dx * dx + dz * dz < MIN_FACING_DELTA) {
+            return fallbackPhase;
+        }
+        return Math.atan2(dx, dz);
     }
 
     private createAnimalSeeds(anchor: WildlifeFocus): AnimalSeed[] {
