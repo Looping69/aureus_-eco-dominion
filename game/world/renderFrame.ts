@@ -311,7 +311,7 @@ function updateFirstPersonView(
     const allAgents = [...state.agents, ...state.ambientNpcs];
     deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, 0.1, camera);
     deps.terrainRenderSystem.update(camera.position, camera);
-    deps.wildlifeRenderSystem?.update?.(ctx.time, { x: camera.position.x, z: camera.position.z }, deps.getTerrainHeight, 0.1, true);
+    deps.wildlifeRenderSystem?.update?.(ctx.time, { x: camera.position.x, z: camera.position.z }, deps.getTerrainHeight, 0.1, true, state.dayNightCycle?.timeOfDay ?? 12000);
     deps.buildingRenderSystem.update(
         ctx.dt,
         ctx.time,
@@ -353,7 +353,7 @@ function updateSurfaceView(
     const camera = deps.render.getCamera();
     deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, zoomLevel, camera);
     deps.terrainRenderSystem.update(deps.cameraSystem.cameraFocus, camera);
-    deps.wildlifeRenderSystem?.update?.(ctx.time, deps.cameraSystem.cameraFocus, deps.getTerrainHeight, zoomLevel, false);
+    deps.wildlifeRenderSystem?.update?.(ctx.time, deps.cameraSystem.cameraFocus, deps.getTerrainHeight, zoomLevel, false, state.dayNightCycle?.timeOfDay ?? 12000);
     getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight);
     deps.buildingRenderSystem.update(
         ctx.dt,
