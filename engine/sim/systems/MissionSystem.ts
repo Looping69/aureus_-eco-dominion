@@ -14,6 +14,7 @@ const CONTRACT_OFFER_SECONDS = 180;
 const TERMINAL_DISPLAY_SECONDS = 75;
 const FIRST_MINERAL_CONTRACT_AMOUNT = 80;
 const FIRST_MINERAL_CONTRACT_REWARD = 2000;
+const OPENING_DISPATCH_ID = 'story_opening_dispatch';
 
 export class MissionSystem extends BaseSimSystem {
     readonly id = 'missions';
@@ -23,6 +24,8 @@ export class MissionSystem extends BaseSimSystem {
     private lastContractCheck = 0;
 
     tick(ctx: FixedContext, state: GameState): void {
+        this.seedOpeningDispatch(state);
+
         // 1. Goal progress updates every mission tick so objectives reflect live play.
         this.updateGoalProgress(state);
         this.normalizeContracts(state);
@@ -42,6 +45,16 @@ export class MissionSystem extends BaseSimSystem {
 
         // 4. Contract Timers
         this.processContractTimers(ctx, state);
+    }
+
+    private seedOpeningDispatch(state: GameState): void {
+        if (state.newsFeed.some(item => item.id === OPENING_DISPATCH_ID)) return;
+        state.newsFeed.unshift({
+            id: OPENING_DISPATCH_ID,
+            headline: 'RADIO: Sani Dispatch online. This claim is not empty land; people, payroll, and reputation are now tied to every build order.',
+            type: 'NEUTRAL',
+            timestamp: state.tickCount,
+        });
     }
 
     private updateGoalProgress(state: GameState): void {
@@ -106,7 +119,7 @@ export class MissionSystem extends BaseSimSystem {
         if (shouldSeedMineralLoop) {
             state.contracts.push({
                 id: ctx.getNextId?.('cont') || `cont_${Date.now()}`,
-                description: `Starter Demand: Deliver ${FIRST_MINERAL_CONTRACT_AMOUNT} Minerals for the first reliable cash injection.`,
+                description: `Sani District Works needs ${FIRST_MINERAL_CONTRACT_AMOUNT} Minerals to repair a collapsed bridge before the next heatwave. Deliver it and the first people outside the fence will know Aureus keeps promises.`,
                 resource: 'MINERALS',
                 amount: FIRST_MINERAL_CONTRACT_AMOUNT,
                 reward: FIRST_MINERAL_CONTRACT_REWARD,
@@ -130,7 +143,7 @@ export class MissionSystem extends BaseSimSystem {
 
         state.contracts.push({
             id: ctx.getNextId?.('cont') || `cont_${Date.now()}`,
-            description: `Economic Demand: Deliver ${amount} ${this.formatResource(resource)} for a guaranteed payout.`,
+            description: this.createContractStory(resource, amount),
             resource,
             amount,
             reward,
@@ -141,6 +154,19 @@ export class MissionSystem extends BaseSimSystem {
             trustReward: 2,
             trustPenalty: 3,
         });
+    }
+
+    private createContractStory(resource: Contract['resource'], amount: number): string {
+        if (resource === 'MINERALS') {
+            return `A rail crew east of the concession needs ${amount} Minerals for track braces. Fast delivery means safer trains and a louder Aureus name on the freight band.`;
+        }
+        if (resource === 'WOOD') {
+            return `A settlement clinic has requested ${amount} Wood for temporary wards and shade frames. It is not glamorous, but it will be remembered.`;
+        }
+        if (resource === 'STONE') {
+            return `Sani District Works needs ${amount} Stone to reinforce flood channels before the next storm line. The payout is cash; the reward is trust.`;
+        }
+        return `A private research courier is paying high for ${amount} Gems. The manifest is sealed, but every completed premium run funds the next leap.`;
     }
 
     private processContractTimers(ctx: FixedContext, state: GameState) {
@@ -167,7 +193,7 @@ export class MissionSystem extends BaseSimSystem {
                 state.resources.trust = Math.max(0, state.resources.trust - trustPenalty);
                 state.newsFeed.push({
                     id: ctx.getNextId?.('fail') || `fail_${Date.now()}`,
-                    headline: `Contract failed: ${this.formatResource(contract.resource)} delivery missed. -${contract.penalty} AGT, -${trustPenalty} Trust.`,
+                    headline: `RADIO: Missed delivery. ${this.formatResource(contract.resource)} buyers are reporting breach of trust. -${contract.penalty} AGT, -${trustPenalty} Trust.`,
                     type: 'CRITICAL',
                     timestamp: state.tickCount
                 });
