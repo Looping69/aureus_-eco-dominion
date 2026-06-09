@@ -1,7 +1,6 @@
 import React from 'react';
 import { ChevronUp, Maximize2, Radio, Signal, Trees, Users, Zap } from 'lucide-react';
 import { BuildingType, Era, GameState, SfxType } from '../types';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
 
 interface NarrativePanelProps {
     state: GameState;
@@ -107,7 +106,7 @@ function getDispatch(state: GameState): Dispatch {
             crew: state.jobs.length > 0 ? `${state.jobs.length} job orders are circulating among the crew.` : 'The crew is waiting for the next clear order.',
             community: state.resources.trust < 35 ? 'Local confidence is thin. Small wins matter now.' : 'Word is spreading that the settlement might hold.',
             land: state.resources.eco < 45 ? 'The land is absorbing more damage than it can hide.' : 'Wild grass still pushes through the work grid.',
-            tone: state.activeGoal.completed ? 'good' : 'neutral',
+            tone: 'neutral',
         };
     }
 
