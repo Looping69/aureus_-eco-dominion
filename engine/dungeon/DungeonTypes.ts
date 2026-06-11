@@ -1,14 +1,24 @@
 
 export type DungeonBlockType = 'air' | 'dirt' | 'stone' | 'gold' | 'gems' | 'mana' | 'heart' | 'support' | 'recharger';
+export type DungeonMinerType = 'driller' | 'excavator' | 'foreman';
 
 export interface DungeonMiner {
     id: string;
-    type: 'driller' | 'excavator' | 'foreman';
+    type: DungeonMinerType;
     position: { x: number; y: number; z: number };
     targetBlock?: { x: number; y: number; z: number };
     state: 'idle' | 'walking' | 'mining' | 'returning_to_base' | 'recharging';
     energy: number;
     miningProgress: number; // 0 to 1
+}
+
+export interface DungeonMineOrder {
+    id: string;
+    position: { x: number; y: number; z: number };
+    blockId: number;
+    requiredMiner: DungeonMinerType;
+    status: 'QUEUED' | 'ASSIGNED';
+    assignedMinerId?: string;
 }
 
 export interface DungeonBuilding {
@@ -21,6 +31,7 @@ export interface DungeonState {
     unlocked: boolean;         // Is the dungeon accessible?
     miners: DungeonMiner[];
     buildings: DungeonBuilding[];
+    mineOrders?: DungeonMineOrder[];
     renderVersion: number;
 
     // Pending resources (mined but not yet surged to surface)
