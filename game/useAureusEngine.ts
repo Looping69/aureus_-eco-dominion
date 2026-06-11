@@ -346,7 +346,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 console.log('[useAureusEngine] Proceeding to state subscription...');
 
                 const unsubscribe = worldInstance.subscribeToState((newState) => {
-                    setState(newState);
+                    setState({ ...newState });
                 });
                 console.log('[useAureusEngine] ✓ State subscription set up');
 
@@ -427,7 +427,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 await new Promise(r => setTimeout(r, 1500));
 
                 setReady(true);
-                setState(worldInstance.getState());
+                setState({ ...worldInstance.getState() });
 
                 if (import.meta.env.DEV) {
                     (window as any).__aureusWorld = worldInstance;
