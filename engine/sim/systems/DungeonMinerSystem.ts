@@ -29,7 +29,7 @@ function blockLabel(blockId: number): string {
     if (blockId === DungeonEngine.BLOCK.DIRT) return 'dirt';
     if (blockId === DungeonEngine.BLOCK.STONE) return 'stone';
     if (blockId === DungeonEngine.BLOCK.GOLD) return 'gold vein';
-    if (blockId === DungeonEngine.BLOCK.GEMS) return 'gem seam';
+    if (blockId === DungeonEngine.BLOCK.GEMS) return 'gem vein';
     if (blockId === DungeonEngine.BLOCK.MANA) return 'mana crystal';
     return 'block';
 }
@@ -147,8 +147,8 @@ export class DungeonMinerSystem extends BaseSimSystem {
 
             // 3. State: Moving (Walking or Returning)
             if ((m.state === 'walking' || m.state === 'returning_to_base') && m.targetBlock) {
-                const tx = m.targetBlock.x + 0.5;
-                const tz = m.targetBlock.z + 0.5;
+                const tx = m.targetBlock.x;
+                const tz = m.targetBlock.z;
 
                 const dx = tx - m.position.x;
                 const dz = tz - m.position.z;
