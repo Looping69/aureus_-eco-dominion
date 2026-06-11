@@ -33,7 +33,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
       if (delta >= 1000) {
         const currentFps = Math.round((frameCountRef.current * 1000) / delta);
         setFps(currentFps);
-        setFrameTime(1000 / currentFps); // Avg frame time
+        setFrameTime(currentFps > 0 ? 1000 / currentFps : 0);
         frameCountRef.current = 0;
         lastTimeRef.current = now;
 
@@ -77,7 +77,11 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
   );
 
   return (
-    <div className="fixed top-20 right-4 z-[140] w-64 pointer-events-auto animate-in slide-in-from-right-8 duration-300 flex flex-col max-h-[85vh]">
+    <div
+      className="fixed top-20 right-4 z-[140] w-64 pointer-events-auto animate-in slide-in-from-right-8 duration-300 flex flex-col max-h-[85vh]"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
       <div className="bg-slate-900 border-2 border-emerald-600 rounded-[4px] shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="bg-slate-800 p-2 border-b-2 border-slate-700 flex justify-between items-center select-none shrink-0">
@@ -92,8 +96,15 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
               {fps} FPS
             </div>
             <button
-              onClick={onClose}
+              type="button"
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onClose();
+              }}
               className="w-5 h-5 flex items-center justify-center bg-slate-700 hover:bg-rose-500 hover:text-white text-slate-300 rounded-[2px] border border-slate-600 transition-colors"
+              title="Close system monitor"
             >
               <X size={12} />
             </button>
@@ -189,6 +200,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
               <Unlock size={10} /> Developer Tools
             </h3>
             <button
+              type="button"
               onClick={() => dispatch({ type: 'TOGGLE_CHEATS' })}
               className={`w-full py-2 px-2 rounded-[2px] font-bold text-[10px] flex items-center justify-between transition-all border border-slate-700 ${state.cheatsEnabled ? 'bg-amber-900/30 text-amber-400 border-amber-600/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-750'}`}
             >
@@ -200,6 +212,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
             </p>
 
             <button
+              type="button"
               onClick={() => dispatch({ type: 'TOGGLE_VIEW' })}
               className={`w-full mt-3 py-1.5 px-2 rounded-[2px] font-bold text-[9px] flex items-center justify-center gap-2 transition-all border border-emerald-600/50 bg-emerald-950/20 text-emerald-400 hover:bg-emerald-900/30 uppercase tracking-widest font-['Rajdhani']`}
             >
