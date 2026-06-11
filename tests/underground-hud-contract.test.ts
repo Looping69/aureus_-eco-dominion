@@ -7,6 +7,10 @@ const appPath = path.join(process.cwd(), 'App.tsx');
 const engineHookPath = path.join(process.cwd(), 'game', 'useAureusEngine.ts');
 const undergroundHudPath = path.join(process.cwd(), 'components', 'UndergroundHUD.tsx');
 const dungeonInputPath = path.join(process.cwd(), 'game', 'dungeon', 'DungeonInputHandler.ts');
+const dungeonTypesPath = path.join(process.cwd(), 'engine', 'dungeon', 'DungeonTypes.ts');
+const dungeonMinerSystemPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'DungeonMinerSystem.ts');
+const dungeonRenderSystemPath = path.join(process.cwd(), 'game', 'render', 'systems', 'DungeonRenderSystem.ts');
+const renderFramePath = path.join(process.cwd(), 'game', 'world', 'renderFrame.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -82,6 +86,80 @@ test('Dungeon input handler receives HUD actions and mutates real mine state', (
     'window.removeEventListener',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Dungeon block clicks create persistent mine orders that compatible miners claim', () => {
+  for (const [filePath, label] of [
+    [dungeonTypesPath, 'DungeonTypes.ts'],
+    [dungeonInputPath, 'DungeonInputHandler.ts'],
+    [dungeonMinerSystemPath, 'DungeonMinerSystem.ts'],
+  ] as const) {
+    assert.equal(existsSync(filePath), true, `${label} is missing`);
+  }
+
+  const typesSource = readFileSync(dungeonTypesPath, 'utf8');
+  const inputSource = readFileSync(dungeonInputPath, 'utf8');
+  const minerSource = readFileSync(dungeonMinerSystemPath, 'utf8');
+
+  for (const snippet of [
+    'export interface DungeonMineOrder',
+    'mineOrders?: DungeonMineOrder[];',
+    "status: 'QUEUED' | 'ASSIGNED';",
+  ]) {
+    assert.match(typesSource, new RegExp(escapeRegExp(snippet)));
+  }
+
+  for (const snippet of [
+    'requiredMinerForBlock',
+    'canMinerMineBlock',
+    'state.dungeon.mineOrders ??= [];',
+    'state.dungeon.mineOrders.push(order);',
+    "Needs an available ${requiredMiner}.",
+  ]) {
+    assert.match(inputSource, new RegExp(escapeRegExp(snippet)));
+  }
+
+  for (const snippet of [
+    'claimQueuedMineOrder',
+    "candidate.status !== 'QUEUED'",
+    "order.status = 'ASSIGNED';",
+    'clearMineOrder',
+    'pruneInvalidMineOrders',
+  ]) {
+    assert.match(minerSource, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Dungeon renderer shows queued mine orders and uses a black underground backdrop', () => {
+  for (const [filePath, label] of [
+    [dungeonRenderSystemPath, 'DungeonRenderSystem.ts'],
+    [renderFramePath, 'renderFrame.ts'],
+  ] as const) {
+    assert.equal(existsSync(filePath), true, `${label} is missing`);
+  }
+
+  const renderSystemSource = readFileSync(dungeonRenderSystemPath, 'utf8');
+  const renderFrameSource = readFileSync(renderFramePath, 'utf8');
+
+  for (const snippet of [
+    'private mineOrderGroup: THREE.Group;',
+    'private mineOrderMeshes: Map<string, THREE.Mesh>',
+    'this.updateMineOrders(state);',
+    "order.status === 'ASSIGNED'",
+    'depthTest: false',
+  ]) {
+    assert.match(renderSystemSource, new RegExp(escapeRegExp(snippet)));
+  }
+
+  for (const snippet of [
+    'const dungeonBackgroundColor = new THREE.Color(0x000000);',
+    "state.activeView === 'DUNGEON'",
+    'renderer.setClearColor(0x000000, 1);',
+    'scene.background = dungeonBackgroundColor;',
+    'scene.fog = new THREE.Fog(0x000000, 32, 110);',
+  ]) {
+    assert.match(renderFrameSource, new RegExp(escapeRegExp(snippet)));
   }
 });
 
