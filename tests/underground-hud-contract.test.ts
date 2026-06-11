@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const appPath = path.join(process.cwd(), 'App.tsx');
+const engineHookPath = path.join(process.cwd(), 'game', 'useAureusEngine.ts');
 const undergroundHudPath = path.join(process.cwd(), 'components', 'UndergroundHUD.tsx');
 const dungeonInputPath = path.join(process.cwd(), 'game', 'dungeon', 'DungeonInputHandler.ts');
 
@@ -79,6 +80,20 @@ test('Dungeon input handler receives HUD actions and mutates real mine state', (
     'state.dungeon.miners.push',
     'state.resources.agt += agtGain',
     'window.removeEventListener',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Engine subscription gives React a fresh state reference for UI toggles', () => {
+  assert.equal(existsSync(engineHookPath), true, 'useAureusEngine.ts is missing');
+
+  const source = readFileSync(engineHookPath, 'utf8');
+
+  for (const snippet of [
+    'worldInstance.subscribeToState((newState) => {',
+    'setState({ ...newState });',
+    'setState({ ...worldInstance.getState() });',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
