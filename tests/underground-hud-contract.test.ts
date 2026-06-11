@@ -70,6 +70,25 @@ test('Underground HUD exposes playable mine controls', () => {
   }
 });
 
+test('Underground HUD panels can collapse out of the mine view', () => {
+  assert.equal(existsSync(undergroundHudPath), true, 'UndergroundHUD.tsx is missing');
+
+  const source = readFileSync(undergroundHudPath, 'utf8');
+
+  for (const snippet of [
+    'const [ledgerCollapsed, setLedgerCollapsed] = useState(true);',
+    'const [consoleCollapsed, setConsoleCollapsed] = useState(false);',
+    'ChevronDown',
+    'ChevronUp',
+    'pointer-events-auto',
+    '!ledgerCollapsed &&',
+    '!consoleCollapsed &&',
+    'Collapse Mine Console',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
 test('Dungeon input handler receives HUD actions and mutates real mine state', () => {
   assert.equal(existsSync(dungeonInputPath), true, 'DungeonInputHandler.ts is missing');
 
@@ -126,6 +145,44 @@ test('Dungeon block clicks create persistent mine orders that compatible miners 
     "order.status = 'ASSIGNED';",
     'clearMineOrder',
     'pruneInvalidMineOrders',
+  ]) {
+    assert.match(minerSource, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Dungeon block picking ignores overlays and aligns to voxel centers', () => {
+  for (const [filePath, label] of [
+    [dungeonInputPath, 'DungeonInputHandler.ts'],
+    [dungeonRenderSystemPath, 'DungeonRenderSystem.ts'],
+    [dungeonMinerSystemPath, 'DungeonMinerSystem.ts'],
+  ] as const) {
+    assert.equal(existsSync(filePath), true, `${label} is missing`);
+  }
+
+  const inputSource = readFileSync(dungeonInputPath, 'utf8');
+  const renderSource = readFileSync(dungeonRenderSystemPath, 'utf8');
+  const minerSource = readFileSync(dungeonMinerSystemPath, 'utf8');
+
+  for (const snippet of [
+    'isDungeonBlockHit',
+    '.filter(isDungeonBlockHit)',
+    'Math.round(point.x)',
+    'this.selectionMesh.position.set(x, y, z);',
+    'this.selectionMesh.position.set(tx, ty, tz);',
+  ]) {
+    assert.match(inputSource, new RegExp(escapeRegExp(snippet)));
+  }
+
+  for (const snippet of [
+    'mesh.userData.isDungeonBlock = true;',
+    'mesh.position.set(order.position.x, order.position.y, order.position.z);',
+  ]) {
+    assert.match(renderSource, new RegExp(escapeRegExp(snippet)));
+  }
+
+  for (const snippet of [
+    'const tx = m.targetBlock.x;',
+    'const tz = m.targetBlock.z;',
   ]) {
     assert.match(minerSource, new RegExp(escapeRegExp(snippet)));
   }
