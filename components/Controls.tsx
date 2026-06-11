@@ -36,7 +36,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
 }) => {
     if (selectedBuilding) {
         return (
-            <div className="absolute bottom-20 sm:bottom-12 left-4 right-4 z-50 animate-in slide-in-from-bottom-4 pointer-events-auto flex flex-col gap-2 max-w-sm mx-auto items-center">
+            <div className="absolute bottom-20 sm:bottom-12 left-4 right-4 z-[120] animate-in slide-in-from-bottom-4 pointer-events-auto flex flex-col gap-2 max-w-sm mx-auto items-center">
                 <div className="px-4 py-2.5 rounded-[4px] border-2 shadow-[4px_4px_0_0_rgba(0,0,0,0.4)] font-bold flex items-center justify-center gap-2 text-xs bg-amber-500 text-amber-950 border-amber-800">
                     <Hammer size={16} className="animate-pulse" />
                     <span className="font-['Rajdhani'] uppercase tracking-wider">
@@ -44,7 +44,11 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                     </span>
                 </div>
                 <button
-                    onClick={() => {
+                    type="button"
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
                         dispatch({ type: 'SELECT_BUILDING_TO_PLACE', payload: null });
                         playSfx('UI_CLICK');
                     }}
@@ -64,9 +68,15 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     const upperLayer = Math.min(maxLayer, activeLayer + 1);
 
     return (
-        <div className="absolute bottom-16 sm:bottom-6 left-3 right-3 sm:left-6 sm:right-6 z-20 flex justify-between pointer-events-none gap-4">
+        <div className="absolute bottom-16 sm:bottom-6 left-3 right-3 sm:left-6 sm:right-6 z-[120] flex justify-between pointer-events-none gap-4">
             <button
-                onClick={() => setSidebarOpen('OPS')}
+                type="button"
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setSidebarOpen('OPS');
+                }}
                 className={`
                 pointer-events-auto 
                 bg-slate-800 hover:bg-slate-750 text-white 
@@ -85,7 +95,11 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
 
             <div className="flex gap-3 pointer-events-auto items-end pb-1">
                 <button
-                    onClick={() => {
+                    type="button"
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
                         dispatch({ type: 'TOGGLE_DEBUG' });
                         playSfx('UI_CLICK');
                     }}
@@ -97,12 +111,17 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                             : 'bg-slate-800 border-slate-950 hover:-translate-y-0.5'
                         }
                     `}
+                    title="System Monitor"
                 >
                     <Activity size={18} className={debugMode ? 'text-white' : 'text-slate-400'} />
                 </button>
 
                 <button
-                    onClick={() => {
+                    type="button"
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
                         dispatch({ type: 'UPDATE_LOGISTICS', payload: { overlayMode: nextOverlayMode } });
                         playSfx('UI_CLICK');
                     }}
@@ -115,7 +134,11 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                 {canUseLayerTools && (
                     <div className="flex items-center gap-1 bg-slate-950/80 border-2 border-b-[4px] border-slate-950 rounded-[4px] p-1 shadow-[4px_4px_0_rgba(0,0,0,0.25)]">
                         <button
-                            onClick={() => {
+                            type="button"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
                                 dispatch({ type: 'SET_LAYERED_ACTIVE_Y', payload: lowerLayer });
                                 playSfx('UI_CLICK');
                             }}
@@ -126,7 +149,11 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                             <ArrowDown size={16} />
                         </button>
                         <button
-                            onClick={() => {
+                            type="button"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
                                 dispatch({ type: 'SET_INTERACTION_MODE', payload: interactionMode === 'DIG' ? 'INSPECT' : 'DIG' });
                                 playSfx('UI_CLICK');
                             }}
@@ -136,7 +163,11 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                             <Pickaxe size={15} /> L{activeLayer}
                         </button>
                         <button
-                            onClick={() => {
+                            type="button"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
                                 dispatch({ type: 'SET_LAYERED_ACTIVE_Y', payload: upperLayer });
                                 playSfx('UI_CLICK');
                             }}
@@ -150,7 +181,11 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                 )}
 
                 <button
-                    onClick={() => {
+                    type="button"
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
                         setSidebarOpen('TRADE');
                         playSfx('UI_CLICK');
                     }}
@@ -161,7 +196,11 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
 
                 {selectedAgentId && (
                     <button
-                        onClick={() => {
+                        type="button"
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
                             dispatch({ type: 'ENTER_FPS', payload: selectedAgentId });
                             playSfx('UI_CLICK');
                         }}
@@ -174,7 +213,13 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
 
                 {undergroundUnlocked && (
                     <button
-                        onClick={onToggleView}
+                        type="button"
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            onToggleView();
+                        }}
                         className={`view-switch-button ${activeView === 'DUNGEON' ? 'is-dungeon' : 'is-surface'} w-12 h-12 !p-0`}
                         title={activeView === 'DUNGEON' ? 'Return to Surface (U)' : 'Enter Below Sector (U)'}
                     >
@@ -184,7 +229,13 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
             </div>
 
             <button
-                onClick={() => setSidebarOpen('SHOP')}
+                type="button"
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setSidebarOpen('SHOP');
+                }}
                 className={`
                 pointer-events-auto
                 bg-emerald-600 hover:bg-emerald-500 text-white
