@@ -5,6 +5,7 @@ import test from 'node:test';
 
 const appPath = path.join(process.cwd(), 'App.tsx');
 const undergroundHudPath = path.join(process.cwd(), 'components', 'UndergroundHUD.tsx');
+const dungeonInputPath = path.join(process.cwd(), 'game', 'dungeon', 'DungeonInputHandler.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -38,6 +39,46 @@ test('Deep Ledger HUD shows the Phase 1 survey metrics explicitly', () => {
     '>Hazards<',
     'visibleTiles.length',
     'hazardCount',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Underground HUD exposes playable mine controls', () => {
+  assert.equal(existsSync(undergroundHudPath), true, 'UndergroundHUD.tsx is missing');
+
+  const source = readFileSync(undergroundHudPath, 'utf8');
+
+  for (const snippet of [
+    'Mine Console',
+    'emitDungeonAction',
+    "'SET_MODE'",
+    "'HIRE_MINER'",
+    "'SURFACE_RESOURCES'",
+    'build_support',
+    'build_recharger',
+    'Driller',
+    'Excavator',
+    'Foreman',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Dungeon input handler receives HUD actions and mutates real mine state', () => {
+  assert.equal(existsSync(dungeonInputPath), true, 'DungeonInputHandler.ts is missing');
+
+  const source = readFileSync(dungeonInputPath, 'utf8');
+
+  for (const snippet of [
+    "window.addEventListener('aureus:dungeon-action'",
+    'handleUiAction',
+    'hireMiner',
+    'surfaceResources',
+    'MINER_COSTS',
+    'state.dungeon.miners.push',
+    'state.resources.agt += agtGain',
+    'window.removeEventListener',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
