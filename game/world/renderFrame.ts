@@ -26,6 +26,7 @@ export interface RenderFrameDeps {
 }
 
 let buildingStatusLabelLayer: BuildingStatusLabelLayer | null = null;
+const dungeonBackgroundColor = new THREE.Color(0x000000);
 
 class LayeredWorldOverlay {
     private group = new THREE.Group();
@@ -390,6 +391,18 @@ function updateCursor(state: any, deps: RenderFrameDeps): void {
 }
 
 function updateEnvironmentAndDraw(ctx: FrameContext, state: any, deps: RenderFrameDeps): void {
+    const renderer = deps.render.getRenderer();
+    const scene = deps.render.getScene();
+
+    if (state.activeView === 'DUNGEON') {
+        renderer.setClearColor(0x000000, 1);
+        scene.background = dungeonBackgroundColor;
+        scene.fog = new THREE.Fog(0x000000, 32, 110);
+        deps.render.draw(ctx);
+        return;
+    }
+
+    renderer.setClearColor(0x0f172a, 0);
     deps.environmentRenderSystem.update(
         ctx.dt,
         state.dayNightCycle?.timeOfDay || 12000,
