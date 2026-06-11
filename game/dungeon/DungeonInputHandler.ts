@@ -3,6 +3,19 @@ import { StateManager } from '../../engine/state/StateManager';
 import { DungeonEngine } from '../../engine/dungeon/DungeonEngine';
 
 export type DungeonInteractionMode = 'mine' | 'build_support' | 'build_recharger';
+type DungeonMinerType = 'driller' | 'excavator' | 'foreman';
+
+const MINER_COSTS: Record<DungeonMinerType, { agt: number; gems: number }> = {
+    driller: { agt: 250, gems: 0 },
+    excavator: { agt: 600, gems: 0 },
+    foreman: { agt: 900, gems: 5 },
+};
+
+const MODE_LABELS: Record<DungeonInteractionMode, string> = {
+    mine: 'Mine blocks',
+    build_support: 'Place supports',
+    build_recharger: 'Place rechargers',
+};
 
 export class DungeonInputHandler {
     private raycaster: THREE.Raycaster;
@@ -13,6 +26,7 @@ export class DungeonInputHandler {
     private mode: DungeonInteractionMode = 'mine';
     private camera: THREE.Camera | null = null;
     private meshGroup: THREE.Group | null = null;
+    private uiActionHandler: ((event: Event) => void) | null = null;
 
     // Energy threshold for assigning miners
     private ENERGY_LOW_THRESHOLD = 20;
@@ -33,6 +47,11 @@ export class DungeonInputHandler {
         this.selectionMesh = new THREE.Mesh(selectionGeometry, selectionMaterial);
         this.selectionMesh.visible = false;
         scene.add(this.selectionMesh);
+
+        if (typeof window !== 'undefined') {
+            this.uiActionHandler = (event: Event) => this.handleUiAction(event);
+            window.addEventListener('aureus:dungeon-action', this.uiActionHandler);
+        }
     }
 
     /**
@@ -62,6 +81,7 @@ export class DungeonInputHandler {
     public setMode(mode: DungeonInteractionMode): void {
         this.mode = mode;
         this.selectionMesh.visible = false;
+        this.appendLog(`Mine console: ${MODE_LABELS[mode]}.`);
     }
 
     /**
@@ -137,12 +157,15 @@ export class DungeonInputHandler {
         if (!eligibleMiner) {
             // No available miners
             state.dungeon.logs.push('No available miners. Hire more or wait for recharge.');
+            this.stateManager.markDirty('dungeon');
             return;
         }
 
         // Assign miner to target block
         eligibleMiner.state = 'walking';
         eligibleMiner.targetBlock = { x, y, z };
+        state.dungeon.logs.push(`Assigned ${eligibleMiner.type} to mine ${x}, ${z}.`);
+        this.stateManager.markDirty('dungeon');
     }
 
     /**
@@ -161,6 +184,7 @@ export class DungeonInputHandler {
             // Support pillar costs stone
             if (state.resources.stone < 50) {
                 state.dungeon.logs.push('Not enough stone to build support pillar.');
+                this.stateManager.markDirty('dungeon');
                 return;
             }
 
@@ -180,11 +204,13 @@ export class DungeonInputHandler {
             });
 
             state.dungeon.logs.push('Support pillar placed.');
+            this.stateManager.markDirty('dungeon', 'resources');
 
         } else if (this.mode === 'build_recharger') {
             // Recharger costs AGT and gems
             if (state.resources.agt < 100 || state.resources.gems < 50) {
                 state.dungeon.logs.push('Not enough resources for recharger (100 AGT, 50 gems).');
+                this.stateManager.markDirty('dungeon');
                 return;
             }
 
@@ -203,6 +229,7 @@ export class DungeonInputHandler {
             });
 
             state.dungeon.logs.push('Recharger placed.');
+            this.stateManager.markDirty('dungeon', 'resources');
         }
     }
 
@@ -239,10 +266,110 @@ export class DungeonInputHandler {
         }
     }
 
+    private handleUiAction(event: Event): void {
+        const detail = (event as CustomEvent<{ type?: string; payload?: any }>).detail || {};
+        const payload = detail.payload || {};
+
+        if (detail.type === 'SET_MODE') {
+            const mode = payload.mode as DungeonInteractionMode;
+            if (mode === 'mine' || mode === 'build_support' || mode === 'build_recharger') {
+                this.setMode(mode);
+                this.pushSfx('UI_CLICK');
+            }
+            return;
+        }
+
+        if (detail.type === 'HIRE_MINER') {
+            this.hireMiner((payload.minerType || 'driller') as DungeonMinerType);
+            return;
+        }
+
+        if (detail.type === 'SURFACE_RESOURCES') {
+            this.surfaceResources();
+        }
+    }
+
+    private hireMiner(minerType: DungeonMinerType): void {
+        const state = this.stateManager.getState();
+        if (!state.dungeon.unlocked) {
+            this.appendLog('Below Sector is locked. Build a Survey Drill first.');
+            this.pushSfx('ERROR');
+            return;
+        }
+
+        const cost = MINER_COSTS[minerType] || MINER_COSTS.driller;
+        if (state.resources.agt < cost.agt || state.resources.gems < cost.gems) {
+            this.appendLog(`Not enough resources to hire ${minerType}.`);
+            this.pushSfx('ERROR');
+            return;
+        }
+
+        state.resources.agt -= cost.agt;
+        state.resources.gems -= cost.gems;
+
+        const midX = Math.floor(state.dungeon.gridSize.x / 2);
+        const midZ = Math.floor(state.dungeon.gridSize.z / 2);
+        const offset = state.dungeon.miners.length % 5;
+        state.dungeon.miners.push({
+            id: `miner_${Date.now()}_${state.dungeon.miners.length}`,
+            type: minerType,
+            position: { x: midX + 0.5 + (offset - 2) * 0.35, y: 1, z: midZ + 0.5 },
+            state: 'idle',
+            energy: 100,
+            miningProgress: 0,
+        });
+
+        this.appendLog(`${minerType} hired and ready at the heart chamber.`);
+        this.pushSfx('UI_COIN');
+        this.stateManager.markDirty('dungeon', 'resources', 'pendingEffects');
+        this.stateManager.notifyIfDirty();
+    }
+
+    private surfaceResources(): void {
+        const state = this.stateManager.getState();
+        const gold = state.dungeon.gold || 0;
+        const gems = state.dungeon.gems || 0;
+        const mana = state.dungeon.mana || 0;
+        if (gold <= 0 && gems <= 0 && mana <= 0) {
+            this.appendLog('No underground valuables are ready to surface.');
+            this.pushSfx('ERROR');
+            return;
+        }
+
+        const agtGain = Math.round(gold * 8 + mana * 3);
+        state.resources.agt += agtGain;
+        state.resources.gems += gems;
+        state.dungeon.gold = 0;
+        state.dungeon.gems = 0;
+        state.dungeon.mana = 0;
+
+        this.appendLog(`Surfaced valuables: +${agtGain} AGT, +${gems} gems.`);
+        this.pushSfx('COMPLETE');
+        this.stateManager.markDirty('dungeon', 'resources', 'pendingEffects');
+        this.stateManager.notifyIfDirty();
+    }
+
+    private appendLog(message: string): void {
+        const state = this.stateManager.getState();
+        state.dungeon.logs.push(message);
+        state.dungeon.logs = state.dungeon.logs.slice(-10);
+        this.stateManager.markDirty('dungeon');
+    }
+
+    private pushSfx(sfx: string): void {
+        const state = this.stateManager.getState();
+        state.pendingEffects.push({ type: 'AUDIO', sfx } as any);
+        this.stateManager.markDirty('pendingEffects');
+    }
+
     /**
      * Cleanup
      */
     public dispose(): void {
+        if (this.uiActionHandler && typeof window !== 'undefined') {
+            window.removeEventListener('aureus:dungeon-action', this.uiActionHandler);
+            this.uiActionHandler = null;
+        }
         this.selectionMesh.geometry.dispose();
         (this.selectionMesh.material as THREE.Material).dispose();
         this.selectionMesh.parent?.remove(this.selectionMesh);
