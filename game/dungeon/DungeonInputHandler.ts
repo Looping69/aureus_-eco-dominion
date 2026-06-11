@@ -35,9 +35,13 @@ function blockLabel(blockId: number): string {
     if (blockId === DungeonEngine.BLOCK.DIRT) return 'dirt';
     if (blockId === DungeonEngine.BLOCK.STONE) return 'stone';
     if (blockId === DungeonEngine.BLOCK.GOLD) return 'gold vein';
-    if (blockId === DungeonEngine.BLOCK.GEMS) return 'gem seam';
+    if (blockId === DungeonEngine.BLOCK.GEMS) return 'gem vein';
     if (blockId === DungeonEngine.BLOCK.MANA) return 'mana crystal';
     return 'block';
+}
+
+function isDungeonBlockHit(intersection: THREE.Intersection): boolean {
+    return intersection.object.userData?.isDungeonBlock === true;
 }
 
 export class DungeonInputHandler {
@@ -60,15 +64,17 @@ export class DungeonInputHandler {
         this.mouse = new THREE.Vector2();
 
         // Create selection highlight mesh
-        const selectionGeometry = new THREE.BoxGeometry(1.02, 1.02, 1.02);
+        const selectionGeometry = new THREE.BoxGeometry(1.04, 1.04, 1.04);
         const selectionMaterial = new THREE.MeshBasicMaterial({
             color: 0xffff00,
             wireframe: true,
             transparent: true,
-            opacity: 0.8
+            opacity: 0.8,
+            depthTest: false,
         });
         this.selectionMesh = new THREE.Mesh(selectionGeometry, selectionMaterial);
         this.selectionMesh.visible = false;
+        this.selectionMesh.renderOrder = 90;
         scene.add(this.selectionMesh);
 
         if (typeof window !== 'undefined') {
@@ -124,9 +130,9 @@ export class DungeonInputHandler {
         this.mouse.x = (clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(clientY / window.innerHeight) * 2 + 1;
 
-        // Raycast
+        // Raycast against real voxel block meshes only. Mine-order outlines, miners, and helpers can sit in front visually.
         this.raycaster.setFromCamera(this.mouse, this.camera);
-        const intersects = this.raycaster.intersectObjects(this.meshGroup.children, true);
+        const intersects = this.raycaster.intersectObjects(this.meshGroup.children, true).filter(isDungeonBlockHit);
 
         if (intersects.length === 0) {
             this.selectionMesh.visible = false;
@@ -141,9 +147,9 @@ export class DungeonInputHandler {
             intersect.face!.normal.clone().multiplyScalar(-0.5)
         );
 
-        const tx = Math.floor(point.x);
-        const ty = Math.floor(point.y);
-        const tz = Math.floor(point.z);
+        const tx = Math.round(point.x);
+        const ty = Math.round(point.y);
+        const tz = Math.round(point.z);
 
         const blockId = this.dungeonEngine.getBlockId(tx, ty, tz);
 
@@ -168,8 +174,8 @@ export class DungeonInputHandler {
             return;
         }
 
-        // Show selection
-        this.selectionMesh.position.set(x + 0.5, y + 0.5, z + 0.5);
+        // Show selection on the actual voxel center.
+        this.selectionMesh.position.set(x, y, z);
         this.selectionMesh.visible = true;
 
         state.dungeon.mineOrders ??= [];
@@ -288,7 +294,7 @@ export class DungeonInputHandler {
         this.mouse.y = -(clientY / window.innerHeight) * 2 + 1;
 
         this.raycaster.setFromCamera(this.mouse, this.camera);
-        const intersects = this.raycaster.intersectObjects(this.meshGroup.children, true);
+        const intersects = this.raycaster.intersectObjects(this.meshGroup.children, true).filter(isDungeonBlockHit);
 
         if (intersects.length > 0 && this.mode !== 'mine') {
             const intersect = intersects[0];
@@ -296,12 +302,12 @@ export class DungeonInputHandler {
                 intersect.face!.normal.clone().multiplyScalar(0.5)
             );
 
-            const tx = Math.floor(point.x);
-            const ty = Math.floor(point.y);
-            const tz = Math.floor(point.z);
+            const tx = Math.round(point.x);
+            const ty = Math.round(point.y);
+            const tz = Math.round(point.z);
 
             // Show preview for build mode
-            this.selectionMesh.position.set(tx + 0.5, ty + 0.5, tz + 0.5);
+            this.selectionMesh.position.set(tx, ty, tz);
             this.selectionMesh.visible = true;
         } else {
             // Hide selection when not hovering in build mode
@@ -358,7 +364,7 @@ export class DungeonInputHandler {
         state.dungeon.miners.push({
             id: `miner_${Date.now()}_${state.dungeon.miners.length}`,
             type: minerType,
-            position: { x: midX + 0.5 + (offset - 2) * 0.35, y: 1, z: midZ + 0.5 },
+            position: { x: midX + (offset - 2) * 0.35, y: 1, z: midZ },
             state: 'idle',
             energy: 100,
             miningProgress: 0,
