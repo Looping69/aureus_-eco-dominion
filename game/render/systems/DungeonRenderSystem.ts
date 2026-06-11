@@ -229,7 +229,7 @@ export class DungeonRenderSystem {
             material.opacity = assigned ? 1 : 0.76;
             const pulse = assigned ? 1.03 : 1 + Math.sin(Date.now() * 0.006 + order.position.x + order.position.z) * 0.035;
             mesh.scale.setScalar(pulse);
-            mesh.position.set(order.position.x + 0.5, order.position.y + 0.5, order.position.z + 0.5);
+            mesh.position.set(order.position.x, order.position.y, order.position.z);
             mesh.visible = true;
         });
     }
@@ -291,6 +291,7 @@ export class DungeonRenderSystem {
                 const material = this.materials.get(type)!;
                 mesh = new THREE.InstancedMesh(geometry, material, count);
                 mesh.layers.set(1); // Dungeon Layer
+                mesh.userData.isDungeonBlock = true;
                 mesh.receiveShadow = true;
                 mesh.castShadow = true;
                 this.meshes.set(type, mesh);
