@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { StateManager } from '../../engine/state/StateManager';
 import { DungeonEngine } from '../../engine/dungeon/DungeonEngine';
+import { DungeonMinerType } from '../../engine/dungeon/DungeonTypes';
 
 export type DungeonInteractionMode = 'mine' | 'build_support' | 'build_recharger';
-type DungeonMinerType = 'driller' | 'excavator' | 'foreman';
 
 const MINER_COSTS: Record<DungeonMinerType, { agt: number; gems: number }> = {
     driller: { agt: 250, gems: 0 },
@@ -16,6 +16,29 @@ const MODE_LABELS: Record<DungeonInteractionMode, string> = {
     build_support: 'Place supports',
     build_recharger: 'Place rechargers',
 };
+
+function requiredMinerForBlock(blockId: number): DungeonMinerType {
+    if (blockId === DungeonEngine.BLOCK.GOLD || blockId === DungeonEngine.BLOCK.GEMS) return 'excavator';
+    if (blockId === DungeonEngine.BLOCK.MANA) return 'foreman';
+    return 'driller';
+}
+
+function canMinerMineBlock(minerType: DungeonMinerType, blockId: number): boolean {
+    if (minerType === 'foreman') return true;
+    if (minerType === 'excavator') {
+        return blockId !== DungeonEngine.BLOCK.MANA;
+    }
+    return blockId === DungeonEngine.BLOCK.DIRT || blockId === DungeonEngine.BLOCK.STONE;
+}
+
+function blockLabel(blockId: number): string {
+    if (blockId === DungeonEngine.BLOCK.DIRT) return 'dirt';
+    if (blockId === DungeonEngine.BLOCK.STONE) return 'stone';
+    if (blockId === DungeonEngine.BLOCK.GOLD) return 'gold vein';
+    if (blockId === DungeonEngine.BLOCK.GEMS) return 'gem seam';
+    if (blockId === DungeonEngine.BLOCK.MANA) return 'mana crystal';
+    return 'block';
+}
 
 export class DungeonInputHandler {
     private raycaster: THREE.Raycaster;
@@ -149,23 +172,45 @@ export class DungeonInputHandler {
         this.selectionMesh.position.set(x + 0.5, y + 0.5, z + 0.5);
         this.selectionMesh.visible = true;
 
-        // Find an idle miner with enough energy
-        const eligibleMiner = state.dungeon.miners.find(
-            m => m.state === 'idle' && m.energy > this.ENERGY_LOW_THRESHOLD
+        state.dungeon.mineOrders ??= [];
+        const alreadyMarked = state.dungeon.mineOrders.some(order =>
+            order.position.x === x && order.position.y === y && order.position.z === z
         );
 
-        if (!eligibleMiner) {
-            // No available miners
-            state.dungeon.logs.push('No available miners. Hire more or wait for recharge.');
-            this.stateManager.markDirty('dungeon');
+        if (alreadyMarked) {
+            this.appendLog(`${blockLabel(blockId)} at ${x}, ${z} is already marked for mining.`);
+            this.stateManager.notifyIfDirty();
             return;
         }
 
-        // Assign miner to target block
-        eligibleMiner.state = 'walking';
-        eligibleMiner.targetBlock = { x, y, z };
-        state.dungeon.logs.push(`Assigned ${eligibleMiner.type} to mine ${x}, ${z}.`);
+        const requiredMiner = requiredMinerForBlock(blockId);
+        const eligibleMiner = state.dungeon.miners.find(m =>
+            m.state === 'idle' &&
+            m.energy > this.ENERGY_LOW_THRESHOLD &&
+            canMinerMineBlock(m.type, blockId)
+        );
+
+        const order = {
+            id: `mine_${x}_${y}_${z}_${Date.now()}`,
+            position: { x, y, z },
+            blockId,
+            requiredMiner,
+            status: eligibleMiner ? 'ASSIGNED' as const : 'QUEUED' as const,
+            assignedMinerId: eligibleMiner?.id,
+        };
+        state.dungeon.mineOrders.push(order);
+
+        if (eligibleMiner) {
+            eligibleMiner.state = 'walking';
+            eligibleMiner.targetBlock = { x, y, z };
+            state.dungeon.logs.push(`Assigned ${eligibleMiner.type} to mine ${blockLabel(blockId)} at ${x}, ${z}.`);
+        } else {
+            state.dungeon.logs.push(`Marked ${blockLabel(blockId)} at ${x}, ${z}. Needs an available ${requiredMiner}.`);
+        }
+
+        state.dungeon.logs = state.dungeon.logs.slice(-10);
         this.stateManager.markDirty('dungeon');
+        this.stateManager.notifyIfDirty();
     }
 
     /**
