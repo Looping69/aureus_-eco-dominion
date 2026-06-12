@@ -2,6 +2,7 @@
 export type AgentRole = 'WORKER' | 'MINER' | 'BOTANIST' | 'ENGINEER' | 'SECURITY' | 'ILLEGAL_MINER' | 'LUMBERJACK' | 'QUARRYMAN' | 'UNEMPLOYED' | 'CITIZEN';
 
 export type JobType = 'BUILD' | 'MINE' | 'RESCUE' | 'FARM' | 'REPAIR' | 'RESEARCH' | 'SLEEP' | 'IDLE' | 'MOVE' | 'REHABILITATE' | 'EAT' | 'SOCIALIZE' | 'PATROL' | 'DEPOSIT_RESOURCES';
+export type JobContext = 'SURFACE_CUT' | 'DEEP_MINE';
 
 export interface Job {
     id: string;
@@ -9,6 +10,7 @@ export interface Job {
     targetX: number;
     targetZ: number;
     targetY?: number;
+    context?: JobContext;
     priority: number; // 1-5
     assignedAgentId: string | null;
     progress?: number;
