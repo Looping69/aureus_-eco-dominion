@@ -2,7 +2,7 @@ import { BuildingType } from '../../types';
 import type { Chunk, GridTile } from '../../types';
 import type { LayeredChunkState, LayeredWorldState, WorldLayerState, WorldVoxelCell, WorldVoxelMaterial } from '../types/layeredWorld';
 
-export const LAYERED_WORLD_MIGRATION_VERSION = 2;
+export const LAYERED_WORLD_MIGRATION_VERSION = 3;
 export const DEFAULT_LAYER_MIN_Y = -24;
 export const DEFAULT_LAYER_MAX_Y = 4;
 export const DEFAULT_SURFACE_LAYER_Y = 0;
@@ -136,6 +136,8 @@ export function createLayeredWorldFromSurfaceChunks(
         activeY: existing?.activeY ?? DEFAULT_SURFACE_LAYER_Y,
         chunks: layeredChunks,
         accessPoints: existing?.accessPoints ?? {},
+        rubbleStockpile: existing?.rubbleStockpile ?? 0,
+        rubbleDropZones: existing?.rubbleDropZones ?? {},
         renderVersion: existing?.renderVersion ?? 0,
         migrationVersion: LAYERED_WORLD_MIGRATION_VERSION,
     };
