@@ -262,60 +262,162 @@ function updateActiveView(
     state: any,
     affectedBuildingChunks: Set<string>,
     renderDirtyKeys: Set<string>,
-    deps: RenderFrameDeps,
+    deps: RenderFrameDeps
 ): void {
-    const activeView = state.activeView || 'SURFACE';
-    const isSurfaceView = activeView === 'SURFACE';
-    const layeredWorld = state.layeredWorld;
-    const activeY = layeredWorld?.activeY ?? 0;
-    const showLayeredSurface = isSurfaceView && activeY < (layeredWorld?.surfaceY ?? 0);
-
-    setSurfaceRenderVisible(deps, isSurfaceView);
-    if (!isSurfaceView) getLayeredWorldOverlay(deps).setVisible(false);
-
-    if (isSurfaceView) {
-        if (renderDirtyKeys.has('chunks') || renderDirtyKeys.has('factory')) {
-            deps.buildingRenderSystem.update(state.chunks, state.factory, state.logisticsOverlayMode || 'OFF');
-        }
-        deps.buildingRenderSystem.setVisible(true);
-        deps.agentRenderSystem.update(state.agents, deps.getTerrainHeight, state.selectedAgentId ?? null);
-        deps.agentRenderSystem.setVisible(true);
-        deps.foliageRenderSystem?.update?.(state.chunks, deps.getTerrainHeight, ctx.time, state.dayNightCycle);
-        deps.foliageRenderSystem?.setGroundDetailVisible?.(!showLayeredSurface);
-        deps.wildlifeRenderSystem?.update?.(state.wildlife, deps.getTerrainHeight, state.dayNightCycle, ctx.time);
-        deps.wildlifeRenderSystem?.setVisible?.(!showLayeredSurface);
-        deps.cameraSystem.update();
-        deps.cameraSystem.applyCamera();
-        const cursor = deps.inputSystem.getCursorWorldPosition?.();
-        const hoverCell = cursor ? { x: Math.round(cursor.x), z: Math.round(cursor.z) } : null;
-        getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight, hoverCell);
-    } else {
-        getLayeredWorldOverlay(deps).setVisible(false);
-        deps.dungeonRenderSystem.update(ctx, deps.dungeonCameraSystem.getCamera(), state.dungeon, state.underground);
-        deps.dungeonInputHandler.update(ctx, state.dungeon);
-        deps.dungeonCameraSystem.update(ctx);
+    if (state.activeView === 'DUNGEON') {
+        updateDungeonView(state, deps);
+        return;
     }
 
-    if (state.firstPersonMode && state.controlledAgentId) {
-        deps.fpsCameraSystem.update(state, ctx.time);
+    if (deps.fpsCameraSystem.enabled) {
+        updateFirstPersonView(ctx, state, affectedBuildingChunks, renderDirtyKeys, deps);
+        return;
     }
+
+    updateSurfaceView(ctx, state, affectedBuildingChunks, renderDirtyKeys, deps);
+}
+
+function updateDungeonView(state: any, deps: RenderFrameDeps): void {
+    setSurfaceRenderVisible(deps, false);
+    deps.wildlifeRenderSystem?.setVisible?.(false);
+    deps.dungeonRenderSystem.setVisible(true);
+    deps.dungeonRenderSystem.update(state.dungeon);
+    buildingStatusLabelLayer?.clear();
+    layeredWorldOverlay?.setVisible(false);
+
+    if (!deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(true);
+    if (deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(false);
+    if (deps.fpsCameraSystem.enabled) deps.fpsCameraSystem.setEnabled(false);
+
+    deps.dungeonInputHandler.setCamera(deps.render.getCamera());
+    deps.dungeonInputHandler.setMeshGroup(deps.dungeonRenderSystem.getMeshGroup());
+    deps.dungeonInputHandler.setDungeonEngine(new DungeonEngine(state.dungeon));
+}
+
+function updateFirstPersonView(
+    ctx: FrameContext,
+    state: any,
+    affectedBuildingChunks: Set<string>,
+    renderDirtyKeys: Set<string>,
+    deps: RenderFrameDeps
+): void {
+    setSurfaceRenderVisible(deps, true);
+    deps.foliageRenderSystem?.setGroundDetailVisible?.(true);
+    deps.foliageRenderSystem?.updateGroundDetailTime?.(ctx.time, state.dayNightCycle?.timeOfDay ?? 12000);
+    deps.dungeonRenderSystem.setVisible(false);
+    layeredWorldOverlay?.setVisible(false);
+
+    if (deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(false);
+    if (deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(false);
+
+    const camera = deps.render.getCamera();
+    deps.fpsCameraSystem.update(ctx.dt, state.agents, deps.getTerrainHeight);
+    deps.agentRenderSystem.setSelectedAgent(state.selectedAgentId);
+
+    const allAgents = [...state.agents, ...state.ambientNpcs];
+    deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, 0.1, camera);
+    deps.terrainRenderSystem.update(camera.position, camera);
+    deps.wildlifeRenderSystem?.update?.(ctx.time, { x: camera.position.x, z: camera.position.z }, deps.getTerrainHeight, 0.1, true, state.dayNightCycle?.timeOfDay ?? 12000);
+    deps.buildingRenderSystem.update(
+        ctx.dt,
+        ctx.time,
+        state.chunks,
+        state.factory,
+        state.logistics.overlayMode,
+        renderDirtyKeys,
+        affectedBuildingChunks,
+        'FIRST_PERSON',
+        0.1,
+        deps.render.getRuntimeQuality().smoothDetail
+    );
+    getBuildingStatusLabelLayer(deps).update(state.chunks, camera, ctx.time, 0.1, 'FIRST_PERSON');
+}
+
+function updateSurfaceView(
+    ctx: FrameContext,
+    state: any,
+    affectedBuildingChunks: Set<string>,
+    renderDirtyKeys: Set<string>,
+    deps: RenderFrameDeps
+): void {
+    setSurfaceRenderVisible(deps, true);
+    deps.dungeonRenderSystem.setVisible(false);
+
+    if (!deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(true);
+    if (deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(false);
+    if (deps.fpsCameraSystem.enabled) deps.fpsCameraSystem.setEnabled(false);
+
+    deps.cameraSystem.update(ctx.dt);
+    deps.agentRenderSystem.setSelectedAgent(state.selectedAgentId);
+
+    const zoomLevel = deps.cameraSystem.cameraZoom;
+    deps.foliageRenderSystem?.setGroundDetailVisible?.(zoomLevel <= 18);
+    if (zoomLevel <= 18) {
+        deps.foliageRenderSystem?.updateGroundDetailTime?.(ctx.time, state.dayNightCycle?.timeOfDay ?? 12000);
+    }
+    const allAgents = [...state.agents, ...state.ambientNpcs];
+    const camera = deps.render.getCamera();
+    deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, zoomLevel, camera);
+    deps.terrainRenderSystem.update(deps.cameraSystem.cameraFocus, camera);
+    deps.wildlifeRenderSystem?.update?.(ctx.time, deps.cameraSystem.cameraFocus, deps.getTerrainHeight, zoomLevel, false, state.dayNightCycle?.timeOfDay ?? 12000);
+
+    const cursor = deps.inputSystem?.getCurrentCursor() || null;
+    const hoverCell = cursor ? { x: Math.round(cursor.x), z: Math.round(cursor.z) } : null;
+    getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight, hoverCell);
+
+    deps.buildingRenderSystem.update(
+        ctx.dt,
+        ctx.time,
+        state.chunks,
+        state.factory,
+        state.logistics.overlayMode,
+        renderDirtyKeys,
+        affectedBuildingChunks,
+        'SURFACE',
+        zoomLevel,
+        deps.render.getRuntimeQuality().smoothDetail
+    );
+    getBuildingStatusLabelLayer(deps).update(state.chunks, camera, ctx.time, zoomLevel, 'SURFACE');
 }
 
 function updateCursor(state: any, deps: RenderFrameDeps): void {
-    if (state.activeView !== 'SURFACE') return;
-    const cursorPos = deps.inputSystem.getCursorWorldPosition();
-    deps.buildingRenderSystem.updateCursor(
-        cursorPos,
-        state.selectedBuildingType,
-        state.interactionMode,
-        state.buildingInventory,
-        state.era,
-        state.previewLineStart,
-        state.previewLineEnd,
-    );
+    if (state.activeView === 'DUNGEON') {
+        deps.render.getRenderer().localClippingEnabled = false;
+        deps.buildingRenderSystem.updateCursor(null, null);
+        return;
+    }
+
+    const cursor = deps.inputSystem?.getCurrentCursor() || null;
+    if (cursor) {
+        const gx = Math.round(cursor.x);
+        const gz = Math.round(cursor.z);
+        const tile = ChunkStore.getTile(state.chunks, gx, gz);
+        cursor.y = tile ? tile.terrainHeight * 0.5 : 0;
+    }
+
+    deps.render.getRenderer().localClippingEnabled = false;
+    deps.buildingRenderSystem.updateCursor(cursor, deps.cameraSystem.getFocus());
 }
 
 function updateEnvironmentAndDraw(ctx: FrameContext, state: any, deps: RenderFrameDeps): void {
-    deps.environmentRenderSystem.update(ctx.time, state.dayNightCycle, state.weather, state.activeEvents, state.activeView || 'SURFACE');
-    deps.render.renderFrame();
+    const renderer = deps.render.getRenderer();
+    const scene = deps.render.getScene();
+
+    if (state.activeView === 'DUNGEON') {
+        renderer.setClearColor(0x000000, 1);
+        scene.background = dungeonBackgroundColor;
+        scene.fog = new THREE.Fog(0x000000, 32, 110);
+        deps.render.draw(ctx);
+        return;
+    }
+
+    renderer.setClearColor(0x0f172a, 0);
+    deps.environmentRenderSystem.update(
+        ctx.dt,
+        state.dayNightCycle?.timeOfDay || 12000,
+        state.weather,
+        deps.cameraSystem.cameraFocus
+    );
+
+    deps.render.draw(ctx);
 }
