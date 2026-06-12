@@ -4,6 +4,7 @@ import { CommandErrorCode, type CommandResult } from '../kernel/Types';
 export const SUBSURFACE_CHUNK_SIZE = 16;
 export const SUBSURFACE_FOUNDATION_VERSION = 1;
 export const SUBSURFACE_OPEN_PIT_ENTRY_DEPTH = 1;
+export const SUBSURFACE_DIG_JOB_PREFIX = 'dig_sub';
 
 export function layeredChunkKey(x: number, z: number): string {
     return `${Math.floor(x / SUBSURFACE_CHUNK_SIZE)},${Math.floor(z / SUBSURFACE_CHUNK_SIZE)}`;
@@ -11,6 +12,14 @@ export function layeredChunkKey(x: number, z: number): string {
 
 export function layeredCellKey(x: number, y: number, z: number): string {
     return `${x},${y},${z}`;
+}
+
+export function subsurfaceDigJobId(x: number, y: number, z: number): string {
+    return `${SUBSURFACE_DIG_JOB_PREFIX}_${x}_${y}_${z}`;
+}
+
+export function isSubsurfaceDigJob(job: { id?: string; targetY?: number }): boolean {
+    return Boolean(job.id?.startsWith(`${SUBSURFACE_DIG_JOB_PREFIX}_`) || Number.isFinite(job.targetY));
 }
 
 export function isSubsurfaceLayer(layeredWorld: LayeredWorldState, y: number): boolean {
@@ -34,6 +43,54 @@ export function setActiveSubsurfaceLayer(layeredWorld: LayeredWorldState, y: num
         activeY: targetY,
         renderVersion: (layeredWorld.renderVersion || 0) + 1,
     };
+}
+
+export function validateSubsurfaceDigTarget(state: GameState, x: number, y: number, z: number): CommandResult {
+    const layeredWorld = state.layeredWorld;
+    if (!layeredWorld?.enabled) {
+        return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: 'Layered world is disabled.' };
+    }
+    if (y >= layeredWorld.surfaceY) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Use surface tools above ground.' };
+    }
+    if (!isSubsurfaceLayer(layeredWorld, y)) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target layer is outside the generated world.' };
+    }
+
+    const cell = getSubsurfaceCell(layeredWorld, x, y, z);
+    if (!cell) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cell is not generated.' };
+    }
+    if (!cell.mineable || !cell.destructible) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `${cell.material} cannot be excavated here.` };
+    }
+
+    return { ok: true };
+}
+
+export function queueSubsurfaceExcavationJob(state: GameState, x: number, y: number, z: number): CommandResult {
+    const validation = validateSubsurfaceDigTarget(state, x, y, z);
+    if (!validation.ok) return validation;
+
+    const id = subsurfaceDigJobId(x, y, z);
+    const existing = state.jobs.find(job => job.id === id);
+    if (existing) {
+        existing.priority = Math.max(existing.priority, 88);
+        return { ok: true };
+    }
+
+    state.jobs.push({
+        id,
+        type: 'MINE',
+        targetX: x,
+        targetY: y,
+        targetZ: z,
+        priority: 88,
+        assignedAgentId: null,
+        progress: 0,
+    });
+
+    return { ok: true };
 }
 
 export function getSubsurfaceResourceYield(cell: WorldVoxelCell): Partial<GameState['resources']> {
@@ -61,26 +118,13 @@ export function applySubsurfaceYield(state: GameState, yieldResources: Partial<G
 }
 
 export function excavateSubsurfaceCell(state: GameState, x: number, y: number, z: number): CommandResult {
-    const layeredWorld = state.layeredWorld;
-    if (!layeredWorld?.enabled) {
-        return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: 'Layered world is disabled.' };
-    }
-    if (y >= layeredWorld.surfaceY) {
-        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Use surface tools above ground.' };
-    }
-    if (!isSubsurfaceLayer(layeredWorld, y)) {
-        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target layer is outside the generated world.' };
-    }
+    const validation = validateSubsurfaceDigTarget(state, x, y, z);
+    if (!validation.ok) return validation;
 
-    const chunk = layeredWorld.chunks?.[layeredChunkKey(x, z)];
-    const layer = chunk?.layers?.[y];
-    const cell = layer?.cells?.[layeredCellKey(x, y, z)];
-    if (!cell) {
-        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cell is not generated.' };
-    }
-    if (!cell.mineable || !cell.destructible) {
-        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `${cell.material} cannot be excavated here.` };
-    }
+    const layeredWorld = state.layeredWorld;
+    const chunk = layeredWorld.chunks[layeredChunkKey(x, z)];
+    const layer = chunk.layers[y];
+    const cell = layer.cells[layeredCellKey(x, y, z)];
 
     applySubsurfaceYield(state, getSubsurfaceResourceYield(cell));
 
