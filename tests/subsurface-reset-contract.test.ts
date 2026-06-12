@@ -5,6 +5,7 @@ import test from 'node:test';
 
 const root = process.cwd();
 const agentsTypesPath = path.join(root, 'engine', 'types', 'agents.ts');
+const layeredWorldGeneratorPath = path.join(root, 'engine', 'worldgen', 'LayeredWorldGenerator.ts');
 const subsurfaceModelPath = path.join(root, 'engine', 'subsurface', 'SubsurfaceModel.ts');
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
 const jobGenerationPath = path.join(root, 'engine', 'sim', 'systems', 'JobGenerationSystem.ts');
@@ -23,6 +24,22 @@ function assertSnippet(text: string, snippet: string) {
   assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
+test('layered world generation supports deeper migrated subsurface chunks', () => {
+  const text = source(layeredWorldGeneratorPath);
+
+  for (const snippet of [
+    'export const LAYERED_WORLD_MIGRATION_VERSION = 2;',
+    'export const DEFAULT_LAYER_MIN_Y = -24;',
+    'const minY = Math.min(existing?.minY ?? DEFAULT_LAYER_MIN_Y, DEFAULT_LAYER_MIN_Y);',
+    'const maxY = Math.max(existing?.maxY ?? DEFAULT_LAYER_MAX_Y, DEFAULT_LAYER_MAX_Y);',
+    'existingChunk.minY > minY',
+    'existingChunk.maxY < maxY',
+    'return createLayeredChunkFromSurfaceChunk(chunkKey, chunk, minY, maxY);',
+  ]) {
+    assertSnippet(text, snippet);
+  }
+});
+
 test('subsurface model is the canonical excavation and job helper', () => {
   const text = source(subsurfaceModelPath);
 
@@ -37,6 +54,7 @@ test('subsurface model is the canonical excavation and job helper', () => {
     'export function excavateSubsurfaceCell',
     "type: 'MINE',",
     'targetY: y,',
+    "context: 'SURFACE_CUT',",
     "cell.material = 'AIR';",
     "cell.contents = 'TUNNEL';",
   ]) {
@@ -44,9 +62,33 @@ test('subsurface model is the canonical excavation and job helper', () => {
   }
 });
 
-test('subsurface jobs can carry a layer target', () => {
+test('surface-cut excavation lowers and refreshes the surface tile', () => {
+  const text = source(subsurfaceModelPath);
+
+  for (const snippet of [
+    'export const SUBSURFACE_TERRAIN_DROP_PER_LAYER = 1;',
+    'export type SubsurfaceExcavationOptions = {',
+    'deformSurface?: boolean;',
+    'export function lowerSurfaceForOpenPit',
+    'tile.terrainHeight -= SUBSURFACE_TERRAIN_DROP_PER_LAYER;',
+    "tile.foliage = 'NONE';",
+    'surfaceChunk.meshDirty = true;',
+    'surfaceChunk.simDirty = true;',
+    'surfaceChunk.version = (surfaceChunk.version || 0) + 1;',
+    'layeredChunk.generatedFromSurfaceVersion = surfaceChunk.version;',
+    "state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });",
+    'if (options.deformSurface) {',
+    'lowerSurfaceForOpenPit(state, x, z);',
+  ]) {
+    assertSnippet(text, snippet);
+  }
+});
+
+test('subsurface jobs can carry a layer target and job context', () => {
   const text = source(agentsTypesPath);
+  assertSnippet(text, "export type JobContext = 'SURFACE_CUT' | 'DEEP_MINE';");
   assertSnippet(text, 'targetY?: number;');
+  assertSnippet(text, 'context?: JobContext;');
 });
 
 test('dig command queues agent work instead of instantly removing cells', () => {
@@ -81,7 +123,7 @@ test('agents complete subsurface excavation jobs through real work', () => {
     "if (jobId.startsWith('dig_sub_')) return 'Walking to excavation marker.';",
     "if (job.type === 'MINE' && isSubsurfaceDigJob(job)) {",
     'this.performSubsurfaceExcavation(ctx, agent, state, jobIdx);',
-    'const result = excavateSubsurfaceCell(state, job.targetX, y, job.targetZ);',
+    "const result = excavateSubsurfaceCell(state, job.targetX, y, job.targetZ, { deformSurface: job.context === 'SURFACE_CUT' });",
     "headline: `${agent.name} opened a subsurface block on layer ${y}.`,",
   ]) {
     assertSnippet(text, snippet);
