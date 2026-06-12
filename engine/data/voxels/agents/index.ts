@@ -9,7 +9,11 @@ import {
     EngineerFactory,
     BotanistFactory,
     SecurityFactory,
-    IllegalMinerFactory
+    IllegalMinerFactory,
+    LumberjackFactory,
+    QuarrymanFactory,
+    CitizenFactory,
+    UnemployedFactory
 } from './roles';
 
 // Re-export common utilities
@@ -26,10 +30,10 @@ export const AgentFactory: Record<AgentRole, AgentFactoryFn> = {
     'BOTANIST': BotanistFactory,
     'SECURITY': SecurityFactory,
     'ILLEGAL_MINER': IllegalMinerFactory,
-    'LUMBERJACK': WorkerFactory,
-    'QUARRYMAN': WorkerFactory,
-    'UNEMPLOYED': WorkerFactory,
-    'CITIZEN': WorkerFactory
+    'LUMBERJACK': LumberjackFactory,
+    'QUARRYMAN': QuarrymanFactory,
+    'UNEMPLOYED': UnemployedFactory,
+    'CITIZEN': CitizenFactory
 };
 
 /**
@@ -72,5 +76,9 @@ export {
     EngineerFactory,
     BotanistFactory,
     SecurityFactory,
-    IllegalMinerFactory
+    IllegalMinerFactory,
+    LumberjackFactory,
+    QuarrymanFactory,
+    CitizenFactory,
+    UnemployedFactory
 };
