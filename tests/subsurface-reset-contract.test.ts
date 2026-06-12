@@ -5,6 +5,7 @@ import test from 'node:test';
 
 const root = process.cwd();
 const agentsTypesPath = path.join(root, 'engine', 'types', 'agents.ts');
+const layeredWorldTypesPath = path.join(root, 'engine', 'types', 'layeredWorld.ts');
 const layeredWorldGeneratorPath = path.join(root, 'engine', 'worldgen', 'LayeredWorldGenerator.ts');
 const subsurfaceModelPath = path.join(root, 'engine', 'subsurface', 'SubsurfaceModel.ts');
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
@@ -24,17 +25,37 @@ function assertSnippet(text: string, snippet: string) {
   assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
-test('layered world generation supports deeper migrated subsurface chunks', () => {
+test('layered world generation supports deeper migrated subsurface chunks and rubble state', () => {
   const text = source(layeredWorldGeneratorPath);
 
   for (const snippet of [
-    'export const LAYERED_WORLD_MIGRATION_VERSION = 2;',
+    'export const LAYERED_WORLD_MIGRATION_VERSION = 3;',
     'export const DEFAULT_LAYER_MIN_Y = -24;',
     'const minY = Math.min(existing?.minY ?? DEFAULT_LAYER_MIN_Y, DEFAULT_LAYER_MIN_Y);',
     'const maxY = Math.max(existing?.maxY ?? DEFAULT_LAYER_MAX_Y, DEFAULT_LAYER_MAX_Y);',
     'existingChunk.minY > minY',
     'existingChunk.maxY < maxY',
+    'rubbleStockpile: existing?.rubbleStockpile ?? 0,',
+    'rubbleDropZones: existing?.rubbleDropZones ?? {},',
     'return createLayeredChunkFromSurfaceChunk(chunkKey, chunk, minY, maxY);',
+  ]) {
+    assertSnippet(text, snippet);
+  }
+});
+
+test('layered world types include rubble piles, buried yield, and dump zones', () => {
+  const text = source(layeredWorldTypesPath);
+
+  for (const snippet of [
+    "| 'RUBBLE'",
+    "| 'RUBBLE_PILE'",
+    'buriedMaterial?: WorldVoxelMaterial;',
+    'buriedResourceAmount?: number;',
+    'export interface RubbleDropZone',
+    'capacity: number;',
+    'stored: number;',
+    'rubbleStockpile?: number;',
+    'rubbleDropZones?: Record<string, RubbleDropZone>;',
   ]) {
     assertSnippet(text, snippet);
   }
@@ -55,8 +76,6 @@ test('subsurface model is the canonical excavation and job helper', () => {
     "type: 'MINE',",
     'targetY: y,',
     "context: 'SURFACE_CUT',",
-    "cell.material = 'AIR';",
-    "cell.contents = 'TUNNEL';",
   ]) {
     assertSnippet(text, snippet);
   }
@@ -78,9 +97,59 @@ test('surface-cut excavation lowers and refreshes the surface tile', () => {
     'layeredChunk.generatedFromSurfaceVersion = surfaceChunk.version;',
     "state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });",
     'if (options.deformSurface) {',
-    'lowerSurfaceForOpenPit(state, x, z);',
+    'lowerSurfaceForOpenPit(state, cell.x, cell.z);',
   ]) {
     assertSnippet(text, snippet);
+  }
+});
+
+test('excavation creates rubble first, then rubble clearing opens tunnel and pays buried yield', () => {
+  const text = source(subsurfaceModelPath);
+
+  for (const snippet of [
+    'export const SUBSURFACE_RUBBLE_PER_BLOCK = 1;',
+    'export const SUBSURFACE_RUBBLE_DUMP_CAPACITY = 24;',
+    'function breakSubsurfaceCellIntoRubble',
+    'cell.buriedMaterial = cell.material;',
+    'cell.buriedResourceAmount = cell.resourceAmount;',
+    "cell.material = 'RUBBLE';",
+    "cell.contents = 'RUBBLE_PILE';",
+    'function clearRubbleCell',
+    'if (!depositRubble(state.layeredWorld, SUBSURFACE_RUBBLE_PER_BLOCK))',
+    'applySubsurfaceYield(state, getSubsurfaceResourceYield({',
+    "cell.material = 'AIR';",
+    "cell.contents = 'TUNNEL';",
+    'return breakSubsurfaceCellIntoRubble(state, cell, options);',
+  ]) {
+    assertSnippet(text, snippet);
+  }
+});
+
+test('rubble dumps and fill commands use stored rubble as the only fill source', () => {
+  const modelText = source(subsurfaceModelPath);
+  const commandText = source(commandDispatcherPath);
+
+  for (const snippet of [
+    'export function designateRubbleDropZone',
+    'Rubble dumps need an open excavated cell.',
+    'export function fillSubsurfaceCellWithRubble',
+    'Only an open tunnel cell can be filled with rubble.',
+    'if (!consumeRubble(layeredWorld, SUBSURFACE_RUBBLE_PER_BLOCK))',
+    'Not enough stored rubble to fill this block.',
+  ]) {
+    assertSnippet(modelText, snippet);
+  }
+
+  for (const snippet of [
+    'designateRubbleDropZone, fillSubsurfaceCellWithRubble, queueSubsurfaceExcavationJob',
+    "commandType === 'DESIGNATE_RUBBLE_DUMP'",
+    "commandType === 'FILL_VOXEL'",
+    'return designateRubbleDropZone(state, target.x, target.y, target.z);',
+    'return fillSubsurfaceCellWithRubble(state, target.x, target.y, target.z);',
+    "'DESIGNATE_RUBBLE_DUMP'",
+    "'FILL_VOXEL'",
+  ]) {
+    assertSnippet(commandText, snippet);
   }
 });
 
@@ -94,8 +163,7 @@ test('subsurface jobs can carry a layer target and job context', () => {
 test('dig command queues agent work instead of instantly removing cells', () => {
   const text = source(commandDispatcherPath);
 
-  assert.match(text, /import \{ queueSubsurfaceExcavationJob \} from '..\/..\/subsurface\/SubsurfaceModel';/);
-  assert.match(text, /return queueSubsurfaceExcavationJob\(state, x, y, z\);/);
+  assertSnippet(text, 'queueSubsurfaceExcavationJob(state, target.x, target.y, target.z);');
   assert.doesNotMatch(text, /return excavateSubsurfaceCell\(state, x, y, z\);/);
   assert.doesNotMatch(text, /const LAYER_CHUNK_SIZE = 16;/);
 });
@@ -159,7 +227,7 @@ test('world toggle opens surface-connected subsurface layers, not the old dungeo
   assert.doesNotMatch(text, /this\.stateManager\.mutate\('activeView', 'DUNGEON'\);/);
 });
 
-test('surface layer overlay highlights the hovered subsurface cell', () => {
+test('surface layer overlay highlights the hovered subsurface cell and rubble piles', () => {
   const text = source(renderFramePath);
 
   for (const snippet of [
@@ -167,6 +235,7 @@ test('surface layer overlay highlights the hovered subsurface cell', () => {
     "const hoverSignature = hoverCell ? `${hoverCell.x},${hoverCell.z}` : 'none';",
     'this.mesh.setColorAt(i, this.colorForCell(cell, hoverCell));',
     "if (hoverCell && cell.x === hoverCell.x && cell.z === hoverCell.z) return this.color.set('#f8fafc');",
+    "if (cell.material === 'RUBBLE' || cell.contents === 'RUBBLE_PILE') return this.color.set('#9a6b3d');",
     'const hoverCell = cursor ? { x: Math.round(cursor.x), z: Math.round(cursor.z) } : null;',
     'getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight, hoverCell);',
   ]) {
