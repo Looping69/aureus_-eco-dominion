@@ -1,4 +1,4 @@
-import { BuildingType, type GameState, type LayeredWorldState, type WorldVoxelCell } from '../../types';
+import { BuildingType, type GameState, type LayeredWorldState, type WorldVoxelCell, type WorldVoxelMaterial } from '../../types';
 import { CommandErrorCode, type CommandResult } from '../kernel/Types';
 import { ChunkStore } from '../space/ChunkStore';
 import { CHUNK_SIZE, toChunkKey, worldToChunk } from '../utils/coords';
@@ -7,6 +7,8 @@ export const SUBSURFACE_CHUNK_SIZE = 16;
 export const SUBSURFACE_FOUNDATION_VERSION = 1;
 export const SUBSURFACE_OPEN_PIT_ENTRY_DEPTH = 1;
 export const SUBSURFACE_TERRAIN_DROP_PER_LAYER = 1;
+export const SUBSURFACE_RUBBLE_PER_BLOCK = 1;
+export const SUBSURFACE_RUBBLE_DUMP_CAPACITY = 24;
 export const SUBSURFACE_DIG_JOB_PREFIX = 'dig_sub';
 
 export type SubsurfaceExcavationOptions = {
@@ -52,6 +54,51 @@ export function setActiveSubsurfaceLayer(layeredWorld: LayeredWorldState, y: num
     };
 }
 
+function getRubbleDropZoneKey(x: number, y: number, z: number): string {
+    return `${x},${y},${z}`;
+}
+
+function ensureRubbleState(layeredWorld: LayeredWorldState): void {
+    layeredWorld.rubbleStockpile ??= 0;
+    layeredWorld.rubbleDropZones ??= {};
+}
+
+function hasRubbleDropCapacity(layeredWorld: LayeredWorldState, amount: number = SUBSURFACE_RUBBLE_PER_BLOCK): boolean {
+    ensureRubbleState(layeredWorld);
+    const zones = Object.values(layeredWorld.rubbleDropZones || {});
+    return zones.some(zone => zone.stored + amount <= zone.capacity);
+}
+
+function depositRubble(layeredWorld: LayeredWorldState, amount: number = SUBSURFACE_RUBBLE_PER_BLOCK): boolean {
+    ensureRubbleState(layeredWorld);
+    const zones = Object.values(layeredWorld.rubbleDropZones || {});
+    const target = zones.find(zone => zone.stored + amount <= zone.capacity);
+    if (!target) return false;
+    target.stored += amount;
+    layeredWorld.rubbleStockpile = (layeredWorld.rubbleStockpile || 0) + amount;
+    layeredWorld.renderVersion = (layeredWorld.renderVersion || 0) + 1;
+    return true;
+}
+
+function consumeRubble(layeredWorld: LayeredWorldState, amount: number = SUBSURFACE_RUBBLE_PER_BLOCK): boolean {
+    ensureRubbleState(layeredWorld);
+    if ((layeredWorld.rubbleStockpile || 0) < amount) return false;
+
+    let remaining = amount;
+    const zones = Object.values(layeredWorld.rubbleDropZones || {}).sort((a, b) => b.stored - a.stored);
+    for (const zone of zones) {
+        if (remaining <= 0) break;
+        const taken = Math.min(zone.stored, remaining);
+        zone.stored -= taken;
+        remaining -= taken;
+    }
+
+    if (remaining > 0) return false;
+    layeredWorld.rubbleStockpile = Math.max(0, (layeredWorld.rubbleStockpile || 0) - amount);
+    layeredWorld.renderVersion = (layeredWorld.renderVersion || 0) + 1;
+    return true;
+}
+
 export function validateSubsurfaceDigTarget(state: GameState, x: number, y: number, z: number): CommandResult {
     const layeredWorld = state.layeredWorld;
     if (!layeredWorld?.enabled) {
@@ -75,6 +122,9 @@ export function validateSubsurfaceDigTarget(state: GameState, x: number, y: numb
     const cell = getSubsurfaceCell(layeredWorld, x, y, z);
     if (!cell) {
         return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cell is not generated.' };
+    }
+    if (cell.material === 'RUBBLE' && !hasRubbleDropCapacity(layeredWorld)) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Designate a rubble dump with free space before clearing this pile.' };
     }
     if (!cell.mineable || !cell.destructible) {
         return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `${cell.material} cannot be excavated here.` };
@@ -160,6 +210,125 @@ export function lowerSurfaceForOpenPit(state: GameState, x: number, z: number): 
     return true;
 }
 
+function markSubsurfaceDirty(layeredWorld: LayeredWorldState, x: number, y: number, z: number): void {
+    const chunk = layeredWorld.chunks[layeredChunkKey(x, z)];
+    const layer = chunk?.layers?.[y];
+    if (layer) layer.dirty = true;
+    if (chunk) chunk.dirty = true;
+    layeredWorld.renderVersion = (layeredWorld.renderVersion || 0) + 1;
+}
+
+function breakSubsurfaceCellIntoRubble(state: GameState, cell: WorldVoxelCell, options: SubsurfaceExcavationOptions): CommandResult {
+    cell.buriedMaterial = cell.material;
+    cell.buriedResourceAmount = cell.resourceAmount;
+    cell.material = 'RUBBLE';
+    cell.contents = 'RUBBLE_PILE';
+    cell.revealed = true;
+    cell.destructible = true;
+    cell.walkable = false;
+    cell.mineable = true;
+    cell.resourceAmount = SUBSURFACE_RUBBLE_PER_BLOCK;
+    cell.stability = Math.max(5, Number(cell.stability || 100) - 12);
+    markSubsurfaceDirty(state.layeredWorld, cell.x, cell.y, cell.z);
+
+    if (options.deformSurface) {
+        lowerSurfaceForOpenPit(state, cell.x, cell.z);
+    }
+
+    return { ok: true };
+}
+
+function clearRubbleCell(state: GameState, cell: WorldVoxelCell): CommandResult {
+    if (!depositRubble(state.layeredWorld, SUBSURFACE_RUBBLE_PER_BLOCK)) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Designate a rubble dump with free space before clearing this pile.' };
+    }
+
+    const buriedMaterial: WorldVoxelMaterial = cell.buriedMaterial && cell.buriedMaterial !== 'RUBBLE'
+        ? cell.buriedMaterial
+        : 'STONE';
+    applySubsurfaceYield(state, getSubsurfaceResourceYield({
+        ...cell,
+        material: buriedMaterial,
+        resourceAmount: cell.buriedResourceAmount,
+    }));
+
+    cell.material = 'AIR';
+    cell.contents = 'TUNNEL';
+    cell.revealed = true;
+    cell.destructible = false;
+    cell.walkable = true;
+    cell.mineable = false;
+    cell.resourceAmount = undefined;
+    cell.buriedMaterial = undefined;
+    cell.buriedResourceAmount = undefined;
+    cell.stability = Math.max(5, Number(cell.stability || 100) - 6);
+    markSubsurfaceDirty(state.layeredWorld, cell.x, cell.y, cell.z);
+
+    return { ok: true };
+}
+
+export function designateRubbleDropZone(state: GameState, x: number, y: number, z: number): CommandResult {
+    const layeredWorld = state.layeredWorld;
+    if (!layeredWorld?.enabled) {
+        return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: 'Layered world is disabled.' };
+    }
+    if (!isSubsurfaceLayer(layeredWorld, y)) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Rubble dumps must be placed on a subsurface layer.' };
+    }
+
+    const cell = getSubsurfaceCell(layeredWorld, x, y, z);
+    if (!cell) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cell is not generated.' };
+    }
+    if (cell.material !== 'AIR' && cell.contents !== 'TUNNEL') {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Rubble dumps need an open excavated cell.' };
+    }
+
+    ensureRubbleState(layeredWorld);
+    const key = getRubbleDropZoneKey(x, y, z);
+    layeredWorld.rubbleDropZones![key] ??= {
+        x,
+        y,
+        z,
+        capacity: SUBSURFACE_RUBBLE_DUMP_CAPACITY,
+        stored: 0,
+    };
+    layeredWorld.renderVersion = (layeredWorld.renderVersion || 0) + 1;
+    return { ok: true };
+}
+
+export function fillSubsurfaceCellWithRubble(state: GameState, x: number, y: number, z: number): CommandResult {
+    const layeredWorld = state.layeredWorld;
+    if (!layeredWorld?.enabled) {
+        return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: 'Layered world is disabled.' };
+    }
+    if (!isSubsurfaceLayer(layeredWorld, y)) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target layer is outside the generated world.' };
+    }
+    const cell = getSubsurfaceCell(layeredWorld, x, y, z);
+    if (!cell) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cell is not generated.' };
+    }
+    if (cell.material !== 'AIR' && cell.contents !== 'TUNNEL') {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Only an open tunnel cell can be filled with rubble.' };
+    }
+    if (!consumeRubble(layeredWorld, SUBSURFACE_RUBBLE_PER_BLOCK)) {
+        return { ok: false, code: CommandErrorCode.INSUFFICIENT_RESOURCES, reason: 'Not enough stored rubble to fill this block.' };
+    }
+
+    cell.material = 'RUBBLE';
+    cell.contents = 'RUBBLE_PILE';
+    cell.revealed = true;
+    cell.destructible = true;
+    cell.walkable = false;
+    cell.mineable = true;
+    cell.resourceAmount = SUBSURFACE_RUBBLE_PER_BLOCK;
+    cell.buriedMaterial = undefined;
+    cell.buriedResourceAmount = undefined;
+    markSubsurfaceDirty(layeredWorld, x, y, z);
+    return { ok: true };
+}
+
 export function excavateSubsurfaceCell(
     state: GameState,
     x: number,
@@ -175,23 +344,9 @@ export function excavateSubsurfaceCell(
     const layer = chunk.layers[y];
     const cell = layer.cells[layeredCellKey(x, y, z)];
 
-    applySubsurfaceYield(state, getSubsurfaceResourceYield(cell));
-
-    cell.material = 'AIR';
-    cell.contents = 'TUNNEL';
-    cell.revealed = true;
-    cell.destructible = false;
-    cell.walkable = true;
-    cell.mineable = false;
-    cell.resourceAmount = undefined;
-    cell.stability = Math.max(5, Number(cell.stability || 100) - 12);
-    layer.dirty = true;
-    chunk.dirty = true;
-    layeredWorld.renderVersion = (layeredWorld.renderVersion || 0) + 1;
-
-    if (options.deformSurface) {
-        lowerSurfaceForOpenPit(state, x, z);
+    if (cell.material === 'RUBBLE') {
+        return clearRubbleCell(state, cell);
     }
 
-    return { ok: true };
+    return breakSubsurfaceCellIntoRubble(state, cell, options);
 }
