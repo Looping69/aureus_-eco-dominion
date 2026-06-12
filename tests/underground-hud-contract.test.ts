@@ -6,6 +6,7 @@ import test from 'node:test';
 const appPath = path.join(process.cwd(), 'App.tsx');
 const engineHookPath = path.join(process.cwd(), 'game', 'useAureusEngine.ts');
 const undergroundHudPath = path.join(process.cwd(), 'components', 'UndergroundHUD.tsx');
+const inputSystemPath = path.join(process.cwd(), 'engine', 'input', 'InputSystem.ts');
 const dungeonInputPath = path.join(process.cwd(), 'game', 'dungeon', 'DungeonInputHandler.ts');
 const dungeonTypesPath = path.join(process.cwd(), 'engine', 'dungeon', 'DungeonTypes.ts');
 const dungeonMinerSystemPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'DungeonMinerSystem.ts');
@@ -147,6 +148,22 @@ test('Dungeon block clicks create persistent mine orders that compatible miners 
     'pruneInvalidMineOrders',
   ]) {
     assert.match(minerSource, new RegExp(escapeRegExp(snippet)));
+  }
+});
+
+test('Dungeon pointer routing bypasses surface cursor picking', () => {
+  assert.equal(existsSync(inputSystemPath), true, 'InputSystem.ts is missing');
+
+  const source = readFileSync(inputSystemPath, 'utf8');
+
+  for (const snippet of [
+    'private isDungeonPointerMode(): boolean',
+    'this.renderAdapter.getCamera().layers.isEnabled(1)',
+    'if (this.isDungeonPointerMode()) return null;',
+    'this.onTileClick?.(0, 0, isTouch, x, y);',
+    'this.onTileHover?.(null, null, x, y);',
+  ]) {
+    assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
 });
 
