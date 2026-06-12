@@ -28,6 +28,8 @@ export interface RenderFrameDeps {
 let buildingStatusLabelLayer: BuildingStatusLabelLayer | null = null;
 const dungeonBackgroundColor = new THREE.Color(0x000000);
 
+type HoverCell = { x: number; z: number } | null;
+
 class LayeredWorldOverlay {
     private group = new THREE.Group();
     private geometry = new THREE.PlaneGeometry(0.86, 0.86).rotateX(-Math.PI / 2);
@@ -53,7 +55,7 @@ class LayeredWorldOverlay {
         this.group.visible = visible;
     }
 
-    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number): void {
+    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number, hoverCell: HoverCell): void {
         const layeredWorld = state.layeredWorld;
         const activeY = layeredWorld?.activeY ?? 0;
         const show = state.activeView === 'SURFACE'
@@ -68,7 +70,8 @@ class LayeredWorldOverlay {
 
         this.setVisible(true);
         const chunkCount = Object.keys(layeredWorld.chunks).length;
-        const signature = `${activeY}|${layeredWorld.renderVersion || 0}|${chunkCount}|${state.interactionMode}|${state.debugMode}`;
+        const hoverSignature = hoverCell ? `${hoverCell.x},${hoverCell.z}` : 'none';
+        const signature = `${activeY}|${layeredWorld.renderVersion || 0}|${chunkCount}|${state.interactionMode}|${state.debugMode}|${hoverSignature}`;
         if (signature === this.lastSignature) return;
         this.lastSignature = signature;
 
@@ -93,7 +96,7 @@ class LayeredWorldOverlay {
             const y = getTerrainHeight(cell.x, cell.z) + 0.045;
             this.matrix.makeTranslation(cell.x, y, cell.z);
             this.mesh.setMatrixAt(i, this.matrix);
-            this.mesh.setColorAt(i, this.colorForCell(cell));
+            this.mesh.setColorAt(i, this.colorForCell(cell, hoverCell));
         }
 
         this.mesh.count = cells.length;
@@ -116,7 +119,8 @@ class LayeredWorldOverlay {
         this.group.add(this.mesh);
     }
 
-    private colorForCell(cell: any): THREE.Color {
+    private colorForCell(cell: any, hoverCell: HoverCell): THREE.Color {
+        if (hoverCell && cell.x === hoverCell.x && cell.z === hoverCell.z) return this.color.set('#f8fafc');
         if (cell.material === 'AIR' || cell.contents === 'TUNNEL') return this.color.set('#38e8ff');
         if (cell.material === 'ORE') return this.color.set('#f59e0b');
         if (cell.material === 'GEMS') return this.color.set('#c084fc');
@@ -355,7 +359,11 @@ function updateSurfaceView(
     deps.agentRenderSystem.update(ctx.dt, ctx.time, allAgents, zoomLevel, camera);
     deps.terrainRenderSystem.update(deps.cameraSystem.cameraFocus, camera);
     deps.wildlifeRenderSystem?.update?.(ctx.time, deps.cameraSystem.cameraFocus, deps.getTerrainHeight, zoomLevel, false, state.dayNightCycle?.timeOfDay ?? 12000);
-    getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight);
+
+    const cursor = deps.inputSystem?.getCurrentCursor() || null;
+    const hoverCell = cursor ? { x: Math.round(cursor.x), z: Math.round(cursor.z) } : null;
+    getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight, hoverCell);
+
     deps.buildingRenderSystem.update(
         ctx.dt,
         ctx.time,
