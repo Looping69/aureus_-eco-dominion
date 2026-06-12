@@ -122,7 +122,7 @@ test('surface layer overlay highlights the hovered subsurface cell', () => {
 
   for (const snippet of [
     'type HoverCell = { x: number; z: number } | null;',
-    'const hoverSignature = hoverCell ? `${hoverCell.x},${hoverCell.z}` : \'none\';',
+    "const hoverSignature = hoverCell ? `${hoverCell.x},${hoverCell.z}` : 'none';",
     'this.mesh.setColorAt(i, this.colorForCell(cell, hoverCell));',
     "if (hoverCell && cell.x === hoverCell.x && cell.z === hoverCell.z) return this.color.set('#f8fafc');",
     'const hoverCell = cursor ? { x: Math.round(cursor.x), z: Math.round(cursor.z) } : null;',
