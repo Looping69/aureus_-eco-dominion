@@ -117,10 +117,8 @@ export function createLayeredWorldFromSurfaceChunks(
 
     for (const [chunkKey, chunk] of Object.entries(chunks || {})) {
         const existingChunk = layeredChunks[chunkKey];
-        const surfaceVersion = chunk.version ?? 0;
         if (
             !existingChunk ||
-            existingChunk.generatedFromSurfaceVersion !== surfaceVersion ||
             existingChunk.minY > minY ||
             existingChunk.maxY < maxY
         ) {
