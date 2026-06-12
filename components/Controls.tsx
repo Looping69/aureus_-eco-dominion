@@ -28,6 +28,7 @@ interface ControlsProps {
 }
 
 const OVERLAY_SEQUENCE: LogisticsOverlayMode[] = ['OFF', 'FLOW', 'CONGESTION', 'JUNCTIONS'];
+const SURFACE_LAYER = 0;
 
 export const Controls: React.FC<ControlsProps> = React.memo(({
     selectedBuilding, dispatch, setSidebarOpen, playSfx, step,
@@ -64,6 +65,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     const highlightBuild = step === GameStep.TUTORIAL_MINE || step === GameStep.TUTORIAL_BUY;
     const nextOverlayMode = OVERLAY_SEQUENCE[(OVERLAY_SEQUENCE.indexOf(overlayMode) + 1) % OVERLAY_SEQUENCE.length];
     const canUseLayerTools = activeView === 'SURFACE' && (undergroundUnlocked || debugMode);
+    const isBelowSurface = activeLayer < SURFACE_LAYER;
     const lowerLayer = Math.max(minLayer, activeLayer - 1);
     const upperLayer = Math.min(maxLayer, activeLayer + 1);
 
@@ -144,7 +146,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                             }}
                             disabled={activeLayer <= minLayer}
                             className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 disabled:opacity-35 disabled:hover:bg-slate-800 flex items-center justify-center text-slate-300"
-                            title="Lower underground layer"
+                            title="Lower subsurface layer"
                         >
                             <ArrowDown size={16} />
                         </button>
@@ -158,7 +160,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                                 playSfx('UI_CLICK');
                             }}
                             className={`h-9 min-w-16 rounded-[3px] px-2 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'DIG' ? 'bg-amber-500 text-amber-950' : 'bg-slate-800 text-amber-300 hover:bg-slate-700'}`}
-                            title="Dig selected underground layer"
+                            title="Dig selected subsurface layer"
                         >
                             <Pickaxe size={15} /> L{activeLayer}
                         </button>
@@ -173,7 +175,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                             }}
                             disabled={activeLayer >= maxLayer}
                             className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 disabled:opacity-35 disabled:hover:bg-slate-800 flex items-center justify-center text-slate-300"
-                            title="Raise underground layer"
+                            title="Raise subsurface layer"
                         >
                             <ArrowUp size={16} />
                         </button>
@@ -220,10 +222,10 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                             event.stopPropagation();
                             onToggleView();
                         }}
-                        className={`view-switch-button ${activeView === 'DUNGEON' ? 'is-dungeon' : 'is-surface'} w-12 h-12 !p-0`}
-                        title={activeView === 'DUNGEON' ? 'Return to Surface (U)' : 'Enter Below Sector (U)'}
+                        className={`view-switch-button ${isBelowSurface ? 'is-dungeon' : 'is-surface'} w-12 h-12 !p-0`}
+                        title={isBelowSurface ? 'Return to Surface (U)' : 'Open Subsurface Cut (U)'}
                     >
-                        {activeView === 'DUNGEON' ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
+                        {isBelowSurface ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
                     </button>
                 )}
             </div>
