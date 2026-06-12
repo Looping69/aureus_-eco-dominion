@@ -695,7 +695,7 @@ export class AgentSystem extends BaseSimSystem {
 
         if (job.progress < 100) return;
 
-        const result = excavateSubsurfaceCell(state, job.targetX, y, job.targetZ);
+        const result = excavateSubsurfaceCell(state, job.targetX, y, job.targetZ, { deformSurface: job.context === 'SURFACE_CUT' });
         if (!result.ok) {
             state.jobs.splice(jobIdx, 1);
             this.explain(agent, (result as any).reason || 'Cannot excavate this block.', 'blocked');
