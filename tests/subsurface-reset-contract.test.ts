@@ -25,7 +25,7 @@ function assertSnippet(text: string, snippet: string) {
   assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
-test('layered world generation supports deeper migrated subsurface chunks and rubble state', () => {
+test('layered world generation supports deeper migrated subsurface chunks and preserves edits', () => {
   const text = source(layeredWorldGeneratorPath);
 
   for (const snippet of [
@@ -41,6 +41,8 @@ test('layered world generation supports deeper migrated subsurface chunks and ru
   ]) {
     assertSnippet(text, snippet);
   }
+
+  assert.doesNotMatch(text, /existingChunk\.generatedFromSurfaceVersion !== surfaceVersion/);
 });
 
 test('layered world types include rubble piles, buried yield, and dump zones', () => {
@@ -90,7 +92,7 @@ test('surface-cut excavation lowers and refreshes the surface tile', () => {
     'deformSurface?: boolean;',
     'export function lowerSurfaceForOpenPit',
     'tile.terrainHeight -= SUBSURFACE_TERRAIN_DROP_PER_LAYER;',
-    "tile.foliage = 'NONE';",
+    'function refreshSurfaceTile',
     'surfaceChunk.meshDirty = true;',
     'surfaceChunk.simDirty = true;',
     'surfaceChunk.version = (surfaceChunk.version || 0) + 1;',
@@ -103,22 +105,28 @@ test('surface-cut excavation lowers and refreshes the surface tile', () => {
   }
 });
 
-test('excavation creates rubble first, then rubble clearing opens tunnel and pays buried yield', () => {
+test('excavation creates visible rubble first, then rubble clearing opens tunnel and pays buried yield', () => {
   const text = source(subsurfaceModelPath);
 
   for (const snippet of [
     'export const SUBSURFACE_RUBBLE_PER_BLOCK = 1;',
     'export const SUBSURFACE_RUBBLE_DUMP_CAPACITY = 24;',
+    'function markSurfaceRubble',
+    "tile.foliage = 'ROCK_PEBBLE';",
+    'function clearSurfaceRubble',
+    "tile.foliage = 'NONE';",
     'function breakSubsurfaceCellIntoRubble',
     'cell.buriedMaterial = cell.material;',
     'cell.buriedResourceAmount = cell.resourceAmount;',
     "cell.material = 'RUBBLE';",
     "cell.contents = 'RUBBLE_PILE';",
+    'markSurfaceRubble(state, cell.x, cell.z);',
     'function clearRubbleCell',
     'if (!depositRubble(state.layeredWorld, SUBSURFACE_RUBBLE_PER_BLOCK))',
     'applySubsurfaceYield(state, getSubsurfaceResourceYield({',
     "cell.material = 'AIR';",
     "cell.contents = 'TUNNEL';",
+    'clearSurfaceRubble(state, cell.x, cell.z);',
     'return breakSubsurfaceCellIntoRubble(state, cell, options);',
   ]) {
     assertSnippet(text, snippet);
