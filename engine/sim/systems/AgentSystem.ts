@@ -14,6 +14,7 @@ import { PathPool } from '../../utils/PathPool';
 import { ChunkStore } from '../../space/ChunkStore';
 import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../utils/GameUtils';
 import { worldToChunk, CHUNK_SIZE } from '../../utils/coords';
+import { excavateSubsurfaceCell, getSubsurfaceCell, isSubsurfaceDigJob } from '../../subsurface/SubsurfaceModel';
 import { getEventEnvironmentModifiers, getWeatherGameplayEffects } from '../../weather/weatherModel';
 
 // Configuration
@@ -141,6 +142,7 @@ export class AgentSystem extends BaseSimSystem {
         if (jobId === 'sys_wait_at_work') return 'Waiting: no valid jobs near workplace.';
         if (jobId === 'sys_wander') return 'Patrolling nearby: no urgent job.';
         if (jobId.startsWith('build_')) return 'Building assigned structure.';
+        if (jobId.startsWith('dig_sub_')) return 'Excavating subsurface block.';
         if (jobId.includes('mine')) return 'Harvesting assigned resource.';
         if (jobId.includes('rehab')) return 'Restoring damaged land.';
         if (jobId.startsWith('manual_')) return 'Following player order.';
@@ -154,6 +156,7 @@ export class AgentSystem extends BaseSimSystem {
         if (jobId === 'sys_wait_at_work') return 'Walking to workplace.';
         if (jobId === 'sys_wander') return 'Patrolling nearby: no urgent job.';
         if (jobId.startsWith('build_')) return 'Walking to build site.';
+        if (jobId.startsWith('dig_sub_')) return 'Walking to excavation marker.';
         if (jobId.includes('mine')) return 'Walking to resource target.';
         if (jobId.includes('rehab')) return 'Walking to restoration site.';
         if (jobId.startsWith('manual_')) return 'Following player order.';
@@ -198,7 +201,7 @@ export class AgentSystem extends BaseSimSystem {
             agent.currentJobId = jobId;
             if (jobId === 'sys_sleep') agent.state = 'SLEEPING';
             else if (jobId === 'sys_eat') agent.state = 'EATING';
-            else if (jobId.startsWith('build_') || jobId.includes('mine')) agent.state = 'WORKING';
+            else if (jobId.startsWith('build_') || jobId.startsWith('dig_sub_') || jobId.includes('mine')) agent.state = 'WORKING';
             else agent.state = 'IDLE';
             this.explain(agent, this.getJobReason(jobId));
             return;
@@ -516,7 +519,7 @@ export class AgentSystem extends BaseSimSystem {
             if (agent.currentJobId === 'sys_sleep') agent.state = 'SLEEPING';
             else if (agent.currentJobId === 'sys_eat') agent.state = 'EATING';
             else if (agent.currentJobId === 'sys_deposit') agent.state = 'DEPOSITING';
-            else if (agent.currentJobId?.includes('build_') || agent.currentJobId?.includes('mine') || agent.currentJobId?.includes('rehab')) {
+            else if (agent.currentJobId?.includes('build_') || agent.currentJobId?.startsWith('dig_sub_') || agent.currentJobId?.includes('mine') || agent.currentJobId?.includes('rehab')) {
                 agent.state = 'WORKING';
             }
             else {
@@ -599,6 +602,11 @@ export class AgentSystem extends BaseSimSystem {
             return;
         }
 
+        if (job.type === 'MINE' && isSubsurfaceDigJob(job)) {
+            this.performSubsurfaceExcavation(ctx, agent, state, jobIdx);
+            return;
+        }
+
         if (tile.isUnderConstruction) {
             // Use specialized system to handle multi-tile buildings
             const amount = (1 + agent.skills.construction / 10) * dt;
@@ -660,6 +668,51 @@ export class AgentSystem extends BaseSimSystem {
             state.jobs.splice(jobIdx, 1);
             this.finishActivity(ctx, agent, state);
         }
+    }
+
+    private performSubsurfaceExcavation(ctx: FixedContext, agent: Agent, state: GameState, jobIdx: number): void {
+        const job = state.jobs[jobIdx];
+        const y = Math.round(Number(job.targetY));
+        if (!Number.isFinite(y)) {
+            state.jobs.splice(jobIdx, 1);
+            this.explain(agent, 'Cannot excavate: missing subsurface layer.', 'blocked');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+
+        const cell = getSubsurfaceCell(state.layeredWorld, job.targetX, y, job.targetZ);
+        if (!cell?.mineable || !cell.destructible) {
+            state.jobs.splice(jobIdx, 1);
+            this.explain(agent, 'Waiting: subsurface block is already cleared.', 'warning');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+
+        if (!job.progress) job.progress = 0;
+        job.progress += 24 * (1 + agent.skills.mining / 5);
+        this.explain(agent, `Excavating ${String(cell.material).toLowerCase()} on layer ${y}.`);
+        state.pendingEffects.push({ type: 'FX', fxType: 'MINING', x: job.targetX, z: job.targetZ });
+
+        if (job.progress < 100) return;
+
+        const result = excavateSubsurfaceCell(state, job.targetX, y, job.targetZ);
+        if (!result.ok) {
+            state.jobs.splice(jobIdx, 1);
+            this.explain(agent, (result as any).reason || 'Cannot excavate this block.', 'blocked');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+
+        agent.skills.mining += 0.4;
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.MINING_HIT });
+        state.newsFeed.unshift({
+            id: ctx.getNextId?.('dig') || `dig_${Date.now()}_${agent.id}`,
+            headline: `${agent.name} opened a subsurface block on layer ${y}.`,
+            type: 'NEUTRAL',
+            timestamp: state.tickCount,
+        });
+        state.jobs.splice(jobIdx, 1);
+        this.finishActivity(ctx, agent, state);
     }
 
     private getRandomNearby(ctx: FixedContext, agent: Agent): { x: number, z: number } {
