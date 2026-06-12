@@ -303,7 +303,7 @@ export interface GameState {
     inventory: Partial<Record<BuildingType, number>>;
     selectedBuilding: BuildingType | null;
     selectedAgentId: string | null;
-    interactionMode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT';
+    interactionMode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT' | 'DIG';
     step: GameStep;
     gameOver: boolean;
     tickCount: number;
