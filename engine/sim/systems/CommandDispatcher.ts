@@ -6,7 +6,7 @@
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
 import { Contract, GameState, GameCommand, SfxType } from '../../../types';
-import { queueSubsurfaceExcavationJob } from '../../subsurface/SubsurfaceModel';
+import { designateRubbleDropZone, fillSubsurfaceCellWithRubble, queueSubsurfaceExcavationJob } from '../../subsurface/SubsurfaceModel';
 
 const CONTRACT_COMPLETION_TTL = 75;
 const CONTRACT_WORK_SECONDS = 300;
@@ -60,6 +60,12 @@ export class CommandDispatcher extends BaseSimSystem {
         } else if (commandType === 'DIG_VOXEL') {
             result = this.digVoxel(cmd, state);
             handledBy = this.id;
+        } else if (commandType === 'DESIGNATE_RUBBLE_DUMP') {
+            result = this.designateRubbleDump(cmd, state);
+            handledBy = this.id;
+        } else if (commandType === 'FILL_VOXEL') {
+            result = this.fillVoxel(cmd, state);
+            handledBy = this.id;
         }
 
         // Try each registered system in order
@@ -88,15 +94,32 @@ export class CommandDispatcher extends BaseSimSystem {
         this.reportResult(cmd.id, result, state, handledBy, cmd);
     }
 
-    private digVoxel(cmd: GameCommand, state: GameState): CommandResult {
+    private getVoxelTarget(cmd: GameCommand): { x: number; y: number; z: number } | CommandResult {
         const x = Math.round(Number(cmd.payload?.x));
         const y = Math.round(Number(cmd.payload?.y));
         const z = Math.round(Number(cmd.payload?.z));
         if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Dig target must include x, y, and z.' };
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Voxel target must include x, y, and z.' };
         }
+        return { x, y, z };
+    }
 
-        return queueSubsurfaceExcavationJob(state, x, y, z);
+    private digVoxel(cmd: GameCommand, state: GameState): CommandResult {
+        const target = this.getVoxelTarget(cmd);
+        if ('ok' in target) return target;
+        return queueSubsurfaceExcavationJob(state, target.x, target.y, target.z);
+    }
+
+    private designateRubbleDump(cmd: GameCommand, state: GameState): CommandResult {
+        const target = this.getVoxelTarget(cmd);
+        if ('ok' in target) return target;
+        return designateRubbleDropZone(state, target.x, target.y, target.z);
+    }
+
+    private fillVoxel(cmd: GameCommand, state: GameState): CommandResult {
+        const target = this.getVoxelTarget(cmd);
+        if ('ok' in target) return target;
+        return fillSubsurfaceCellWithRubble(state, target.x, target.y, target.z);
     }
 
     private acceptContract(cmd: GameCommand, state: GameState): CommandResult {
@@ -223,7 +246,7 @@ export class CommandDispatcher extends BaseSimSystem {
         const reason = result.ok ? undefined : (result as any).reason;
 
         // 2. Update UI-safe feedback
-        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT', 'DIG_VOXEL'];
+        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT', 'DIG_VOXEL', 'DESIGNATE_RUBBLE_DUMP', 'FILL_VOXEL'];
         if (!ok || (cmd && feedbackTypes.includes(cmd.type as string))) {
             state.ui.lastCommandResult = {
                 commandId,
