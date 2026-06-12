@@ -4,6 +4,7 @@ import { FixedContext } from '../../kernel';
 import { GameState, Job, GridTile, BuildingType, Chunk } from '../../../types';
 import { isHarvestable, HARVESTABLE_TREES, HARVESTABLE_ROCKS } from '../../utils/GameUtils';
 import { ChunkStore } from '../../space/ChunkStore';
+import { getSubsurfaceCell, isSubsurfaceDigJob } from '../../subsurface/SubsurfaceModel';
 
 export class JobGenerationSystem extends BaseSimSystem {
     readonly id = 'job_generation';
@@ -22,7 +23,7 @@ export class JobGenerationSystem extends BaseSimSystem {
         const jobs = state.jobs;
 
         // Clean up completed or invalid jobs First
-        this.cleanupJobs(jobs, chunks);
+        this.cleanupJobs(jobs, state);
 
         // Auto-mark resources near specialized buildings
         this.autoMarkResources(state);
@@ -85,10 +86,10 @@ export class JobGenerationSystem extends BaseSimSystem {
         }
     }
 
-    private cleanupJobs(jobs: Job[], chunks: Record<string, Chunk>): void {
+    private cleanupJobs(jobs: Job[], state: GameState): void {
         for (let i = jobs.length - 1; i >= 0; i--) {
             const job = jobs[i];
-            const tile = ChunkStore.getTile(chunks, job.targetX, job.targetZ);
+            const tile = ChunkStore.getTile(state.chunks, job.targetX, job.targetZ);
 
             if (!tile) {
                 jobs.splice(i, 1);
@@ -99,9 +100,17 @@ export class JobGenerationSystem extends BaseSimSystem {
             if (job.type === 'BUILD') {
                 if (!tile.isUnderConstruction) valid = false;
             } else if (job.type === 'MINE') {
-                const isGold = tile.foliage === 'GOLD_VEIN' || tile.foliage === 'GOLD_VEIN_VAR';
-                if (!isGold && !isHarvestable(tile.foliage)) valid = false;
-                if (!isGold && !tile.markedForHarvest) valid = false;
+                if (isSubsurfaceDigJob(job)) {
+                    const y = Math.round(Number(job.targetY));
+                    const cell = Number.isFinite(y)
+                        ? getSubsurfaceCell(state.layeredWorld, job.targetX, y, job.targetZ)
+                        : undefined;
+                    valid = Boolean(cell?.mineable && cell?.destructible);
+                } else {
+                    const isGold = tile.foliage === 'GOLD_VEIN' || tile.foliage === 'GOLD_VEIN_VAR';
+                    if (!isGold && !isHarvestable(tile.foliage)) valid = false;
+                    if (!isGold && !tile.markedForHarvest) valid = false;
+                }
             }
 
             if (!valid) {
