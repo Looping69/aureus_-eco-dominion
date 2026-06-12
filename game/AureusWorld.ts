@@ -23,6 +23,7 @@ import {
 import { DungeonMinerSystem } from '../engine/sim/systems/DungeonMinerSystem';
 import { DungeonStabilitySystem } from '../engine/sim/systems/DungeonStabilitySystem';
 import { PersistenceManager } from '../engine/sim/PersistenceManager';
+import { getOpenPitEntryLayer, setActiveSubsurfaceLayer } from '../engine/subsurface/SubsurfaceModel';
 import { GameState, GameStep, BuildingType, SfxType, Action } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import { getBiomeAt } from '../engine/worldgen/Core';
@@ -365,10 +366,10 @@ export class AureusWorld extends BaseWorld {
         this.stateManager.pushCommand('COMMAND_AGENT', { agentId, x, z });
     }
 
-    setInteractionMode(mode: 'BUILD' | 'BULLDOZE' | 'INSPECT'): void {
+    setInteractionMode(mode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'DIG'): void {
         if (mode !== 'BUILD') this.clearInfrastructureLinePreview();
         this.stateManager.update({ interactionMode: mode });
-        this.buildingRenderSystem.setCursorMode(mode);
+        this.buildingRenderSystem.setCursorMode(mode as any);
     }
 
     sellResource(resource: 'minerals' | 'gems' | 'wood' | 'stone'): void { this.economyManager.sellResource(resource); }
@@ -395,6 +396,13 @@ export class AureusWorld extends BaseWorld {
     }
 
     speedUpConstruction(x: number, z: number): void { this.buildingManager.speedUpConstruction(x, z); }
+
+    setLayeredActiveY(y: number): void {
+        const state = this.stateManager.getState();
+        if (!state.layeredWorld?.enabled) return;
+        this.stateManager.mutate('activeView', 'SURFACE');
+        this.stateManager.mutate('layeredWorld', setActiveSubsurfaceLayer(state.layeredWorld, y));
+    }
 
     zoomToAgent(agentId: string): void {
         const agent = this.stateManager.getState().agents.find(a => a.id === agentId);
@@ -638,15 +646,19 @@ export class AureusWorld extends BaseWorld {
 
     toggleViewMode(): void {
         const state = this.stateManager.getState();
-        const accessUnlocked = state.cheatsEnabled || state.underground.unlocked || state.dungeon.unlocked;
-        if (state.activeView === 'SURFACE') {
+        const layeredWorld = state.layeredWorld;
+        if (!layeredWorld?.enabled) return;
+
+        const isBelowSurface = layeredWorld.activeY < layeredWorld.surfaceY;
+        if (!isBelowSurface) {
+            const accessUnlocked = state.cheatsEnabled || state.underground.unlocked || state.dungeon.unlocked;
             if (!accessUnlocked) {
                 state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ERROR });
                 state.newsFeed.push({
-                    id: `dungeon_locked_${Date.now()}`,
+                    id: `subsurface_locked_${Date.now()}`,
                     headline: state.resources.trust < 50
-                        ? 'Below Sector locked. Reach Trust 50 to authorize subsurface operations.'
-                        : 'Below Sector locked. Build a Survey Drill to authorize subsurface operations.',
+                        ? 'Subsurface cut locked. Reach Trust 50 to authorize excavation.'
+                        : 'Subsurface cut locked. Build a Survey Drill to authorize excavation.',
                     type: 'NEGATIVE',
                     timestamp: Date.now(),
                 });
@@ -658,10 +670,16 @@ export class AureusWorld extends BaseWorld {
                 state.dungeon.unlocked = true;
                 this.stateManager.markDirty('underground', 'dungeon');
             }
-            this.stateManager.mutate('activeView', 'DUNGEON');
+
+            this.stateManager.mutate('activeView', 'SURFACE');
+            this.stateManager.mutate('layeredWorld', setActiveSubsurfaceLayer(layeredWorld, getOpenPitEntryLayer(layeredWorld)));
+            this.setInteractionMode('DIG');
             return;
         }
+
         this.stateManager.mutate('activeView', 'SURFACE');
+        this.stateManager.mutate('layeredWorld', setActiveSubsurfaceLayer(layeredWorld, layeredWorld.surfaceY));
+        if (state.interactionMode === 'DIG') this.setInteractionMode('INSPECT');
     }
 
     toggleView(): void { this.toggleViewMode(); }
@@ -679,6 +697,7 @@ export class AureusWorld extends BaseWorld {
             case 'SELECT_AGENT': this.selectAgent(action.payload); break;
             case 'COMMAND_AGENT': this.commandAgent(action.payload.agentId, action.payload.x, action.payload.z); break;
             case 'SET_INTERACTION_MODE': this.setInteractionMode(action.payload as any); break;
+            case 'SET_LAYERED_ACTIVE_Y': this.setLayeredActiveY(action.payload); break;
             case 'SELL_MINERALS': this.sellMinerals(); break;
             case 'SELL_GEMS': this.sellGems(action.payload.address); break;
             case 'SELL_WOOD': this.sellWood(); break;
