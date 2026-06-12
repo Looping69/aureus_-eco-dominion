@@ -1,10 +1,17 @@
-import type { GameState, LayeredWorldState, WorldVoxelCell } from '../../types';
+import { BuildingType, type GameState, type LayeredWorldState, type WorldVoxelCell } from '../../types';
 import { CommandErrorCode, type CommandResult } from '../kernel/Types';
+import { ChunkStore } from '../space/ChunkStore';
+import { CHUNK_SIZE, toChunkKey, worldToChunk } from '../utils/coords';
 
 export const SUBSURFACE_CHUNK_SIZE = 16;
 export const SUBSURFACE_FOUNDATION_VERSION = 1;
 export const SUBSURFACE_OPEN_PIT_ENTRY_DEPTH = 1;
+export const SUBSURFACE_TERRAIN_DROP_PER_LAYER = 1;
 export const SUBSURFACE_DIG_JOB_PREFIX = 'dig_sub';
+
+export type SubsurfaceExcavationOptions = {
+    deformSurface?: boolean;
+};
 
 export function layeredChunkKey(x: number, z: number): string {
     return `${Math.floor(x / SUBSURFACE_CHUNK_SIZE)},${Math.floor(z / SUBSURFACE_CHUNK_SIZE)}`;
@@ -57,6 +64,14 @@ export function validateSubsurfaceDigTarget(state: GameState, x: number, y: numb
         return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target layer is outside the generated world.' };
     }
 
+    const tile = ChunkStore.getTile(state.chunks, x, z);
+    if (!tile) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Surface tile is not loaded.' };
+    }
+    if (tile.buildingType !== BuildingType.EMPTY) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Clear surface buildings before opening a pit here.' };
+    }
+
     const cell = getSubsurfaceCell(layeredWorld, x, y, z);
     if (!cell) {
         return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cell is not generated.' };
@@ -85,6 +100,7 @@ export function queueSubsurfaceExcavationJob(state: GameState, x: number, y: num
         targetX: x,
         targetY: y,
         targetZ: z,
+        context: 'SURFACE_CUT',
         priority: 88,
         assignedAgentId: null,
         progress: 0,
@@ -117,7 +133,40 @@ export function applySubsurfaceYield(state: GameState, yieldResources: Partial<G
     state.resources.agt += yieldResources.agt || 0;
 }
 
-export function excavateSubsurfaceCell(state: GameState, x: number, y: number, z: number): CommandResult {
+export function lowerSurfaceForOpenPit(state: GameState, x: number, z: number): boolean {
+    const tile = ChunkStore.getTile(state.chunks, x, z);
+    if (!tile || tile.buildingType !== BuildingType.EMPTY) return false;
+
+    tile.terrainHeight -= SUBSURFACE_TERRAIN_DROP_PER_LAYER;
+    tile.foliage = 'NONE';
+    tile.markedForHarvest = false;
+    tile.explored = true;
+    tile.revealed = true;
+
+    const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
+    const chunkKey = toChunkKey(cx, cz);
+    const surfaceChunk = state.chunks[chunkKey];
+    if (surfaceChunk) {
+        surfaceChunk.meshDirty = true;
+        surfaceChunk.simDirty = true;
+        surfaceChunk.version = (surfaceChunk.version || 0) + 1;
+        const layeredChunk = state.layeredWorld.chunks[layeredChunkKey(x, z)];
+        if (layeredChunk) {
+            layeredChunk.generatedFromSurfaceVersion = surfaceChunk.version;
+        }
+        state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
+    }
+
+    return true;
+}
+
+export function excavateSubsurfaceCell(
+    state: GameState,
+    x: number,
+    y: number,
+    z: number,
+    options: SubsurfaceExcavationOptions = {},
+): CommandResult {
     const validation = validateSubsurfaceDigTarget(state, x, y, z);
     if (!validation.ok) return validation;
 
@@ -139,6 +188,10 @@ export function excavateSubsurfaceCell(state: GameState, x: number, y: number, z
     layer.dirty = true;
     chunk.dirty = true;
     layeredWorld.renderVersion = (layeredWorld.renderVersion || 0) + 1;
+
+    if (options.deformSurface) {
+        lowerSurfaceForOpenPit(state, x, z);
+    }
 
     return { ok: true };
 }
