@@ -8,6 +8,7 @@ export interface Job {
     type: JobType;
     targetX: number;
     targetZ: number;
+    targetY?: number;
     priority: number; // 1-5
     assignedAgentId: string | null;
     progress?: number;
