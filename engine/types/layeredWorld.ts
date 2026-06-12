@@ -11,6 +11,7 @@ export type WorldVoxelMaterial =
     | 'ORE'
     | 'GEMS'
     | 'AUREUS_VEIN'
+    | 'RUBBLE'
     | 'BEDROCK'
     | 'BUILDING_FOUNDATION';
 
@@ -20,6 +21,7 @@ export type WorldVoxelContents =
     | 'MINE_SHAFT'
     | 'SUPPORT_BEAM'
     | 'TUNNEL'
+    | 'RUBBLE_PILE'
     | 'PIPE'
     | 'POWER_LINE';
 
@@ -36,6 +38,8 @@ export interface WorldVoxelCell {
     stability: number;
     moisture: number;
     resourceAmount?: number;
+    buriedMaterial?: WorldVoxelMaterial;
+    buriedResourceAmount?: number;
     surfaceBuildingType?: BuildingType;
 }
 
@@ -56,6 +60,14 @@ export interface LayeredChunkState {
     generatedFromSurfaceVersion: number;
 }
 
+export interface RubbleDropZone {
+    x: number;
+    y: number;
+    z: number;
+    capacity: number;
+    stored: number;
+}
+
 export interface LayeredWorldState {
     enabled: boolean;
     minY: number;
@@ -64,6 +76,8 @@ export interface LayeredWorldState {
     activeY: number;
     chunks: Record<string, LayeredChunkState>;
     accessPoints: Record<string, { x: number; y: number; z: number; type: 'SURVEY_DRILL' | 'MINE_SHAFT' | 'ELEVATOR' }>;
+    rubbleStockpile?: number;
+    rubbleDropZones?: Record<string, RubbleDropZone>;
     renderVersion: number;
     migrationVersion: number;
 }
