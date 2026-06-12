@@ -6,7 +6,7 @@
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
 import { Contract, GameState, GameCommand, SfxType } from '../../../types';
-import { excavateSubsurfaceCell } from '../../subsurface/SubsurfaceModel';
+import { queueSubsurfaceExcavationJob } from '../../subsurface/SubsurfaceModel';
 
 const CONTRACT_COMPLETION_TTL = 75;
 const CONTRACT_WORK_SECONDS = 300;
@@ -96,7 +96,7 @@ export class CommandDispatcher extends BaseSimSystem {
             return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Dig target must include x, y, and z.' };
         }
 
-        return excavateSubsurfaceCell(state, x, y, z);
+        return queueSubsurfaceExcavationJob(state, x, y, z);
     }
 
     private acceptContract(cmd: GameCommand, state: GameState): CommandResult {
