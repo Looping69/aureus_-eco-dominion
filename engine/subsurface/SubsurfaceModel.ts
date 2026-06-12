@@ -183,31 +183,49 @@ export function applySubsurfaceYield(state: GameState, yieldResources: Partial<G
     state.resources.agt += yieldResources.agt || 0;
 }
 
+function refreshSurfaceTile(state: GameState, x: number, z: number): void {
+    const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
+    const chunkKey = toChunkKey(cx, cz);
+    const surfaceChunk = state.chunks[chunkKey];
+    const tile = ChunkStore.getTile(state.chunks, x, z);
+    if (!surfaceChunk || !tile) return;
+
+    surfaceChunk.meshDirty = true;
+    surfaceChunk.simDirty = true;
+    surfaceChunk.version = (surfaceChunk.version || 0) + 1;
+    const layeredChunk = state.layeredWorld.chunks[layeredChunkKey(x, z)];
+    if (layeredChunk) {
+        layeredChunk.generatedFromSurfaceVersion = surfaceChunk.version;
+    }
+    state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
+}
+
 export function lowerSurfaceForOpenPit(state: GameState, x: number, z: number): boolean {
     const tile = ChunkStore.getTile(state.chunks, x, z);
     if (!tile || tile.buildingType !== BuildingType.EMPTY) return false;
 
     tile.terrainHeight -= SUBSURFACE_TERRAIN_DROP_PER_LAYER;
-    tile.foliage = 'NONE';
     tile.markedForHarvest = false;
     tile.explored = true;
     tile.revealed = true;
-
-    const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
-    const chunkKey = toChunkKey(cx, cz);
-    const surfaceChunk = state.chunks[chunkKey];
-    if (surfaceChunk) {
-        surfaceChunk.meshDirty = true;
-        surfaceChunk.simDirty = true;
-        surfaceChunk.version = (surfaceChunk.version || 0) + 1;
-        const layeredChunk = state.layeredWorld.chunks[layeredChunkKey(x, z)];
-        if (layeredChunk) {
-            layeredChunk.generatedFromSurfaceVersion = surfaceChunk.version;
-        }
-        state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
-    }
+    refreshSurfaceTile(state, x, z);
 
     return true;
+}
+
+function markSurfaceRubble(state: GameState, x: number, z: number): void {
+    const tile = ChunkStore.getTile(state.chunks, x, z);
+    if (!tile || tile.buildingType !== BuildingType.EMPTY) return;
+    tile.foliage = 'ROCK_PEBBLE';
+    tile.markedForHarvest = false;
+    refreshSurfaceTile(state, x, z);
+}
+
+function clearSurfaceRubble(state: GameState, x: number, z: number): void {
+    const tile = ChunkStore.getTile(state.chunks, x, z);
+    if (!tile || tile.foliage !== 'ROCK_PEBBLE') return;
+    tile.foliage = 'NONE';
+    refreshSurfaceTile(state, x, z);
 }
 
 function markSubsurfaceDirty(layeredWorld: LayeredWorldState, x: number, y: number, z: number): void {
@@ -233,6 +251,7 @@ function breakSubsurfaceCellIntoRubble(state: GameState, cell: WorldVoxelCell, o
 
     if (options.deformSurface) {
         lowerSurfaceForOpenPit(state, cell.x, cell.z);
+        markSurfaceRubble(state, cell.x, cell.z);
     }
 
     return { ok: true };
@@ -263,6 +282,7 @@ function clearRubbleCell(state: GameState, cell: WorldVoxelCell): CommandResult 
     cell.buriedResourceAmount = undefined;
     cell.stability = Math.max(5, Number(cell.stability || 100) - 6);
     markSubsurfaceDirty(state.layeredWorld, cell.x, cell.y, cell.z);
+    clearSurfaceRubble(state, cell.x, cell.z);
 
     return { ok: true };
 }
@@ -326,6 +346,7 @@ export function fillSubsurfaceCellWithRubble(state: GameState, x: number, y: num
     cell.buriedMaterial = undefined;
     cell.buriedResourceAmount = undefined;
     markSubsurfaceDirty(layeredWorld, x, y, z);
+    markSurfaceRubble(state, x, z);
     return { ok: true };
 }
 
