@@ -1,4 +1,4 @@
-import { BuildingType, type GameState, type LayeredWorldState, type WorldVoxelCell, type WorldVoxelMaterial } from '../../types';
+import { BuildingType, type GameState, type GridTile, type LayeredWorldState, type WorldVoxelCell, type WorldVoxelMaterial } from '../../types';
 import { CommandErrorCode, type CommandResult } from '../kernel/Types';
 import { ChunkStore } from '../space/ChunkStore';
 import { CHUNK_SIZE, toChunkKey, worldToChunk } from '../utils/coords';
@@ -6,10 +6,12 @@ import { CHUNK_SIZE, toChunkKey, worldToChunk } from '../utils/coords';
 export const SUBSURFACE_CHUNK_SIZE = 16;
 export const SUBSURFACE_FOUNDATION_VERSION = 1;
 export const SUBSURFACE_OPEN_PIT_ENTRY_DEPTH = 1;
+export const SUBSURFACE_MAX_OPEN_PIT_DEPTH = 2;
 export const SUBSURFACE_TERRAIN_DROP_PER_LAYER = 1;
 export const SUBSURFACE_RUBBLE_PER_BLOCK = 1;
 export const SUBSURFACE_RUBBLE_DUMP_CAPACITY = 24;
 export const SUBSURFACE_DIG_JOB_PREFIX = 'dig_sub';
+export const SUBSURFACE_CLEAR_RUBBLE_JOB_PREFIX = 'clear_sub';
 
 const CARDINAL_NEIGHBORS = [
     { dx: 1, dz: 0 },
@@ -46,8 +48,12 @@ export function subsurfaceDigJobId(x: number, y: number, z: number): string {
     return `${SUBSURFACE_DIG_JOB_PREFIX}_${x}_${y}_${z}`;
 }
 
+export function subsurfaceClearRubbleJobId(x: number, y: number, z: number): string {
+    return `${SUBSURFACE_CLEAR_RUBBLE_JOB_PREFIX}_${x}_${y}_${z}`;
+}
+
 export function isSubsurfaceDigJob(job: { id?: string; targetY?: number }): boolean {
-    return Boolean(job.id?.startsWith(`${SUBSURFACE_DIG_JOB_PREFIX}_`) || Number.isFinite(job.targetY));
+    return Boolean(job.id?.startsWith(`${SUBSURFACE_DIG_JOB_PREFIX}_`) || job.id?.startsWith(`${SUBSURFACE_CLEAR_RUBBLE_JOB_PREFIX}_`) || Number.isFinite(job.targetY));
 }
 
 export function isSubsurfaceLayer(layeredWorld: LayeredWorldState, y: number): boolean {
@@ -118,6 +124,14 @@ function consumeRubble(layeredWorld: LayeredWorldState, amount: number = SUBSURF
     return true;
 }
 
+function ensureOpenPitMetrics(tile: GridTile): { baseHeight: number; depth: number } {
+    const existingDepth = Math.max(0, Math.min(SUBSURFACE_MAX_OPEN_PIT_DEPTH, Math.round(tile.openPitDepth ?? 0)));
+    const baseHeight = tile.openPitBaseHeight ?? tile.terrainHeight + (existingDepth * SUBSURFACE_TERRAIN_DROP_PER_LAYER);
+    tile.openPitBaseHeight = baseHeight;
+    tile.openPitDepth = existingDepth;
+    return { baseHeight, depth: existingDepth };
+}
+
 export function validateSubsurfaceDigTarget(state: GameState, x: number, y: number, z: number): CommandResult {
     const layeredWorld = state.layeredWorld;
     if (!layeredWorld?.enabled) {
@@ -125,6 +139,9 @@ export function validateSubsurfaceDigTarget(state: GameState, x: number, y: numb
     }
     if (y >= layeredWorld.surfaceY) {
         return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Use surface tools above ground.' };
+    }
+    if (y < layeredWorld.surfaceY - SUBSURFACE_MAX_OPEN_PIT_DEPTH) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Open-pit cuts are limited to 2 levels. Build a shaft for deeper mining.' };
     }
     if (!isSubsurfaceLayer(layeredWorld, y)) {
         return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target layer is outside the generated world.' };
@@ -137,16 +154,42 @@ export function validateSubsurfaceDigTarget(state: GameState, x: number, y: numb
     if (tile.buildingType !== BuildingType.EMPTY) {
         return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Clear surface buildings before opening a pit here.' };
     }
+    if ((tile.openPitDepth ?? 0) >= SUBSURFACE_MAX_OPEN_PIT_DEPTH && y <= layeredWorld.surfaceY - SUBSURFACE_MAX_OPEN_PIT_DEPTH) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'This open pit is already at the 2-level safety limit.' };
+    }
 
     const cell = getSubsurfaceCell(layeredWorld, x, y, z);
     if (!cell) {
         return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cell is not generated.' };
     }
-    if (cell.material === 'RUBBLE' && !hasRubbleDropCapacity(layeredWorld)) {
-        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Designate a rubble dump with free space before clearing this pile.' };
+    if (cell.material === 'RUBBLE') {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Clear rubble before digging deeper.' };
     }
     if (!cell.mineable || !cell.destructible) {
         return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `${cell.material} cannot be excavated here.` };
+    }
+
+    return { ok: true };
+}
+
+export function validateSubsurfaceRubbleClearTarget(state: GameState, x: number, y: number, z: number): CommandResult {
+    const layeredWorld = state.layeredWorld;
+    if (!layeredWorld?.enabled) {
+        return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: 'Layered world is disabled.' };
+    }
+    if (!isSubsurfaceLayer(layeredWorld, y)) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target layer is outside the generated world.' };
+    }
+
+    const cell = getSubsurfaceCell(layeredWorld, x, y, z);
+    if (!cell) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cell is not generated.' };
+    }
+    if (cell.material !== 'RUBBLE') {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Only rubble piles can be cleared.' };
+    }
+    if (!hasRubbleDropCapacity(layeredWorld)) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Designate a rubble dump with free space before clearing this pile.' };
     }
 
     return { ok: true };
@@ -171,6 +214,32 @@ export function queueSubsurfaceExcavationJob(state: GameState, x: number, y: num
         targetZ: z,
         context: 'SURFACE_CUT',
         priority: 88,
+        assignedAgentId: null,
+        progress: 0,
+    });
+
+    return { ok: true };
+}
+
+export function queueSubsurfaceRubbleClearJob(state: GameState, x: number, y: number, z: number): CommandResult {
+    const validation = validateSubsurfaceRubbleClearTarget(state, x, y, z);
+    if (!validation.ok) return validation;
+
+    const id = subsurfaceClearRubbleJobId(x, y, z);
+    const existing = state.jobs.find(job => job.id === id);
+    if (existing) {
+        existing.priority = Math.max(existing.priority, 86);
+        return { ok: true };
+    }
+
+    state.jobs.push({
+        id,
+        type: 'MINE',
+        targetX: x,
+        targetY: y,
+        targetZ: z,
+        context: 'SURFACE_CUT',
+        priority: 86,
         assignedAgentId: null,
         progress: 0,
     });
@@ -203,7 +272,7 @@ export function applySubsurfaceYield(state: GameState, yieldResources: Partial<G
 }
 
 function refreshSurfaceTiles(state: GameState, coords: Array<{ x: number; z: number }>): void {
-    const updatesByChunk = new Map<string, { cx: number; cz: number; updates: NonNullable<GameState['pendingEffects']>[number][] }>();
+    const updatesByChunk = new Map<string, { cx: number; cz: number; updates: GridTile[] }>();
     const included = new Set<string>();
 
     for (const coord of coords) {
@@ -232,12 +301,12 @@ function refreshSurfaceTiles(state: GameState, coords: Array<{ x: number; z: num
             if (!updatesByChunk.has(chunkKey)) {
                 updatesByChunk.set(chunkKey, { cx, cz, updates: [] });
             }
-            updatesByChunk.get(chunkKey)!.updates.push(tile as any);
+            updatesByChunk.get(chunkKey)!.updates.push(tile);
         }
     }
 
     for (const { cx, cz, updates } of updatesByChunk.values()) {
-        state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: updates as any });
+        state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates });
     }
 }
 
@@ -247,7 +316,7 @@ function refreshSurfaceTile(state: GameState, x: number, z: number): void {
 
 function isOpenPitSurfaceTile(state: GameState, x: number, z: number): boolean {
     const tile = ChunkStore.getTile(state.chunks, x, z);
-    return Boolean(tile && tile.buildingType === BuildingType.EMPTY && tile.foliage === 'ROCK_PEBBLE');
+    return Boolean(tile && tile.buildingType === BuildingType.EMPTY && (tile.foliage === 'ROCK_PEBBLE' || (tile.openPitDepth ?? 0) > 0));
 }
 
 function collectConnectedOpenPit(state: GameState, x: number, z: number): Array<{ x: number; z: number }> {
@@ -282,17 +351,22 @@ function syncConnectedOpenPit(state: GameState, x: number, z: number): void {
     const connected = collectConnectedOpenPit(state, x, z);
     if (connected.length === 0) return;
 
-    let targetHeight = Infinity;
+    let targetDepth = 0;
     for (const coord of connected) {
         const tile = ChunkStore.getTile(state.chunks, coord.x, coord.z);
-        if (tile) targetHeight = Math.min(targetHeight, tile.terrainHeight);
+        if (tile) {
+            const { depth } = ensureOpenPitMetrics(tile);
+            targetDepth = Math.max(targetDepth, depth);
+        }
     }
-    if (!Number.isFinite(targetHeight)) return;
+    targetDepth = Math.min(SUBSURFACE_MAX_OPEN_PIT_DEPTH, targetDepth);
 
     for (const coord of connected) {
         const tile = ChunkStore.getTile(state.chunks, coord.x, coord.z);
         if (tile && tile.buildingType === BuildingType.EMPTY) {
-            tile.terrainHeight = targetHeight;
+            const { baseHeight } = ensureOpenPitMetrics(tile);
+            tile.openPitDepth = targetDepth;
+            tile.terrainHeight = baseHeight - (targetDepth * SUBSURFACE_TERRAIN_DROP_PER_LAYER);
             tile.explored = true;
             tile.revealed = true;
         }
@@ -305,7 +379,13 @@ export function lowerSurfaceForOpenPit(state: GameState, x: number, z: number): 
     const tile = ChunkStore.getTile(state.chunks, x, z);
     if (!tile || tile.buildingType !== BuildingType.EMPTY) return false;
 
-    tile.terrainHeight -= SUBSURFACE_TERRAIN_DROP_PER_LAYER;
+    const { baseHeight, depth } = ensureOpenPitMetrics(tile);
+    if (depth >= SUBSURFACE_MAX_OPEN_PIT_DEPTH) return false;
+
+    const nextDepth = Math.min(SUBSURFACE_MAX_OPEN_PIT_DEPTH, depth + 1);
+    tile.openPitBaseHeight = baseHeight;
+    tile.openPitDepth = nextDepth;
+    tile.terrainHeight = baseHeight - (nextDepth * SUBSURFACE_TERRAIN_DROP_PER_LAYER);
     tile.markedForHarvest = false;
     tile.explored = true;
     tile.revealed = true;
@@ -359,6 +439,9 @@ function breakSubsurfaceCellIntoRubble(state: GameState, cell: WorldVoxelCell, o
 }
 
 function clearRubbleCell(state: GameState, cell: WorldVoxelCell): CommandResult {
+    const validation = validateSubsurfaceRubbleClearTarget(state, cell.x, cell.y, cell.z);
+    if (!validation.ok) return validation;
+
     if (!depositRubble(state.layeredWorld, SUBSURFACE_RUBBLE_PER_BLOCK)) {
         return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Designate a rubble dump with free space before clearing this pile.' };
     }
@@ -458,17 +541,22 @@ export function excavateSubsurfaceCell(
     z: number,
     options: SubsurfaceExcavationOptions = {},
 ): CommandResult {
-    const validation = validateSubsurfaceDigTarget(state, x, y, z);
-    if (!validation.ok) return validation;
-
     const layeredWorld = state.layeredWorld;
-    const chunk = layeredWorld.chunks[layeredChunkKey(x, z)];
-    const layer = chunk.layers[y];
-    const cell = layer.cells[layeredCellKey(x, y, z)];
+    if (!layeredWorld?.enabled) {
+        return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: 'Layered world is disabled.' };
+    }
+
+    const cell = getSubsurfaceCell(layeredWorld, x, y, z);
+    if (!cell) {
+        return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cell is not generated.' };
+    }
 
     if (cell.material === 'RUBBLE') {
         return clearRubbleCell(state, cell);
     }
+
+    const validation = validateSubsurfaceDigTarget(state, x, y, z);
+    if (!validation.ok) return validation;
 
     return breakSubsurfaceCellIntoRubble(state, cell, options);
 }
