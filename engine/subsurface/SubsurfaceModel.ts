@@ -11,6 +11,25 @@ export const SUBSURFACE_RUBBLE_PER_BLOCK = 1;
 export const SUBSURFACE_RUBBLE_DUMP_CAPACITY = 24;
 export const SUBSURFACE_DIG_JOB_PREFIX = 'dig_sub';
 
+const CARDINAL_NEIGHBORS = [
+    { dx: 1, dz: 0 },
+    { dx: -1, dz: 0 },
+    { dx: 0, dz: 1 },
+    { dx: 0, dz: -1 },
+];
+
+const SURFACE_REFRESH_NEIGHBORS = [
+    { dx: 0, dz: 0 },
+    { dx: 1, dz: 0 },
+    { dx: -1, dz: 0 },
+    { dx: 0, dz: 1 },
+    { dx: 0, dz: -1 },
+    { dx: 1, dz: 1 },
+    { dx: 1, dz: -1 },
+    { dx: -1, dz: 1 },
+    { dx: -1, dz: -1 },
+];
+
 export type SubsurfaceExcavationOptions = {
     deformSurface?: boolean;
 };
@@ -183,21 +202,103 @@ export function applySubsurfaceYield(state: GameState, yieldResources: Partial<G
     state.resources.agt += yieldResources.agt || 0;
 }
 
-function refreshSurfaceTile(state: GameState, x: number, z: number): void {
-    const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
-    const chunkKey = toChunkKey(cx, cz);
-    const surfaceChunk = state.chunks[chunkKey];
-    const tile = ChunkStore.getTile(state.chunks, x, z);
-    if (!surfaceChunk || !tile) return;
+function refreshSurfaceTiles(state: GameState, coords: Array<{ x: number; z: number }>): void {
+    const updatesByChunk = new Map<string, { cx: number; cz: number; updates: NonNullable<GameState['pendingEffects']>[number][] }>();
+    const included = new Set<string>();
 
-    surfaceChunk.meshDirty = true;
-    surfaceChunk.simDirty = true;
-    surfaceChunk.version = (surfaceChunk.version || 0) + 1;
-    const layeredChunk = state.layeredWorld.chunks[layeredChunkKey(x, z)];
-    if (layeredChunk) {
-        layeredChunk.generatedFromSurfaceVersion = surfaceChunk.version;
+    for (const coord of coords) {
+        for (const offset of SURFACE_REFRESH_NEIGHBORS) {
+            const x = coord.x + offset.dx;
+            const z = coord.z + offset.dz;
+            const key = `${x},${z}`;
+            if (included.has(key)) continue;
+            included.add(key);
+
+            const tile = ChunkStore.getTile(state.chunks, x, z);
+            if (!tile) continue;
+            const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
+            const chunkKey = toChunkKey(cx, cz);
+            const surfaceChunk = state.chunks[chunkKey];
+            if (!surfaceChunk) continue;
+
+            surfaceChunk.meshDirty = true;
+            surfaceChunk.simDirty = true;
+            surfaceChunk.version = (surfaceChunk.version || 0) + 1;
+            const layeredChunk = state.layeredWorld.chunks[layeredChunkKey(x, z)];
+            if (layeredChunk) {
+                layeredChunk.generatedFromSurfaceVersion = surfaceChunk.version;
+            }
+
+            if (!updatesByChunk.has(chunkKey)) {
+                updatesByChunk.set(chunkKey, { cx, cz, updates: [] });
+            }
+            updatesByChunk.get(chunkKey)!.updates.push(tile as any);
+        }
     }
-    state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
+
+    for (const { cx, cz, updates } of updatesByChunk.values()) {
+        state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: updates as any });
+    }
+}
+
+function refreshSurfaceTile(state: GameState, x: number, z: number): void {
+    refreshSurfaceTiles(state, [{ x, z }]);
+}
+
+function isOpenPitSurfaceTile(state: GameState, x: number, z: number): boolean {
+    const tile = ChunkStore.getTile(state.chunks, x, z);
+    return Boolean(tile && tile.buildingType === BuildingType.EMPTY && tile.foliage === 'ROCK_PEBBLE');
+}
+
+function collectConnectedOpenPit(state: GameState, x: number, z: number): Array<{ x: number; z: number }> {
+    const result: Array<{ x: number; z: number }> = [];
+    const queue = [{ x, z }];
+    const seen = new Set<string>();
+
+    while (queue.length > 0) {
+        const current = queue.shift()!;
+        const key = `${current.x},${current.z}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const isSeed = current.x === x && current.z === z;
+        if (!isSeed && !isOpenPitSurfaceTile(state, current.x, current.z)) continue;
+        result.push(current);
+
+        for (const offset of CARDINAL_NEIGHBORS) {
+            const nx = current.x + offset.dx;
+            const nz = current.z + offset.dz;
+            const nKey = `${nx},${nz}`;
+            if (!seen.has(nKey) && isOpenPitSurfaceTile(state, nx, nz)) {
+                queue.push({ x: nx, z: nz });
+            }
+        }
+    }
+
+    return result;
+}
+
+function syncConnectedOpenPit(state: GameState, x: number, z: number): void {
+    const connected = collectConnectedOpenPit(state, x, z);
+    if (connected.length === 0) return;
+
+    let targetHeight = Infinity;
+    for (const coord of connected) {
+        const tile = ChunkStore.getTile(state.chunks, coord.x, coord.z);
+        if (tile) targetHeight = Math.min(targetHeight, tile.terrainHeight);
+    }
+    if (!Number.isFinite(targetHeight)) return;
+
+    for (const coord of connected) {
+        const tile = ChunkStore.getTile(state.chunks, coord.x, coord.z);
+        if (tile && tile.buildingType === BuildingType.EMPTY) {
+            tile.terrainHeight = targetHeight;
+            tile.explored = true;
+            tile.revealed = true;
+        }
+    }
+
+    refreshSurfaceTiles(state, connected);
 }
 
 export function lowerSurfaceForOpenPit(state: GameState, x: number, z: number): boolean {
@@ -218,7 +319,7 @@ function markSurfaceRubble(state: GameState, x: number, z: number): void {
     if (!tile || tile.buildingType !== BuildingType.EMPTY) return;
     tile.foliage = 'ROCK_PEBBLE';
     tile.markedForHarvest = false;
-    refreshSurfaceTile(state, x, z);
+    syncConnectedOpenPit(state, x, z);
 }
 
 function clearSurfaceRubble(state: GameState, x: number, z: number): void {
