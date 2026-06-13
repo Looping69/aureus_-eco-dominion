@@ -5,6 +5,7 @@ import test from 'node:test';
 
 const root = process.cwd();
 const agentsTypesPath = path.join(root, 'engine', 'types', 'agents.ts');
+const worldTypesPath = path.join(root, 'engine', 'types', 'world.ts');
 const layeredWorldTypesPath = path.join(root, 'engine', 'types', 'layeredWorld.ts');
 const layeredWorldGeneratorPath = path.join(root, 'engine', 'worldgen', 'LayeredWorldGenerator.ts');
 const subsurfaceModelPath = path.join(root, 'engine', 'subsurface', 'SubsurfaceModel.ts');
@@ -13,6 +14,7 @@ const jobGenerationPath = path.join(root, 'engine', 'sim', 'systems', 'JobGenera
 const agentSystemPath = path.join(root, 'engine', 'sim', 'systems', 'AgentSystem.ts');
 const controlsPath = path.join(root, 'components', 'Controls.tsx');
 const aureusWorldPath = path.join(root, 'game', 'AureusWorld.ts');
+const interactionPath = path.join(root, 'game', 'world', 'interaction.ts');
 const renderFramePath = path.join(root, 'game', 'world', 'renderFrame.ts');
 const planPath = path.join(root, 'docs', 'subsurface-reset-plan.md');
 
@@ -45,6 +47,17 @@ test('layered world generation supports deeper migrated subsurface chunks and pr
   assert.doesNotMatch(text, /existingChunk\.generatedFromSurfaceVersion !== surfaceVersion/);
 });
 
+test('surface tile types track open-pit depth separately from terrain height', () => {
+  const text = source(worldTypesPath);
+
+  for (const snippet of [
+    'openPitBaseHeight?: number;',
+    'openPitDepth?: number;',
+  ]) {
+    assertSnippet(text, snippet);
+  }
+});
+
 test('layered world types include rubble piles, buried yield, and dump zones', () => {
   const text = source(layeredWorldTypesPath);
 
@@ -69,11 +82,13 @@ test('subsurface model is the canonical excavation and job helper', () => {
   for (const snippet of [
     'export const SUBSURFACE_FOUNDATION_VERSION = 1;',
     "export const SUBSURFACE_DIG_JOB_PREFIX = 'dig_sub';",
+    "export const SUBSURFACE_CLEAR_RUBBLE_JOB_PREFIX = 'clear_sub';",
     'export function layeredChunkKey',
     'export function layeredCellKey',
     'export function getOpenPitEntryLayer',
     'export function setActiveSubsurfaceLayer',
     'export function queueSubsurfaceExcavationJob',
+    'export function queueSubsurfaceRubbleClearJob',
     'export function excavateSubsurfaceCell',
     "type: 'MINE',",
     'targetY: y,',
@@ -83,30 +98,55 @@ test('subsurface model is the canonical excavation and job helper', () => {
   }
 });
 
-test('surface-cut excavation lowers and refreshes connected surface tiles', () => {
+test('surface-cut excavation lowers connected pits with a two-level cap', () => {
   const text = source(subsurfaceModelPath);
 
   for (const snippet of [
+    'export const SUBSURFACE_MAX_OPEN_PIT_DEPTH = 2;',
     'export const SUBSURFACE_TERRAIN_DROP_PER_LAYER = 1;',
     'const CARDINAL_NEIGHBORS = [',
     'const SURFACE_REFRESH_NEIGHBORS = [',
+    'function ensureOpenPitMetrics',
     'export function lowerSurfaceForOpenPit',
-    'tile.terrainHeight -= SUBSURFACE_TERRAIN_DROP_PER_LAYER;',
+    'if (depth >= SUBSURFACE_MAX_OPEN_PIT_DEPTH) return false;',
+    'tile.openPitDepth = nextDepth;',
+    'tile.terrainHeight = baseHeight - (nextDepth * SUBSURFACE_TERRAIN_DROP_PER_LAYER);',
     'function refreshSurfaceTiles',
     'function refreshSurfaceTile',
     'surfaceChunk.meshDirty = true;',
     'surfaceChunk.simDirty = true;',
     'surfaceChunk.version = (surfaceChunk.version || 0) + 1;',
-    "state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: updates as any });",
+    "state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates });",
     'function collectConnectedOpenPit',
     'function syncConnectedOpenPit',
-    'tile.terrainHeight = targetHeight;',
+    'targetDepth = Math.min(SUBSURFACE_MAX_OPEN_PIT_DEPTH, targetDepth);',
+    'tile.openPitDepth = targetDepth;',
+    'tile.terrainHeight = baseHeight - (targetDepth * SUBSURFACE_TERRAIN_DROP_PER_LAYER);',
     'refreshSurfaceTiles(state, connected);',
     'if (options.deformSurface) {',
     'lowerSurfaceForOpenPit(state, cell.x, cell.z);',
   ]) {
     assertSnippet(text, snippet);
   }
+
+  assert.doesNotMatch(text, /tile\.terrainHeight -= SUBSURFACE_TERRAIN_DROP_PER_LAYER;/);
+  assert.doesNotMatch(text, /tile\.terrainHeight = targetHeight;/);
+});
+
+test('digging is blocked below the open-pit cap and cannot dig rubble piles', () => {
+  const text = source(subsurfaceModelPath);
+
+  for (const snippet of [
+    'if (y < layeredWorld.surfaceY - SUBSURFACE_MAX_OPEN_PIT_DEPTH) {',
+    'Open-pit cuts are limited to 2 levels. Build a shaft for deeper mining.',
+    'This open pit is already at the 2-level safety limit.',
+    "if (cell.material === 'RUBBLE') {",
+    'Clear rubble before digging deeper.',
+  ]) {
+    assertSnippet(text, snippet);
+  }
+
+  assert.doesNotMatch(text, /cell\.material === 'RUBBLE' && !hasRubbleDropCapacity/);
 });
 
 test('excavation creates visible rubble first, then rubble clearing opens tunnel and pays buried yield', () => {
@@ -127,6 +167,7 @@ test('excavation creates visible rubble first, then rubble clearing opens tunnel
     "cell.contents = 'RUBBLE_PILE';",
     'markSurfaceRubble(state, cell.x, cell.z);',
     'function clearRubbleCell',
+    'const validation = validateSubsurfaceRubbleClearTarget(state, cell.x, cell.y, cell.z);',
     'if (!depositRubble(state.layeredWorld, SUBSURFACE_RUBBLE_PER_BLOCK))',
     'applySubsurfaceYield(state, getSubsurfaceResourceYield({',
     "cell.material = 'AIR';",
@@ -138,11 +179,15 @@ test('excavation creates visible rubble first, then rubble clearing opens tunnel
   }
 });
 
-test('rubble dumps and fill commands use stored rubble as the only fill source', () => {
+test('rubble clearing and fill commands use stored rubble deliberately', () => {
   const modelText = source(subsurfaceModelPath);
   const commandText = source(commandDispatcherPath);
 
   for (const snippet of [
+    'export function validateSubsurfaceRubbleClearTarget',
+    "if (cell.material !== 'RUBBLE')",
+    'Only rubble piles can be cleared.',
+    'export function queueSubsurfaceRubbleClearJob',
     'export function designateRubbleDropZone',
     'Rubble dumps need an open excavated cell.',
     'export function fillSubsurfaceCellWithRubble',
@@ -154,15 +199,31 @@ test('rubble dumps and fill commands use stored rubble as the only fill source',
   }
 
   for (const snippet of [
-    'designateRubbleDropZone, fillSubsurfaceCellWithRubble, queueSubsurfaceExcavationJob',
+    'queueSubsurfaceExcavationJob, queueSubsurfaceRubbleClearJob',
+    "commandType === 'CLEAR_RUBBLE'",
     "commandType === 'DESIGNATE_RUBBLE_DUMP'",
     "commandType === 'FILL_VOXEL'",
+    'return queueSubsurfaceRubbleClearJob(state, target.x, target.y, target.z);',
     'return designateRubbleDropZone(state, target.x, target.y, target.z);',
     'return fillSubsurfaceCellWithRubble(state, target.x, target.y, target.z);',
+    "'CLEAR_RUBBLE'",
     "'DESIGNATE_RUBBLE_DUMP'",
     "'FILL_VOXEL'",
   ]) {
     assertSnippet(commandText, snippet);
+  }
+});
+
+test('rubble clicks route to clear jobs instead of dig jobs', () => {
+  const text = source(interactionPath);
+
+  for (const snippet of [
+    "import { getSubsurfaceCell } from '../../engine/subsurface/SubsurfaceModel';",
+    'const cell = getSubsurfaceCell(layeredWorld, x, activeY, z);',
+    "const command = cell?.material === 'RUBBLE' ? 'CLEAR_RUBBLE' : 'DIG_VOXEL';",
+    'deps.stateManager.pushCommand(command, { x, y: activeY, z });',
+  ]) {
+    assertSnippet(text, snippet);
   }
 });
 
