@@ -233,7 +233,13 @@ function processPendingEffects(state: any, affectedBuildingChunks: Set<string>, 
         } else if (effect.type === 'FX') {
             deps.buildingRenderSystem.triggerEffect(effect.x, effect.z, effect.fxType, 0);
         } else if (effect.type === 'CHUNK_UPDATE') {
-            const affectedChunks = deps.terrainRenderSystem.updateChunk(effect.cx, effect.cz, effect.updates);
+            let affectedChunks: string[] = [];
+            if (typeof deps.terrainRenderSystem.updateChunk === 'function') {
+                affectedChunks = deps.terrainRenderSystem.updateChunk(effect.cx, effect.cz, effect.updates) || [];
+            } else if (typeof deps.terrainRenderSystem.updateTiles === 'function') {
+                deps.terrainRenderSystem.updateTiles(effect.updates);
+                affectedChunks = [`${effect.cx},${effect.cz}`];
+            }
             affectedChunks.forEach((key: string) => affectedBuildingChunks.add(key));
 
             const key = `${effect.cx},${effect.cz}`;
