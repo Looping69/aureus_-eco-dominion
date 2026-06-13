@@ -83,21 +83,25 @@ test('subsurface model is the canonical excavation and job helper', () => {
   }
 });
 
-test('surface-cut excavation lowers and refreshes the surface tile', () => {
+test('surface-cut excavation lowers and refreshes connected surface tiles', () => {
   const text = source(subsurfaceModelPath);
 
   for (const snippet of [
     'export const SUBSURFACE_TERRAIN_DROP_PER_LAYER = 1;',
-    'export type SubsurfaceExcavationOptions = {',
-    'deformSurface?: boolean;',
+    'const CARDINAL_NEIGHBORS = [',
+    'const SURFACE_REFRESH_NEIGHBORS = [',
     'export function lowerSurfaceForOpenPit',
     'tile.terrainHeight -= SUBSURFACE_TERRAIN_DROP_PER_LAYER;',
+    'function refreshSurfaceTiles',
     'function refreshSurfaceTile',
     'surfaceChunk.meshDirty = true;',
     'surfaceChunk.simDirty = true;',
     'surfaceChunk.version = (surfaceChunk.version || 0) + 1;',
-    'layeredChunk.generatedFromSurfaceVersion = surfaceChunk.version;',
-    "state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });",
+    "state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: updates as any });",
+    'function collectConnectedOpenPit',
+    'function syncConnectedOpenPit',
+    'tile.terrainHeight = targetHeight;',
+    'refreshSurfaceTiles(state, connected);',
     'if (options.deformSurface) {',
     'lowerSurfaceForOpenPit(state, cell.x, cell.z);',
   ]) {
@@ -113,6 +117,7 @@ test('excavation creates visible rubble first, then rubble clearing opens tunnel
     'export const SUBSURFACE_RUBBLE_DUMP_CAPACITY = 24;',
     'function markSurfaceRubble',
     "tile.foliage = 'ROCK_PEBBLE';",
+    'syncConnectedOpenPit(state, x, z);',
     'function clearSurfaceRubble',
     "tile.foliage = 'NONE';",
     'function breakSubsurfaceCellIntoRubble',
@@ -246,6 +251,20 @@ test('surface layer overlay highlights the hovered subsurface cell and rubble pi
     "if (cell.material === 'RUBBLE' || cell.contents === 'RUBBLE_PILE') return this.color.set('#9a6b3d');",
     'const hoverCell = cursor ? { x: Math.round(cursor.x), z: Math.round(cursor.z) } : null;',
     'getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight, hoverCell);',
+  ]) {
+    assertSnippet(text, snippet);
+  }
+});
+
+test('terrain refresh effects support both terrain renderer APIs', () => {
+  const text = source(renderFramePath);
+
+  for (const snippet of [
+    "if (typeof deps.terrainRenderSystem.updateChunk === 'function') {",
+    'affectedChunks = deps.terrainRenderSystem.updateChunk(effect.cx, effect.cz, effect.updates) || [];',
+    "} else if (typeof deps.terrainRenderSystem.updateTiles === 'function') {",
+    'deps.terrainRenderSystem.updateTiles(effect.updates);',
+    'affectedChunks = [`${effect.cx},${effect.cz}`];',
   ]) {
     assertSnippet(text, snippet);
   }
