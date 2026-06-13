@@ -1,5 +1,6 @@
 import { BuildingType } from '../../types';
 import { ChunkStore } from '../../engine/space/ChunkStore';
+import { getSubsurfaceCell } from '../../engine/subsurface/SubsurfaceModel';
 import { isHarvestable } from '../../engine/utils/GameUtils';
 
 export type SurfaceInteractionType = 'click' | 'right-click' | 'hover';
@@ -69,7 +70,9 @@ export function handleSurfaceInteraction(
         const activeY = layeredWorld.activeY < layeredWorld.surfaceY
             ? layeredWorld.activeY
             : layeredWorld.surfaceY - 1;
-        deps.stateManager.pushCommand('DIG_VOXEL', { x, y: activeY, z });
+        const cell = getSubsurfaceCell(layeredWorld, x, activeY, z);
+        const command = cell?.material === 'RUBBLE' ? 'CLEAR_RUBBLE' : 'DIG_VOXEL';
+        deps.stateManager.pushCommand(command, { x, y: activeY, z });
         deps.config.onTileClick?.(x, z, isTouch);
         return;
     }
