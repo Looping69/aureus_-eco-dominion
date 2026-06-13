@@ -6,7 +6,7 @@
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
 import { Contract, GameState, GameCommand, SfxType } from '../../../types';
-import { designateRubbleDropZone, fillSubsurfaceCellWithRubble, queueSubsurfaceExcavationJob } from '../../subsurface/SubsurfaceModel';
+import { designateRubbleDropZone, fillSubsurfaceCellWithRubble, queueSubsurfaceExcavationJob, queueSubsurfaceRubbleClearJob } from '../../subsurface/SubsurfaceModel';
 
 const CONTRACT_COMPLETION_TTL = 75;
 const CONTRACT_WORK_SECONDS = 300;
@@ -60,6 +60,9 @@ export class CommandDispatcher extends BaseSimSystem {
         } else if (commandType === 'DIG_VOXEL') {
             result = this.digVoxel(cmd, state);
             handledBy = this.id;
+        } else if (commandType === 'CLEAR_RUBBLE') {
+            result = this.clearRubble(cmd, state);
+            handledBy = this.id;
         } else if (commandType === 'DESIGNATE_RUBBLE_DUMP') {
             result = this.designateRubbleDump(cmd, state);
             handledBy = this.id;
@@ -108,6 +111,12 @@ export class CommandDispatcher extends BaseSimSystem {
         const target = this.getVoxelTarget(cmd);
         if ('ok' in target) return target;
         return queueSubsurfaceExcavationJob(state, target.x, target.y, target.z);
+    }
+
+    private clearRubble(cmd: GameCommand, state: GameState): CommandResult {
+        const target = this.getVoxelTarget(cmd);
+        if ('ok' in target) return target;
+        return queueSubsurfaceRubbleClearJob(state, target.x, target.y, target.z);
     }
 
     private designateRubbleDump(cmd: GameCommand, state: GameState): CommandResult {
@@ -246,7 +255,7 @@ export class CommandDispatcher extends BaseSimSystem {
         const reason = result.ok ? undefined : (result as any).reason;
 
         // 2. Update UI-safe feedback
-        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT', 'DIG_VOXEL', 'DESIGNATE_RUBBLE_DUMP', 'FILL_VOXEL'];
+        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT', 'DIG_VOXEL', 'CLEAR_RUBBLE', 'DESIGNATE_RUBBLE_DUMP', 'FILL_VOXEL'];
         if (!ok || (cmd && feedbackTypes.includes(cmd.type as string))) {
             state.ui.lastCommandResult = {
                 commandId,
