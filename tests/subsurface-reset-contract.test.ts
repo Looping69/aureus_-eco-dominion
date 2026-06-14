@@ -4,7 +4,6 @@ import path from 'node:path';
 import test from 'node:test';
 
 const root = process.cwd();
-const buildingTypesPath = path.join(root, 'engine', 'types', 'buildings.ts');
 const buildingsDataPath = path.join(root, 'engine', 'data', 'buildings.ts');
 const subsurfaceModelPath = path.join(root, 'engine', 'subsurface', 'SubsurfaceModel.ts');
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
@@ -20,35 +19,33 @@ function assertSnippet(text: string, snippet: string) {
   assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
-test('rubble dump is a first-era buildable building', () => {
-  const typeText = source(buildingTypesPath);
+test('stockpile is the first-era rubble area', () => {
   const dataText = source(buildingsDataPath);
 
-  assertSnippet(typeText, "RUBBLE_DUMP = 'RUBBLE_DUMP'");
   for (const snippet of [
-    '[BuildingType.RUBBLE_DUMP]',
-    "name: 'Rubble Dump'",
-    "stats: '+48 Rubble Capacity'",
-    'costs: { agt: 350, stone: 50 }',
+    '[BuildingType.STOCKPILE]',
+    "name: 'Rubble & Resource Stockpile'",
+    "stats: '+2000 Storage, +48 Rubble Capacity'",
+    'costs: { agt: 350, stone: 50, wood: 50 }',
     'era: Era.SETTLEMENT',
   ]) {
     assertSnippet(dataText, snippet);
   }
 });
 
-test('surface rubble dumps provide rubble capacity from the start of excavation play', () => {
+test('completed stockpiles provide rubble capacity from the start of excavation play', () => {
   const text = source(subsurfaceModelPath);
 
   for (const snippet of [
     'export const SUBSURFACE_SURFACE_RUBBLE_DUMP_CAPACITY = 48;',
     'function getSurfaceRubbleDumpCapacity',
-    'tile.buildingType === BuildingType.RUBBLE_DUMP',
+    'tile.buildingType === BuildingType.STOCKPILE',
     'capacity += SUBSURFACE_SURFACE_RUBBLE_DUMP_CAPACITY;',
     'function getTotalRubbleCapacity',
     'return subsurfaceCapacity + getSurfaceRubbleDumpCapacity(state);',
     'function hasRubbleDropCapacity(state: GameState',
     'return (state.layeredWorld.rubbleStockpile || 0) + amount <= getTotalRubbleCapacity(state);',
-    'Build a Rubble Dump or designate a rubble dump with free space before clearing this pile.',
+    'Build a Stockpile or designate a rubble dump with free space before clearing this pile.',
   ]) {
     assertSnippet(text, snippet);
   }
