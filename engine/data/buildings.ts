@@ -1,4 +1,3 @@
-
 import { BuildingType, BuildingDef, Era } from '../../types';
 
 export const BUILDINGS: Record<BuildingType, BuildingDef> = {
@@ -67,35 +66,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         pollution: 0,
         era: Era.SETTLEMENT,
         upgrades: [
-            {
-                level: 2,
-                name: 'Modern Safety Fence',
-                description: 'Metal and glass construction.',
-                statsDiff: '+Trust',
-                costs: { agt: 50, minerals: 5 },
-                era: Era.GROWTH,
-                maintenance: 0.2
-            },
-            {
-                level: 3,
-                name: 'Security Laser Fence',
-                description: 'High-intensity laser boundary.',
-                statsDiff: 'Blocks Intrusion, +Trust',
-                costs: { agt: 200, minerals: 20 },
-                era: Era.INDUSTRY,
-                maintenance: 0.5,
-                power: { consumes: 0.1 }
-            },
-            {
-                level: 4,
-                name: 'Force Field Spire',
-                description: 'Advanced solid-light emitter.',
-                statsDiff: 'Impentrable, +Trust',
-                costs: { agt: 1000, gems: 2 },
-                era: Era.SUSTAINABILITY,
-                maintenance: 1.0,
-                power: { consumes: 0.5 }
-            }
+            { level: 2, name: 'Modern Safety Fence', description: 'Metal and glass construction.', statsDiff: '+Trust', costs: { agt: 50, minerals: 5 }, era: Era.GROWTH, maintenance: 0.2 },
+            { level: 3, name: 'Security Laser Fence', description: 'High-intensity laser boundary.', statsDiff: 'Blocks Intrusion, +Trust', costs: { agt: 200, minerals: 20 }, era: Era.INDUSTRY, maintenance: 0.5, power: { consumes: 0.1 } },
+            { level: 4, name: 'Force Field Spire', description: 'Advanced solid-light emitter.', statsDiff: 'Impentrable, +Trust', costs: { agt: 1000, gems: 2 }, era: Era.SUSTAINABILITY, maintenance: 1.0, power: { consumes: 0.5 } }
         ]
     },
     [BuildingType.POND]: {
@@ -152,40 +125,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         power: { consumes: 1 },
         water: { consumes: 1 },
         upgrades: [
-            {
-                level: 2,
-                name: 'Prefab Housing',
-                description: 'Container-style modular units with AC.',
-                statsDiff: 'Capacity 4 → 8, +Comfort',
-                costs: { agt: 2000, wood: 200, stone: 100, minerals: 50 },
-                era: Era.GROWTH,
-                power: { consumes: 2 },
-                water: { consumes: 2 },
-                maintenance: 4
-            },
-            {
-                level: 3,
-                name: 'Row Housing',
-                description: 'Brick apartments with full amenities.',
-                statsDiff: 'Capacity 8 → 16, +Privacy',
-                costs: { agt: 5000, wood: 300, stone: 400, minerals: 100 },
-                era: Era.INDUSTRY,
-                power: { consumes: 4 },
-                water: { consumes: 3 },
-                maintenance: 8
-            },
-            {
-                level: 4,
-                name: 'Modern Apartments',
-                description: 'High-rise living with solar and recycling.',
-                statsDiff: 'Capacity 16 → 32, +Eco Living',
-                costs: { agt: 15000, stone: 800, minerals: 300, gems: 20 },
-                era: Era.SUSTAINABILITY,
-                power: { consumes: 6 },
-                water: { consumes: 4 },
-                maintenance: 12,
-                pollution: -0.5
-            }
+            { level: 2, name: 'Prefab Housing', description: 'Container-style modular units with AC.', statsDiff: 'Capacity 4 → 8, +Comfort', costs: { agt: 2000, wood: 200, stone: 100, minerals: 50 }, era: Era.GROWTH, power: { consumes: 2 }, water: { consumes: 2 }, maintenance: 4 },
+            { level: 3, name: 'Row Housing', description: 'Brick apartments with full amenities.', statsDiff: 'Capacity 8 → 16, +Privacy', costs: { agt: 5000, wood: 300, stone: 400, minerals: 100 }, era: Era.INDUSTRY, power: { consumes: 4 }, water: { consumes: 3 }, maintenance: 8 },
+            { level: 4, name: 'Modern Apartments', description: 'High-rise living with solar and recycling.', statsDiff: 'Capacity 16 → 32, +Eco Living', costs: { agt: 15000, stone: 800, minerals: 300, gems: 20 }, era: Era.SUSTAINABILITY, power: { consumes: 6 }, water: { consumes: 4 }, maintenance: 12, pollution: -0.5 }
         ]
     },
     [BuildingType.CANTEEN]: {
@@ -205,41 +147,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         power: { consumes: 2 },
         water: { consumes: 2 },
         upgrades: [
-            {
-                level: 2,
-                name: 'Mess Hall',
-                description: 'Covered structure with proper kitchen.',
-                statsDiff: 'Faster Hunger Recovery',
-                costs: { agt: 1500, wood: 350, stone: 300, minerals: 50 },
-                era: Era.GROWTH,
-                power: { consumes: 4 },
-                water: { consumes: 3 },
-                maintenance: 6
-            },
-            {
-                level: 3,
-                name: 'Dining Complex',
-                description: 'Full kitchen with varied menu options.',
-                statsDiff: '+Mood from meals',
-                costs: { agt: 4000, stone: 500, minerals: 150 },
-                era: Era.INDUSTRY,
-                power: { consumes: 6 },
-                water: { consumes: 5 },
-                maintenance: 10
-            },
-            {
-                level: 4,
-                name: 'Gourmet Bistro',
-                description: 'Modern restaurant with hydroponic garden.',
-                statsDiff: 'Premium meals, +Trust',
-                costs: { agt: 12000, stone: 600, minerals: 300, gems: 15 },
-                era: Era.SUSTAINABILITY,
-                power: { consumes: 8 },
-                water: { consumes: 6 },
-                maintenance: 15,
-                pollution: -2.0,
-                production: 5
-            }
+            { level: 2, name: 'Mess Hall', description: 'Covered structure with proper kitchen.', statsDiff: 'Faster Hunger Recovery', costs: { agt: 1500, wood: 350, stone: 300, minerals: 50 }, era: Era.GROWTH, power: { consumes: 4 }, water: { consumes: 3 }, maintenance: 6 },
+            { level: 3, name: 'Dining Complex', description: 'Full kitchen with varied menu options.', statsDiff: '+Mood from meals', costs: { agt: 4000, stone: 500, minerals: 150 }, era: Era.INDUSTRY, power: { consumes: 6 }, water: { consumes: 5 }, maintenance: 10 },
+            { level: 4, name: 'Gourmet Bistro', description: 'Modern restaurant with hydroponic garden.', statsDiff: 'Premium meals, +Trust', costs: { agt: 12000, stone: 600, minerals: 300, gems: 15 }, era: Era.SUSTAINABILITY, power: { consumes: 8 }, water: { consumes: 6 }, maintenance: 15, pollution: -2.0, production: 5 }
         ]
     },
     [BuildingType.SOCIAL_HUB]: {
@@ -258,38 +168,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         costs: { agt: 1500, wood: 250, stone: 250, minerals: 60 },
         era: Era.GROWTH,
         upgrades: [
-            {
-                level: 2,
-                name: 'Social Dome',
-                description: 'Glass-enclosed community dome.',
-                statsDiff: 'Higher Mood, +Trust',
-                costs: { agt: 2500, stone: 400, wood: 200 },
-                era: Era.GROWTH,
-                maintenance: 8,
-                production: 2
-            },
-            {
-                level: 3,
-                name: 'Civic Plaza',
-                description: 'Advanced dual-dome complex with gardens.',
-                statsDiff: 'Rapid Mood recovery',
-                costs: { agt: 8000, stone: 800, minerals: 200 },
-                era: Era.INDUSTRY,
-                maintenance: 15,
-                power: { consumes: 4 },
-                production: 5
-            },
-            {
-                level: 4,
-                name: 'Grand Atrium',
-                description: 'Modern high-tech social center with holos.',
-                statsDiff: 'Max Mood, +15 Trust/s',
-                costs: { agt: 25000, minerals: 800, gems: 30 },
-                era: Era.SUSTAINABILITY,
-                maintenance: 30,
-                power: { consumes: 8 },
-                production: 15
-            }
+            { level: 2, name: 'Social Dome', description: 'Glass-enclosed community dome.', statsDiff: 'Higher Mood, +Trust', costs: { agt: 2500, stone: 400, wood: 200 }, era: Era.GROWTH, maintenance: 8, production: 2 },
+            { level: 3, name: 'Civic Plaza', description: 'Advanced dual-dome complex with gardens.', statsDiff: 'Rapid Mood recovery', costs: { agt: 8000, stone: 800, minerals: 200 }, era: Era.INDUSTRY, maintenance: 15, power: { consumes: 4 }, production: 5 },
+            { level: 4, name: 'Grand Atrium', description: 'Modern high-tech social center with holos.', statsDiff: 'Max Mood, +15 Trust/s', costs: { agt: 25000, minerals: 800, gems: 30 }, era: Era.SUSTAINABILITY, maintenance: 30, power: { consumes: 8 }, production: 15 }
         ]
     },
     [BuildingType.SECURITY_POST]: {
@@ -309,38 +190,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         costs: { agt: 600, wood: 150, stone: 100, minerals: 40 },
         era: Era.GROWTH,
         upgrades: [
-            {
-                level: 2,
-                name: 'Metal Guard Tower',
-                description: 'Taller tower with searchlights.',
-                statsDiff: '+2 Trust/s, Wider sight',
-                costs: { agt: 1500, minerals: 100 },
-                era: Era.GROWTH,
-                maintenance: 8,
-                production: 2
-            },
-            {
-                level: 3,
-                name: 'Armored Bunker',
-                description: 'Reinforced concrete post with radar.',
-                statsDiff: '+5 Trust/s, +Radar',
-                costs: { agt: 5000, stone: 600, minerals: 200 },
-                era: Era.INDUSTRY,
-                maintenance: 15,
-                power: { consumes: 2 },
-                production: 5
-            },
-            {
-                level: 4,
-                name: 'Sensor Spire',
-                description: 'Modern high-tech sensor and drone array.',
-                statsDiff: '+10 Trust/s, Global Scan',
-                costs: { agt: 15000, minerals: 600, gems: 20 },
-                era: Era.SUSTAINABILITY,
-                maintenance: 25,
-                power: { consumes: 5 },
-                production: 10
-            }
+            { level: 2, name: 'Metal Guard Tower', description: 'Taller tower with searchlights.', statsDiff: '+2 Trust/s, Wider sight', costs: { agt: 1500, minerals: 100 }, era: Era.GROWTH, maintenance: 8, production: 2 },
+            { level: 3, name: 'Armored Bunker', description: 'Reinforced concrete post with radar.', statsDiff: '+5 Trust/s, +Radar', costs: { agt: 5000, stone: 600, minerals: 200 }, era: Era.INDUSTRY, maintenance: 15, power: { consumes: 2 }, production: 5 },
+            { level: 4, name: 'Sensor Spire', description: 'Modern high-tech sensor and drone array.', statsDiff: '+10 Trust/s, Global Scan', costs: { agt: 15000, minerals: 600, gems: 20 }, era: Era.SUSTAINABILITY, maintenance: 25, power: { consumes: 5 }, production: 10 }
         ]
     },
     [BuildingType.WASH_PLANT]: {
@@ -363,67 +215,12 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         power: { consumes: 5 },
         water: { consumes: 5 },
         upgrades: [
-            {
-                level: 2,
-                name: 'Trommel Station',
-                description: 'Rotating drum for better ore separation.',
-                statsDiff: '+50 Min/s',
-                costs: { agt: 3000, wood: 500, stone: 400 },
-                era: Era.GROWTH,
-                power: { consumes: 8 },
-                water: { consumes: 8 },
-                maintenance: 15,
-                production: 50,
-                pollution: 10.0
-            },
-            {
-                level: 3,
-                name: 'Vibrating Wash Plant',
-                description: 'Industrial metal shaking screens.',
-                statsDiff: '+80 Min/s',
-                costs: { agt: 10000, stone: 800, minerals: 400 },
-                era: Era.INDUSTRY,
-                power: { consumes: 12 },
-                water: { consumes: 12 },
-                maintenance: 25,
-                production: 80,
-                pollution: 8.0
-            },
-            {
-                level: 4,
-                name: 'Hydro-Wash Complex',
-                description: 'Automated high-pressure cleaning.',
-                statsDiff: '+120 Min/s, -Pol.',
-                costs: { agt: 30000, stone: 1500, minerals: 800, gems: 40 },
-                era: Era.SUSTAINABILITY,
-                power: { consumes: 20 },
-                water: { consumes: 15 },
-                maintenance: 40,
-                production: 120,
-                pollution: 4.0
-            }
+            { level: 2, name: 'Trommel Station', description: 'Rotating drum for better ore separation.', statsDiff: '+50 Min/s', costs: { agt: 3000, wood: 500, stone: 400 }, era: Era.GROWTH, power: { consumes: 8 }, water: { consumes: 8 }, maintenance: 15, production: 50, pollution: 10.0 },
+            { level: 3, name: 'Vibrating Wash Plant', description: 'Industrial metal shaking screens.', statsDiff: '+80 Min/s', costs: { agt: 10000, stone: 800, minerals: 400 }, era: Era.INDUSTRY, power: { consumes: 12 }, water: { consumes: 12 }, maintenance: 25, production: 80, pollution: 8.0 },
+            { level: 4, name: 'Hydro-Wash Complex', description: 'Automated high-pressure cleaning.', statsDiff: '+120 Min/s, -Pol.', costs: { agt: 30000, stone: 1500, minerals: 800, gems: 40 }, era: Era.SUSTAINABILITY, power: { consumes: 20 }, water: { consumes: 15 }, maintenance: 40, production: 120, pollution: 4.0 }
         ]
     },
-    [BuildingType.RECYCLING_PLANT]: {
-        type: BuildingType.RECYCLING_PLANT,
-        name: 'Recycling Complex',
-        cost: 3000,
-        desc: 'Clean industrial processing with high efficiency.',
-        ecoReq: 30,
-        stats: '+20 Min/s, Low Pol',
-        width: 2,
-        depth: 2,
-        buildTime: 60,
-        dependency: BuildingType.STAFF_QUARTERS,
-        maintenance: 5,
-        pollution: 1.0,
-        production: 20,
-        productionType: 'MINERALS',
-        costs: { agt: 3000, stone: 500, minerals: 150 },
-        era: Era.INDUSTRY,
-        power: { consumes: 8 },
-        water: { consumes: 3 },
-    },
+    [BuildingType.RECYCLING_PLANT]: { type: BuildingType.RECYCLING_PLANT, name: 'Recycling Complex', cost: 3000, desc: 'Clean industrial processing with high efficiency.', ecoReq: 30, stats: '+20 Min/s, Low Pol', width: 2, depth: 2, buildTime: 60, dependency: BuildingType.STAFF_QUARTERS, maintenance: 5, pollution: 1.0, production: 20, productionType: 'MINERALS', costs: { agt: 3000, stone: 500, minerals: 150 }, era: Era.INDUSTRY, power: { consumes: 8 }, water: { consumes: 3 } },
     [BuildingType.SOLAR_ARRAY]: {
         type: BuildingType.SOLAR_ARRAY,
         name: 'Solar Array',
@@ -440,37 +237,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         era: Era.SETTLEMENT,
         power: { produces: 5 },
         upgrades: [
-            {
-                level: 2,
-                name: 'Industrial Fixed Array',
-                description: 'Reinforced metal frames with better cells.',
-                statsDiff: '+10 Power',
-                costs: { agt: 1200, minerals: 50 },
-                era: Era.GROWTH,
-                power: { produces: 10 },
-                maintenance: 4
-            },
-            {
-                level: 3,
-                name: 'Tracking Solar Mast',
-                description: 'Sun-tracking dual-axis array.',
-                statsDiff: '+20 Power',
-                costs: { agt: 4000, minerals: 150, gems: 5 },
-                era: Era.INDUSTRY,
-                power: { produces: 20 },
-                maintenance: 8
-            },
-            {
-                level: 4,
-                name: 'Energy Concentrator',
-                description: 'Advanced high-efficiency energy tower.',
-                statsDiff: '+50 Power',
-                costs: { agt: 15000, minerals: 400, gems: 25 },
-                era: Era.SUSTAINABILITY,
-                power: { produces: 50 },
-                maintenance: 15,
-                pollution: -5.0
-            }
+            { level: 2, name: 'Industrial Fixed Array', description: 'Reinforced metal frames with better cells.', statsDiff: '+10 Power', costs: { agt: 1200, minerals: 50 }, era: Era.GROWTH, power: { produces: 10 }, maintenance: 4 },
+            { level: 3, name: 'Tracking Solar Mast', description: 'Sun-tracking dual-axis array.', statsDiff: '+20 Power', costs: { agt: 4000, minerals: 150, gems: 5 }, era: Era.INDUSTRY, power: { produces: 20 }, maintenance: 8 },
+            { level: 4, name: 'Energy Concentrator', description: 'Advanced high-efficiency energy tower.', statsDiff: '+50 Power', costs: { agt: 15000, minerals: 400, gems: 25 }, era: Era.SUSTAINABILITY, power: { produces: 50 }, maintenance: 15, pollution: -5.0 }
         ]
     },
     [BuildingType.COMMUNITY_GARDEN]: {
@@ -491,39 +260,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         costs: { agt: 600, wood: 250, stone: 150 },
         era: Era.GROWTH,
         upgrades: [
-            {
-                level: 2,
-                name: 'Raised Planter Beds',
-                description: 'Organized wooden beds with irrigation.',
-                statsDiff: '+8 Trust/s, -2 Pollution',
-                costs: { agt: 1200, wood: 400, stone: 200 },
-                era: Era.GROWTH,
-                maintenance: 5,
-                production: 8,
-                pollution: -2.0
-            },
-            {
-                level: 3,
-                name: 'Stone-Walled Garden',
-                description: 'Beautiful stonework with a central fountain.',
-                statsDiff: '+15 Trust/s, -4 Pollution',
-                costs: { agt: 4000, stone: 800, minerals: 200 },
-                era: Era.INDUSTRY,
-                maintenance: 10,
-                production: 15,
-                pollution: -4.0
-            },
-            {
-                level: 4,
-                name: 'Hydroponic Biosphere',
-                description: 'Full-enclosed modern high-tech garden.',
-                statsDiff: '+30 Trust/s, -10 Pollution',
-                costs: { agt: 15000, stone: 1000, minerals: 500, gems: 25 },
-                era: Era.SUSTAINABILITY,
-                maintenance: 20,
-                production: 30,
-                pollution: -10.0
-            }
+            { level: 2, name: 'Raised Planter Beds', description: 'Organized wooden beds with irrigation.', statsDiff: '+8 Trust/s, -2 Pollution', costs: { agt: 1200, wood: 400, stone: 200 }, era: Era.GROWTH, maintenance: 5, production: 8, pollution: -2.0 },
+            { level: 3, name: 'Stone-Walled Garden', description: 'Beautiful stonework with a central fountain.', statsDiff: '+15 Trust/s, -4 Pollution', costs: { agt: 4000, stone: 800, minerals: 200 }, era: Era.INDUSTRY, maintenance: 10, production: 15, pollution: -4.0 },
+            { level: 4, name: 'Hydroponic Biosphere', description: 'Full-enclosed modern high-tech garden.', statsDiff: '+30 Trust/s, -10 Pollution', costs: { agt: 15000, stone: 1000, minerals: 500, gems: 25 }, era: Era.SUSTAINABILITY, maintenance: 20, production: 30, pollution: -10.0 }
         ]
     },
     [BuildingType.WATER_WELL]: {
@@ -543,39 +282,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         water: { produces: 10 },
         waterPlaceable: true,
         upgrades: [
-            {
-                level: 2,
-                name: 'Wind-Powered Pump',
-                description: 'Mechanical pump with wind-vane assist.',
-                statsDiff: '+20 Water',
-                costs: { agt: 2000, wood: 400, stone: 200 },
-                era: Era.GROWTH,
-                water: { produces: 20 },
-                maintenance: 8
-            },
-            {
-                level: 3,
-                name: 'Electric Pump Station',
-                description: 'Industrial high-pressure electric pump.',
-                statsDiff: '+40 Water',
-                costs: { agt: 6000, stone: 500, minerals: 200 },
-                era: Era.INDUSTRY,
-                power: { consumes: 2 },
-                water: { produces: 40 },
-                maintenance: 12
-            },
-            {
-                level: 4,
-                name: 'Purification Tower',
-                description: 'Modern water treatment and pumping.',
-                statsDiff: '+80 Water, +Trust',
-                costs: { agt: 20000, stone: 800, minerals: 500, gems: 30 },
-                era: Era.SUSTAINABILITY,
-                power: { consumes: 5 },
-                water: { produces: 80 },
-                maintenance: 20,
-                production: 6
-            }
+            { level: 2, name: 'Wind-Powered Pump', description: 'Mechanical pump with wind-vane assist.', statsDiff: '+20 Water', costs: { agt: 2000, wood: 400, stone: 200 }, era: Era.GROWTH, water: { produces: 20 }, maintenance: 8 },
+            { level: 3, name: 'Electric Pump Station', description: 'Industrial high-pressure electric pump.', statsDiff: '+40 Water', costs: { agt: 6000, stone: 500, minerals: 200 }, era: Era.INDUSTRY, power: { consumes: 2 }, water: { produces: 40 }, maintenance: 12 },
+            { level: 4, name: 'Purification Tower', description: 'Modern water treatment and pumping.', statsDiff: '+80 Water, +Trust', costs: { agt: 20000, stone: 800, minerals: 500, gems: 30 }, era: Era.SUSTAINABILITY, power: { consumes: 5 }, water: { produces: 80 }, maintenance: 20, production: 6 }
         ]
     },
     [BuildingType.WIND_TURBINE]: {
@@ -593,93 +302,14 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         era: Era.GROWTH,
         power: { produces: 8 },
         upgrades: [
-            {
-                level: 2,
-                name: 'Modern Wind Tower',
-                description: 'Sleek metal construction with optimized blades.',
-                statsDiff: '+15 Power, -8 Poll.',
-                costs: { agt: 4000, minerals: 150 },
-                era: Era.GROWTH,
-                maintenance: 6,
-                power: { produces: 15 },
-                pollution: -8.0
-            },
-            {
-                level: 3,
-                name: 'Dual-Rotor Industrial',
-                description: 'Two counter-rotating rotors for maximum torque.',
-                statsDiff: '+40 Power, -12 Poll.',
-                costs: { agt: 12000, minerals: 500, gems: 10 },
-                era: Era.INDUSTRY,
-                maintenance: 12,
-                power: { produces: 40 },
-                pollution: -12.0
-            },
-            {
-                level: 4,
-                name: 'Vertical Axis Spiral',
-                description: 'Space-saving spiral blades with peak efficiency.',
-                statsDiff: '+100 Power, -20 Poll.',
-                costs: { agt: 35000, minerals: 1200, gems: 40 },
-                era: Era.SUSTAINABILITY,
-                maintenance: 25,
-                power: { produces: 100 },
-                pollution: -20.0
-            }
+            { level: 2, name: 'Modern Wind Tower', description: 'Sleek metal construction with optimized blades.', statsDiff: '+15 Power, -8 Poll.', costs: { agt: 4000, minerals: 150 }, era: Era.GROWTH, maintenance: 6, power: { produces: 15 }, pollution: -8.0 },
+            { level: 3, name: 'Dual-Rotor Industrial', description: 'Two counter-rotating rotors for maximum torque.', statsDiff: '+40 Power, -12 Poll.', costs: { agt: 12000, minerals: 500, gems: 10 }, era: Era.INDUSTRY, maintenance: 12, power: { produces: 40 }, pollution: -12.0 },
+            { level: 4, name: 'Vertical Axis Spiral', description: 'Space-saving spiral blades with peak efficiency.', statsDiff: '+100 Power, -20 Poll.', costs: { agt: 35000, minerals: 1200, gems: 40 }, era: Era.SUSTAINABILITY, maintenance: 25, power: { produces: 100 }, pollution: -20.0 }
         ]
     },
-    [BuildingType.LOCAL_SCHOOL]: {
-        type: BuildingType.LOCAL_SCHOOL,
-        name: 'Education Center',
-        cost: 12000,
-        desc: 'Large campus with classrooms, library, and sports facilities.',
-        ecoReq: 20,
-        trustReq: 55,
-        stats: '+25 Trust/s',
-        width: 3,
-        depth: 3,
-        buildTime: 300,
-        maintenance: 25,
-        pollution: 0.3,
-        production: 25,
-        productionType: 'TRUST',
-        costs: { agt: 12000, wood: 800, stone: 1500, minerals: 500 },
-        era: Era.SUSTAINABILITY
-    },
-    [BuildingType.SAFARI_LODGE]: {
-        type: BuildingType.SAFARI_LODGE,
-        name: 'Eco-Lodge Resort',
-        cost: 35000,
-        desc: 'Luxury sustainable tourism resort with multiple lodges.',
-        ecoReq: 40,
-        trustReq: 70,
-        stats: '+150 AGT/s',
-        width: 7,
-        depth: 7,
-        buildTime: 500,
-        maintenance: 30,
-        pollution: 1.5,
-        production: 150,
-        productionType: 'AGT',
-        costs: { agt: 35000, wood: 1800, stone: 1800, gems: 20 },
-        era: Era.PROSPERITY
-    },
-    [BuildingType.GREEN_TECH_LAB]: {
-        type: BuildingType.GREEN_TECH_LAB,
-        name: 'Research Biosphere',
-        cost: 80000,
-        desc: 'Massive research complex for planetary restoration technology.',
-        ecoReq: 60,
-        trustReq: 65,
-        stats: 'Extreme Eco Regen',
-        width: 3,
-        depth: 9,
-        buildTime: 1000,
-        maintenance: 50,
-        pollution: -40.0,
-        costs: { agt: 80000, stone: 2000, minerals: 1500, gems: 40 },
-        era: Era.PROSPERITY
-    },
+    [BuildingType.LOCAL_SCHOOL]: { type: BuildingType.LOCAL_SCHOOL, name: 'Education Center', cost: 12000, desc: 'Large campus with classrooms, library, and sports facilities.', ecoReq: 20, trustReq: 55, stats: '+25 Trust/s', width: 3, depth: 3, buildTime: 300, maintenance: 25, pollution: 0.3, production: 25, productionType: 'TRUST', costs: { agt: 12000, wood: 800, stone: 1500, minerals: 500 }, era: Era.SUSTAINABILITY },
+    [BuildingType.SAFARI_LODGE]: { type: BuildingType.SAFARI_LODGE, name: 'Eco-Lodge Resort', cost: 35000, desc: 'Luxury sustainable tourism resort with multiple lodges.', ecoReq: 40, trustReq: 70, stats: '+150 AGT/s', width: 7, depth: 7, buildTime: 500, maintenance: 30, pollution: 1.5, production: 150, productionType: 'AGT', costs: { agt: 35000, wood: 1800, stone: 1800, gems: 20 }, era: Era.PROSPERITY },
+    [BuildingType.GREEN_TECH_LAB]: { type: BuildingType.GREEN_TECH_LAB, name: 'Research Biosphere', cost: 80000, desc: 'Massive research complex for planetary restoration technology.', ecoReq: 60, trustReq: 65, stats: 'Extreme Eco Regen', width: 3, depth: 9, buildTime: 1000, maintenance: 50, pollution: -40.0, costs: { agt: 80000, stone: 2000, minerals: 1500, gems: 40 }, era: Era.PROSPERITY },
     [BuildingType.MINING_HEADFRAME]: {
         type: BuildingType.MINING_HEADFRAME,
         name: 'Mining Headframe',
@@ -699,66 +329,12 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         power: { consumes: 10 },
         water: { consumes: 2 },
         upgrades: [
-            {
-                level: 2,
-                name: 'Steel Derrick',
-                description: 'Reinforced steel structure with pulley system.',
-                statsDiff: '+90 Minerals/s',
-                costs: { agt: 6000, stone: 800, minerals: 300 },
-                era: Era.GROWTH,
-                power: { consumes: 15 },
-                water: { consumes: 3 },
-                maintenance: 22,
-                production: 90,
-                pollution: 12.0
-            },
-            {
-                level: 3,
-                name: 'Industrial Derrick',
-                description: 'Heavy-duty mine with double-cable hoist.',
-                statsDiff: '+120 Minerals/s',
-                costs: { agt: 15000, stone: 1200, minerals: 600 },
-                era: Era.INDUSTRY,
-                power: { consumes: 20 },
-                water: { consumes: 4 },
-                maintenance: 30,
-                production: 120,
-                pollution: 10.0
-            },
-            {
-                level: 4,
-                name: 'Automated Mine Complex',
-                description: 'Modern automated extraction with reduced emissions.',
-                statsDiff: '+180 Minerals/s, -Pollution',
-                costs: { agt: 40000, stone: 2000, minerals: 1000, gems: 50 },
-                era: Era.SUSTAINABILITY,
-                power: { consumes: 25 },
-                water: { consumes: 5 },
-                maintenance: 40,
-                production: 180,
-                pollution: 6.0
-            }
+            { level: 2, name: 'Steel Derrick', description: 'Reinforced steel structure with pulley system.', statsDiff: '+90 Minerals/s', costs: { agt: 6000, stone: 800, minerals: 300 }, era: Era.GROWTH, power: { consumes: 15 }, water: { consumes: 3 }, maintenance: 22, production: 90, pollution: 12.0 },
+            { level: 3, name: 'Industrial Derrick', description: 'Heavy-duty mine with double-cable hoist.', statsDiff: '+120 Minerals/s', costs: { agt: 15000, stone: 1200, minerals: 600 }, era: Era.INDUSTRY, power: { consumes: 20 }, water: { consumes: 4 }, maintenance: 30, production: 120, pollution: 10.0 },
+            { level: 4, name: 'Automated Mine Complex', description: 'Modern automated extraction with reduced emissions.', statsDiff: '+180 Minerals/s, -Pollution', costs: { agt: 40000, stone: 2000, minerals: 1000, gems: 50 }, era: Era.SUSTAINABILITY, power: { consumes: 25 }, water: { consumes: 5 }, maintenance: 40, production: 180, pollution: 6.0 }
         ]
     },
-    [BuildingType.ORE_FOUNDRY]: {
-        type: BuildingType.ORE_FOUNDRY,
-        name: 'Ore Foundry',
-        cost: 25000,
-        desc: 'High-temperature smelting facility. Converts raw ore to refined materials.',
-        ecoReq: 10,
-        stats: '+40 Min/s, +Gems',
-        width: 3,
-        depth: 3,
-        buildTime: 400,
-        dependency: BuildingType.WASH_PLANT,
-        maintenance: 25,
-        pollution: 18.0,
-        production: 40,
-        productionType: 'MINERALS',
-        costs: { agt: 25000, stone: 1500, minerals: 800 },
-        era: Era.INDUSTRY,
-        power: { consumes: 15 },
-    },
+    [BuildingType.ORE_FOUNDRY]: { type: BuildingType.ORE_FOUNDRY, name: 'Ore Foundry', cost: 25000, desc: 'High-temperature smelting facility. Converts raw ore to refined materials.', ecoReq: 10, stats: '+40 Min/s, +Gems', width: 3, depth: 3, buildTime: 400, dependency: BuildingType.WASH_PLANT, maintenance: 25, pollution: 18.0, production: 40, productionType: 'MINERALS', costs: { agt: 25000, stone: 1500, minerals: 800 }, era: Era.INDUSTRY, power: { consumes: 15 } },
     [BuildingType.SAWMILL]: {
         type: BuildingType.SAWMILL,
         name: 'Industrial Sawmill',
@@ -777,40 +353,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         era: Era.SETTLEMENT,
         power: { consumes: 5 },
         upgrades: [
-            {
-                level: 2,
-                name: 'Steam-Powered Mill',
-                description: 'High-power circular saws with steam assist.',
-                statsDiff: '+40 Wood/s',
-                costs: { agt: 3000, wood: 600, stone: 400 },
-                era: Era.GROWTH,
-                power: { consumes: 8 },
-                maintenance: 8,
-                production: 40
-            },
-            {
-                level: 3,
-                name: 'Electric Sawmill',
-                description: 'Massive electric band saws with conveyors.',
-                statsDiff: '+70 Wood/s',
-                costs: { agt: 8000, stone: 600, minerals: 200 },
-                era: Era.INDUSTRY,
-                power: { consumes: 12 },
-                maintenance: 15,
-                production: 70
-            },
-            {
-                level: 4,
-                name: 'Automated Wood Tech',
-                description: 'Laser-cutting precision wood processing.',
-                statsDiff: '+120 Wood/s',
-                costs: { agt: 20000, stone: 1000, minerals: 500, gems: 20 },
-                era: Era.SUSTAINABILITY,
-                power: { consumes: 18 },
-                maintenance: 25,
-                production: 120,
-                pollution: 0.5
-            }
+            { level: 2, name: 'Steam-Powered Mill', description: 'High-power circular saws with steam assist.', statsDiff: '+40 Wood/s', costs: { agt: 3000, wood: 600, stone: 400 }, era: Era.GROWTH, power: { consumes: 8 }, maintenance: 8, production: 40 },
+            { level: 3, name: 'Electric Sawmill', description: 'Massive electric band saws with conveyors.', statsDiff: '+70 Wood/s', costs: { agt: 8000, stone: 600, minerals: 200 }, era: Era.INDUSTRY, power: { consumes: 12 }, maintenance: 15, production: 70 },
+            { level: 4, name: 'Automated Wood Tech', description: 'Laser-cutting precision wood processing.', statsDiff: '+120 Wood/s', costs: { agt: 20000, stone: 1000, minerals: 500, gems: 20 }, era: Era.SUSTAINABILITY, power: { consumes: 18 }, maintenance: 25, production: 120, pollution: 0.5 }
         ]
     },
     [BuildingType.STONE_QUARRY]: {
@@ -831,42 +376,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         era: Era.SETTLEMENT,
         power: { consumes: 6 },
         upgrades: [
-            {
-                level: 2,
-                name: 'Mechanized Quarry',
-                description: 'Scaffolding and hoists for easier extraction.',
-                statsDiff: '+45 Stone/s',
-                costs: { agt: 2500, wood: 600, stone: 400 },
-                era: Era.GROWTH,
-                power: { consumes: 10 },
-                maintenance: 10,
-                production: 45,
-                pollution: 3.0
-            },
-            {
-                level: 3,
-                name: 'Industrial Excavation',
-                description: 'Heavy machinery and mechanical splitters.',
-                statsDiff: '+80 Stone/s',
-                costs: { agt: 10000, stone: 1000, minerals: 400 },
-                era: Era.INDUSTRY,
-                power: { consumes: 16 },
-                maintenance: 20,
-                production: 80,
-                pollution: 2.0
-            },
-            {
-                level: 4,
-                name: 'Precision Stone Core',
-                description: 'Laser-cutting and automated block logistics.',
-                statsDiff: '+140 Stone/s',
-                costs: { agt: 25000, stone: 1500, minerals: 800, gems: 30 },
-                era: Era.SUSTAINABILITY,
-                power: { consumes: 24 },
-                maintenance: 35,
-                production: 140,
-                pollution: 1.0
-            }
+            { level: 2, name: 'Mechanized Quarry', description: 'Scaffolding and hoists for easier extraction.', statsDiff: '+45 Stone/s', costs: { agt: 2500, wood: 600, stone: 400 }, era: Era.GROWTH, power: { consumes: 10 }, maintenance: 10, production: 45, pollution: 3.0 },
+            { level: 3, name: 'Industrial Excavation', description: 'Heavy machinery and mechanical splitters.', statsDiff: '+80 Stone/s', costs: { agt: 10000, stone: 1000, minerals: 400 }, era: Era.INDUSTRY, power: { consumes: 16 }, maintenance: 20, production: 80, pollution: 2.0 },
+            { level: 4, name: 'Precision Stone Core', description: 'Laser-cutting and automated block logistics.', statsDiff: '+140 Stone/s', costs: { agt: 25000, stone: 1500, minerals: 800, gems: 30 }, era: Era.SUSTAINABILITY, power: { consumes: 24 }, maintenance: 35, production: 140, pollution: 1.0 }
         ]
     },
     [BuildingType.STORAGE_DEPOT]: {
@@ -884,491 +396,33 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
         costs: { agt: 600, wood: 50, stone: 50 },
         era: Era.SETTLEMENT,
         upgrades: [
-            {
-                level: 2,
-                name: 'Covered Warehouse',
-                description: 'Weather-protected storage structure.',
-                statsDiff: '+1000 Storage',
-                costs: { agt: 1200, wood: 400, stone: 200 },
-                era: Era.GROWTH,
-                maintenance: 2
-            },
-            {
-                level: 3,
-                name: 'Metal Warehouse',
-                description: 'Industrial warehouse with loading dock.',
-                statsDiff: '+2000 Storage',
-                costs: { agt: 3500, stone: 600, minerals: 200 },
-                era: Era.INDUSTRY,
-                power: { consumes: 2 },
-                maintenance: 4
-            },
-            {
-                level: 4,
-                name: 'Distribution Center',
-                description: 'Automated logistics hub with conveyors.',
-                statsDiff: '+5000 Storage, +Efficiency',
-                costs: { agt: 10000, stone: 800, minerals: 400, gems: 25 },
-                era: Era.SUSTAINABILITY,
-                power: { consumes: 6 },
-                maintenance: 8
-            }
+            { level: 2, name: 'Covered Warehouse', description: 'Weather-protected storage structure.', statsDiff: '+1000 Storage', costs: { agt: 1200, wood: 400, stone: 200 }, era: Era.GROWTH, maintenance: 2 },
+            { level: 3, name: 'Metal Warehouse', description: 'Industrial warehouse with loading dock.', statsDiff: '+2000 Storage', costs: { agt: 3500, stone: 600, minerals: 200 }, era: Era.INDUSTRY, power: { consumes: 2 }, maintenance: 4 },
+            { level: 4, name: 'Distribution Center', description: 'Automated logistics hub with conveyors.', statsDiff: '+5000 Storage, +Efficiency', costs: { agt: 10000, stone: 800, minerals: 400, gems: 25 }, era: Era.SUSTAINABILITY, power: { consumes: 6 }, maintenance: 8 }
         ]
     },
-    [BuildingType.WORKSHOP]: {
-        type: BuildingType.WORKSHOP,
-        name: 'Workshop',
-        cost: 900,
-        desc: 'Speeds up construction in nearby buildings by 25%.',
-        ecoReq: 0,
-        stats: '+25% Build Speed',
-        width: 2,
-        depth: 2,
-        buildTime: 45,
-        maintenance: 2,
-        pollution: 0.5,
-        costs: { agt: 900, wood: 200, stone: 150, minerals: 40 },
-        era: Era.SETTLEMENT
-    },
-    [BuildingType.GENERATOR]: {
-        type: BuildingType.GENERATOR,
-        name: 'Fuel Generator',
-        cost: 1800,
-        desc: 'Provides power but produces pollution.',
-        ecoReq: 0,
-        stats: '+10 Power',
-        buildTime: 40,
-        maintenance: 4,
-        pollution: 3.0,
-        costs: { agt: 1800, stone: 250, minerals: 120 },
-        era: Era.GROWTH,
-        power: { produces: 10 },
-        upgrades: [
-            {
-                level: 2,
-                name: 'Industrial Diesel Unit',
-                description: 'More efficient metal-encased motor.',
-                statsDiff: '+25 Power',
-                costs: { agt: 3000, minerals: 100 },
-                era: Era.GROWTH,
-                maintenance: 10,
-                power: { produces: 25 },
-                pollution: 5.0
-            },
-            {
-                level: 3,
-                name: 'Dual-Turbine Gen',
-                description: 'High-speed industrial twin turbines.',
-                statsDiff: '+60 Power',
-                costs: { agt: 10000, minerals: 400, gems: 5 },
-                era: Era.INDUSTRY,
-                maintenance: 20,
-                power: { produces: 60 },
-                pollution: 8.0
-            },
-            {
-                level: 4,
-                name: 'Fusion Mini-Reactor',
-                description: 'Next-gen fusion power. Clean and massive.',
-                statsDiff: '+200 Power, -Pollution',
-                costs: { agt: 40000, stone: 1000, minerals: 1000, gems: 50 },
-                era: Era.SUSTAINABILITY,
-                maintenance: 50,
-                power: { produces: 200 },
-                pollution: 0.5
-            }
-        ]
-    },
-    [BuildingType.MINE_SHAFT]: {
-        type: BuildingType.MINE_SHAFT,
-        name: 'Mine Shaft',
-        cost: 2500,
-        desc: 'Creates a hardened surface access shaft for later underground extraction and logistics.',
-        ecoReq: 0,
-        stats: 'Surface Access',
-        width: 2,
-        depth: 2,
-        buildTime: 80,
-        maintenance: 5,
-        pollution: 1.5,
-        costs: { agt: 2500, wood: 300, stone: 500 },
-        era: Era.SETTLEMENT
-    },
-    [BuildingType.SURVEY_DRILL]: {
-        type: BuildingType.SURVEY_DRILL,
-        name: 'Survey Drill',
-        cost: 2200,
-        desc: 'Reveals underground deposits, hazards, and stability data around its location.',
-        ecoReq: 0,
-        stats: 'Reveal Sector B1',
-        buildTime: 55,
-        maintenance: 3,
-        pollution: 0.4,
-        costs: { agt: 2200, stone: 120, minerals: 30 },
-        era: Era.SETTLEMENT,
-        trustReq: 50,
-        power: { consumes: 2 },
-    },
-    [BuildingType.MEDICAL_BAY]: {
-        type: BuildingType.MEDICAL_BAY,
-        name: 'Medical Bay',
-        cost: 2000,
-        desc: 'Facility boosts max energy and heals agents.',
-        ecoReq: 0,
-        trustReq: 30,
-        stats: '+Healing, +10 Max Energy',
-        width: 2,
-        depth: 2,
-        buildTime: 60,
-        maintenance: 5,
-        pollution: 0.3,
-        costs: { agt: 2000, wood: 200, stone: 300, minerals: 80 },
-        era: Era.GROWTH,
-        power: { consumes: 3 },
-        upgrades: [
-            {
-                level: 2,
-                name: 'Modern Clinic',
-                description: 'Permanent structure with proper triage.',
-                statsDiff: '+20 Max Energy',
-                costs: { agt: 4000, stone: 500, minerals: 100 },
-                era: Era.GROWTH,
-                maintenance: 10,
-                power: { consumes: 5 }
-            },
-            {
-                level: 3,
-                name: 'Advanced Med-Center',
-                description: 'High-tech surgical wing with drones.',
-                statsDiff: '+40 Max Energy',
-                costs: { agt: 12000, stone: 800, minerals: 300 },
-                era: Era.INDUSTRY,
-                maintenance: 20,
-                power: { consumes: 10 }
-            },
-            {
-                level: 4,
-                name: 'Regenerative Biosphere',
-                description: 'Modern genetic and bio-reconstruction hub.',
-                statsDiff: '+80 Max Energy, -Poll.',
-                costs: { agt: 30000, minerals: 600, gems: 40 },
-                era: Era.SUSTAINABILITY,
-                maintenance: 35,
-                power: { consumes: 15 },
-                pollution: -1.0
-            }
-        ]
-    },
-    [BuildingType.TRAINING_CENTER]: {
-        type: BuildingType.TRAINING_CENTER,
-        name: 'Training Center',
-        cost: 2500,
-        desc: 'Skill academy where workers gain abilities faster.',
-        ecoReq: 0,
-        trustReq: 35,
-        stats: '+50% Skill Gain',
-        width: 2,
-        depth: 2,
-        buildTime: 80,
-        maintenance: 4,
-        pollution: 0.2,
-        costs: { agt: 2500, wood: 300, stone: 300, minerals: 120 },
-        era: Era.GROWTH,
-        power: { consumes: 2 },
-        upgrades: [
-            {
-                level: 2,
-                name: 'Technical School',
-                description: 'Dedicated building with classrooms.',
-                statsDiff: '+75% Skill Gain',
-                costs: { agt: 5000, minerals: 200 },
-                era: Era.GROWTH,
-                maintenance: 10,
-                power: { consumes: 4 }
-            },
-            {
-                level: 3,
-                name: 'Industrial Institute',
-                description: 'Advanced laboratories and workshops.',
-                statsDiff: '+120% Skill Gain',
-                costs: { agt: 15000, minerals: 500, stone: 600 },
-                era: Era.INDUSTRY,
-                maintenance: 25,
-                power: { consumes: 8 }
-            },
-            {
-                level: 4,
-                name: 'Holographic Academy',
-                description: 'AI-driven training with virtual reality.',
-                statsDiff: '+250% Skill Gain',
-                costs: { agt: 40000, minerals: 1000, gems: 50 },
-                era: Era.SUSTAINABILITY,
-                maintenance: 50,
-                power: { consumes: 15 }
-            }
-        ]
-    },
-    [BuildingType.GEM_REFINERY]: {
-        type: BuildingType.GEM_REFINERY,
-        name: 'Gem Refinery',
-        cost: 15000,
-        desc: 'Precision facility that extracts gems from raw ore.',
-        ecoReq: 20,
-        stats: '+5 Gems/min',
-        width: 2,
-        depth: 2,
-        buildTime: 200,
-        dependency: BuildingType.ORE_FOUNDRY,
-        maintenance: 15,
-        pollution: 5.0,
-        production: 5,
-        productionType: 'GEMS',
-        costs: { agt: 15000, stone: 700, minerals: 600 },
-        era: Era.INDUSTRY,
-        power: { consumes: 10 },
-        water: { consumes: 3 },
-    },
-    [BuildingType.RAIL_LINE]: {
-        type: BuildingType.RAIL_LINE,
-        name: 'Rail Line',
-        cost: 50,
-        desc: 'Industrial track for regional bulk transport between train hubs.',
-        ecoReq: 0,
-        stats: 'Regional Rail Throughput',
-        costs: { agt: 50, stone: 25, minerals: 5 },
-        buildTime: 5,
-        maintenance: 0.2,
-        pollution: 0.1,
-        era: Era.INDUSTRY,
-    },
-    [BuildingType.TRAIN_STATION]: {
-        type: BuildingType.TRAIN_STATION,
-        name: 'Logistics Train Station',
-        cost: 15000,
-        desc: 'Cargo terminal that pushes bulk freight by rail and dispatches short-range drones for nearby delivery.',
-        ecoReq: 10,
-        stats: 'Regional Rail + Drone Dispatch, +50 Trust/s',
-        width: 3,
-        depth: 3,
-        buildTime: 120,
-        maintenance: 60,
-        pollution: 4.0,
-        production: 50,
-        productionType: 'TRUST',
-        costs: { agt: 15000, stone: 1500, minerals: 900 },
-        era: Era.INDUSTRY,
-        power: { consumes: 10 },
-        water: { consumes: 2 },
-    },
-    [BuildingType.DRONE_DEPOT]: {
-        type: BuildingType.DRONE_DEPOT,
-        name: 'Drone Depot',
-        cost: 22000,
-        desc: 'High-tier logistics yard with recharge pads, repair racks, and dispatch control for district-scale last-mile drone delivery.',
-        ecoReq: 20,
-        stats: 'Drone Range + Charge Capacity',
-        width: 3,
-        depth: 2,
-        buildTime: 160,
-        maintenance: 30,
-        pollution: 1.2,
-        costs: { agt: 22000, stone: 900, minerals: 900, gems: 10 },
-        era: Era.SUSTAINABILITY,
-        power: { consumes: 14 },
-        water: { consumes: 1 },
-    },
-    [BuildingType.DISTRIBUTION_HUB]: {
-        type: BuildingType.DISTRIBUTION_HUB,
-        name: 'Distribution Hub',
-        cost: 8000,
-        desc: 'Logistics center that auto-delivers resources to nearby buildings.',
-        ecoReq: 10,
-        stats: 'Auto-Distribute',
-        width: 2,
-        depth: 2,
-        buildTime: 120,
-        maintenance: 8,
-        pollution: 1.0,
-        costs: { agt: 8000, stone: 800, minerals: 500 },
-        era: Era.INDUSTRY,
-        power: { consumes: 5 },
-    },
-    [BuildingType.WASTE_TREATMENT]: {
-        type: BuildingType.WASTE_TREATMENT,
-        name: 'Waste Treatment',
-        cost: 10000,
-        desc: 'Advanced facility that reduces pollution from all buildings by 20%.',
-        ecoReq: 40,
-        stats: '-20% Global Pollution',
-        width: 2,
-        depth: 2,
-        buildTime: 150,
-        maintenance: 12,
-        pollution: -5.0,
-        costs: { agt: 10000, stone: 900, minerals: 500, gems: 5 },
-        era: Era.SUSTAINABILITY,
-        power: { consumes: 8 },
-        water: { consumes: 5 },
-    },
-    [BuildingType.NATURE_RESERVE]: {
-        type: BuildingType.NATURE_RESERVE,
-        name: 'Nature Reserve',
-        cost: 8000,
-        desc: 'Protected wilderness area with massive eco regeneration and wildlife.',
-        ecoReq: 50,
-        trustReq: 60,
-        stats: 'Extreme Eco Regen',
-        width: 4,
-        depth: 4,
-        buildTime: 200,
-        maintenance: 10,
-        pollution: -15.0,
-        production: 10,
-        productionType: 'TRUST',
-        costs: { agt: 8000, wood: 1200, gems: 10 },
-        era: Era.SUSTAINABILITY,
-    },
-    [BuildingType.HYDROPONICS]: {
-        type: BuildingType.HYDROPONICS,
-        name: 'Hydroponics Farm',
-        cost: 6000,
-        desc: 'Vertical food production with eco benefits.',
-        ecoReq: 30,
-        stats: '+Food, -2 Pollution',
-        width: 2,
-        depth: 2,
-        buildTime: 100,
-        maintenance: 6,
-        pollution: -2.0,
-        costs: { agt: 6000, wood: 600, stone: 400, minerals: 200 },
-        era: Era.SUSTAINABILITY,
-        power: { consumes: 4 },
-        water: { consumes: 8 },
-    },
-    [BuildingType.GEOTHERMAL_PLANT]: {
-        type: BuildingType.GEOTHERMAL_PLANT,
-        name: 'Geothermal Plant',
-        cost: 18000,
-        desc: 'Deep earth power that works day and night.',
-        ecoReq: 35,
-        stats: '+50 Power (24/7)',
-        width: 2,
-        depth: 2,
-        buildTime: 180,
-        maintenance: 8,
-        pollution: 0.5,
-        costs: { agt: 18000, stone: 1200, minerals: 800, gems: 10 },
-        era: Era.SUSTAINABILITY,
-        power: { produces: 50 },
-    },
-    [BuildingType.MONUMENT]: {
-        type: BuildingType.MONUMENT,
-        name: 'Victory Monument',
-        cost: 50000,
-        desc: 'A grand monument celebrating your sustainable success. Victory condition.',
-        ecoReq: 90,
-        trustReq: 90,
-        stats: 'Victory Trigger',
-        width: 7,
-        depth: 7,
-        buildTime: 500,
-        maintenance: 0,
-        pollution: 0,
-        production: 50,
-        productionType: 'TRUST',
-        costs: { agt: 50000, stone: 2500, minerals: 1500, gems: 80 },
-        era: Era.PROSPERITY,
-    },
-    [BuildingType.SPACEPORT]: {
-        type: BuildingType.SPACEPORT,
-        name: 'Orbital Spaceport',
-        cost: 100000,
-        desc: 'Launch facility to export minerals to orbit for 10x price.',
-        ecoReq: 80,
-        trustReq: 80,
-        stats: '10x Export Value',
-        width: 7,
-        depth: 7,
-        buildTime: 1000,
-        maintenance: 50,
-        pollution: 10.0,
-        costs: { agt: 100000, stone: 3000, minerals: 3000, gems: 100 },
-        era: Era.PROSPERITY,
-        power: { consumes: 100 },
-    },
-    [BuildingType.STOCKPILE]: {
-        type: BuildingType.STOCKPILE,
-        name: 'Resource Stockpile',
-        cost: 2000,
-        desc: 'Massive open-air storage. Increases capacity significantly.',
-        ecoReq: 0,
-        stats: '+2000 Storage',
-        width: 3,
-        depth: 3,
-        buildTime: 60,
-        maintenance: 5,
-        pollution: 1.0,
-        era: Era.GROWTH,
-        costs: { agt: 2000, stone: 500, wood: 500 }
-    },
-    [BuildingType.D_MINE]: {
-        type: BuildingType.D_MINE,
-        name: 'Dungeon Mine',
-        cost: 0,
-        desc: 'Underground mining operation.',
-        ecoReq: 0,
-        stats: 'Underground',
-        buildTime: 0,
-        maintenance: 0,
-        pollution: 0,
-        era: Era.SETTLEMENT
-    },
-    [BuildingType.D_SUPPORT]: {
-        type: BuildingType.D_SUPPORT,
-        name: 'Support Beam',
-        cost: 0,
-        desc: 'Prevents cave-ins.',
-        ecoReq: 0,
-        stats: 'Underground',
-        buildTime: 0,
-        maintenance: 0,
-        pollution: 0,
-        era: Era.SETTLEMENT
-    },
-    [BuildingType.D_RECHARGER]: {
-        type: BuildingType.D_RECHARGER,
-        name: 'Recharge Station',
-        cost: 0,
-        desc: 'Refills energy for dungeon delvers.',
-        ecoReq: 0,
-        stats: 'Underground',
-        buildTime: 0,
-        maintenance: 0,
-        pollution: 0,
-        era: Era.SETTLEMENT
-    },
-    [BuildingType.D_HIRE]: {
-        type: BuildingType.D_HIRE,
-        name: 'Mercenary Post',
-        cost: 0,
-        desc: 'Hire help for the depths.',
-        ecoReq: 0,
-        stats: 'Underground',
-        buildTime: 0,
-        maintenance: 0,
-        pollution: 0,
-        era: Era.SETTLEMENT
-    },
-    [BuildingType.D_DEPOSIT]: {
-        type: BuildingType.D_DEPOSIT,
-        name: 'Resource Deposit',
-        cost: 0,
-        desc: 'Rich vein of minerals.',
-        ecoReq: 0,
-        stats: 'Underground',
-        buildTime: 0,
-        maintenance: 0,
-        pollution: 0,
-        era: Era.SETTLEMENT
-    }
+    [BuildingType.WORKSHOP]: { type: BuildingType.WORKSHOP, name: 'Workshop', cost: 900, desc: 'Speeds up construction in nearby buildings by 25%.', ecoReq: 0, stats: '+25% Build Speed', width: 2, depth: 2, buildTime: 45, maintenance: 2, pollution: 0.5, costs: { agt: 900, wood: 200, stone: 150, minerals: 40 }, era: Era.SETTLEMENT },
+    [BuildingType.GENERATOR]: { type: BuildingType.GENERATOR, name: 'Fuel Generator', cost: 1800, desc: 'Provides power but produces pollution.', ecoReq: 0, stats: '+10 Power', buildTime: 40, maintenance: 4, pollution: 3.0, costs: { agt: 1800, stone: 250, minerals: 120 }, era: Era.GROWTH, power: { produces: 10 }, upgrades: [{ level: 2, name: 'Industrial Diesel Unit', description: 'More efficient metal-encased motor.', statsDiff: '+25 Power', costs: { agt: 3000, minerals: 100 }, era: Era.GROWTH, maintenance: 10, power: { produces: 25 }, pollution: 5.0 }, { level: 3, name: 'Dual-Turbine Gen', description: 'High-speed industrial twin turbines.', statsDiff: '+60 Power', costs: { agt: 10000, minerals: 400, gems: 5 }, era: Era.INDUSTRY, maintenance: 20, power: { produces: 60 }, pollution: 8.0 }, { level: 4, name: 'Fusion Mini-Reactor', description: 'Next-gen fusion power. Clean and massive.', statsDiff: '+200 Power, -Pollution', costs: { agt: 40000, stone: 1000, minerals: 1000, gems: 50 }, era: Era.SUSTAINABILITY, maintenance: 50, power: { produces: 200 }, pollution: 0.5 }] },
+    [BuildingType.MINE_SHAFT]: { type: BuildingType.MINE_SHAFT, name: 'Mine Shaft', cost: 2500, desc: 'Creates a hardened surface access shaft for later underground extraction and logistics.', ecoReq: 0, stats: 'Surface Access', width: 2, depth: 2, buildTime: 80, maintenance: 5, pollution: 1.5, costs: { agt: 2500, wood: 300, stone: 500 }, era: Era.SETTLEMENT },
+    [BuildingType.SURVEY_DRILL]: { type: BuildingType.SURVEY_DRILL, name: 'Survey Drill', cost: 2200, desc: 'Reveals underground deposits, hazards, and stability data around its location.', ecoReq: 0, stats: 'Reveal Sector B1', buildTime: 55, maintenance: 3, pollution: 0.4, costs: { agt: 2200, stone: 120, minerals: 30 }, era: Era.SETTLEMENT, trustReq: 50, power: { consumes: 2 } },
+    [BuildingType.MEDICAL_BAY]: { type: BuildingType.MEDICAL_BAY, name: 'Medical Bay', cost: 2000, desc: 'Facility boosts max energy and heals agents.', ecoReq: 0, trustReq: 30, stats: '+Healing, +10 Max Energy', width: 2, depth: 2, buildTime: 60, maintenance: 5, pollution: 0.3, costs: { agt: 2000, wood: 200, stone: 300, minerals: 80 }, era: Era.GROWTH, power: { consumes: 3 }, upgrades: [{ level: 2, name: 'Modern Clinic', description: 'Permanent structure with proper triage.', statsDiff: '+20 Max Energy', costs: { agt: 4000, stone: 500, minerals: 100 }, era: Era.GROWTH, maintenance: 10, power: { consumes: 5 } }, { level: 3, name: 'Advanced Med-Center', description: 'High-tech surgical wing with drones.', statsDiff: '+40 Max Energy', costs: { agt: 12000, stone: 800, minerals: 300 }, era: Era.INDUSTRY, maintenance: 20, power: { consumes: 10 } }, { level: 4, name: 'Regenerative Biosphere', description: 'Modern genetic and bio-reconstruction hub.', statsDiff: '+80 Max Energy, -Poll.', costs: { agt: 30000, minerals: 600, gems: 40 }, era: Era.SUSTAINABILITY, maintenance: 35, power: { consumes: 15 }, pollution: -1.0 }] },
+    [BuildingType.TRAINING_CENTER]: { type: BuildingType.TRAINING_CENTER, name: 'Training Center', cost: 2500, desc: 'Skill academy where workers gain abilities faster.', ecoReq: 0, trustReq: 35, stats: '+50% Skill Gain', width: 2, depth: 2, buildTime: 80, maintenance: 4, pollution: 0.2, costs: { agt: 2500, wood: 300, stone: 300, minerals: 120 }, era: Era.GROWTH, power: { consumes: 2 }, upgrades: [{ level: 2, name: 'Technical School', description: 'Dedicated building with classrooms.', statsDiff: '+75% Skill Gain', costs: { agt: 5000, minerals: 200 }, era: Era.GROWTH, maintenance: 10, power: { consumes: 4 } }, { level: 3, name: 'Industrial Institute', description: 'Advanced laboratories and workshops.', statsDiff: '+120% Skill Gain', costs: { agt: 15000, minerals: 500, stone: 600 }, era: Era.INDUSTRY, maintenance: 25, power: { consumes: 8 } }, { level: 4, name: 'Holographic Academy', description: 'AI-driven training with virtual reality.', statsDiff: '+250% Skill Gain', costs: { agt: 40000, minerals: 1000, gems: 50 }, era: Era.SUSTAINABILITY, maintenance: 50, power: { consumes: 15 } }] },
+    [BuildingType.GEM_REFINERY]: { type: BuildingType.GEM_REFINERY, name: 'Gem Refinery', cost: 15000, desc: 'Precision facility that extracts gems from raw ore.', ecoReq: 20, stats: '+5 Gems/min', width: 2, depth: 2, buildTime: 200, dependency: BuildingType.ORE_FOUNDRY, maintenance: 15, pollution: 5.0, production: 5, productionType: 'GEMS', costs: { agt: 15000, stone: 700, minerals: 600 }, era: Era.INDUSTRY, power: { consumes: 10 }, water: { consumes: 3 } },
+    [BuildingType.RAIL_LINE]: { type: BuildingType.RAIL_LINE, name: 'Rail Line', cost: 50, desc: 'Industrial track for regional bulk transport between train hubs.', ecoReq: 0, stats: 'Regional Rail Throughput', costs: { agt: 50, stone: 25, minerals: 5 }, buildTime: 5, maintenance: 0.2, pollution: 0.1, era: Era.INDUSTRY },
+    [BuildingType.TRAIN_STATION]: { type: BuildingType.TRAIN_STATION, name: 'Logistics Train Station', cost: 15000, desc: 'Cargo terminal that pushes bulk freight by rail and dispatches short-range drones for nearby delivery.', ecoReq: 10, stats: 'Regional Rail + Drone Dispatch, +50 Trust/s', width: 3, depth: 3, buildTime: 120, maintenance: 60, pollution: 4.0, production: 50, productionType: 'TRUST', costs: { agt: 15000, stone: 1500, minerals: 900 }, era: Era.INDUSTRY, power: { consumes: 10 }, water: { consumes: 2 } },
+    [BuildingType.DRONE_DEPOT]: { type: BuildingType.DRONE_DEPOT, name: 'Drone Depot', cost: 22000, desc: 'High-tier logistics yard with recharge pads, repair racks, and dispatch control for district-scale last-mile drone delivery.', ecoReq: 20, stats: 'Drone Range + Charge Capacity', width: 3, depth: 2, buildTime: 160, maintenance: 30, pollution: 1.2, costs: { agt: 22000, stone: 900, minerals: 900, gems: 10 }, era: Era.SUSTAINABILITY, power: { consumes: 14 }, water: { consumes: 1 } },
+    [BuildingType.DISTRIBUTION_HUB]: { type: BuildingType.DISTRIBUTION_HUB, name: 'Distribution Hub', cost: 8000, desc: 'Logistics center that auto-delivers resources to nearby buildings.', ecoReq: 10, stats: 'Auto-Distribute', width: 2, depth: 2, buildTime: 120, maintenance: 8, pollution: 1.0, costs: { agt: 8000, stone: 800, minerals: 500 }, era: Era.INDUSTRY, power: { consumes: 5 } },
+    [BuildingType.WASTE_TREATMENT]: { type: BuildingType.WASTE_TREATMENT, name: 'Waste Treatment', cost: 10000, desc: 'Advanced facility that reduces pollution from all buildings by 20%.', ecoReq: 40, stats: '-20% Global Pollution', width: 2, depth: 2, buildTime: 150, maintenance: 12, pollution: -5.0, costs: { agt: 10000, stone: 900, minerals: 500, gems: 5 }, era: Era.SUSTAINABILITY, power: { consumes: 8 }, water: { consumes: 5 } },
+    [BuildingType.NATURE_RESERVE]: { type: BuildingType.NATURE_RESERVE, name: 'Nature Reserve', cost: 8000, desc: 'Protected wilderness area with massive eco regeneration and wildlife.', ecoReq: 50, trustReq: 60, stats: 'Extreme Eco Regen', width: 4, depth: 4, buildTime: 200, maintenance: 10, pollution: -15.0, production: 10, productionType: 'TRUST', costs: { agt: 8000, wood: 1200, gems: 10 }, era: Era.SUSTAINABILITY },
+    [BuildingType.HYDROPONICS]: { type: BuildingType.HYDROPONICS, name: 'Hydroponics Farm', cost: 6000, desc: 'Vertical food production with eco benefits.', ecoReq: 30, stats: '+Food, -2 Pollution', width: 2, depth: 2, buildTime: 100, maintenance: 6, pollution: -2.0, costs: { agt: 6000, wood: 600, stone: 400, minerals: 200 }, era: Era.SUSTAINABILITY, power: { consumes: 4 }, water: { consumes: 8 } },
+    [BuildingType.GEOTHERMAL_PLANT]: { type: BuildingType.GEOTHERMAL_PLANT, name: 'Geothermal Plant', cost: 18000, desc: 'Deep earth power that works day and night.', ecoReq: 35, stats: '+50 Power (24/7)', width: 2, depth: 2, buildTime: 180, maintenance: 8, pollution: 0.5, costs: { agt: 18000, stone: 1200, minerals: 800, gems: 10 }, era: Era.SUSTAINABILITY, power: { produces: 50 } },
+    [BuildingType.MONUMENT]: { type: BuildingType.MONUMENT, name: 'Victory Monument', cost: 50000, desc: 'A grand monument celebrating your sustainable success. Victory condition.', ecoReq: 90, trustReq: 90, stats: 'Victory Trigger', width: 7, depth: 7, buildTime: 500, maintenance: 0, pollution: 0, production: 50, productionType: 'TRUST', costs: { agt: 50000, stone: 2500, minerals: 1500, gems: 80 }, era: Era.PROSPERITY },
+    [BuildingType.SPACEPORT]: { type: BuildingType.SPACEPORT, name: 'Orbital Spaceport', cost: 100000, desc: 'Launch facility to export minerals to orbit for 10x price.', ecoReq: 80, trustReq: 80, stats: '10x Export Value', width: 7, depth: 7, buildTime: 1000, maintenance: 50, pollution: 10.0, costs: { agt: 100000, stone: 3000, minerals: 3000, gems: 100 }, era: Era.PROSPERITY, power: { consumes: 100 } },
+    [BuildingType.STOCKPILE]: { type: BuildingType.STOCKPILE, name: 'Resource Stockpile', cost: 2000, desc: 'Massive open-air storage. Increases capacity significantly.', ecoReq: 0, stats: '+2000 Storage', width: 3, depth: 3, buildTime: 60, maintenance: 5, pollution: 1.0, era: Era.GROWTH, costs: { agt: 2000, stone: 500, wood: 500 } },
+    [BuildingType.RUBBLE_DUMP]: { type: BuildingType.RUBBLE_DUMP, name: 'Rubble Dump', cost: 350, desc: 'Designated debris yard where workers haul broken rock before ore extraction can continue.', ecoReq: 0, stats: '+48 Rubble Capacity', width: 2, depth: 2, buildTime: 10, maintenance: 0.5, pollution: 0.3, costs: { agt: 350, stone: 50 }, era: Era.SETTLEMENT },
+    [BuildingType.D_MINE]: { type: BuildingType.D_MINE, name: 'Dungeon Mine', cost: 0, desc: 'Underground mining operation.', ecoReq: 0, stats: 'Underground', buildTime: 0, maintenance: 0, pollution: 0, era: Era.SETTLEMENT },
+    [BuildingType.D_SUPPORT]: { type: BuildingType.D_SUPPORT, name: 'Support Beam', cost: 0, desc: 'Prevents cave-ins.', ecoReq: 0, stats: 'Underground', buildTime: 0, maintenance: 0, pollution: 0, era: Era.SETTLEMENT },
+    [BuildingType.D_RECHARGER]: { type: BuildingType.D_RECHARGER, name: 'Recharge Station', cost: 0, desc: 'Refills energy for dungeon delvers.', ecoReq: 0, stats: 'Underground', buildTime: 0, maintenance: 0, pollution: 0, era: Era.SETTLEMENT },
+    [BuildingType.D_HIRE]: { type: BuildingType.D_HIRE, name: 'Mercenary Post', cost: 0, desc: 'Hire help for the depths.', ecoReq: 0, stats: 'Underground', buildTime: 0, maintenance: 0, pollution: 0, era: Era.SETTLEMENT },
+    [BuildingType.D_DEPOSIT]: { type: BuildingType.D_DEPOSIT, name: 'Resource Deposit', cost: 0, desc: 'Rich vein of minerals.', ecoReq: 0, stats: 'Underground', buildTime: 0, maintenance: 0, pollution: 0, era: Era.SETTLEMENT }
 };
