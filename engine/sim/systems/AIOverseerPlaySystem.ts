@@ -8,6 +8,7 @@ import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../utils/GameUtils';
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
 type ResourceKey = 'minerals' | 'gems' | 'wood' | 'stone';
 type Point = { x: number; z: number };
+type PlacementZone = 'CORE' | 'RESIDENTIAL' | 'PRODUCTION' | 'UTILITY' | 'ECO' | 'LOGISTICS';
 
 type OverseerState = {
     enabled: boolean;
@@ -77,9 +78,62 @@ const INFRASTRUCTURE_TYPES = new Set<BuildingType>([
     BuildingType.RAIL_LINE,
 ]);
 
+const PRODUCTION_TYPES = new Set<BuildingType>([
+    BuildingType.WASH_PLANT,
+    BuildingType.MINING_HEADFRAME,
+    BuildingType.SAWMILL,
+    BuildingType.STONE_QUARRY,
+    BuildingType.ORE_FOUNDRY,
+    BuildingType.WORKSHOP,
+    BuildingType.GEM_REFINERY,
+    BuildingType.RECYCLING_PLANT,
+]);
+
+const UTILITY_TYPES = new Set<BuildingType>([
+    BuildingType.SOLAR_ARRAY,
+    BuildingType.WATER_WELL,
+    BuildingType.WIND_TURBINE,
+    BuildingType.GEOTHERMAL_PLANT,
+    BuildingType.RESERVOIR,
+    BuildingType.WASTE_TREATMENT,
+]);
+
+const RESIDENTIAL_TYPES = new Set<BuildingType>([
+    BuildingType.STAFF_QUARTERS,
+    BuildingType.CANTEEN,
+    BuildingType.MEDICAL_BAY,
+    BuildingType.TRAINING_CENTER,
+    BuildingType.SECURITY_POST,
+    BuildingType.SOCIAL_HUB,
+]);
+
+const ECO_TYPES = new Set<BuildingType>([
+    BuildingType.COMMUNITY_GARDEN,
+    BuildingType.NATURE_RESERVE,
+    BuildingType.HYDROPONICS,
+    BuildingType.SAFARI_LODGE,
+    BuildingType.GREEN_TECH_LAB,
+    BuildingType.MONUMENT,
+    BuildingType.SPACEPORT,
+]);
+
+const LOGISTICS_TYPES = new Set<BuildingType>([
+    BuildingType.STORAGE_DEPOT,
+    BuildingType.STOCKPILE,
+    BuildingType.DISTRIBUTION_HUB,
+    BuildingType.TRAIN_STATION,
+    BuildingType.DRONE_DEPOT,
+]);
+
+const PLACEMENT_SEARCH_RADIUS = 18;
+const FALLBACK_SEARCH_RADIUS = 38;
+const EXCAVATION_RESERVE_OFFSET: Point = { x: 9, z: 9 };
+const EXCAVATION_RESERVE_RADIUS = 5;
+
 const BUILD_PLAN: BuildIntent[] = [
     { type: BuildingType.STAFF_QUARTERS, reason: 'give the first crew beds and recovery', desiredCount: 1 },
     { type: BuildingType.STORAGE_DEPOT, reason: 'stop resources from becoming invisible waste', desiredCount: 1 },
+    { type: BuildingType.STOCKPILE, reason: 'reserve a rubble and material yard before open-pit work begins', desiredCount: 1 },
     { type: BuildingType.SOLAR_ARRAY, reason: 'provide clean starter power before demand rises', desiredCount: 1 },
     { type: BuildingType.WATER_WELL, reason: 'provide starter water before demand rises', desiredCount: 1 },
     { type: BuildingType.WASH_PLANT, reason: 'start the first mineral production chain', desiredCount: 1 },
@@ -90,7 +144,7 @@ const BUILD_PLAN: BuildIntent[] = [
     { type: BuildingType.SOLAR_ARRAY, reason: 'increase starter power capacity', desiredCount: 3 },
     { type: BuildingType.WATER_WELL, reason: 'increase starter water capacity', desiredCount: 2 },
     { type: BuildingType.STAFF_QUARTERS, reason: 'increase worker capacity', desiredCount: 3, minEra: Era.GROWTH },
-    { type: BuildingType.STOCKPILE, reason: 'expand storage for bigger contracts', desiredCount: 1, minEra: Era.GROWTH },
+    { type: BuildingType.STOCKPILE, reason: 'expand rubble and storage capacity for bigger contracts', desiredCount: 2, minEra: Era.GROWTH },
     { type: BuildingType.WIND_TURBINE, reason: 'lift eco score while growing power', desiredCount: 2, minEra: Era.GROWTH },
     { type: BuildingType.COMMUNITY_GARDEN, reason: 'earn trust before heavier industry', desiredCount: 2, minEra: Era.GROWTH },
     { type: BuildingType.MEDICAL_BAY, reason: 'support a larger workforce', desiredCount: 1, minEra: Era.GROWTH },
@@ -163,7 +217,7 @@ export class AIOverseerSystem extends BaseSimSystem {
         const owned = this.getOwnedBuildingToPlace(state);
         if (owned) {
             const def = BUILDINGS[owned.type];
-            return { focus: `Place ${def.name}`, recommendation: `Pilot has ${def.name} in inventory and will place it before roads or decoration.`, confidence: 0.9 };
+            return { focus: `Place ${def.name}`, recommendation: `Pilot has ${def.name} in inventory and will place it only if the colony plan still needs one.`, confidence: 0.9 };
         }
 
         const ready = state.contracts.find(contract => this.isReady(contract, state));
@@ -221,7 +275,9 @@ export class AIOverseerSystem extends BaseSimSystem {
 
     private getOwnedBuildingToPlace(state: GameState): BuildIntent | null {
         for (const intent of BUILD_PLAN) {
-            if ((state.inventory?.[intent.type] || 0) > 0 && this.isIntentAvailable(state, intent)) return intent;
+            if ((state.inventory?.[intent.type] || 0) <= 0 || !this.isIntentAvailable(state, intent)) continue;
+            if (this.countPlacedBuildings(state, intent.type) >= (intent.desiredCount || 1)) continue;
+            return intent;
         }
 
         for (const [key, count] of Object.entries(state.inventory || {})) {
@@ -229,7 +285,8 @@ export class AIOverseerSystem extends BaseSimSystem {
             if (!count || count <= 0 || type === BuildingType.EMPTY || INFRASTRUCTURE_TYPES.has(type)) continue;
             const def = BUILDINGS[type];
             if (!def || !this.isEraAvailable(state, def.era || Era.SETTLEMENT)) continue;
-            return { type, reason: 'place owned inventory before buying more' };
+            if (this.countPlacedBuildings(state, type) >= this.getDesiredCountForType(state, type)) continue;
+            return { type, reason: 'place owned inventory only when it still fits the colony plan' };
         }
 
         return null;
@@ -261,7 +318,7 @@ export class AIOverseerSystem extends BaseSimSystem {
         if ((state.inventory?.[intent.type] || 0) > 0) {
             const placement = this.findPlacement(state, intent.type);
             if (!placement) {
-                this.log(state, overseer, `No clear footprint for ${def.name}`);
+                this.log(state, overseer, `No planned footprint for ${def.name}; preserving mine space and clear paths`);
                 return true;
             }
             this.queueCommand(ctx, state, 'PLACE_BUILDING', { x: placement.x, z: placement.z, buildingType: intent.type });
@@ -294,38 +351,33 @@ export class AIOverseerSystem extends BaseSimSystem {
         if (!def) return null;
         const width = def.width || 1;
         const depth = def.depth || 1;
-        const centerX = Math.round(state.spawnX || 0);
-        const centerZ = Math.round(state.spawnZ || 0);
-        const completedNonInfra = this.getPlacedHeads(state).filter(tile => !INFRASTRUCTURE_TYPES.has(tile.buildingType)).length;
-        const lane = completedNonInfra % 4;
-        const band = Math.floor(completedNonInfra / 4) * 5;
-        const seeds: Point[] = [
-            { x: centerX + 4 + band, z: centerZ + lane * 4 },
-            { x: centerX - 6 - band, z: centerZ + lane * 4 },
-            { x: centerX + lane * 4, z: centerZ + 4 + band },
-            { x: centerX + lane * 4, z: centerZ - 6 - band },
-        ];
+        const anchors = this.getPlacementAnchors(state, type);
 
-        for (const seed of seeds) {
-            const found = this.searchFrom(state, type, seed.x, seed.z, width, depth, 8);
+        for (const anchor of anchors) {
+            const found = this.searchFrom(state, type, anchor.x, anchor.z, width, depth, PLACEMENT_SEARCH_RADIUS);
             if (found) return found;
         }
 
-        return this.searchFrom(state, type, centerX, centerZ, width, depth, 36);
+        const centerX = Math.round(state.spawnX || 0);
+        const centerZ = Math.round(state.spawnZ || 0);
+        return this.searchFrom(state, type, centerX, centerZ, width, depth, FALLBACK_SEARCH_RADIUS);
     }
 
     private searchFrom(state: GameState, type: BuildingType, originX: number, originZ: number, width: number, depth: number, maxRadius: number): Point | null {
+        let best: { point: Point; score: number } | null = null;
         for (let radius = 0; radius <= maxRadius; radius++) {
             for (let dz = -radius; dz <= radius; dz++) {
                 for (let dx = -radius; dx <= radius; dx++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) continue;
                     const x = originX + dx;
                     const z = originZ + dz;
-                    if (this.canPlaceAt(state, type, x, z, width, depth)) return { x, z };
+                    if (!this.canPlaceAt(state, type, x, z, width, depth)) continue;
+                    const score = this.scorePlacement(state, type, x, z, originX, originZ, width, depth);
+                    if (!best || score < best.score) best = { point: { x, z }, score };
                 }
             }
         }
-        return null;
+        return best?.point || null;
     }
 
     private canPlaceAt(state: GameState, type: BuildingType, x: number, z: number, width: number, depth: number): boolean {
@@ -333,14 +385,84 @@ export class AIOverseerSystem extends BaseSimSystem {
         if (!def) return false;
         for (let dz = 0; dz < depth; dz++) {
             for (let dx = 0; dx < width; dx++) {
-                const tile = ChunkStore.getTile(state.chunks, x + dx, z + dz);
+                const worldX = x + dx;
+                const worldZ = z + dz;
+                if (this.isExcavationReserveTile(state, worldX, worldZ)) return false;
+                const tile = ChunkStore.getTile(state.chunks, worldX, worldZ);
                 if (!tile || tile.locked || tile.isUnderConstruction) return false;
+                if ((tile as any).openPitDepth > 0 || (tile.foliage as any) === 'ROCK_PEBBLE') return false;
                 const isEmpty = tile.buildingType === BuildingType.EMPTY;
                 const isAllowedWater = tile.buildingType === BuildingType.POND && Boolean(def.waterPlaceable);
                 if (!isEmpty && !isAllowedWater) return false;
             }
         }
         return true;
+    }
+
+    private scorePlacement(state: GameState, type: BuildingType, x: number, z: number, originX: number, originZ: number, width: number, depth: number): number {
+        const distanceToAnchor = Math.abs(x - originX) + Math.abs(z - originZ);
+        const reserve = this.getExcavationReserve(state);
+        const distanceToReserve = Math.abs(x - reserve.x) + Math.abs(z - reserve.z);
+        const reservePenalty = distanceToReserve < EXCAVATION_RESERVE_RADIUS + 5 ? (EXCAVATION_RESERVE_RADIUS + 5 - distanceToReserve) * 20 : 0;
+        const sameTypePenalty = this.countNearbyBuildings(state, type, x, z, width, depth, 3) * 4;
+        const crowdingPenalty = this.countNearbyBuildings(state, null, x, z, width, depth, 1) * 8;
+        return distanceToAnchor + reservePenalty + sameTypePenalty + crowdingPenalty;
+    }
+
+    private countNearbyBuildings(state: GameState, type: BuildingType | null, x: number, z: number, width: number, depth: number, margin: number): number {
+        let count = 0;
+        for (let worldZ = z - margin; worldZ < z + depth + margin; worldZ++) {
+            for (let worldX = x - margin; worldX < x + width + margin; worldX++) {
+                if (worldX >= x && worldX < x + width && worldZ >= z && worldZ < z + depth) continue;
+                const tile = ChunkStore.getTile(state.chunks, worldX, worldZ);
+                if (!tile || tile.buildingType === BuildingType.EMPTY || !this.isStructureHead(tile)) continue;
+                if (type && tile.buildingType !== type) continue;
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private getPlacementAnchors(state: GameState, type: BuildingType): Point[] {
+        const centerX = Math.round(state.spawnX || 0);
+        const centerZ = Math.round(state.spawnZ || 0);
+        const zone = this.getPlacementZone(type);
+        const offsets: Record<PlacementZone, Point[]> = {
+            CORE: [{ x: -2, z: -2 }, { x: 3, z: -2 }, { x: -2, z: 3 }],
+            RESIDENTIAL: [{ x: -7, z: -2 }, { x: -7, z: 5 }, { x: -12, z: 1 }],
+            PRODUCTION: [{ x: 8, z: -3 }, { x: 13, z: -2 }, { x: 9, z: -8 }],
+            UTILITY: [{ x: 2, z: -10 }, { x: -4, z: -11 }, { x: 8, z: -12 }],
+            ECO: [{ x: -9, z: 10 }, { x: -14, z: 12 }, { x: -4, z: 13 }],
+            LOGISTICS: [{ x: 3, z: 4 }, { x: -3, z: 5 }, { x: 5, z: 8 }],
+        };
+        return offsets[zone].map(offset => ({ x: centerX + offset.x, z: centerZ + offset.z }));
+    }
+
+    private getPlacementZone(type: BuildingType): PlacementZone {
+        if (PRODUCTION_TYPES.has(type)) return 'PRODUCTION';
+        if (UTILITY_TYPES.has(type)) return 'UTILITY';
+        if (RESIDENTIAL_TYPES.has(type)) return 'RESIDENTIAL';
+        if (ECO_TYPES.has(type)) return 'ECO';
+        if (LOGISTICS_TYPES.has(type)) return 'LOGISTICS';
+        return 'CORE';
+    }
+
+    private getExcavationReserve(state: GameState): Point {
+        return {
+            x: Math.round(state.spawnX || 0) + EXCAVATION_RESERVE_OFFSET.x,
+            z: Math.round(state.spawnZ || 0) + EXCAVATION_RESERVE_OFFSET.z,
+        };
+    }
+
+    private isExcavationReserveTile(state: GameState, x: number, z: number): boolean {
+        const reserve = this.getExcavationReserve(state);
+        return Math.abs(x - reserve.x) <= EXCAVATION_RESERVE_RADIUS && Math.abs(z - reserve.z) <= EXCAVATION_RESERVE_RADIUS;
+    }
+
+    private getDesiredCountForType(state: GameState, type: BuildingType): number {
+        const matching = BUILD_PLAN.filter(intent => intent.type === type && this.isIntentAvailable(state, intent));
+        if (matching.length === 0) return 1;
+        return Math.max(...matching.map(intent => intent.desiredCount || 1));
     }
 
     private getPlacedHeads(state: GameState): GridTile[] {
