@@ -7,7 +7,7 @@ import React from 'react';
 import './index.css';
 import ReactDOM from 'react-dom/client';
 import { Analytics } from "@vercel/analytics/react";
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, useLocation } from 'react-router-dom';
 import App from './App';
 import { DesignStudio } from './components/DesignStudio';
 
@@ -16,8 +16,12 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
+function RootRoute() {
+  const location = useLocation();
+  return location.pathname === '/design-studio' ? <DesignStudio /> : <App />;
+}
+
 const root = ReactDOM.createRoot(rootElement);
-const isDesignStudioRoute = window.location.pathname === '/design-studio';
 
 root.render(
   <React.StrictMode>
@@ -25,7 +29,7 @@ root.render(
       v7_startTransition: true,
       v7_relativeSplatPath: true,
     }}>
-      {isDesignStudioRoute ? <DesignStudio /> : <App />}
+      <RootRoute />
     </BrowserRouter>
     <Analytics />
   </React.StrictMode>
