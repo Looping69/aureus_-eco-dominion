@@ -81,7 +81,7 @@ export interface PathStep {
 }
 
 export interface AgentInventory {
-    type: 'minerals' | 'gems' | 'wood' | 'stone' | null;
+    type: 'minerals' | 'gems' | 'wood' | 'stone' | 'rubble' | null;
     amount: number;
     capacity: number;
 }
