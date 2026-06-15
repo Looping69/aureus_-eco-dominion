@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { Box, Eraser, MousePointer2, Plus, RotateCcw, Save } from 'lucide-react';
+import { Box, Copy, Eraser, Eye, EyeOff, MousePointer2, Plus, RotateCcw, Save } from 'lucide-react';
 import { BuildingType } from '../types';
 import { BuildingsFactory } from '../engine/data/voxels/buildings';
 import { BuildingStyleSettings } from '../game/design/buildingStyle';
@@ -9,6 +9,7 @@ import {
     BUILDING_DETAIL_GRID_STEP,
     BUILDING_DETAIL_PART_SIZE,
     BuildingBlueprint,
+    BuildingSourceMeshOverride,
     BuildingVoxelPart,
     BuildingVoxelRole,
     createDefaultBuildingBlueprint,
@@ -18,11 +19,12 @@ import {
     getBuildingDisplayName,
     getVoxelRoleColor,
     loadBuildingBlueprint,
+    normalizeSourceMeshOverrides,
     saveBuildingBlueprint,
     snapToDetailGrid,
 } from '../game/design/buildingBlueprint';
 
-type StudioTool = 'add' | 'remove' | 'paint';
+type StudioTool = 'add' | 'remove' | 'paint' | 'select';
 
 type StudioSceneState = {
     scene: THREE.Scene;
@@ -41,6 +43,7 @@ type StudioSceneState = {
 
 type StudioHit = {
     part?: BuildingVoxelPart;
+    sourceMeshId?: string;
     normal: THREE.Vector3;
     point: THREE.Vector3;
 };
@@ -53,8 +56,9 @@ const ROLE_LABELS: Record<BuildingVoxelRole, string> = {
 };
 
 const TOOL_LABELS: Record<StudioTool, string> = {
+    select: 'Select',
     add: 'Add',
-    remove: 'Remove',
+    remove: 'Hide',
     paint: 'Paint',
 };
 
@@ -66,9 +70,10 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     const [buildingType, setBuildingType] = useState<BuildingType>(BuildingType.STAFF_QUARTERS);
     const [blueprint, setBlueprint] = useState<BuildingBlueprint>(() => loadBuildingBlueprint(BuildingType.STAFF_QUARTERS));
     const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
+    const [selectedSourceMeshId, setSelectedSourceMeshId] = useState<string | null>(null);
     const [selectedNormal, setSelectedNormal] = useState<THREE.Vector3Tuple>([0, 1, 0]);
     const [lastHit, setLastHit] = useState<StudioHit | null>(null);
-    const [tool, setTool] = useState<StudioTool>('add');
+    const [tool, setTool] = useState<StudioTool>('select');
     const [role, setRole] = useState<BuildingVoxelRole>('wall');
     const [saved, setSaved] = useState(false);
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -79,10 +84,16 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         [blueprint.parts, selectedPartId],
     );
 
+    const selectedSourceOverride = useMemo(
+        () => (blueprint.sourceMeshOverrides || []).find((override) => override.id === selectedSourceMeshId) || null,
+        [blueprint.sourceMeshOverrides, selectedSourceMeshId],
+    );
+
     useEffect(() => {
         const next = loadBuildingBlueprint(buildingType);
         setBlueprint(next);
-        setSelectedPartId(next.parts[0]?.id || null);
+        setSelectedPartId(null);
+        setSelectedSourceMeshId(null);
         setLastHit(null);
         setSaved(false);
     }, [buildingType]);
@@ -108,8 +119,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         rootGroup.add(baseGroup, editGroup);
         scene.add(rootGroup);
 
-        const hemi = new THREE.HemisphereLight('#dff7ff', '#162030', 1.45);
-        scene.add(hemi);
+        scene.add(new THREE.HemisphereLight('#dff7ff', '#162030', 1.45));
         const key = new THREE.DirectionalLight('#fff3d7', 2.2);
         key.position.set(5, 8, 4);
         key.castShadow = true;
@@ -199,10 +209,9 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             positionCamera();
         };
 
-        const render = () => renderer.render(scene, camera);
         resize();
         positionCamera();
-        renderer.setAnimationLoop(render);
+        renderer.setAnimationLoop(() => renderer.render(scene, camera));
 
         const observer = new ResizeObserver(resize);
         observer.observe(container);
@@ -227,14 +236,15 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     }, []);
 
     useEffect(() => {
-        rebuildPreview(buildingType, blueprint.parts, settings, selectedPartId);
-    }, [buildingType, blueprint.parts, settings, selectedPartId]);
+        rebuildPreview(buildingType, blueprint, settings, selectedPartId, selectedSourceMeshId);
+    }, [buildingType, blueprint, settings, selectedPartId, selectedSourceMeshId]);
 
     const rebuildPreview = (
         type: BuildingType,
-        parts: BuildingVoxelPart[],
+        nextBlueprint: BuildingBlueprint,
         nextSettings: BuildingStyleSettings,
         activePartId: string | null,
+        activeSourceMeshId: string | null,
     ): void => {
         const state = sceneStateRef.current;
         if (!state) return;
@@ -245,19 +255,25 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         state.editMeshes = [];
         state.hitMeshes = [];
 
+        let selectedObject: THREE.Object3D | null = null;
         const actual = createActualGameBuilding(type, nextSettings);
+        const overrideMap = new Map((nextBlueprint.sourceMeshOverrides || []).map((override) => [override.id, override]));
         state.baseGroup.add(actual);
+        let sourceIndex = 0;
         actual.traverse((object) => {
             if (!(object as THREE.Mesh).isMesh) return;
             const mesh = object as THREE.Mesh;
+            const sourceMeshId = `mesh-${sourceIndex++}`;
             mesh.castShadow = true;
             mesh.receiveShadow = true;
+            mesh.userData.sourceMeshId = sourceMeshId;
             mesh.userData.baseBuildingMesh = true;
-            state.hitMeshes.push(mesh);
+            applySourceMeshOverride(mesh, overrideMap.get(sourceMeshId));
+            if (mesh.visible) state.hitMeshes.push(mesh);
+            if (sourceMeshId === activeSourceMeshId && mesh.visible) selectedObject = mesh;
         });
 
-        let selectedMesh: THREE.Mesh | null = null;
-        for (const part of parts) {
+        for (const part of nextBlueprint.parts) {
             const color = getVoxelRoleColor(part.role, nextSettings);
             const material = new THREE.MeshStandardMaterial({
                 color,
@@ -268,17 +284,19 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             });
             const mesh = new THREE.Mesh(new THREE.BoxGeometry(BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE), material);
             mesh.position.set(part.x, part.y, part.z);
+            mesh.scale.set(part.scaleX ?? 1, part.scaleY ?? 1, part.scaleZ ?? 1);
+            mesh.rotation.y = THREE.MathUtils.degToRad(part.rotationY ?? 0);
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             mesh.userData.partId = part.id;
             state.editGroup.add(mesh);
             state.editMeshes.push(mesh);
             state.hitMeshes.push(mesh);
-            if (part.id === activePartId) selectedMesh = mesh;
+            if (part.id === activePartId) selectedObject = mesh;
         }
 
-        if (selectedMesh) {
-            state.selectedOutline.setFromObject(selectedMesh);
+        if (selectedObject) {
+            state.selectedOutline.setFromObject(selectedObject);
             state.selectedOutline.visible = true;
         } else {
             state.selectedOutline.visible = false;
@@ -299,47 +317,51 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
 
         const normal = hit.face?.normal.clone() || new THREE.Vector3(0, 1, 0);
         normal.transformDirection(hit.object.matrixWorld).round();
-        const id = hit.object.userData.partId as string | undefined;
-        const hitPart = id ? blueprint.parts.find((part) => part.id === id) : undefined;
-        const studioHit = { part: hitPart, normal, point: hit.point.clone() };
+        const partId = hit.object.userData.partId as string | undefined;
+        const sourceMeshId = hit.object.userData.sourceMeshId as string | undefined;
+        const hitPart = partId ? blueprint.parts.find((part) => part.id === partId) : undefined;
+        const studioHit = { part: hitPart, sourceMeshId, normal, point: hit.point.clone() };
         setLastHit(studioHit);
         setSelectedNormal([normal.x, normal.y, normal.z]);
 
         if (hitPart) {
             setSelectedPartId(hitPart.id);
+            setSelectedSourceMeshId(null);
             if (tool === 'remove') removePart(hitPart.id);
             else if (tool === 'paint') paintPart(hitPart.id, role);
-            else addAdjacentPart(hitPart, normal, role);
-        } else {
+            else if (tool === 'add') addAdjacentPart(hitPart, normal, role);
+        } else if (sourceMeshId) {
             setSelectedPartId(null);
-            if (tool === 'add') addPartAtHit(studioHit, role);
+            setSelectedSourceMeshId(sourceMeshId);
+            if (tool === 'remove') updateSourceMeshOverride(sourceMeshId, { hidden: true });
+            else if (tool === 'paint') updateSourceMeshOverride(sourceMeshId, { color: getVoxelRoleColor(role, settings) });
+            else if (tool === 'add') addPartAtHit(studioHit, role);
         }
     };
 
     const addAdjacentPart = (part: BuildingVoxelPart, normal: THREE.Vector3, nextRole = role) => {
-        const nextPart = createPart(
+        addPart(createPart(
             clampGrid(part.x + Math.round(normal.x) * BUILDING_DETAIL_GRID_STEP, -8, 8),
             clampGrid(part.y + Math.round(normal.y) * BUILDING_DETAIL_GRID_STEP, 0, 12),
             clampGrid(part.z + Math.round(normal.z) * BUILDING_DETAIL_GRID_STEP, -8, 8),
             nextRole,
-        );
-        addPart(nextPart);
+        ));
     };
 
     const addPartAtHit = (hit: StudioHit, nextRole = role) => {
         const target = hit.point.clone().add(hit.normal.clone().multiplyScalar(BUILDING_DETAIL_GRID_STEP));
-        const nextPart = createPart(
+        addPart(createPart(
             clampGrid(snapToDetailGrid(target.x), -8, 8),
             clampGrid(snapToDetailGrid(target.y), 0, 12),
             clampGrid(snapToDetailGrid(target.z), -8, 8),
             nextRole,
-        );
-        addPart(nextPart);
+        ));
     };
 
     const addPart = (part: BuildingVoxelPart) => {
         setBlueprint((current) => ({ ...current, parts: dedupeParts([...current.parts, part]), updatedAt: Date.now() }));
         setSelectedPartId(part.id);
+        setSelectedSourceMeshId(null);
         setSaved(false);
     };
 
@@ -363,12 +385,49 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         setSaved(false);
     };
 
+    const updatePartTransform = (id: string | null, changes: Partial<BuildingVoxelPart>) => {
+        if (!id) return;
+        setBlueprint((current) => ({
+            ...current,
+            parts: dedupeParts(current.parts.map((part) => part.id === id ? { ...part, ...changes } : part)),
+            updatedAt: Date.now(),
+        }));
+        setSaved(false);
+    };
+
+    const duplicateSelectedPart = () => {
+        if (!selectedPart) return;
+        addPart(createPart(selectedPart.x + BUILDING_DETAIL_GRID_STEP, selectedPart.y, selectedPart.z, selectedPart.role));
+    };
+
+    const updateSourceMeshOverride = (id: string | null, changes: Partial<BuildingSourceMeshOverride>) => {
+        if (!id) return;
+        setBlueprint((current) => {
+            const existing = (current.sourceMeshOverrides || []).find((override) => override.id === id) || { id };
+            const rest = (current.sourceMeshOverrides || []).filter((override) => override.id !== id);
+            return {
+                ...current,
+                sourceMeshOverrides: normalizeSourceMeshOverrides([...rest, { ...existing, ...changes, id }]),
+                updatedAt: Date.now(),
+            };
+        });
+        setSelectedSourceMeshId(id);
+        setSaved(false);
+    };
+
+    const resetSelectedSourceMesh = () => {
+        if (!selectedSourceMeshId) return;
+        setBlueprint((current) => ({
+            ...current,
+            sourceMeshOverrides: (current.sourceMeshOverrides || []).filter((override) => override.id !== selectedSourceMeshId),
+            updatedAt: Date.now(),
+        }));
+        setSaved(false);
+    };
+
     const addFromSelected = () => {
-        if (selectedPart) {
-            addAdjacentPart(selectedPart, new THREE.Vector3(...selectedNormal), role);
-        } else if (lastHit) {
-            addPartAtHit(lastHit, role);
-        }
+        if (selectedPart) addAdjacentPart(selectedPart, new THREE.Vector3(...selectedNormal), role);
+        else if (lastHit) addPartAtHit(lastHit, role);
     };
 
     const handleSave = () => {
@@ -379,7 +438,8 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     const handleReset = () => {
         const next = createDefaultBuildingBlueprint(buildingType);
         setBlueprint(next);
-        setSelectedPartId(next.parts[0]?.id || null);
+        setSelectedPartId(null);
+        setSelectedSourceMeshId(null);
         setLastHit(null);
         setSaved(false);
     };
@@ -404,23 +464,25 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                         ))}
                     </select>
                     <button type="button" onClick={handleReset} className="h-10 px-3 rounded-[4px] border border-slate-700 bg-slate-950 hover:bg-slate-800 text-xs font-black uppercase tracking-wider flex items-center gap-2">
-                        <RotateCcw size={15} /> Reset Edits
+                        <RotateCcw size={15} /> Reset Design
                     </button>
                     <button type="button" onClick={handleSave} className="h-10 px-3 rounded-[4px] border border-emerald-900 bg-emerald-600 hover:bg-emerald-500 text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
-                        <Save size={15} /> {saved ? 'Saved' : 'Save Edits'}
+                        <Save size={15} /> {saved ? 'Saved' : 'Save Design'}
                     </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[1fr_16rem]">
-                <div className="relative h-[30rem] min-h-[24rem] border-b border-slate-800 xl:border-b-0 xl:border-r" onClick={handleCanvasClick}>
+            <div className="grid grid-cols-1 xl:grid-cols-[1fr_18rem]">
+                <div className="relative h-[32rem] min-h-[24rem] border-b border-slate-800 xl:border-b-0 xl:border-r" onClick={handleCanvasClick}>
                     <div ref={containerRef} className="absolute inset-0" />
                     <div className="pointer-events-none absolute left-4 top-4 rounded-[4px] border border-slate-700 bg-slate-950/80 px-3 py-2 text-[11px] font-bold text-slate-300 backdrop-blur">
-                        Live game model. Fine grid: {BUILDING_DETAIL_GRID_STEP}m. Click the model to add small detail.
+                        Click real meshes to select, hide, or paint. Add fine details on the {BUILDING_DETAIL_GRID_STEP}m grid.
                     </div>
-                    {selectedPart && (
+                    {(selectedPart || selectedSourceMeshId) && (
                         <div className="pointer-events-none absolute bottom-4 left-4 rounded-[4px] border border-cyan-800 bg-slate-950/85 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-cyan-200 backdrop-blur">
-                            Selected edit {formatCoord(selectedPart.x)}, {formatCoord(selectedPart.y)}, {formatCoord(selectedPart.z)} · {ROLE_LABELS[selectedPart.role]}
+                            {selectedPart
+                                ? `Edit ${formatCoord(selectedPart.x)}, ${formatCoord(selectedPart.y)}, ${formatCoord(selectedPart.z)} · ${ROLE_LABELS[selectedPart.role]}`
+                                : `Source mesh ${selectedSourceMeshId}`}
                         </div>
                     )}
                 </div>
@@ -428,8 +490,8 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                 <div className="space-y-4 bg-slate-900 p-4">
                     <div>
                         <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Tool</div>
-                        <div className="grid grid-cols-3 gap-2">
-                            {(['add', 'remove', 'paint'] as StudioTool[]).map((item) => (
+                        <div className="grid grid-cols-2 gap-2">
+                            {(['select', 'add', 'remove', 'paint'] as StudioTool[]).map((item) => (
                                 <button
                                     key={item}
                                     type="button"
@@ -443,7 +505,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                     </div>
 
                     <div>
-                        <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Fine Part</div>
+                        <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Material Role</div>
                         <div className="grid grid-cols-2 gap-2">
                             {(Object.keys(ROLE_LABELS) as BuildingVoxelRole[]).map((item) => (
                                 <button
@@ -451,7 +513,10 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                                     type="button"
                                     onClick={() => {
                                         setRole(item);
-                                        if (tool === 'paint') paintPart(selectedPartId, item);
+                                        if (tool === 'paint') {
+                                            if (selectedPartId) paintPart(selectedPartId, item);
+                                            if (selectedSourceMeshId) updateSourceMeshOverride(selectedSourceMeshId, { color: getVoxelRoleColor(item, settings) });
+                                        }
                                     }}
                                     className={`h-12 rounded-[4px] border px-2 text-left text-[10px] font-black uppercase tracking-wider ${role === item ? 'border-cyan-400 bg-cyan-950 text-cyan-100' : 'border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}`}
                                 >
@@ -462,11 +527,77 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                         </div>
                     </div>
 
+                    {selectedSourceMeshId && (
+                        <div className="rounded-[4px] border border-slate-800 bg-slate-950 p-3">
+                            <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Source Mesh</div>
+                            <div className="mb-3 truncate text-xs font-black text-cyan-200">{selectedSourceMeshId}</div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button type="button" onClick={() => updateSourceMeshOverride(selectedSourceMeshId, { hidden: !selectedSourceOverride?.hidden })} className="h-10 rounded-[4px] border border-slate-700 bg-slate-900 hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2">
+                                    {selectedSourceOverride?.hidden ? <Eye size={14} /> : <EyeOff size={14} />} {selectedSourceOverride?.hidden ? 'Show' : 'Hide'}
+                                </button>
+                                <button type="button" onClick={resetSelectedSourceMesh} className="h-10 rounded-[4px] border border-slate-700 bg-slate-900 hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider">
+                                    Reset
+                                </button>
+                            </div>
+                            <label className="mt-3 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                Mesh Color
+                                <input
+                                    type="color"
+                                    value={selectedSourceOverride?.color || getVoxelRoleColor(role, settings)}
+                                    onChange={(event) => updateSourceMeshOverride(selectedSourceMeshId, { color: event.target.value })}
+                                    className="mt-2 h-9 w-full rounded-[4px] border border-slate-700 bg-slate-900 p-1"
+                                />
+                            </label>
+                        </div>
+                    )}
+
+                    {selectedPart && (
+                        <div className="rounded-[4px] border border-slate-800 bg-slate-950 p-3">
+                            <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Detail Transform</div>
+                            <div className="grid grid-cols-3 gap-2">
+                                {(['scaleX', 'scaleY', 'scaleZ'] as const).map((key) => (
+                                    <label key={key} className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                        {key.replace('scale', '')}
+                                        <input
+                                            type="number"
+                                            min={0.25}
+                                            max={6}
+                                            step={0.25}
+                                            value={selectedPart[key] ?? 1}
+                                            onChange={(event) => updatePartTransform(selectedPart.id, { [key]: Number(event.target.value) })}
+                                            className="mt-1 h-9 w-full rounded-[4px] border border-slate-700 bg-slate-900 px-2 text-xs text-white"
+                                        />
+                                    </label>
+                                ))}
+                            </div>
+                            <label className="mt-3 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                Rotate Y
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={345}
+                                    step={15}
+                                    value={selectedPart.rotationY ?? 0}
+                                    onChange={(event) => updatePartTransform(selectedPart.id, { rotationY: Number(event.target.value) })}
+                                    className="mt-2 w-full accent-cyan-400"
+                                />
+                            </label>
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                                <button type="button" onClick={duplicateSelectedPart} className="h-10 rounded-[4px] border border-slate-700 bg-slate-900 hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2">
+                                    <Copy size={14} /> Copy
+                                </button>
+                                <button type="button" onClick={() => removePart()} className="h-10 rounded-[4px] border border-slate-700 bg-slate-900 hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2">
+                                    <Eraser size={14} /> Delete
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-2">
                         <button type="button" onClick={addFromSelected} className="h-11 rounded-[4px] border border-slate-700 bg-slate-950 hover:bg-slate-800 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2">
                             <Plus size={15} /> Add
                         </button>
-                        <button type="button" onClick={() => removePart()} className="h-11 rounded-[4px] border border-slate-700 bg-slate-950 hover:bg-slate-800 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2">
+                        <button type="button" onClick={() => selectedSourceMeshId ? updateSourceMeshOverride(selectedSourceMeshId, { hidden: true }) : removePart()} className="h-11 rounded-[4px] border border-slate-700 bg-slate-950 hover:bg-slate-800 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2">
                             <Eraser size={15} /> Remove
                         </button>
                     </div>
@@ -474,9 +605,9 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                     <div className="rounded-[4px] border border-slate-800 bg-slate-950 p-3 text-xs text-slate-400">
                         <div className="flex items-center gap-2 font-black uppercase tracking-wider text-slate-300"><MousePointer2 size={14} /> Shape Data</div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                            <span>Base</span><strong className="text-right text-white">Game Factory</strong>
+                            <span>Base</span><strong className="text-right text-white">Mesh Parts</strong>
+                            <span>Hidden/painted</span><strong className="text-right text-white">{blueprint.sourceMeshOverrides?.length || 0}</strong>
                             <span>Fine edits</span><strong className="text-right text-white">{blueprint.parts.length}</strong>
-                            <span>Part size</span><strong className="text-right text-white">{BUILDING_DETAIL_PART_SIZE}m</strong>
                             <span>Mode</span><strong className="text-right text-white">{TOOL_LABELS[tool]}</strong>
                         </div>
                     </div>
@@ -501,10 +632,26 @@ function createActualGameBuilding(type: BuildingType, settings: BuildingStyleSet
     return group;
 }
 
-function clearGroup(group: THREE.Group): void {
-    while (group.children.length > 0) {
-        group.remove(group.children[0]);
+function applySourceMeshOverride(mesh: THREE.Mesh, override?: BuildingSourceMeshOverride): void {
+    if (!override) return;
+    if (override.hidden) {
+        mesh.visible = false;
+        return;
     }
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    mesh.material = materials.map((material) => {
+        const next = material.clone() as THREE.Material & { color?: THREE.Color; metalness?: number; roughness?: number };
+        if (override.color && next.color) next.color.set(override.color);
+        if (override.metalness !== undefined && typeof next.metalness === 'number') next.metalness = override.metalness;
+        if (override.roughness !== undefined && typeof next.roughness === 'number') next.roughness = override.roughness;
+        next.needsUpdate = true;
+        return next;
+    });
+    if (materials.length === 1) mesh.material = (mesh.material as THREE.Material[])[0];
+}
+
+function clearGroup(group: THREE.Group): void {
+    while (group.children.length > 0) group.remove(group.children[0]);
 }
 
 function disposeEditMeshes(meshes: THREE.Mesh[]): void {
