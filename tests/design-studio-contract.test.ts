@@ -6,8 +6,10 @@ import test from 'node:test';
 const root = process.cwd();
 const indexPath = path.join(root, 'index.tsx');
 const studioPath = path.join(root, 'components', 'DesignStudio.tsx');
+const voxelStudioPath = path.join(root, 'components', 'BuildingVoxelStudio.tsx');
 const stylePath = path.join(root, 'game', 'design', 'buildingStyle.ts');
 const styleRuntimePath = path.join(root, 'game', 'design', 'buildingStyleRuntime.ts');
+const blueprintPath = path.join(root, 'game', 'design', 'buildingBlueprint.ts');
 const controlsPath = path.join(root, 'components', 'Controls.tsx');
 const voxelGeneratorsPath = path.join(root, 'engine', 'render', 'utils', 'VoxelGenerators.ts');
 
@@ -39,6 +41,7 @@ test('design studio has a browser route entry and game return path', () => {
     'Settlement Identity',
     'to="/"',
     'Game',
+    'BuildingVoxelStudio',
   ]) {
     assertSnippet(studioText, snippet);
   }
@@ -107,5 +110,42 @@ test('saved style settings are applied to generated building meshes', () => {
     '...withDesignStudioStyle(BuildingsFactory)',
   ]) {
     assertSnippet(voxelText, snippet);
+  }
+});
+
+test('design studio includes a saved voxel blueprint model', () => {
+  const blueprintText = source(blueprintPath);
+
+  for (const snippet of [
+    'export interface BuildingVoxelPart',
+    'export interface BuildingBlueprint',
+    "export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v1';",
+    'export const DESIGNABLE_BUILDINGS',
+    'export function loadBuildingBlueprint',
+    'export function saveBuildingBlueprint',
+    'export function createDefaultBuildingBlueprint',
+    'export function getVoxelRoleColor',
+  ]) {
+    assertSnippet(blueprintText, snippet);
+  }
+});
+
+test('design studio opens a real three dimensional building editor', () => {
+  const voxelStudioText = source(voxelStudioPath);
+
+  for (const snippet of [
+    "import * as THREE from 'three';",
+    'new THREE.WebGLRenderer',
+    'new THREE.PerspectiveCamera',
+    'new THREE.Raycaster',
+    'Drag to orbit. Wheel to zoom.',
+    'Click blocks to',
+    'Save Shape',
+    'addAdjacentPart',
+    'removePart',
+    'paintPart',
+    'saveBuildingBlueprint(blueprint)',
+  ]) {
+    assertSnippet(voxelStudioText, snippet);
   }
 });
