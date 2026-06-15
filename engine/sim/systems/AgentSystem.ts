@@ -703,7 +703,21 @@ export class AgentSystem extends BaseSimSystem {
             return;
         }
 
-        const isClearingRubble = cell.material === 'RUBBLE' || job.id.startsWith('dig_sub_clear_');
+        const isRubbleClearJob = job.id.startsWith('dig_sub_clear_');
+        if (cell.material === 'RUBBLE' && !isRubbleClearJob) {
+            state.jobs.splice(jobIdx, 1);
+            this.explain(agent, 'Waiting: rubble remains; use clear rubble before digging deeper.', 'warning');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+        if (isRubbleClearJob && cell.material !== 'RUBBLE') {
+            state.jobs.splice(jobIdx, 1);
+            this.explain(agent, 'Waiting: rubble target is already cleared.', 'warning');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+
+        const isClearingRubble = isRubbleClearJob;
         if (isClearingRubble && agent.inventory.amount > 0 && agent.inventory.type !== 'rubble') {
             job.assignedAgentId = null;
             this.explain(agent, 'Waiting: carrying another resource; needs storage before rubble work.', 'warning');
