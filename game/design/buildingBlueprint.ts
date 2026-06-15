@@ -48,12 +48,10 @@ export function loadBuildingBlueprint(buildingType: BuildingType): BuildingBluep
                 const parts = Array.isArray(parsed.parts)
                     ? parsed.parts.filter(isValidVoxelPart).map(normalizeVoxelPart)
                     : [];
-                if (parts.length > 0) {
-                    return { buildingType, parts, updatedAt: Number(parsed.updatedAt) || Date.now() };
-                }
+                return { buildingType, parts, updatedAt: Number(parsed.updatedAt) || Date.now() };
             }
         } catch {
-            // Fall through to a generated starter blueprint.
+            // Fall through to an empty edit layer over the real game model.
         }
     }
 
@@ -69,27 +67,7 @@ export function saveBuildingBlueprint(blueprint: BuildingBlueprint): void {
 }
 
 export function createDefaultBuildingBlueprint(buildingType: BuildingType): BuildingBlueprint {
-    const def = BUILDINGS[buildingType];
-    const width = Math.max(1, Math.min(6, def?.width || 2));
-    const depth = Math.max(1, Math.min(6, def?.depth || 2));
-    const parts: BuildingVoxelPart[] = [];
-    const xOffset = Math.floor(width / 2);
-    const zOffset = Math.floor(depth / 2);
-
-    for (let x = 0; x < width; x++) {
-        for (let z = 0; z < depth; z++) {
-            parts.push(createPart(x - xOffset, 0, z - zOffset, 'wall'));
-            if (x === 0 || z === 0 || x === width - 1 || z === depth - 1) {
-                parts.push(createPart(x - xOffset, 1, z - zOffset, 'wall'));
-            }
-            parts.push(createPart(x - xOffset, 2, z - zOffset, getRoofRole(buildingType)));
-        }
-    }
-
-    const accentX = Math.min(width - 1, Math.max(0, Math.floor(width / 2))) - xOffset;
-    parts.push(createPart(accentX, 1, -zOffset - 1, 'accent'));
-
-    return { buildingType, parts: dedupeParts(parts), updatedAt: Date.now() };
+    return { buildingType, parts: [], updatedAt: Date.now() };
 }
 
 export function getVoxelRoleColor(role: BuildingVoxelRole, settings: BuildingStyleSettings): string {
@@ -117,13 +95,6 @@ export function dedupeParts(parts: BuildingVoxelPart[]): BuildingVoxelPart[] {
 
 export function getBuildingDisplayName(buildingType: BuildingType): string {
     return BUILDINGS[buildingType]?.name || buildingType.replace(/_/g, ' ');
-}
-
-function getRoofRole(buildingType: BuildingType): BuildingVoxelRole {
-    if (buildingType === BuildingType.COMMUNITY_GARDEN || buildingType === BuildingType.NATURE_RESERVE) {
-        return 'greenery';
-    }
-    return 'roof';
 }
 
 function isValidVoxelPart(value: unknown): value is BuildingVoxelPart {
