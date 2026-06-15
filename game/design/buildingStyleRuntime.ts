@@ -22,6 +22,8 @@ type ColorableMaterial = THREE.Material & {
     emissiveIntensity?: number;
     roughness?: number;
     metalness?: number;
+    map?: THREE.Texture | null;
+    vertexColors?: boolean;
 };
 
 export function readSavedBuildingStyle(): BuildingStyleSettings {
@@ -92,26 +94,34 @@ function styleMaterial(
     if (next.color) {
         const baseColor = next.color.clone();
         const targetColor = new THREE.Color(target);
-        const blend = role === 'accent' ? 0.68 : role === 'roof' ? 0.58 : 0.52;
-        next.color.copy(baseColor.lerp(targetColor, blend));
+        next.color.copy(baseColor.lerp(targetColor, getStyleBlend(next, role)));
     }
 
     if (next.emissive && role === 'accent') {
-        next.emissive.copy(new THREE.Color(settings.accentColor));
-        next.emissiveIntensity = Math.max(next.emissiveIntensity || 0, settings.nightGlow * 0.45);
+        next.emissive.lerp(new THREE.Color(settings.accentColor), 0.35);
+        next.emissiveIntensity = Math.max(next.emissiveIntensity || 0, settings.nightGlow * 0.22);
     }
 
     if (typeof next.roughness === 'number') {
-        next.roughness = clamp01(0.62 + settings.weathering * 0.24 - settings.greenery * 0.08);
+        const targetRoughness = clamp01(0.62 + settings.weathering * 0.18 - settings.greenery * 0.05);
+        next.roughness = THREE.MathUtils.lerp(next.roughness, targetRoughness, 0.2);
     }
 
     if (typeof next.metalness === 'number') {
-        const materialBoost = settings.primaryMaterial === 'metal' ? 0.22 : settings.primaryMaterial === 'glass' ? 0.12 : 0;
-        next.metalness = clamp01(next.metalness * 0.55 + materialBoost);
+        const materialBoost = settings.primaryMaterial === 'metal' ? 0.12 : settings.primaryMaterial === 'glass' ? 0.06 : 0;
+        next.metalness = clamp01(THREE.MathUtils.lerp(next.metalness, materialBoost, 0.18));
     }
 
     next.needsUpdate = true;
     return next;
+}
+
+function getStyleBlend(material: ColorableMaterial, role: StyleRole): number {
+    const hasAuthoredDetail = !!material.map || material.vertexColors === true;
+    if (hasAuthoredDetail) {
+        return role === 'accent' ? 0.18 : 0.1;
+    }
+    return role === 'accent' ? 0.32 : role === 'roof' ? 0.26 : 0.22;
 }
 
 function inferStyleRole(mesh: THREE.Mesh, material: ColorableMaterial, materialIndex: number): StyleRole {
