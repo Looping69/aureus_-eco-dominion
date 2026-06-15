@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Check, Palette, RotateCcw, Save } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { BuildingVoxelStudio } from './BuildingVoxelStudio';
 import {
     BUILDING_STYLE_PRESETS,
     BUILDING_STYLE_STORAGE_KEY,
@@ -49,76 +50,13 @@ function saveStyle(settings: BuildingStyleSettings): void {
     window.localStorage.setItem(BUILDING_STYLE_STORAGE_KEY, JSON.stringify(normalizeBuildingStyleSettings(settings)));
 }
 
-const BuildingPreview: React.FC<{ settings: BuildingStyleSettings }> = ({ settings }) => {
-    const roofRadius = settings.roofProfile === 'industrial' ? '2px' : settings.roofProfile === 'green' ? '7px' : '4px';
-    const roofHeight = settings.roofProfile === 'flat' ? 18 : settings.roofProfile === 'industrial' ? 26 : 34;
-    const windowCount = settings.windowProfile === 'small' ? 6 : settings.windowProfile === 'wide' ? 4 : 5;
-    const glow = settings.nightGlow;
-
-    return (
-        <div className="relative min-h-[21rem] bg-slate-950 border border-slate-800 rounded-[6px] overflow-hidden">
-            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-900 to-transparent" />
-            <div className="absolute inset-x-8 bottom-11 h-5 rounded-full bg-black/35 blur-md" />
-            <div className="absolute left-1/2 bottom-16 -translate-x-1/2 w-56 h-40">
-                <div
-                    className="absolute left-4 right-4 top-0 border border-black/30 shadow-[0_10px_0_rgba(0,0,0,0.18)]"
-                    style={{
-                        height: roofHeight,
-                        background: settings.roofProfile === 'green'
-                            ? `linear-gradient(135deg, ${settings.roofColor}, #6f9c55)`
-                            : settings.roofProfile === 'solar'
-                                ? `linear-gradient(135deg, ${settings.roofColor}, #0e1729 56%, ${settings.accentColor})`
-                                : settings.roofColor,
-                        borderRadius: roofRadius,
-                        transform: settings.roofProfile === 'pitched' ? 'skewX(-8deg)' : undefined,
-                    }}
-                />
-                <div
-                    className="absolute left-0 right-0 bottom-0 h-32 border border-black/35 shadow-[10px_10px_0_rgba(0,0,0,0.2)]"
-                    style={{
-                        background: `linear-gradient(135deg, ${settings.wallColor}, color-mix(in srgb, ${settings.wallColor} 72%, #0f172a))`,
-                        filter: `saturate(${1 - settings.weathering * 0.18})`,
-                    }}
-                >
-                    <div className="grid grid-cols-3 gap-3 p-5 pt-8">
-                        {Array.from({ length: windowCount }).map((_, index) => (
-                            <div
-                                key={index}
-                                className="h-8 border border-black/25"
-                                style={{
-                                    background: `color-mix(in srgb, ${settings.accentColor} ${Math.round(28 + glow * 58)}%, #0f172a)`,
-                                    boxShadow: glow > 0.5 ? `0 0 ${Math.round(glow * 18)}px ${settings.accentColor}` : undefined,
-                                    borderRadius: settings.windowProfile === 'vertical' ? 2 : 4,
-                                    gridColumn: settings.windowProfile === 'wide' ? 'span 1' : undefined,
-                                }}
-                            />
-                        ))}
-                    </div>
-                    <div
-                        className="absolute left-5 bottom-0 w-10 h-16 border border-black/35"
-                        style={{ background: `color-mix(in srgb, ${settings.roofColor} 70%, #111827)` }}
-                    />
-                    <div
-                        className="absolute right-5 bottom-4 w-16 h-3 rounded-full"
-                        style={{ background: settings.accentColor, opacity: 0.4 + settings.greenery * 0.4 }}
-                    />
-                </div>
-            </div>
-            <div className="absolute left-5 top-5">
-                <div className="text-[10px] uppercase font-black tracking-widest text-slate-500">Preview</div>
-                <div className="text-xl font-black text-white font-['Rajdhani']">{settings.districtName}</div>
-            </div>
-        </div>
-    );
-};
-
 export const DesignStudio: React.FC = () => {
     const [settings, setSettings] = useState<BuildingStyleSettings>(() => loadSavedStyle());
     const [saved, setSaved] = useState(false);
 
     const activePreset = useMemo(
         () => BUILDING_STYLE_PRESETS.find((preset) => preset.presetId === settings.presetId) || DEFAULT_BUILDING_STYLE,
-        [settings.presetId]
+        [settings.presetId],
     );
 
     useEffect(() => {
@@ -164,19 +102,23 @@ export const DesignStudio: React.FC = () => {
                             onClick={handleReset}
                             className="h-11 px-4 rounded-[4px] border-2 border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-100 font-black uppercase tracking-wider text-xs flex items-center gap-2"
                         >
-                            <RotateCcw size={16} /> Reset
+                            <RotateCcw size={16} /> Reset Theme
                         </button>
                         <button
                             type="button"
                             onClick={handleSave}
                             className="h-11 px-4 rounded-[4px] border-2 border-emerald-900 bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-wider text-xs flex items-center gap-2"
                         >
-                            {saved ? <Check size={16} /> : <Save size={16} />} {saved ? 'Saved' : 'Save'}
+                            {saved ? <Check size={16} /> : <Save size={16} />} {saved ? 'Saved' : 'Save Theme'}
                         </button>
                     </div>
                 </header>
 
-                <section className="grid grid-cols-1 lg:grid-cols-[1.08fr_0.92fr] gap-5 mt-5">
+                <div className="mt-5">
+                    <BuildingVoxelStudio settings={settings} />
+                </div>
+
+                <section className="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-5 mt-5">
                     <div className="space-y-5">
                         <div>
                             <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-3">Theme Presets</h2>
@@ -212,91 +154,49 @@ export const DesignStudio: React.FC = () => {
                                     maxLength={32}
                                 />
                             </label>
-                            <label className="block rounded-[6px] border border-slate-800 bg-slate-900 p-4">
-                                <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">Material</span>
-                                <select
-                                    value={settings.primaryMaterial}
-                                    onChange={(event) => update('primaryMaterial', event.target.value as BuildingStyleSettings['primaryMaterial'])}
-                                    className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-[4px] px-3 py-2 text-sm font-bold outline-none focus:border-cyan-400"
-                                >
-                                    {Object.entries(MATERIAL_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                                </select>
-                            </label>
-                            <label className="block rounded-[6px] border border-slate-800 bg-slate-900 p-4">
-                                <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">Roof</span>
-                                <select
-                                    value={settings.roofProfile}
-                                    onChange={(event) => update('roofProfile', event.target.value as BuildingStyleSettings['roofProfile'])}
-                                    className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-[4px] px-3 py-2 text-sm font-bold outline-none focus:border-cyan-400"
-                                >
-                                    {Object.entries(ROOF_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                                </select>
-                            </label>
+                            <SelectControl
+                                label="Material"
+                                value={settings.primaryMaterial}
+                                options={MATERIAL_LABELS}
+                                onChange={(value) => update('primaryMaterial', value as BuildingStyleSettings['primaryMaterial'])}
+                            />
+                            <SelectControl
+                                label="Roof"
+                                value={settings.roofProfile}
+                                options={ROOF_LABELS}
+                                onChange={(value) => update('roofProfile', value as BuildingStyleSettings['roofProfile'])}
+                            />
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <label className="block rounded-[6px] border border-slate-800 bg-slate-900 p-4">
-                                <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">Windows</span>
-                                <select
-                                    value={settings.windowProfile}
-                                    onChange={(event) => update('windowProfile', event.target.value as BuildingStyleSettings['windowProfile'])}
-                                    className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-[4px] px-3 py-2 text-sm font-bold outline-none focus:border-cyan-400"
-                                >
-                                    {Object.entries(WINDOW_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                                </select>
-                            </label>
-                            {([
-                                ['wallColor', 'Walls'],
-                                ['roofColor', 'Roof'],
-                            ] as const).map(([key, label]) => (
-                                <label key={key} className="block rounded-[6px] border border-slate-800 bg-slate-900 p-4">
-                                    <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">{label}</span>
-                                    <input
-                                        type="color"
-                                        value={settings[key]}
-                                        onChange={(event) => update(key, event.target.value)}
-                                        className="mt-2 w-full h-10 bg-slate-950 border border-slate-700 rounded-[4px] p-1"
-                                    />
-                                </label>
-                            ))}
+                            <SelectControl
+                                label="Windows"
+                                value={settings.windowProfile}
+                                options={WINDOW_LABELS}
+                                onChange={(value) => update('windowProfile', value as BuildingStyleSettings['windowProfile'])}
+                            />
+                            <ColorControl label="Walls" value={settings.wallColor} onChange={(value) => update('wallColor', value)} />
+                            <ColorControl label="Roof" value={settings.roofColor} onChange={(value) => update('roofColor', value)} />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <label className="block rounded-[6px] border border-slate-800 bg-slate-900 p-4">
-                                <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">Accent</span>
-                                <input
-                                    type="color"
-                                    value={settings.accentColor}
-                                    onChange={(event) => update('accentColor', event.target.value)}
-                                    className="mt-2 w-full h-10 bg-slate-950 border border-slate-700 rounded-[4px] p-1"
-                                />
-                            </label>
-                            {([
-                                ['nightGlow', 'Night Glow'],
-                                ['weathering', 'Weathering'],
-                                ['greenery', 'Greenery'],
-                            ] as const).map(([key, label]) => (
-                                <label key={key} className="block rounded-[6px] border border-slate-800 bg-slate-900 p-4">
-                                    <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">{label}</span>
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={1}
-                                        step={0.01}
-                                        value={settings[key]}
-                                        onChange={(event) => update(key, Number(event.target.value))}
-                                        className="mt-4 w-full accent-cyan-400"
-                                    />
-                                </label>
-                            ))}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <ColorControl label="Accent" value={settings.accentColor} onChange={(value) => update('accentColor', value)} />
+                            <RangeControl label="Night Glow" value={settings.nightGlow} onChange={(value) => update('nightGlow', value)} />
+                            <RangeControl label="Weathering" value={settings.weathering} onChange={(value) => update('weathering', value)} />
+                            <RangeControl label="Greenery" value={settings.greenery} onChange={(value) => update('greenery', value)} />
                         </div>
                     </div>
 
                     <aside className="space-y-5">
-                        <BuildingPreview settings={settings} />
                         <div className="rounded-[6px] border border-slate-800 bg-slate-900 p-5">
                             <h2 className="text-sm font-black uppercase tracking-widest text-slate-400">Overseer Doctrine</h2>
                             <p className="mt-3 text-sm leading-relaxed text-slate-300">{activePreset.doctrine}</p>
+                            <p className="mt-4 text-xs leading-relaxed text-slate-500">
+                                Shape edits are saved per building. Theme edits drive color, material feel, and the settlement doctrine the Overseer can consume next.
+                            </p>
+                        </div>
+                        <div className="rounded-[6px] border border-slate-800 bg-slate-900 p-5">
+                            <h2 className="text-sm font-black uppercase tracking-widest text-slate-400">Saved Theme Payload</h2>
                             <div className="mt-4 rounded-[4px] bg-slate-950 border border-slate-800 p-3 font-mono text-[11px] text-slate-400 overflow-x-auto">
                                 <pre>{JSON.stringify(settings, null, 2)}</pre>
                             </div>
@@ -307,3 +207,62 @@ export const DesignStudio: React.FC = () => {
         </main>
     );
 };
+
+interface SelectControlProps {
+    label: string;
+    value: string;
+    options: Record<string, string>;
+    onChange: (value: string) => void;
+}
+
+const SelectControl: React.FC<SelectControlProps> = ({ label, value, options, onChange }) => (
+    <label className="block rounded-[6px] border border-slate-800 bg-slate-900 p-4">
+        <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">{label}</span>
+        <select
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-[4px] px-3 py-2 text-sm font-bold outline-none focus:border-cyan-400"
+        >
+            {Object.entries(options).map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
+        </select>
+    </label>
+);
+
+interface ColorControlProps {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+}
+
+const ColorControl: React.FC<ColorControlProps> = ({ label, value, onChange }) => (
+    <label className="block rounded-[6px] border border-slate-800 bg-slate-900 p-4">
+        <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">{label}</span>
+        <input
+            type="color"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className="mt-2 w-full h-10 bg-slate-950 border border-slate-700 rounded-[4px] p-1"
+        />
+    </label>
+);
+
+interface RangeControlProps {
+    label: string;
+    value: number;
+    onChange: (value: number) => void;
+}
+
+const RangeControl: React.FC<RangeControlProps> = ({ label, value, onChange }) => (
+    <label className="block rounded-[6px] border border-slate-800 bg-slate-900 p-4">
+        <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">{label}</span>
+        <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={value}
+            onChange={(event) => onChange(Number(event.target.value))}
+            className="mt-4 w-full accent-cyan-400"
+        />
+    </label>
+);
