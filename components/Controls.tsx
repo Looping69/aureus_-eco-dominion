@@ -9,6 +9,8 @@ import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode } fro
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import '../components/ViewSwitchButton.css';
 
+type LayerToolMode = 'DIG' | 'DUMP_RUBBLE' | 'FILL_RUBBLE';
+
 interface ControlsProps {
     selectedBuilding: BuildingType | null;
     dispatch: React.Dispatch<Action>;
@@ -16,7 +18,7 @@ interface ControlsProps {
     playSfx: (type: any) => void;
     step: GameStep;
     debugMode: boolean;
-    interactionMode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT' | 'DIG';
+    interactionMode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT' | LayerToolMode;
     undergroundUnlocked: boolean;
     activeView: 'SURFACE' | 'DUNGEON';
     overlayMode: LogisticsOverlayMode;
@@ -68,6 +70,10 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     const isBelowSurface = activeLayer < SURFACE_LAYER;
     const lowerLayer = Math.max(minLayer, activeLayer - 1);
     const upperLayer = Math.min(maxLayer, activeLayer + 1);
+    const setLayerTool = (mode: LayerToolMode) => {
+        dispatch({ type: 'SET_INTERACTION_MODE', payload: interactionMode === mode ? 'INSPECT' : mode });
+        playSfx('UI_CLICK');
+    };
 
     return (
         <div className="absolute bottom-16 sm:bottom-6 left-3 right-3 sm:left-6 sm:right-6 z-[120] flex justify-between pointer-events-none gap-4">
@@ -156,13 +162,38 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                             onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
-                                dispatch({ type: 'SET_INTERACTION_MODE', payload: interactionMode === 'DIG' ? 'INSPECT' : 'DIG' });
-                                playSfx('UI_CLICK');
+                                setLayerTool('DIG');
                             }}
-                            className={`h-9 min-w-16 rounded-[3px] px-2 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'DIG' ? 'bg-amber-500 text-amber-950' : 'bg-slate-800 text-amber-300 hover:bg-slate-700'}`}
-                            title="Dig selected subsurface layer"
+                            className={`h-9 min-w-14 rounded-[3px] px-2 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'DIG' ? 'bg-amber-500 text-amber-950' : 'bg-slate-800 text-amber-300 hover:bg-slate-700'}`}
+                            title="Dig or clear rubble on selected subsurface layer"
                         >
                             <Pickaxe size={15} /> L{activeLayer}
+                        </button>
+                        <button
+                            type="button"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setLayerTool('DUMP_RUBBLE');
+                            }}
+                            className={`h-9 min-w-12 rounded-[3px] px-2 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'DUMP_RUBBLE' ? 'bg-cyan-400 text-cyan-950' : 'bg-slate-800 text-cyan-300 hover:bg-slate-700'}`}
+                            title="Designate an open underground cell as a rubble dump"
+                        >
+                            Dump
+                        </button>
+                        <button
+                            type="button"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setLayerTool('FILL_RUBBLE');
+                            }}
+                            className={`h-9 min-w-10 rounded-[3px] px-2 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'FILL_RUBBLE' ? 'bg-emerald-400 text-emerald-950' : 'bg-slate-800 text-emerald-300 hover:bg-slate-700'}`}
+                            title="Fill an open underground cell using stored rubble"
+                        >
+                            Fill
                         </button>
                         <button
                             type="button"
