@@ -8,7 +8,8 @@ import {
     Coffee, PartyPopper, Container, Pickaxe, Flame,
     Search, LayoutGrid, Zap, Sprout, Hammer, Archive, Wrench,
     HeartPulse, Dumbbell, Gem, TrainFront, Truck,
-    Trash2, TreeDeciduous, Salad, Thermometer, Trophy, Rocket, Package
+    Trash2, TreeDeciduous, Salad, Thermometer, Trophy, Rocket, Package,
+    FilterX
 } from 'lucide-react';
 import { GameState, BuildingType, Action, Chunk, Era } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
@@ -159,6 +160,13 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
     const [activeCategory, setActiveCategory] = useState<CategoryType>('ALL');
     const [searchQuery, setSearchQuery] = useState('');
     const isStarterPhase = !state.unlockedEras.includes(Era.GROWTH);
+    const hasActiveFilters = activeCategory !== 'ALL' || searchQuery.trim().length > 0;
+
+    const clearFilters = () => {
+        setActiveCategory('ALL');
+        setSearchQuery('');
+        playSfx('UI_CLICK');
+    };
 
     const shopItems = useMemo(() => {
         if (state.activeView === 'DUNGEON') {
@@ -339,12 +347,24 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
                             <button onClick={onClose} className="w-10 bg-slate-800 text-slate-400 hover:bg-slate-700 rounded flex items-center justify-center transition-all"><X size={18} /></button>
                         </div>
 
-                        <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar">
-                            {CATEGORIES.map(cat => (
-                                <button key={cat.id} onClick={() => { setActiveCategory(cat.id); playSfx('UI_CLICK'); }} className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[10px] font-black uppercase tracking-wider transition-all border ${activeCategory === cat.id ? 'bg-amber-500 text-amber-950 border-amber-400 shadow-lg shadow-amber-500/20' : 'bg-slate-800/50 text-slate-500 border-transparent hover:bg-slate-800 hover:text-slate-300'}`}>
-                                    <span className="flex items-center gap-1.5">{cat.icon}{cat.label}</span>
-                                </button>
-                            ))}
+                        <div className="flex items-center gap-2">
+                            <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-1 no-scrollbar">
+                                {CATEGORIES.map(cat => (
+                                    <button key={cat.id} onClick={() => { setActiveCategory(cat.id); playSfx('UI_CLICK'); }} className={`px-3 py-1.5 rounded-full whitespace-nowrap text-[10px] font-black uppercase tracking-wider transition-all border ${activeCategory === cat.id ? 'bg-amber-500 text-amber-950 border-amber-400 shadow-lg shadow-amber-500/20' : 'bg-slate-800/50 text-slate-500 border-transparent hover:bg-slate-800 hover:text-slate-300'}`}>
+                                        <span className="flex items-center gap-1.5">{cat.icon}{cat.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={clearFilters}
+                                disabled={!hasActiveFilters}
+                                title="Remove filters"
+                                className={`h-8 shrink-0 rounded-full border px-2.5 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${hasActiveFilters ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500 hover:text-cyan-950' : 'border-slate-800 bg-slate-900/50 text-slate-700 cursor-not-allowed'}`}
+                            >
+                                <FilterX size={14} />
+                                <span className="hidden sm:inline">Clear</span>
+                            </button>
                         </div>
                     </div>
 
