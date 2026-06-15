@@ -116,45 +116,42 @@ test('saved style settings preserve authored building material detail', () => {
   }
 });
 
-test('design studio includes a saved fine-detail blueprint edit layer', () => {
+test('design studio includes saved fine-detail and source-mesh edit models', () => {
   const blueprintText = source(blueprintPath);
 
   for (const snippet of [
     'export interface BuildingVoxelPart',
-    'export interface BuildingBlueprint',
-    "export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v2';",
+    'scaleX?: number;',
+    'rotationY?: number;',
+    'export interface BuildingSourceMeshOverride',
+    'sourceMeshOverrides?: BuildingSourceMeshOverride[];',
+    "export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v3';",
     'export const BUILDING_DETAIL_GRID_STEP = 0.25;',
     'export const BUILDING_DETAIL_PART_SIZE = 0.18;',
-    'export const DESIGNABLE_BUILDINGS',
-    'export function loadBuildingBlueprint',
-    'export function saveBuildingBlueprint',
-    'export function createDefaultBuildingBlueprint',
-    'parts: []',
-    'export function getVoxelRoleColor',
+    'export function normalizeSourceMeshOverrides',
     'export function snapToDetailGrid',
   ]) {
     assertSnippet(blueprintText, snippet);
   }
 });
 
-test('design studio opens the actual game building model with fine editable overlays', () => {
+test('design studio edits actual source meshes and fine detail overlays', () => {
   const voxelStudioText = source(voxelStudioPath);
 
   for (const snippet of [
     "import * as THREE from 'three';",
     "import { BuildingsFactory } from '../engine/data/voxels/buildings';",
-    'BUILDING_DETAIL_GRID_STEP',
-    'BUILDING_DETAIL_PART_SIZE',
-    'new THREE.WebGLRenderer',
-    'new THREE.PerspectiveCamera',
-    'new THREE.Raycaster',
+    'selectedSourceMeshId',
+    'sourceMeshOverrides',
     'function createActualGameBuilding',
-    'applyBuildingStyleToGroup(type, group, settings)',
-    'Fine grid:',
-    'Save Edits',
-    'addPartAtHit',
-    'removePart',
-    'paintPart',
+    'function applySourceMeshOverride',
+    'mesh.userData.sourceMeshId',
+    'updateSourceMeshOverride',
+    'resetSelectedSourceMesh',
+    'duplicateSelectedPart',
+    'updatePartTransform',
+    'Click real meshes to select, hide, or paint.',
+    'Save Design',
     'saveBuildingBlueprint(blueprint)',
   ]) {
     assertSnippet(voxelStudioText, snippet);
