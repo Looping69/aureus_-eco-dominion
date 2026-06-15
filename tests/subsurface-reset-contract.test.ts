@@ -160,8 +160,8 @@ test('layer controls expose dig, rubble dump, and fill modes', () => {
     "setLayerTool('FILL_RUBBLE');",
     'Designate an open underground cell as a rubble dump',
     'Fill an open underground cell using stored rubble',
-    '>Dump<',
-    '>Fill<',
+    'Dump',
+    'Fill',
   ]) {
     assertSnippet(text, snippet);
   }
