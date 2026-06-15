@@ -4,7 +4,7 @@
 */
 
 import React from 'react';
-import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe } from 'lucide-react';
+import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette } from 'lucide-react';
 import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import '../components/ViewSwitchButton.css';
@@ -212,6 +212,19 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                         </button>
                     </div>
                 )}
+
+                <a
+                    href="/design-studio"
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        playSfx('UI_CLICK');
+                    }}
+                    className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-slate-800 border-slate-950 hover:-translate-y-0.5 border-2 border-b-[4px]"
+                    title="Design Studio"
+                >
+                    <Palette size={20} className="text-fuchsia-300" />
+                </a>
 
                 <button
                     type="button"
