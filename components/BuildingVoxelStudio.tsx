@@ -19,6 +19,18 @@ import {
 
 type StudioTool = 'add' | 'remove' | 'paint';
 
+type StudioSceneState = {
+    scene: THREE.Scene;
+    camera: THREE.PerspectiveCamera;
+    renderer: THREE.WebGLRenderer;
+    group: THREE.Group;
+    raycaster: THREE.Raycaster;
+    pointer: THREE.Vector2;
+    meshes: THREE.Mesh[];
+    selectedOutline: THREE.BoxHelper;
+    orbit: { theta: number; phi: number; radius: number; dragging: boolean; moved: boolean; x: number; y: number };
+};
+
 const ROLE_LABELS: Record<BuildingVoxelRole, string> = {
     wall: 'Wall',
     roof: 'Roof',
@@ -45,17 +57,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     const [role, setRole] = useState<BuildingVoxelRole>('wall');
     const [saved, setSaved] = useState(false);
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const sceneStateRef = useRef<{
-        scene: THREE.Scene;
-        camera: THREE.PerspectiveCamera;
-        renderer: THREE.WebGLRenderer;
-        group: THREE.Group;
-        raycaster: THREE.Raycaster;
-        pointer: THREE.Vector2;
-        meshes: THREE.Mesh[];
-        selectedOutline: THREE.BoxHelper;
-        orbit: { theta: number; phi: number; radius: number; dragging: boolean; x: number; y: number };
-    } | null>(null);
+    const sceneStateRef = useRef<StudioSceneState | null>(null);
 
     const selectedPart = useMemo(
         () => blueprint.parts.find((part) => part.id === selectedPartId) || null,
@@ -115,16 +117,16 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         selectedOutline.visible = false;
         scene.add(selectedOutline);
 
-        const state = {
+        const state: StudioSceneState = {
             scene,
             camera,
             renderer,
             group,
             raycaster: new THREE.Raycaster(),
             pointer: new THREE.Vector2(),
-            meshes: [] as THREE.Mesh[],
+            meshes: [],
             selectedOutline,
-            orbit: { theta: Math.PI * 0.24, phi: Math.PI * 0.32, radius: 9, dragging: false, x: 0, y: 0 },
+            orbit: { theta: Math.PI * 0.24, phi: Math.PI * 0.32, radius: 9, dragging: false, moved: false, x: 0, y: 0 },
         };
         sceneStateRef.current = state;
 
@@ -148,6 +150,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
 
         const onPointerDown = (event: PointerEvent) => {
             state.orbit.dragging = true;
+            state.orbit.moved = false;
             state.orbit.x = event.clientX;
             state.orbit.y = event.clientY;
         };
@@ -158,6 +161,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             const dy = event.clientY - state.orbit.y;
             state.orbit.x = event.clientX;
             state.orbit.y = event.clientY;
+            if (Math.abs(dx) + Math.abs(dy) > 2) state.orbit.moved = true;
             state.orbit.theta -= dx * 0.006;
             state.orbit.phi = Math.max(0.08, Math.min(1.2, state.orbit.phi + dy * 0.004));
             positionCamera();
@@ -192,8 +196,9 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             window.removeEventListener('pointermove', onPointerMove);
             window.removeEventListener('pointerup', onPointerUp);
             renderer.domElement.removeEventListener('wheel', onWheel);
+            disposeMeshes(state.meshes);
             renderer.dispose();
-            container.removeChild(renderer.domElement);
+            if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
             sceneStateRef.current = null;
         };
     }, []);
@@ -202,9 +207,45 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         rebuildPreview(blueprint.parts, settings, selectedPartId);
     }, [blueprint.parts, settings, selectedPartId]);
 
-    const handleCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const rebuildPreview = (parts: BuildingVoxelPart[], nextSettings: BuildingStyleSettings, activePartId: string | null): void => {
         const state = sceneStateRef.current;
         if (!state) return;
+
+        disposeMeshes(state.meshes);
+        for (const mesh of state.meshes) state.group.remove(mesh);
+        state.meshes = [];
+
+        let selectedMesh: THREE.Mesh | null = null;
+        for (const part of parts) {
+            const color = getVoxelRoleColor(part.role, nextSettings);
+            const material = new THREE.MeshStandardMaterial({
+                color,
+                roughness: part.role === 'accent' ? 0.36 : 0.72,
+                metalness: part.role === 'accent' ? 0.18 : 0.04,
+                emissive: part.role === 'accent' ? new THREE.Color(color) : new THREE.Color('#000000'),
+                emissiveIntensity: part.role === 'accent' ? nextSettings.nightGlow * 0.32 : 0,
+            });
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.94, 0.94), material);
+            mesh.position.set(part.x, part.y, part.z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData.partId = part.id;
+            state.group.add(mesh);
+            state.meshes.push(mesh);
+            if (part.id === activePartId) selectedMesh = mesh;
+        }
+
+        if (selectedMesh) {
+            state.selectedOutline.setFromObject(selectedMesh);
+            state.selectedOutline.visible = true;
+        } else {
+            state.selectedOutline.visible = false;
+        }
+    };
+
+    const handleCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
+        const state = sceneStateRef.current;
+        if (!state || state.orbit.moved) return;
         const rect = state.renderer.domElement.getBoundingClientRect();
         state.pointer.set(
             ((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -380,50 +421,13 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     );
 };
 
-function rebuildPreview(parts: BuildingVoxelPart[], settings: BuildingStyleSettings, selectedPartId: string | null): void {
-    const state = sceneStateRefSafe();
-    if (!state) return;
-
-    for (const mesh of state.meshes) {
+function disposeMeshes(meshes: THREE.Mesh[]): void {
+    for (const mesh of meshes) {
         mesh.geometry.dispose();
         const material = mesh.material;
         if (Array.isArray(material)) material.forEach((item) => item.dispose());
         else material.dispose();
-        state.group.remove(mesh);
     }
-    state.meshes = [];
-
-    const geometry = new THREE.BoxGeometry(0.94, 0.94, 0.94);
-    for (const part of parts) {
-        const color = getVoxelRoleColor(part.role, settings);
-        const material = new THREE.MeshStandardMaterial({
-            color,
-            roughness: part.role === 'accent' ? 0.36 : 0.72,
-            metalness: part.role === 'accent' ? 0.18 : 0.04,
-            emissive: part.role === 'accent' ? new THREE.Color(color) : new THREE.Color('#000000'),
-            emissiveIntensity: part.role === 'accent' ? settings.nightGlow * 0.32 : 0,
-        });
-        const mesh = new THREE.Mesh(geometry.clone(), material);
-        mesh.position.set(part.x, part.y, part.z);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.userData.partId = part.id;
-        state.group.add(mesh);
-        state.meshes.push(mesh);
-
-        if (part.id === selectedPartId) {
-            state.selectedOutline.setFromObject(mesh);
-            state.selectedOutline.visible = true;
-        }
-    }
-
-    if (!selectedPartId) {
-        state.selectedOutline.visible = false;
-    }
-}
-
-function sceneStateRefSafe() {
-    return (window as unknown as { __aureusDesignStudioScene?: NonNullable<React.MutableRefObject<any>['current']> }).__aureusDesignStudioScene || null;
 }
 
 function clampGrid(value: number, min: number, max: number): number {
