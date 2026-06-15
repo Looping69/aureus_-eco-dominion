@@ -10,15 +10,28 @@ export interface BuildingVoxelPart {
     y: number;
     z: number;
     role: BuildingVoxelRole;
+    scaleX?: number;
+    scaleY?: number;
+    scaleZ?: number;
+    rotationY?: number;
+}
+
+export interface BuildingSourceMeshOverride {
+    id: string;
+    hidden?: boolean;
+    color?: string;
+    metalness?: number;
+    roughness?: number;
 }
 
 export interface BuildingBlueprint {
     buildingType: BuildingType;
     parts: BuildingVoxelPart[];
+    sourceMeshOverrides?: BuildingSourceMeshOverride[];
     updatedAt: number;
 }
 
-export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v2';
+export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v3';
 export const BUILDING_DETAIL_GRID_STEP = 0.25;
 export const BUILDING_DETAIL_PART_SIZE = 0.18;
 
@@ -50,7 +63,10 @@ export function loadBuildingBlueprint(buildingType: BuildingType): BuildingBluep
                 const parts = Array.isArray(parsed.parts)
                     ? parsed.parts.filter(isValidVoxelPart).map(normalizeVoxelPart)
                     : [];
-                return { buildingType, parts, updatedAt: Number(parsed.updatedAt) || Date.now() };
+                const sourceMeshOverrides = Array.isArray(parsed.sourceMeshOverrides)
+                    ? parsed.sourceMeshOverrides.filter(isValidSourceMeshOverride).map(normalizeSourceMeshOverride)
+                    : [];
+                return { buildingType, parts, sourceMeshOverrides, updatedAt: Number(parsed.updatedAt) || Date.now() };
             }
         } catch {
             // Fall through to an empty edit layer over the real game model.
@@ -64,12 +80,17 @@ export function saveBuildingBlueprint(blueprint: BuildingBlueprint): void {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(
         getBlueprintStorageKey(blueprint.buildingType),
-        JSON.stringify({ ...blueprint, parts: dedupeParts(blueprint.parts), updatedAt: Date.now() }),
+        JSON.stringify({
+            ...blueprint,
+            parts: dedupeParts(blueprint.parts),
+            sourceMeshOverrides: normalizeSourceMeshOverrides(blueprint.sourceMeshOverrides || []),
+            updatedAt: Date.now(),
+        }),
     );
 }
 
 export function createDefaultBuildingBlueprint(buildingType: BuildingType): BuildingBlueprint {
-    return { buildingType, parts: [], updatedAt: Date.now() };
+    return { buildingType, parts: [], sourceMeshOverrides: [], updatedAt: Date.now() };
 }
 
 export function getVoxelRoleColor(role: BuildingVoxelRole, settings: BuildingStyleSettings): string {
@@ -87,7 +108,17 @@ export function createPart(x: number, y: number, z: number, role: BuildingVoxelR
     const sx = snapToDetailGrid(x);
     const sy = snapToDetailGrid(y);
     const sz = snapToDetailGrid(z);
-    return { id: formatPartId(sx, sy, sz), x: sx, y: sy, z: sz, role };
+    return {
+        id: formatPartId(sx, sy, sz),
+        x: sx,
+        y: sy,
+        z: sz,
+        role,
+        scaleX: 1,
+        scaleY: 1,
+        scaleZ: 1,
+        rotationY: 0,
+    };
 }
 
 export function dedupeParts(parts: BuildingVoxelPart[]): BuildingVoxelPart[] {
@@ -97,6 +128,17 @@ export function dedupeParts(parts: BuildingVoxelPart[]): BuildingVoxelPart[] {
         byId.set(normalized.id, normalized);
     }
     return Array.from(byId.values()).sort((a, b) => a.y - b.y || a.z - b.z || a.x - b.x);
+}
+
+export function normalizeSourceMeshOverrides(overrides: BuildingSourceMeshOverride[]): BuildingSourceMeshOverride[] {
+    const byId = new Map<string, BuildingSourceMeshOverride>();
+    for (const override of overrides) {
+        const normalized = normalizeSourceMeshOverride(override);
+        if (normalized.hidden || normalized.color || normalized.metalness !== undefined || normalized.roughness !== undefined) {
+            byId.set(normalized.id, normalized);
+        }
+    }
+    return Array.from(byId.values()).sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export function getBuildingDisplayName(buildingType: BuildingType): string {
@@ -121,7 +163,38 @@ function normalizeVoxelPart(part: BuildingVoxelPart): BuildingVoxelPart {
     const x = Math.max(-8, Math.min(8, snapToDetailGrid(part.x)));
     const y = Math.max(0, Math.min(12, snapToDetailGrid(part.y)));
     const z = Math.max(-8, Math.min(8, snapToDetailGrid(part.z)));
-    return createPart(x, y, z, part.role);
+    return {
+        ...createPart(x, y, z, part.role),
+        scaleX: clampTransform(part.scaleX ?? 1, 0.25, 6),
+        scaleY: clampTransform(part.scaleY ?? 1, 0.25, 6),
+        scaleZ: clampTransform(part.scaleZ ?? 1, 0.25, 6),
+        rotationY: clampRotation(part.rotationY ?? 0),
+    };
+}
+
+function isValidSourceMeshOverride(value: unknown): value is BuildingSourceMeshOverride {
+    const override = value as BuildingSourceMeshOverride;
+    return !!override && typeof override.id === 'string' && override.id.length > 0;
+}
+
+function normalizeSourceMeshOverride(override: BuildingSourceMeshOverride): BuildingSourceMeshOverride {
+    const normalized: BuildingSourceMeshOverride = { id: override.id.slice(0, 64) };
+    if (override.hidden) normalized.hidden = true;
+    if (typeof override.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(override.color)) normalized.color = override.color;
+    if (override.metalness !== undefined) normalized.metalness = clampTransform(override.metalness, 0, 1);
+    if (override.roughness !== undefined) normalized.roughness = clampTransform(override.roughness, 0, 1);
+    return normalized;
+}
+
+function clampTransform(value: number, min: number, max: number): number {
+    if (!Number.isFinite(value)) return min;
+    return Number(Math.max(min, Math.min(max, value)).toFixed(2));
+}
+
+function clampRotation(value: number): number {
+    if (!Number.isFinite(value)) return 0;
+    const snapped = Math.round(value / 15) * 15;
+    return ((snapped % 360) + 360) % 360;
 }
 
 function formatPartId(x: number, y: number, z: number): string {
