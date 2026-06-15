@@ -12,7 +12,7 @@ export const SUBSURFACE_RUBBLE_PER_BLOCK = 1;
 export const SUBSURFACE_RUBBLE_DUMP_CAPACITY = 24;
 export const SUBSURFACE_SURFACE_RUBBLE_DUMP_CAPACITY = 48;
 export const SUBSURFACE_DIG_JOB_PREFIX = 'dig_sub';
-export const SUBSURFACE_CLEAR_RUBBLE_JOB_PREFIX = 'clear_sub';
+export const SUBSURFACE_CLEAR_RUBBLE_JOB_PREFIX = 'dig_sub_clear';
 
 const CARDINAL_NEIGHBORS = [{ dx: 1, dz: 0 }, { dx: -1, dz: 0 }, { dx: 0, dz: 1 }, { dx: 0, dz: -1 }];
 const SURFACE_REFRESH_NEIGHBORS = [{ dx: 0, dz: 0 }, { dx: 1, dz: 0 }, { dx: -1, dz: 0 }, { dx: 0, dz: 1 }, { dx: 0, dz: -1 }, { dx: 1, dz: 1 }, { dx: 1, dz: -1 }, { dx: -1, dz: 1 }, { dx: -1, dz: -1 }];
