@@ -38,6 +38,13 @@ const findAgentNearTile = (agents: any[], x: number, z: number) => {
     return closestDistanceSq <= 1.7 ? closestAgent : null;
 };
 
+function getActiveSubsurfaceLayer(state: any): number {
+    const layeredWorld = state.layeredWorld;
+    return layeredWorld.activeY < layeredWorld.surfaceY
+        ? layeredWorld.activeY
+        : layeredWorld.surfaceY - 1;
+}
+
 export function handleSurfaceInteraction(
     x: number,
     z: number,
@@ -65,13 +72,17 @@ export function handleSurfaceInteraction(
     const tile = ChunkStore.getTile(state.chunks, x, z);
     if (!tile) return;
 
-    if ((state.interactionMode as string) === 'DIG') {
-        const layeredWorld = state.layeredWorld;
-        const activeY = layeredWorld.activeY < layeredWorld.surfaceY
-            ? layeredWorld.activeY
-            : layeredWorld.surfaceY - 1;
-        const cell = getSubsurfaceCell(layeredWorld, x, activeY, z);
-        const command = cell?.material === 'RUBBLE' ? 'CLEAR_RUBBLE' : 'DIG_VOXEL';
+    const layerToolMode = state.interactionMode as string;
+    if (layerToolMode === 'DIG' || layerToolMode === 'DUMP_RUBBLE' || layerToolMode === 'FILL_RUBBLE') {
+        const activeY = getActiveSubsurfaceLayer(state);
+        const cell = getSubsurfaceCell(state.layeredWorld, x, activeY, z);
+        const command = layerToolMode === 'DUMP_RUBBLE'
+            ? 'DESIGNATE_RUBBLE_DUMP'
+            : layerToolMode === 'FILL_RUBBLE'
+                ? 'FILL_VOXEL'
+                : cell?.material === 'RUBBLE'
+                    ? 'CLEAR_RUBBLE'
+                    : 'DIG_VOXEL';
         deps.stateManager.pushCommand(command, { x, y: activeY, z });
         deps.config.onTileClick?.(x, z, isTouch);
         return;
