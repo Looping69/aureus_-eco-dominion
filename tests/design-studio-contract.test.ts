@@ -7,7 +7,9 @@ const root = process.cwd();
 const indexPath = path.join(root, 'index.tsx');
 const studioPath = path.join(root, 'components', 'DesignStudio.tsx');
 const stylePath = path.join(root, 'game', 'design', 'buildingStyle.ts');
+const styleRuntimePath = path.join(root, 'game', 'design', 'buildingStyleRuntime.ts');
 const controlsPath = path.join(root, 'components', 'Controls.tsx');
+const voxelGeneratorsPath = path.join(root, 'engine', 'render', 'utils', 'VoxelGenerators.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);
@@ -24,8 +26,10 @@ test('design studio has a browser route entry and game return path', () => {
 
   for (const snippet of [
     "import { DesignStudio } from './components/DesignStudio';",
-    "const isDesignStudioRoute = window.location.pathname === '/design-studio';",
-    '{isDesignStudioRoute ? <DesignStudio /> : <App />}',
+    "import { BrowserRouter, useLocation } from 'react-router-dom';",
+    'function RootRoute() {',
+    "location.pathname === '/design-studio' ? <DesignStudio /> : <App />",
+    '<RootRoute />',
   ]) {
     assertSnippet(indexText, snippet);
   }
@@ -79,5 +83,29 @@ test('game controls expose a compact design studio button', () => {
     '<Palette size={20}',
   ]) {
     assertSnippet(controlsText, snippet);
+  }
+});
+
+test('saved style settings are applied to generated building meshes', () => {
+  const runtimeText = source(styleRuntimePath);
+  const voxelText = source(voxelGeneratorsPath);
+
+  for (const snippet of [
+    'export function readSavedBuildingStyle',
+    'export function getBuildingStyleSignature',
+    'export function applyBuildingStyleToGroup',
+    'INFRASTRUCTURE_STYLE_EXCLUSIONS',
+    'mesh.material = Array.isArray(mesh.material)',
+    'group.userData.buildingStyleSignature',
+  ]) {
+    assertSnippet(runtimeText, snippet);
+  }
+
+  for (const snippet of [
+    "import { applyBuildingStyleToGroup, readSavedBuildingStyle } from '../../../game/design/buildingStyleRuntime';",
+    'function withDesignStudioStyle',
+    '...withDesignStudioStyle(BuildingsFactory)',
+  ]) {
+    assertSnippet(voxelText, snippet);
   }
 });
