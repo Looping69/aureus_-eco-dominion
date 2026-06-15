@@ -7,6 +7,9 @@ const root = process.cwd();
 const buildingsDataPath = path.join(root, 'engine', 'data', 'buildings.ts');
 const subsurfaceModelPath = path.join(root, 'engine', 'subsurface', 'SubsurfaceModel.ts');
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
+const undergroundSurveySystemPath = path.join(root, 'engine', 'sim', 'systems', 'UndergroundSurveySystem.ts');
+const undergroundTypesPath = path.join(root, 'engine', 'types', 'underground.ts');
+const undergroundHudPath = path.join(root, 'components', 'UndergroundHUD.tsx');
 const interactionPath = path.join(root, 'game', 'world', 'interaction.ts');
 const renderFramePath = path.join(root, 'game', 'world', 'renderFrame.ts');
 
@@ -67,14 +70,14 @@ test('open-pit excavation remains capped and cannot dig through rubble', () => {
   }
 });
 
-test('rubble clearing is a separate command path from digging', () => {
+test('rubble clearing is a separate command path from digging and remains agent-executable', () => {
   const modelText = source(subsurfaceModelPath);
   const commandText = source(commandDispatcherPath);
   const interactionText = source(interactionPath);
 
   for (const snippet of [
     "export const SUBSURFACE_DIG_JOB_PREFIX = 'dig_sub';",
-    "export const SUBSURFACE_CLEAR_RUBBLE_JOB_PREFIX = 'clear_sub';",
+    "export const SUBSURFACE_CLEAR_RUBBLE_JOB_PREFIX = 'dig_sub_clear';",
     'export function queueSubsurfaceExcavationJob',
     'export function queueSubsurfaceRubbleClearJob',
     'return clearRubbleCell(state, cell);',
@@ -95,6 +98,47 @@ test('rubble clearing is a separate command path from digging', () => {
     'deps.stateManager.pushCommand(command, { x, y: activeY, z });',
   ]) {
     assertSnippet(interactionText, snippet);
+  }
+});
+
+test('open pit telemetry is mirrored into the underground HUD state', () => {
+  const typeText = source(undergroundTypesPath);
+  const systemText = source(undergroundSurveySystemPath);
+  const hudText = source(undergroundHudPath);
+
+  for (const snippet of [
+    'export interface OpenPitTelemetry',
+    'rubbleStored: number;',
+    'rubbleCapacity: number;',
+    'queuedClearJobs: number;',
+    'capacityBlocked: boolean;',
+    'nextAction: string;',
+    'openPit?: OpenPitTelemetry;',
+  ]) {
+    assertSnippet(typeText, snippet);
+  }
+
+  for (const snippet of [
+    'syncOpenPitTelemetry(state);',
+    'const rubbleStored = Math.max(0, Math.round(layeredWorld.rubbleStockpile || 0));',
+    'const stockpileCapacity = getSurfaceStockpileCapacity(state);',
+    'const undergroundDumpCapacity = getUndergroundDumpCapacity(state);',
+    'const capacityBlocked = rubbleCapacity <= 0 || rubbleStored >= rubbleCapacity;',
+    'state.underground.openPit = {',
+    'Build a Rubble & Resource Stockpile or clear dump space.',
+  ]) {
+    assertSnippet(systemText, snippet);
+  }
+
+  for (const snippet of [
+    'const openPit = underground.openPit;',
+    'Open Pit',
+    'Pit Tiles',
+    'Clear Jobs',
+    'Stockpile {openPit.stockpileCapacity} / Underground dump {openPit.undergroundDumpCapacity}',
+    '{openPit.nextAction}',
+  ]) {
+    assertSnippet(hudText, snippet);
   }
 });
 
