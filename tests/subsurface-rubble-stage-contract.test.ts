@@ -28,7 +28,7 @@ test('dig jobs cannot silently advance through rubble', () => {
     'Waiting: rubble target is already cleared.',
     'const isClearingRubble = isRubbleClearJob;',
     'clearSubsurfaceRubbleForHaul(state, job.targetX, y, job.targetZ)',
-    'excavateSubsurfaceCell(state, job.targetX, y, job.targetZ, { deformSurface: job.context === \'SURFACE_CUT\' })',
+    "excavateSubsurfaceCell(state, job.targetX, y, job.targetZ, { deformSurface: job.context === 'SURFACE_CUT' })",
   ]) {
     assertSnippet(text, snippet);
   }
