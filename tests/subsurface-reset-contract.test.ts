@@ -84,7 +84,7 @@ test('rubble clearing is a separate command path from digging and remains agent-
     "export const SUBSURFACE_CLEAR_RUBBLE_JOB_PREFIX = 'dig_sub_clear';",
     'export function queueSubsurfaceExcavationJob',
     'export function queueSubsurfaceRubbleClearJob',
-    'return clearRubbleCell(state, cell);',
+    "if (cell.material === 'RUBBLE') return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Clear rubble before digging deeper.' };",
   ]) {
     assertSnippet(modelText, snippet);
   }
