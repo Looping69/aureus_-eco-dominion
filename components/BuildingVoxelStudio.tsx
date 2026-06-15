@@ -6,6 +6,8 @@ import { BuildingsFactory } from '../engine/data/voxels/buildings';
 import { BuildingStyleSettings } from '../game/design/buildingStyle';
 import { applyBuildingStyleToGroup } from '../game/design/buildingStyleRuntime';
 import {
+    BUILDING_DETAIL_GRID_STEP,
+    BUILDING_DETAIL_PART_SIZE,
     BuildingBlueprint,
     BuildingVoxelPart,
     BuildingVoxelRole,
@@ -17,6 +19,7 @@ import {
     getVoxelRoleColor,
     loadBuildingBlueprint,
     saveBuildingBlueprint,
+    snapToDetailGrid,
 } from '../game/design/buildingBlueprint';
 
 type StudioTool = 'add' | 'remove' | 'paint';
@@ -125,7 +128,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         floor.receiveShadow = true;
         scene.add(floor);
 
-        const grid = new THREE.GridHelper(18, 18, '#315063', '#183043');
+        const grid = new THREE.GridHelper(18, 72, '#315063', '#183043');
         grid.position.y = -0.51;
         scene.add(grid);
 
@@ -192,7 +195,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
 
         const onWheel = (event: WheelEvent) => {
             event.preventDefault();
-            state.orbit.radius = Math.max(4.5, Math.min(18, state.orbit.radius + Math.sign(event.deltaY) * 0.8));
+            state.orbit.radius = Math.max(3.5, Math.min(18, state.orbit.radius + Math.sign(event.deltaY) * 0.8));
             positionCamera();
         };
 
@@ -263,7 +266,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                 emissive: part.role === 'accent' ? new THREE.Color(color) : new THREE.Color('#000000'),
                 emissiveIntensity: part.role === 'accent' ? nextSettings.nightGlow * 0.32 : 0,
             });
-            const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.72, 0.72), material);
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE), material);
             mesh.position.set(part.x, part.y, part.z);
             mesh.castShadow = true;
             mesh.receiveShadow = true;
@@ -315,20 +318,20 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
 
     const addAdjacentPart = (part: BuildingVoxelPart, normal: THREE.Vector3, nextRole = role) => {
         const nextPart = createPart(
-            clampGrid(part.x + Math.round(normal.x), -8, 8),
-            clampGrid(part.y + Math.round(normal.y), 0, 12),
-            clampGrid(part.z + Math.round(normal.z), -8, 8),
+            clampGrid(part.x + Math.round(normal.x) * BUILDING_DETAIL_GRID_STEP, -8, 8),
+            clampGrid(part.y + Math.round(normal.y) * BUILDING_DETAIL_GRID_STEP, 0, 12),
+            clampGrid(part.z + Math.round(normal.z) * BUILDING_DETAIL_GRID_STEP, -8, 8),
             nextRole,
         );
         addPart(nextPart);
     };
 
     const addPartAtHit = (hit: StudioHit, nextRole = role) => {
-        const target = hit.point.clone().add(hit.normal.clone().multiplyScalar(0.5));
+        const target = hit.point.clone().add(hit.normal.clone().multiplyScalar(BUILDING_DETAIL_GRID_STEP));
         const nextPart = createPart(
-            clampGrid(Math.round(target.x), -8, 8),
-            clampGrid(Math.round(target.y), 0, 12),
-            clampGrid(Math.round(target.z), -8, 8),
+            clampGrid(snapToDetailGrid(target.x), -8, 8),
+            clampGrid(snapToDetailGrid(target.y), 0, 12),
+            clampGrid(snapToDetailGrid(target.z), -8, 8),
             nextRole,
         );
         addPart(nextPart);
@@ -413,11 +416,11 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                 <div className="relative h-[30rem] min-h-[24rem] border-b border-slate-800 xl:border-b-0 xl:border-r" onClick={handleCanvasClick}>
                     <div ref={containerRef} className="absolute inset-0" />
                     <div className="pointer-events-none absolute left-4 top-4 rounded-[4px] border border-slate-700 bg-slate-950/80 px-3 py-2 text-[11px] font-bold text-slate-300 backdrop-blur">
-                        Live game model. Drag to orbit. Wheel to zoom. Click the model to add detail.
+                        Live game model. Fine grid: {BUILDING_DETAIL_GRID_STEP}m. Click the model to add small detail.
                     </div>
                     {selectedPart && (
                         <div className="pointer-events-none absolute bottom-4 left-4 rounded-[4px] border border-cyan-800 bg-slate-950/85 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-cyan-200 backdrop-blur">
-                            Selected edit {selectedPart.x}, {selectedPart.y}, {selectedPart.z} · {ROLE_LABELS[selectedPart.role]}
+                            Selected edit {formatCoord(selectedPart.x)}, {formatCoord(selectedPart.y)}, {formatCoord(selectedPart.z)} · {ROLE_LABELS[selectedPart.role]}
                         </div>
                     )}
                 </div>
@@ -440,7 +443,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                     </div>
 
                     <div>
-                        <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Edit Part</div>
+                        <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Fine Part</div>
                         <div className="grid grid-cols-2 gap-2">
                             {(Object.keys(ROLE_LABELS) as BuildingVoxelRole[]).map((item) => (
                                 <button
@@ -472,7 +475,8 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                         <div className="flex items-center gap-2 font-black uppercase tracking-wider text-slate-300"><MousePointer2 size={14} /> Shape Data</div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
                             <span>Base</span><strong className="text-right text-white">Game Factory</strong>
-                            <span>Edits</span><strong className="text-right text-white">{blueprint.parts.length}</strong>
+                            <span>Fine edits</span><strong className="text-right text-white">{blueprint.parts.length}</strong>
+                            <span>Part size</span><strong className="text-right text-white">{BUILDING_DETAIL_PART_SIZE}m</strong>
                             <span>Mode</span><strong className="text-right text-white">{TOOL_LABELS[tool]}</strong>
                         </div>
                     </div>
@@ -514,4 +518,8 @@ function disposeEditMeshes(meshes: THREE.Mesh[]): void {
 
 function clampGrid(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, value));
+}
+
+function formatCoord(value: number): string {
+    return value.toFixed(2).replace(/\.00$/, '');
 }
