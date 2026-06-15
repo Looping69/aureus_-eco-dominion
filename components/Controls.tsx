@@ -4,9 +4,10 @@
 */
 
 import React from 'react';
-import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette } from 'lucide-react';
-import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode } from '../types';
+import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX } from 'lucide-react';
+import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode, SfxType } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { useAureusAudio } from '../game/audio/useAureusAudio';
 import '../components/ViewSwitchButton.css';
 
 type LayerToolMode = 'DIG' | 'DUMP_RUBBLE' | 'FILL_RUBBLE';
@@ -37,6 +38,12 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     debugMode, interactionMode, undergroundUnlocked, activeView, overlayMode, onToggleView,
     selectedAgentId, activeLayer, minLayer, maxLayer
 }) => {
+    const audioBelowSurface = activeLayer < SURFACE_LAYER || activeView === 'DUNGEON';
+    const { audioEnabled, toggleAudio, playAudioSfx } = useAureusAudio({
+        activeView: audioBelowSurface ? 'DUNGEON' : 'SURFACE',
+        paused: false,
+    });
+
     if (selectedBuilding) {
         return (
             <div className="absolute bottom-20 sm:bottom-12 left-4 right-4 z-[120] animate-in slide-in-from-bottom-4 pointer-events-auto flex flex-col gap-2 max-w-sm mx-auto items-center">
@@ -137,6 +144,22 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                     title={`Logistics Overlay: ${overlayMode}`}
                 >
                     <Layers size={20} className={overlayMode === 'OFF' ? 'text-slate-500' : 'text-cyan-400'} />
+                </button>
+
+                <button
+                    type="button"
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleAudio();
+                        playAudioSfx(SfxType.UI_CLICK);
+                    }}
+                    className={`w-12 h-12 rounded-[4px] flex items-center justify-center transition-all border-2 border-b-[4px] ${audioEnabled ? 'bg-cyan-700 border-cyan-950 text-cyan-50' : 'bg-slate-800 border-slate-950 text-slate-500 hover:-translate-y-0.5'}`}
+                    title={audioEnabled ? 'Mute Soundscape' : 'Start Soundscape'}
+                    aria-label={audioEnabled ? 'Mute Soundscape' : 'Start Soundscape'}
+                >
+                    {audioEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
                 </button>
 
                 {canUseLayerTools && (
