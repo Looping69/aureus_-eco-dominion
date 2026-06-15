@@ -9,6 +9,7 @@ import ReactDOM from 'react-dom/client';
 import { Analytics } from "@vercel/analytics/react";
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import { DesignStudio } from './components/DesignStudio';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -16,13 +17,15 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+const isDesignStudioRoute = window.location.pathname === '/design-studio';
+
 root.render(
   <React.StrictMode>
     <BrowserRouter future={{
       v7_startTransition: true,
       v7_relativeSplatPath: true,
     }}>
-      <App />
+      {isDesignStudioRoute ? <DesignStudio /> : <App />}
     </BrowserRouter>
     <Analytics />
   </React.StrictMode>
