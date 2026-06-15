@@ -6,7 +6,10 @@ import test from 'node:test';
 const root = process.cwd();
 const buildingsDataPath = path.join(root, 'engine', 'data', 'buildings.ts');
 const subsurfaceModelPath = path.join(root, 'engine', 'subsurface', 'SubsurfaceModel.ts');
+const rubbleHaulPath = path.join(root, 'engine', 'subsurface', 'RubbleHaul.ts');
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
+const agentSystemPath = path.join(root, 'engine', 'sim', 'systems', 'AgentSystem.ts');
+const agentTypesPath = path.join(root, 'engine', 'types', 'agents.ts');
 const undergroundSurveySystemPath = path.join(root, 'engine', 'sim', 'systems', 'UndergroundSurveySystem.ts');
 const undergroundTypesPath = path.join(root, 'engine', 'types', 'underground.ts');
 const controlsPath = path.join(root, 'components', 'Controls.tsx');
@@ -106,6 +109,39 @@ test('rubble clearing is a separate command path from digging and remains agent-
     'deps.stateManager.pushCommand(command, { x, y: activeY, z });',
   ]) {
     assertSnippet(interactionText, snippet);
+  }
+});
+
+test('agents haul cleared rubble before it becomes stored rubble', () => {
+  const typesText = source(agentTypesPath);
+  const haulText = source(rubbleHaulPath);
+  const agentText = source(agentSystemPath);
+
+  for (const snippet of [
+    "'minerals' | 'gems' | 'wood' | 'stone' | 'rubble' | null",
+  ]) {
+    assertSnippet(typesText, snippet);
+  }
+
+  for (const snippet of [
+    'export function clearSubsurfaceRubbleForHaul',
+    'export function depositCarriedRubble',
+    'validateSubsurfaceRubbleClearTarget(state, x, y, z)',
+    "cell.material = 'AIR';",
+    'state.layeredWorld.rubbleStockpile = (state.layeredWorld.rubbleStockpile || 0) + amount;',
+  ]) {
+    assertSnippet(haulText, snippet);
+  }
+
+  for (const snippet of [
+    'clearSubsurfaceRubbleForHaul(state, job.targetX, y, job.targetZ)',
+    'depositCarriedRubble(state, amount)',
+    "agent.inventory.type = 'rubble';",
+    'Hauling rubble to stockpile.',
+    'Dropping rubble at stockpile.',
+    'BuildingType.STOCKPILE',
+  ]) {
+    assertSnippet(agentText, snippet);
   }
 });
 
