@@ -9,6 +9,7 @@ const subsurfaceModelPath = path.join(root, 'engine', 'subsurface', 'SubsurfaceM
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
 const undergroundSurveySystemPath = path.join(root, 'engine', 'sim', 'systems', 'UndergroundSurveySystem.ts');
 const undergroundTypesPath = path.join(root, 'engine', 'types', 'underground.ts');
+const controlsPath = path.join(root, 'components', 'Controls.tsx');
 const undergroundHudPath = path.join(root, 'components', 'UndergroundHUD.tsx');
 const interactionPath = path.join(root, 'game', 'world', 'interaction.ts');
 const renderFramePath = path.join(root, 'game', 'world', 'renderFrame.ts');
@@ -87,14 +88,21 @@ test('rubble clearing is a separate command path from digging and remains agent-
 
   for (const snippet of [
     "commandType === 'CLEAR_RUBBLE'",
+    "commandType === 'DESIGNATE_RUBBLE_DUMP'",
+    "commandType === 'FILL_VOXEL'",
     'return queueSubsurfaceRubbleClearJob(state, target.x, target.y, target.z);',
-    "'CLEAR_RUBBLE'",
+    'return designateRubbleDropZone(state, target.x, target.y, target.z);',
+    'return fillSubsurfaceCellWithRubble(state, target.x, target.y, target.z);',
   ]) {
     assertSnippet(commandText, snippet);
   }
 
   for (const snippet of [
-    "const command = cell?.material === 'RUBBLE' ? 'CLEAR_RUBBLE' : 'DIG_VOXEL';",
+    "layerToolMode === 'DIG' || layerToolMode === 'DUMP_RUBBLE' || layerToolMode === 'FILL_RUBBLE'",
+    "? 'DESIGNATE_RUBBLE_DUMP'",
+    "? 'FILL_VOXEL'",
+    "? 'CLEAR_RUBBLE'",
+    ": 'DIG_VOXEL';",
     'deps.stateManager.pushCommand(command, { x, y: activeY, z });',
   ]) {
     assertSnippet(interactionText, snippet);
@@ -139,6 +147,23 @@ test('open pit telemetry is mirrored into the underground HUD state', () => {
     '{openPit.nextAction}',
   ]) {
     assertSnippet(hudText, snippet);
+  }
+});
+
+test('layer controls expose dig, rubble dump, and fill modes', () => {
+  const text = source(controlsPath);
+
+  for (const snippet of [
+    "type LayerToolMode = 'DIG' | 'DUMP_RUBBLE' | 'FILL_RUBBLE';",
+    "setLayerTool('DIG');",
+    "setLayerTool('DUMP_RUBBLE');",
+    "setLayerTool('FILL_RUBBLE');",
+    'Designate an open underground cell as a rubble dump',
+    'Fill an open underground cell using stored rubble',
+    '>Dump<',
+    '>Fill<',
+  ]) {
+    assertSnippet(text, snippet);
   }
 });
 
