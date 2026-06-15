@@ -18,7 +18,9 @@ export interface BuildingBlueprint {
     updatedAt: number;
 }
 
-export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v1';
+export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v2';
+export const BUILDING_DETAIL_GRID_STEP = 0.25;
+export const BUILDING_DETAIL_PART_SIZE = 0.18;
 
 export const DESIGNABLE_BUILDINGS: BuildingType[] = [
     BuildingType.STAFF_QUARTERS,
@@ -62,7 +64,7 @@ export function saveBuildingBlueprint(blueprint: BuildingBlueprint): void {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(
         getBlueprintStorageKey(blueprint.buildingType),
-        JSON.stringify({ ...blueprint, updatedAt: Date.now() }),
+        JSON.stringify({ ...blueprint, parts: dedupeParts(blueprint.parts), updatedAt: Date.now() }),
     );
 }
 
@@ -82,19 +84,28 @@ export function getVoxelRoleColor(role: BuildingVoxelRole, settings: BuildingSty
 }
 
 export function createPart(x: number, y: number, z: number, role: BuildingVoxelRole): BuildingVoxelPart {
-    return { id: `${x}:${y}:${z}`, x, y, z, role };
+    const sx = snapToDetailGrid(x);
+    const sy = snapToDetailGrid(y);
+    const sz = snapToDetailGrid(z);
+    return { id: formatPartId(sx, sy, sz), x: sx, y: sy, z: sz, role };
 }
 
 export function dedupeParts(parts: BuildingVoxelPart[]): BuildingVoxelPart[] {
     const byId = new Map<string, BuildingVoxelPart>();
     for (const part of parts) {
-        byId.set(`${part.x}:${part.y}:${part.z}`, { ...part, id: `${part.x}:${part.y}:${part.z}` });
+        const normalized = normalizeVoxelPart(part);
+        byId.set(normalized.id, normalized);
     }
     return Array.from(byId.values()).sort((a, b) => a.y - b.y || a.z - b.z || a.x - b.x);
 }
 
 export function getBuildingDisplayName(buildingType: BuildingType): string {
     return BUILDINGS[buildingType]?.name || buildingType.replace(/_/g, ' ');
+}
+
+export function snapToDetailGrid(value: number): number {
+    if (!Number.isFinite(value)) return 0;
+    return Number((Math.round(value / BUILDING_DETAIL_GRID_STEP) * BUILDING_DETAIL_GRID_STEP).toFixed(2));
 }
 
 function isValidVoxelPart(value: unknown): value is BuildingVoxelPart {
@@ -107,8 +118,12 @@ function isValidVoxelPart(value: unknown): value is BuildingVoxelPart {
 }
 
 function normalizeVoxelPart(part: BuildingVoxelPart): BuildingVoxelPart {
-    const x = Math.max(-8, Math.min(8, Math.round(part.x)));
-    const y = Math.max(0, Math.min(12, Math.round(part.y)));
-    const z = Math.max(-8, Math.min(8, Math.round(part.z)));
+    const x = Math.max(-8, Math.min(8, snapToDetailGrid(part.x)));
+    const y = Math.max(0, Math.min(12, snapToDetailGrid(part.y)));
+    const z = Math.max(-8, Math.min(8, snapToDetailGrid(part.z)));
     return createPart(x, y, z, part.role);
+}
+
+function formatPartId(x: number, y: number, z: number): string {
+    return `${x.toFixed(2)}:${y.toFixed(2)}:${z.toFixed(2)}`;
 }
