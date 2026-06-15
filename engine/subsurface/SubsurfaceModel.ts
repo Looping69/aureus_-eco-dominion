@@ -336,7 +336,7 @@ export function excavateSubsurfaceCell(state: GameState, x: number, y: number, z
     if (!layeredWorld?.enabled) return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: 'Layered world is disabled.' };
     const cell = getSubsurfaceCell(layeredWorld, x, y, z);
     if (!cell) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cell is not generated.' };
-    if (cell.material === 'RUBBLE') return clearRubbleCell(state, cell);
+    if (cell.material === 'RUBBLE') return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Clear rubble before digging deeper.' };
     const validation = validateSubsurfaceDigTarget(state, x, y, z);
     if (!validation.ok) return validation;
     return breakSubsurfaceCellIntoRubble(state, cell, options);
