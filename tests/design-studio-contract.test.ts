@@ -89,7 +89,7 @@ test('game controls expose a compact design studio button', () => {
   }
 });
 
-test('saved style settings are applied to generated building meshes', () => {
+test('saved style settings preserve authored building material detail', () => {
   const runtimeText = source(styleRuntimePath);
   const voxelText = source(voxelGeneratorsPath);
 
@@ -100,6 +100,9 @@ test('saved style settings are applied to generated building meshes', () => {
     'INFRASTRUCTURE_STYLE_EXCLUSIONS',
     'mesh.material = Array.isArray(mesh.material)',
     'group.userData.buildingStyleSignature',
+    'function getStyleBlend',
+    'material.vertexColors === true',
+    'return role === \'accent\' ? 0.18 : 0.1;',
   ]) {
     assertSnippet(runtimeText, snippet);
   }
@@ -113,36 +116,41 @@ test('saved style settings are applied to generated building meshes', () => {
   }
 });
 
-test('design studio includes a saved voxel blueprint edit layer', () => {
+test('design studio includes a saved fine-detail blueprint edit layer', () => {
   const blueprintText = source(blueprintPath);
 
   for (const snippet of [
     'export interface BuildingVoxelPart',
     'export interface BuildingBlueprint',
-    "export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v1';",
+    "export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v2';",
+    'export const BUILDING_DETAIL_GRID_STEP = 0.25;',
+    'export const BUILDING_DETAIL_PART_SIZE = 0.18;',
     'export const DESIGNABLE_BUILDINGS',
     'export function loadBuildingBlueprint',
     'export function saveBuildingBlueprint',
     'export function createDefaultBuildingBlueprint',
     'parts: []',
     'export function getVoxelRoleColor',
+    'export function snapToDetailGrid',
   ]) {
     assertSnippet(blueprintText, snippet);
   }
 });
 
-test('design studio opens the actual game building model with editable overlays', () => {
+test('design studio opens the actual game building model with fine editable overlays', () => {
   const voxelStudioText = source(voxelStudioPath);
 
   for (const snippet of [
     "import * as THREE from 'three';",
     "import { BuildingsFactory } from '../engine/data/voxels/buildings';",
+    'BUILDING_DETAIL_GRID_STEP',
+    'BUILDING_DETAIL_PART_SIZE',
     'new THREE.WebGLRenderer',
     'new THREE.PerspectiveCamera',
     'new THREE.Raycaster',
     'function createActualGameBuilding',
     'applyBuildingStyleToGroup(type, group, settings)',
-    'Live game model. Drag to orbit.',
+    'Fine grid:',
     'Save Edits',
     'addPartAtHit',
     'removePart',
