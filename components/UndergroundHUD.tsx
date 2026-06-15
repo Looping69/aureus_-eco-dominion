@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Pickaxe, Shield, Upload, UserPlus, Zap } from 'lucide-react';
+import { AlertTriangle, Boxes, ChevronDown, ChevronUp, Pickaxe, Shield, Upload, UserPlus, Zap } from 'lucide-react';
 import { UndergroundState, UndergroundTile } from '../types';
 
 type DungeonMode = 'mine' | 'build_support' | 'build_recharger';
@@ -21,6 +21,11 @@ const emitDungeonAction = (type: string, payload?: Record<string, any>) => {
     }));
 };
 
+const percent = (value: number, max: number) => {
+    if (max <= 0) return 0;
+    return Math.max(0, Math.min(100, Math.round((value / max) * 100)));
+};
+
 export const UndergroundHUD: React.FC<UndergroundHUDProps> = ({ underground }) => {
     const [activeMode, setActiveMode] = useState<DungeonMode>('mine');
     const [ledgerCollapsed, setLedgerCollapsed] = useState(true);
@@ -31,6 +36,8 @@ export const UndergroundHUD: React.FC<UndergroundHUDProps> = ({ underground }) =
     const hazardCount = visibleTiles.filter(tile => tile.hazard !== 'NONE').length;
     const resourceCount = visibleTiles.filter(tile => tile.resourceType !== 'NONE').length;
     const sectorLabel = `Sector B${underground.depthLevel}`;
+    const openPit = underground.openPit;
+    const rubblePercent = openPit ? percent(openPit.rubbleStored, openPit.rubbleCapacity) : 0;
 
     const setMode = (mode: DungeonMode) => {
         setActiveMode(mode);
@@ -129,6 +136,41 @@ export const UndergroundHUD: React.FC<UndergroundHUDProps> = ({ underground }) =
 
                 {!consoleCollapsed && (
                     <div className="px-3 pb-3">
+                        {openPit && (
+                            <div className={`mb-3 rounded-[6px] border p-3 ${openPit.capacityBlocked ? 'border-amber-500/60 bg-amber-950/25' : 'border-slate-700 bg-slate-900/75'}`}>
+                                <div className="flex items-center justify-between gap-3 mb-2">
+                                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-cyan-200 font-['Rajdhani']">
+                                        {openPit.capacityBlocked ? <AlertTriangle size={14} className="text-amber-300" /> : <Boxes size={14} className="text-cyan-300" />}
+                                        Open Pit
+                                    </div>
+                                    <div className="text-[10px] font-mono text-slate-400">Layer {openPit.activeLayer} / Surface {openPit.surfaceLayer}</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-mono text-slate-300">
+                                    <div className="flex justify-between gap-3"><span className="text-slate-500 uppercase">Pit Tiles</span><span>{openPit.openPitTiles}</span></div>
+                                    <div className="flex justify-between gap-3"><span className="text-slate-500 uppercase">Depth</span><span>{openPit.deepestOpenPitDepth}/{openPit.maxOpenPitDepth}</span></div>
+                                    <div className="flex justify-between gap-3"><span className="text-slate-500 uppercase">Dig Jobs</span><span>{openPit.queuedDigJobs}</span></div>
+                                    <div className="flex justify-between gap-3"><span className="text-slate-500 uppercase">Clear Jobs</span><span>{openPit.queuedClearJobs}</span></div>
+                                    <div className="flex justify-between gap-3"><span className="text-slate-500 uppercase">Assigned</span><span>{openPit.assignedExcavationJobs}</span></div>
+                                    <div className="flex justify-between gap-3"><span className="text-slate-500 uppercase">Workers</span><span>{openPit.activeWorkers}</span></div>
+                                </div>
+                                <div className="mt-2">
+                                    <div className="flex items-center justify-between text-[10px] font-mono mb-1">
+                                        <span className="text-slate-500 uppercase">Rubble</span>
+                                        <span className={openPit.capacityBlocked ? 'text-amber-300' : 'text-slate-300'}>{openPit.rubbleStored}/{openPit.rubbleCapacity}</span>
+                                    </div>
+                                    <div className="h-2 bg-black/40 border border-slate-800 rounded-[3px] overflow-hidden">
+                                        <div className={`h-full ${openPit.capacityBlocked ? 'bg-amber-400' : 'bg-cyan-400'}`} style={{ width: `${rubblePercent}%` }} />
+                                    </div>
+                                    <div className="mt-1 text-[9px] font-mono text-slate-500">
+                                        Stockpile {openPit.stockpileCapacity} / Underground dump {openPit.undergroundDumpCapacity}
+                                    </div>
+                                </div>
+                                <div className={`mt-2 text-[10px] leading-snug font-bold ${openPit.capacityBlocked ? 'text-amber-200' : 'text-cyan-100'}`}>
+                                    {openPit.nextAction}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-3 gap-1.5 mb-3">
                             {modeOptions.map(option => (
                                 <button
