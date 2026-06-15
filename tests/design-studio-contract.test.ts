@@ -113,7 +113,7 @@ test('saved style settings are applied to generated building meshes', () => {
   }
 });
 
-test('design studio includes a saved voxel blueprint model', () => {
+test('design studio includes a saved voxel blueprint edit layer', () => {
   const blueprintText = source(blueprintPath);
 
   for (const snippet of [
@@ -124,24 +124,27 @@ test('design studio includes a saved voxel blueprint model', () => {
     'export function loadBuildingBlueprint',
     'export function saveBuildingBlueprint',
     'export function createDefaultBuildingBlueprint',
+    'parts: []',
     'export function getVoxelRoleColor',
   ]) {
     assertSnippet(blueprintText, snippet);
   }
 });
 
-test('design studio opens a real three dimensional building editor', () => {
+test('design studio opens the actual game building model with editable overlays', () => {
   const voxelStudioText = source(voxelStudioPath);
 
   for (const snippet of [
     "import * as THREE from 'three';",
+    "import { BuildingsFactory } from '../engine/data/voxels/buildings';",
     'new THREE.WebGLRenderer',
     'new THREE.PerspectiveCamera',
     'new THREE.Raycaster',
-    'Drag to orbit. Wheel to zoom.',
-    'Click blocks to',
-    'Save Shape',
-    'addAdjacentPart',
+    'function createActualGameBuilding',
+    'applyBuildingStyleToGroup(type, group, settings)',
+    'Live game model. Drag to orbit.',
+    'Save Edits',
+    'addPartAtHit',
     'removePart',
     'paintPart',
     'saveBuildingBlueprint(blueprint)',
