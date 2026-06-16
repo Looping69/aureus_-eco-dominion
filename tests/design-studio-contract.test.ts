@@ -80,7 +80,7 @@ test('game controls expose a compact design studio button', () => {
   const controlsText = source(controlsPath);
 
   for (const snippet of [
-    'Palette } from',
+    'Palette, Volume2, VolumeX } from',
     'href="/design-studio"',
     'title="Design Studio"',
     '<Palette size={20}',
@@ -116,11 +116,13 @@ test('saved style settings preserve authored building material detail', () => {
   }
 });
 
-test('design studio includes saved fine-detail and source-mesh edit models', () => {
+test('design studio includes saved fine-detail, source-mesh, and shaped part edit models', () => {
   const blueprintText = source(blueprintPath);
 
   for (const snippet of [
+    "export type BuildingVoxelShape = 'block' | 'beam' | 'wedge' | 'cylinder' | 'spire';",
     'export interface BuildingVoxelPart',
+    'shape?: BuildingVoxelShape;',
     'scaleX?: number;',
     'rotationY?: number;',
     'export interface BuildingSourceMeshOverride',
@@ -128,6 +130,7 @@ test('design studio includes saved fine-detail and source-mesh edit models', () 
     "export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v3';",
     'export const BUILDING_DETAIL_GRID_STEP = 0.25;',
     'export const BUILDING_DETAIL_PART_SIZE = 0.18;',
+    'export const BUILDING_VOXEL_SHAPES',
     'export function normalizeSourceMeshOverrides',
     'export function snapToDetailGrid',
   ]) {
@@ -135,7 +138,7 @@ test('design studio includes saved fine-detail and source-mesh edit models', () 
   }
 });
 
-test('design studio edits actual source meshes and fine detail overlays', () => {
+test('design studio edits actual source meshes and supports assembly-style part placement', () => {
   const voxelStudioText = source(voxelStudioPath);
 
   for (const snippet of [
@@ -150,7 +153,11 @@ test('design studio edits actual source meshes and fine detail overlays', () => 
     'resetSelectedSourceMesh',
     'duplicateSelectedPart',
     'updatePartTransform',
-    'Click real meshes to select, hide, or paint.',
+    'Part Palette',
+    'Symmetry {symmetryEnabled ? \'On\' : \'Off\'}',
+    'function createPartGeometry',
+    'function createMirroredPart',
+    'BUILDING_VOXEL_SHAPES.map',
     'Save Design',
     'saveBuildingBlueprint(blueprint)',
   ]) {
