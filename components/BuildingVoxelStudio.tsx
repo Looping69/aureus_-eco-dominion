@@ -72,6 +72,8 @@ const TOOL_LABELS: Record<StudioTool, string> = {
     paint: 'Paint',
 };
 
+const PART_GEOMETRY_CACHE = new Map<BuildingVoxelShape, THREE.BufferGeometry>();
+
 interface BuildingVoxelStudioProps {
     settings: BuildingStyleSettings;
 }
@@ -240,6 +242,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             window.removeEventListener('pointerup', onPointerUp);
             renderer.domElement.removeEventListener('wheel', onWheel);
             disposeEditMeshes(state.editMeshes);
+            disposeGroupMeshes(state.baseGroup);
             clearGroup(state.baseGroup);
             renderer.dispose();
             if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
@@ -248,26 +251,44 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     }, []);
 
     useEffect(() => {
-        rebuildPreview(buildingType, blueprint, settings, selectedPartId, selectedSourceMeshId);
-    }, [buildingType, blueprint, settings, selectedPartId, selectedSourceMeshId]);
+        rebuildPreview(buildingType, blueprint, settings);
+    }, [buildingType, blueprint, settings]);
+
+    const updateSelectedOutline = (activePartId = selectedPartId, activeSourceMeshId = selectedSourceMeshId): void => {
+        const state = sceneStateRef.current;
+        if (!state) return;
+        const selectedObject = state.hitMeshes.find((object) => {
+            const data = object.userData as { partId?: string; sourceMeshId?: string };
+            return (activePartId && data.partId === activePartId) || (activeSourceMeshId && data.sourceMeshId === activeSourceMeshId);
+        });
+
+        if (selectedObject) {
+            state.selectedOutline.setFromObject(selectedObject);
+            state.selectedOutline.visible = true;
+        } else {
+            state.selectedOutline.visible = false;
+        }
+    };
+
+    useEffect(() => {
+        updateSelectedOutline();
+    }, [selectedPartId, selectedSourceMeshId]);
 
     const rebuildPreview = (
         type: BuildingType,
         nextBlueprint: BuildingBlueprint,
         nextSettings: BuildingStyleSettings,
-        activePartId: string | null,
-        activeSourceMeshId: string | null,
     ): void => {
         const state = sceneStateRef.current;
         if (!state) return;
 
+        disposeGroupMeshes(state.baseGroup);
         clearGroup(state.baseGroup);
         disposeEditMeshes(state.editMeshes);
         for (const mesh of state.editMeshes) state.editGroup.remove(mesh);
         state.editMeshes = [];
         state.hitMeshes = [];
 
-        let selectedObject: THREE.Object3D | null = null;
         const actual = createActualGameBuilding(type, nextSettings);
         const overrideMap = new Map((nextBlueprint.sourceMeshOverrides || []).map((override) => [override.id, override]));
         state.baseGroup.add(actual);
@@ -282,7 +303,6 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             mesh.userData.baseBuildingMesh = true;
             applySourceMeshOverride(mesh, overrideMap.get(sourceMeshId));
             if (mesh.visible) state.hitMeshes.push(mesh);
-            if (sourceMeshId === activeSourceMeshId && mesh.visible) selectedObject = mesh;
         });
 
         for (const part of nextBlueprint.parts) {
@@ -301,18 +321,13 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             mesh.userData.partId = part.id;
+            mesh.userData.sharedGeometry = true;
             state.editGroup.add(mesh);
             state.editMeshes.push(mesh);
             state.hitMeshes.push(mesh);
-            if (part.id === activePartId) selectedObject = mesh;
         }
 
-        if (selectedObject) {
-            state.selectedOutline.setFromObject(selectedObject);
-            state.selectedOutline.visible = true;
-        } else {
-            state.selectedOutline.visible = false;
-        }
+        updateSelectedOutline();
     };
 
     const handleCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -702,22 +717,32 @@ function applySourceMeshOverride(mesh: THREE.Mesh, override?: BuildingSourceMesh
 }
 
 function createPartGeometry(shape: BuildingVoxelShape): THREE.BufferGeometry {
+    const cached = PART_GEOMETRY_CACHE.get(shape);
+    if (cached) return cached;
+
+    let geometry: THREE.BufferGeometry;
     switch (shape) {
         case 'beam':
-            return new THREE.BoxGeometry(BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE);
-        case 'wedge': {
-            const geometry = new THREE.ConeGeometry(BUILDING_DETAIL_PART_SIZE * 0.78, BUILDING_DETAIL_PART_SIZE, 4);
+            geometry = new THREE.BoxGeometry(BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE);
+            break;
+        case 'wedge':
+            geometry = new THREE.ConeGeometry(BUILDING_DETAIL_PART_SIZE * 0.78, BUILDING_DETAIL_PART_SIZE, 4);
             geometry.rotateY(Math.PI / 4);
-            return geometry;
-        }
+            break;
         case 'cylinder':
-            return new THREE.CylinderGeometry(BUILDING_DETAIL_PART_SIZE * 0.48, BUILDING_DETAIL_PART_SIZE * 0.48, BUILDING_DETAIL_PART_SIZE, 16);
+            geometry = new THREE.CylinderGeometry(BUILDING_DETAIL_PART_SIZE * 0.48, BUILDING_DETAIL_PART_SIZE * 0.48, BUILDING_DETAIL_PART_SIZE, 16);
+            break;
         case 'spire':
-            return new THREE.ConeGeometry(BUILDING_DETAIL_PART_SIZE * 0.5, BUILDING_DETAIL_PART_SIZE * 1.3, 16);
+            geometry = new THREE.ConeGeometry(BUILDING_DETAIL_PART_SIZE * 0.5, BUILDING_DETAIL_PART_SIZE * 1.3, 16);
+            break;
         case 'block':
         default:
-            return new THREE.BoxGeometry(BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE);
+            geometry = new THREE.BoxGeometry(BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE);
+            break;
     }
+
+    PART_GEOMETRY_CACHE.set(shape, geometry);
+    return geometry;
 }
 
 function createMirroredPart(part: BuildingVoxelPart): BuildingVoxelPart | null {
@@ -734,10 +759,10 @@ function createMirroredPart(part: BuildingVoxelPart): BuildingVoxelPart | null {
 
 function getShapePreviewGlyph(shape: BuildingVoxelShape): string {
     switch (shape) {
-        case 'beam': return '━';
-        case 'wedge': return '▲';
-        case 'cylinder': return '●';
-        case 'spire': return '◆';
+        case 'beam': return '-';
+        case 'wedge': return '^';
+        case 'cylinder': return 'o';
+        case 'spire': return '◇';
         case 'block':
         default: return '■';
     }
@@ -747,9 +772,22 @@ function clearGroup(group: THREE.Group): void {
     while (group.children.length > 0) group.remove(group.children[0]);
 }
 
+function disposeGroupMeshes(group: THREE.Group): void {
+    group.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry?.dispose();
+        const material = mesh.material;
+        if (Array.isArray(material)) material.forEach((item) => item.dispose());
+        else material?.dispose();
+    });
+}
+
 function disposeEditMeshes(meshes: THREE.Mesh[]): void {
     for (const mesh of meshes) {
-        mesh.geometry.dispose();
+        if (!mesh.userData.sharedGeometry && !Array.from(PART_GEOMETRY_CACHE.values()).includes(mesh.geometry)) {
+            mesh.geometry.dispose();
+        }
         const material = mesh.material;
         if (Array.isArray(material)) material.forEach((item) => item.dispose());
         else material.dispose();
