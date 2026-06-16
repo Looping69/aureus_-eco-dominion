@@ -38,6 +38,8 @@ type StudioSceneState = {
     raycaster: THREE.Raycaster;
     pointer: THREE.Vector2;
     editMeshes: THREE.Mesh[];
+    baseHitMeshes: THREE.Object3D[];
+    editHitMeshes: THREE.Object3D[];
     hitMeshes: THREE.Object3D[];
     selectedOutline: THREE.BoxHelper;
     orbit: { theta: number; phi: number; radius: number; dragging: boolean; moved: boolean; x: number; y: number };
@@ -170,6 +172,8 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             raycaster: new THREE.Raycaster(),
             pointer: new THREE.Vector2(),
             editMeshes: [],
+            baseHitMeshes: [],
+            editHitMeshes: [],
             hitMeshes: [],
             selectedOutline,
             orbit: { theta: Math.PI * 0.24, phi: Math.PI * 0.32, radius: 9, dragging: false, moved: false, x: 0, y: 0 },
@@ -251,8 +255,16 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     }, []);
 
     useEffect(() => {
-        rebuildPreview(buildingType, blueprint, settings);
-    }, [buildingType, blueprint, settings]);
+        rebuildBasePreview(buildingType, settings, blueprint.sourceMeshOverrides || []);
+    }, [buildingType, settings, blueprint.sourceMeshOverrides]);
+
+    useEffect(() => {
+        rebuildDetailPreview(blueprint.parts, settings);
+    }, [blueprint.parts, settings]);
+
+    const refreshHitMeshes = (state: StudioSceneState): void => {
+        state.hitMeshes = [...state.baseHitMeshes, ...state.editHitMeshes];
+    };
 
     const updateSelectedOutline = (activePartId = selectedPartId, activeSourceMeshId = selectedSourceMeshId): void => {
         const state = sceneStateRef.current;
@@ -274,23 +286,20 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         updateSelectedOutline();
     }, [selectedPartId, selectedSourceMeshId]);
 
-    const rebuildPreview = (
+    const rebuildBasePreview = (
         type: BuildingType,
-        nextBlueprint: BuildingBlueprint,
         nextSettings: BuildingStyleSettings,
+        sourceOverrides: BuildingSourceMeshOverride[],
     ): void => {
         const state = sceneStateRef.current;
         if (!state) return;
 
         disposeGroupMeshes(state.baseGroup);
         clearGroup(state.baseGroup);
-        disposeEditMeshes(state.editMeshes);
-        for (const mesh of state.editMeshes) state.editGroup.remove(mesh);
-        state.editMeshes = [];
-        state.hitMeshes = [];
+        state.baseHitMeshes = [];
 
         const actual = createActualGameBuilding(type, nextSettings);
-        const overrideMap = new Map((nextBlueprint.sourceMeshOverrides || []).map((override) => [override.id, override]));
+        const overrideMap = new Map(sourceOverrides.map((override) => [override.id, override]));
         state.baseGroup.add(actual);
         let sourceIndex = 0;
         actual.traverse((object) => {
@@ -302,10 +311,26 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             mesh.userData.sourceMeshId = sourceMeshId;
             mesh.userData.baseBuildingMesh = true;
             applySourceMeshOverride(mesh, overrideMap.get(sourceMeshId));
-            if (mesh.visible) state.hitMeshes.push(mesh);
+            if (mesh.visible) state.baseHitMeshes.push(mesh);
         });
 
-        for (const part of nextBlueprint.parts) {
+        refreshHitMeshes(state);
+        updateSelectedOutline();
+    };
+
+    const rebuildDetailPreview = (
+        parts: BuildingVoxelPart[],
+        nextSettings: BuildingStyleSettings,
+    ): void => {
+        const state = sceneStateRef.current;
+        if (!state) return;
+
+        disposeEditMeshes(state.editMeshes);
+        for (const mesh of state.editMeshes) state.editGroup.remove(mesh);
+        state.editMeshes = [];
+        state.editHitMeshes = [];
+
+        for (const part of parts) {
             const color = getVoxelRoleColor(part.role, nextSettings);
             const material = new THREE.MeshStandardMaterial({
                 color,
@@ -324,9 +349,10 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             mesh.userData.sharedGeometry = true;
             state.editGroup.add(mesh);
             state.editMeshes.push(mesh);
-            state.hitMeshes.push(mesh);
+            state.editHitMeshes.push(mesh);
         }
 
+        refreshHitMeshes(state);
         updateSelectedOutline();
     };
 
@@ -762,9 +788,9 @@ function getShapePreviewGlyph(shape: BuildingVoxelShape): string {
         case 'beam': return '-';
         case 'wedge': return '^';
         case 'cylinder': return 'o';
-        case 'spire': return '◇';
+        case 'spire': return '*';
         case 'block':
-        default: return '■';
+        default: return '#';
     }
 }
 
