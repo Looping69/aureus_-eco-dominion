@@ -3,6 +3,7 @@ import { BUILDINGS } from '../../engine/data/buildings';
 import { BuildingStyleSettings } from './buildingStyle';
 
 export type BuildingVoxelRole = 'wall' | 'roof' | 'accent' | 'greenery';
+export type BuildingVoxelShape = 'block' | 'beam' | 'wedge' | 'cylinder' | 'spire';
 
 export interface BuildingVoxelPart {
     id: string;
@@ -10,6 +11,7 @@ export interface BuildingVoxelPart {
     y: number;
     z: number;
     role: BuildingVoxelRole;
+    shape?: BuildingVoxelShape;
     scaleX?: number;
     scaleY?: number;
     scaleZ?: number;
@@ -34,6 +36,7 @@ export interface BuildingBlueprint {
 export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v3';
 export const BUILDING_DETAIL_GRID_STEP = 0.25;
 export const BUILDING_DETAIL_PART_SIZE = 0.18;
+export const BUILDING_VOXEL_SHAPES: BuildingVoxelShape[] = ['block', 'beam', 'wedge', 'cylinder', 'spire'];
 
 export const DESIGNABLE_BUILDINGS: BuildingType[] = [
     BuildingType.STAFF_QUARTERS,
@@ -104,18 +107,26 @@ export function getVoxelRoleColor(role: BuildingVoxelRole, settings: BuildingSty
     }
 }
 
-export function createPart(x: number, y: number, z: number, role: BuildingVoxelRole): BuildingVoxelPart {
+export function createPart(
+    x: number,
+    y: number,
+    z: number,
+    role: BuildingVoxelRole,
+    shape: BuildingVoxelShape = 'block',
+): BuildingVoxelPart {
     const sx = snapToDetailGrid(x);
     const sy = snapToDetailGrid(y);
     const sz = snapToDetailGrid(z);
+    const normalizedShape = normalizeVoxelShape(shape);
     return {
-        id: formatPartId(sx, sy, sz),
+        id: formatPartId(sx, sy, sz, normalizedShape),
         x: sx,
         y: sy,
         z: sz,
         role,
-        scaleX: 1,
-        scaleY: 1,
+        shape: normalizedShape,
+        scaleX: normalizedShape === 'beam' ? 2 : 1,
+        scaleY: normalizedShape === 'beam' ? 0.5 : 1,
         scaleZ: 1,
         rotationY: 0,
     };
@@ -127,7 +138,7 @@ export function dedupeParts(parts: BuildingVoxelPart[]): BuildingVoxelPart[] {
         const normalized = normalizeVoxelPart(part);
         byId.set(normalized.id, normalized);
     }
-    return Array.from(byId.values()).sort((a, b) => a.y - b.y || a.z - b.z || a.x - b.x);
+    return Array.from(byId.values()).sort((a, b) => a.y - b.y || a.z - b.z || a.x - b.x || String(a.shape).localeCompare(String(b.shape)));
 }
 
 export function normalizeSourceMeshOverrides(overrides: BuildingSourceMeshOverride[]): BuildingSourceMeshOverride[] {
@@ -163,10 +174,11 @@ function normalizeVoxelPart(part: BuildingVoxelPart): BuildingVoxelPart {
     const x = Math.max(-8, Math.min(8, snapToDetailGrid(part.x)));
     const y = Math.max(0, Math.min(12, snapToDetailGrid(part.y)));
     const z = Math.max(-8, Math.min(8, snapToDetailGrid(part.z)));
+    const shape = normalizeVoxelShape(part.shape);
     return {
-        ...createPart(x, y, z, part.role),
-        scaleX: clampTransform(part.scaleX ?? 1, 0.25, 6),
-        scaleY: clampTransform(part.scaleY ?? 1, 0.25, 6),
+        ...createPart(x, y, z, part.role, shape),
+        scaleX: clampTransform(part.scaleX ?? (shape === 'beam' ? 2 : 1), 0.25, 6),
+        scaleY: clampTransform(part.scaleY ?? (shape === 'beam' ? 0.5 : 1), 0.25, 6),
         scaleZ: clampTransform(part.scaleZ ?? 1, 0.25, 6),
         rotationY: clampRotation(part.rotationY ?? 0),
     };
@@ -186,6 +198,10 @@ function normalizeSourceMeshOverride(override: BuildingSourceMeshOverride): Buil
     return normalized;
 }
 
+function normalizeVoxelShape(shape?: BuildingVoxelShape): BuildingVoxelShape {
+    return shape && BUILDING_VOXEL_SHAPES.includes(shape) ? shape : 'block';
+}
+
 function clampTransform(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
     return Number(Math.max(min, Math.min(max, value)).toFixed(2));
@@ -197,6 +213,6 @@ function clampRotation(value: number): number {
     return ((snapped % 360) + 360) % 360;
 }
 
-function formatPartId(x: number, y: number, z: number): string {
-    return `${x.toFixed(2)}:${y.toFixed(2)}:${z.toFixed(2)}`;
+function formatPartId(x: number, y: number, z: number, shape: BuildingVoxelShape): string {
+    return `${shape}:${x.toFixed(2)}:${y.toFixed(2)}:${z.toFixed(2)}`;
 }
