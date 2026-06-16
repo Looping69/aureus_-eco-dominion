@@ -8,10 +8,12 @@ import { applyBuildingStyleToGroup } from '../game/design/buildingStyleRuntime';
 import {
     BUILDING_DETAIL_GRID_STEP,
     BUILDING_DETAIL_PART_SIZE,
+    BUILDING_VOXEL_SHAPES,
     BuildingBlueprint,
     BuildingSourceMeshOverride,
     BuildingVoxelPart,
     BuildingVoxelRole,
+    BuildingVoxelShape,
     createDefaultBuildingBlueprint,
     createPart,
     dedupeParts,
@@ -55,6 +57,14 @@ const ROLE_LABELS: Record<BuildingVoxelRole, string> = {
     greenery: 'Greenery',
 };
 
+const SHAPE_LABELS: Record<BuildingVoxelShape, string> = {
+    block: 'Block',
+    beam: 'Beam',
+    wedge: 'Roof Wedge',
+    cylinder: 'Cylinder',
+    spire: 'Spire',
+};
+
 const TOOL_LABELS: Record<StudioTool, string> = {
     select: 'Select',
     add: 'Add',
@@ -75,6 +85,8 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     const [lastHit, setLastHit] = useState<StudioHit | null>(null);
     const [tool, setTool] = useState<StudioTool>('select');
     const [role, setRole] = useState<BuildingVoxelRole>('wall');
+    const [shape, setShape] = useState<BuildingVoxelShape>('block');
+    const [symmetryEnabled, setSymmetryEnabled] = useState(true);
     const [saved, setSaved] = useState(false);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const sceneStateRef = useRef<StudioSceneState | null>(null);
@@ -282,7 +294,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                 emissive: part.role === 'accent' ? new THREE.Color(color) : new THREE.Color('#000000'),
                 emissiveIntensity: part.role === 'accent' ? nextSettings.nightGlow * 0.32 : 0,
             });
-            const mesh = new THREE.Mesh(new THREE.BoxGeometry(BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE), material);
+            const mesh = new THREE.Mesh(createPartGeometry(part.shape || 'block'), material);
             mesh.position.set(part.x, part.y, part.z);
             mesh.scale.set(part.scaleX ?? 1, part.scaleY ?? 1, part.scaleZ ?? 1);
             mesh.rotation.y = THREE.MathUtils.degToRad(part.rotationY ?? 0);
@@ -345,6 +357,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             clampGrid(part.y + Math.round(normal.y) * BUILDING_DETAIL_GRID_STEP, 0, 12),
             clampGrid(part.z + Math.round(normal.z) * BUILDING_DETAIL_GRID_STEP, -8, 8),
             nextRole,
+            shape,
         ));
     };
 
@@ -355,11 +368,13 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             clampGrid(snapToDetailGrid(target.y), 0, 12),
             clampGrid(snapToDetailGrid(target.z), -8, 8),
             nextRole,
+            shape,
         ));
     };
 
     const addPart = (part: BuildingVoxelPart) => {
-        setBlueprint((current) => ({ ...current, parts: dedupeParts([...current.parts, part]), updatedAt: Date.now() }));
+        const additions = symmetryEnabled ? [part, createMirroredPart(part)].filter(Boolean) as BuildingVoxelPart[] : [part];
+        setBlueprint((current) => ({ ...current, parts: dedupeParts([...current.parts, ...additions]), updatedAt: Date.now() }));
         setSelectedPartId(part.id);
         setSelectedSourceMeshId(null);
         setSaved(false);
@@ -397,7 +412,20 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
 
     const duplicateSelectedPart = () => {
         if (!selectedPart) return;
-        addPart(createPart(selectedPart.x + BUILDING_DETAIL_GRID_STEP, selectedPart.y, selectedPart.z, selectedPart.role));
+        const next = createPart(
+            selectedPart.x + BUILDING_DETAIL_GRID_STEP,
+            selectedPart.y,
+            selectedPart.z,
+            selectedPart.role,
+            selectedPart.shape || 'block',
+        );
+        addPart({
+            ...next,
+            scaleX: selectedPart.scaleX,
+            scaleY: selectedPart.scaleY,
+            scaleZ: selectedPart.scaleZ,
+            rotationY: selectedPart.rotationY,
+        });
     };
 
     const updateSourceMeshOverride = (id: string | null, changes: Partial<BuildingSourceMeshOverride>) => {
@@ -449,7 +477,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             <div className="flex flex-col gap-3 border-b border-slate-800 bg-slate-900 p-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
                     <div className="flex items-center gap-2 text-[10px] uppercase font-black tracking-[0.22em] text-cyan-300">
-                        <Box size={14} /> 3D Building Studio
+                        <Box size={14} /> Assembly Studio
                     </div>
                     <h2 className="mt-1 text-2xl font-black font-['Rajdhani'] text-white">{getBuildingDisplayName(buildingType)}</h2>
                 </div>
@@ -463,6 +491,9 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                             <option key={type} value={type}>{getBuildingDisplayName(type)}</option>
                         ))}
                     </select>
+                    <button type="button" onClick={() => setSymmetryEnabled((value) => !value)} className={`h-10 px-3 rounded-[4px] border text-xs font-black uppercase tracking-wider flex items-center gap-2 ${symmetryEnabled ? 'border-cyan-500 bg-cyan-950 text-cyan-100' : 'border-slate-700 bg-slate-950 hover:bg-slate-800 text-slate-300'}`}>
+                        Symmetry {symmetryEnabled ? 'On' : 'Off'}
+                    </button>
                     <button type="button" onClick={handleReset} className="h-10 px-3 rounded-[4px] border border-slate-700 bg-slate-950 hover:bg-slate-800 text-xs font-black uppercase tracking-wider flex items-center gap-2">
                         <RotateCcw size={15} /> Reset Design
                     </button>
@@ -472,16 +503,16 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[1fr_18rem]">
-                <div className="relative h-[32rem] min-h-[24rem] border-b border-slate-800 xl:border-b-0 xl:border-r" onClick={handleCanvasClick}>
+            <div className="grid grid-cols-1 xl:grid-cols-[1fr_19rem]">
+                <div className="relative h-[34rem] min-h-[24rem] border-b border-slate-800 xl:border-b-0 xl:border-r" onClick={handleCanvasClick}>
                     <div ref={containerRef} className="absolute inset-0" />
                     <div className="pointer-events-none absolute left-4 top-4 rounded-[4px] border border-slate-700 bg-slate-950/80 px-3 py-2 text-[11px] font-bold text-slate-300 backdrop-blur">
-                        Click real meshes to select, hide, or paint. Add fine details on the {BUILDING_DETAIL_GRID_STEP}m grid.
+                        Pick a part shape, click the building, and grow the design on a {BUILDING_DETAIL_GRID_STEP}m grid.
                     </div>
                     {(selectedPart || selectedSourceMeshId) && (
                         <div className="pointer-events-none absolute bottom-4 left-4 rounded-[4px] border border-cyan-800 bg-slate-950/85 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-cyan-200 backdrop-blur">
                             {selectedPart
-                                ? `Edit ${formatCoord(selectedPart.x)}, ${formatCoord(selectedPart.y)}, ${formatCoord(selectedPart.z)} · ${ROLE_LABELS[selectedPart.role]}`
+                                ? `Edit ${SHAPE_LABELS[selectedPart.shape || 'block']} · ${formatCoord(selectedPart.x)}, ${formatCoord(selectedPart.y)}, ${formatCoord(selectedPart.z)} · ${ROLE_LABELS[selectedPart.role]}`
                                 : `Source mesh ${selectedSourceMeshId}`}
                         </div>
                     )}
@@ -499,6 +530,23 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                                     className={`h-10 rounded-[4px] border text-[10px] font-black uppercase tracking-wider ${tool === item ? 'border-cyan-400 bg-cyan-950 text-cyan-100' : 'border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}`}
                                 >
                                     {TOOL_LABELS[item]}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Part Palette</div>
+                        <div className="grid grid-cols-2 gap-2">
+                            {BUILDING_VOXEL_SHAPES.map((item) => (
+                                <button
+                                    key={item}
+                                    type="button"
+                                    onClick={() => setShape(item)}
+                                    className={`h-12 rounded-[4px] border px-2 text-left text-[10px] font-black uppercase tracking-wider ${shape === item ? 'border-cyan-400 bg-cyan-950 text-cyan-100' : 'border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}`}
+                                >
+                                    <span className="mb-1 block text-[9px] text-cyan-300/80">{getShapePreviewGlyph(item)}</span>
+                                    {SHAPE_LABELS[item]}
                                 </button>
                             ))}
                         </div>
@@ -554,6 +602,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                     {selectedPart && (
                         <div className="rounded-[4px] border border-slate-800 bg-slate-950 p-3">
                             <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Detail Transform</div>
+                            <div className="mb-3 text-xs font-black text-cyan-200">{SHAPE_LABELS[selectedPart.shape || 'block']}</div>
                             <div className="grid grid-cols-3 gap-2">
                                 {(['scaleX', 'scaleY', 'scaleZ'] as const).map((key) => (
                                     <label key={key} className="text-[10px] font-black uppercase tracking-widest text-slate-500">
@@ -608,6 +657,8 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                             <span>Base</span><strong className="text-right text-white">Mesh Parts</strong>
                             <span>Hidden/painted</span><strong className="text-right text-white">{blueprint.sourceMeshOverrides?.length || 0}</strong>
                             <span>Fine edits</span><strong className="text-right text-white">{blueprint.parts.length}</strong>
+                            <span>Part</span><strong className="text-right text-white">{SHAPE_LABELS[shape]}</strong>
+                            <span>Symmetry</span><strong className="text-right text-white">{symmetryEnabled ? 'On' : 'Off'}</strong>
                             <span>Mode</span><strong className="text-right text-white">{TOOL_LABELS[tool]}</strong>
                         </div>
                     </div>
@@ -648,6 +699,48 @@ function applySourceMeshOverride(mesh: THREE.Mesh, override?: BuildingSourceMesh
         return next;
     });
     if (materials.length === 1) mesh.material = (mesh.material as THREE.Material[])[0];
+}
+
+function createPartGeometry(shape: BuildingVoxelShape): THREE.BufferGeometry {
+    switch (shape) {
+        case 'beam':
+            return new THREE.BoxGeometry(BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE);
+        case 'wedge': {
+            const geometry = new THREE.ConeGeometry(BUILDING_DETAIL_PART_SIZE * 0.78, BUILDING_DETAIL_PART_SIZE, 4);
+            geometry.rotateY(Math.PI / 4);
+            return geometry;
+        }
+        case 'cylinder':
+            return new THREE.CylinderGeometry(BUILDING_DETAIL_PART_SIZE * 0.48, BUILDING_DETAIL_PART_SIZE * 0.48, BUILDING_DETAIL_PART_SIZE, 16);
+        case 'spire':
+            return new THREE.ConeGeometry(BUILDING_DETAIL_PART_SIZE * 0.5, BUILDING_DETAIL_PART_SIZE * 1.3, 16);
+        case 'block':
+        default:
+            return new THREE.BoxGeometry(BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE, BUILDING_DETAIL_PART_SIZE);
+    }
+}
+
+function createMirroredPart(part: BuildingVoxelPart): BuildingVoxelPart | null {
+    if (Math.abs(part.x) < BUILDING_DETAIL_GRID_STEP * 0.5) return null;
+    const mirrored = createPart(-part.x, part.y, part.z, part.role, part.shape || 'block');
+    return {
+        ...mirrored,
+        scaleX: part.scaleX,
+        scaleY: part.scaleY,
+        scaleZ: part.scaleZ,
+        rotationY: part.rotationY === undefined ? 0 : (360 - part.rotationY) % 360,
+    };
+}
+
+function getShapePreviewGlyph(shape: BuildingVoxelShape): string {
+    switch (shape) {
+        case 'beam': return '━';
+        case 'wedge': return '▲';
+        case 'cylinder': return '●';
+        case 'spire': return '◆';
+        case 'block':
+        default: return '■';
+    }
 }
 
 function clearGroup(group: THREE.Group): void {
