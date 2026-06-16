@@ -164,3 +164,20 @@ test('design studio edits actual source meshes and supports assembly-style part 
     assertSnippet(voxelStudioText, snippet);
   }
 });
+
+test('assembly studio avoids rebuilding heavy preview meshes for selection-only changes', () => {
+  const voxelStudioText = source(voxelStudioPath);
+
+  for (const snippet of [
+    'const PART_GEOMETRY_CACHE = new Map',
+    'const updateSelectedOutline =',
+    'rebuildPreview(buildingType, blueprint, settings);',
+    '}, [buildingType, blueprint, settings]);',
+    'mesh.userData.sharedGeometry = true;',
+    'PART_GEOMETRY_CACHE.set(shape, geometry);',
+    'function disposeGroupMeshes',
+    '!mesh.userData.sharedGeometry',
+  ]) {
+    assertSnippet(voxelStudioText, snippet);
+  }
+});
