@@ -89,7 +89,7 @@ test('game controls expose a compact design studio button', () => {
   }
 });
 
-test('saved style settings preserve authored building material detail', () => {
+test('saved style settings preserve authored building material colors', () => {
   const runtimeText = source(styleRuntimePath);
   const voxelText = source(voxelGeneratorsPath);
 
@@ -98,11 +98,13 @@ test('saved style settings preserve authored building material detail', () => {
     'export function getBuildingStyleSignature',
     'export function applyBuildingStyleToGroup',
     'INFRASTRUCTURE_STYLE_EXCLUSIONS',
+    'const LIVE_COLOR_BLEND = 0;',
     'mesh.material = Array.isArray(mesh.material)',
     'group.userData.buildingStyleSignature',
     'function getStyleBlend',
-    'material.vertexColors === true',
-    'return role === \'accent\' ? 0.18 : 0.1;',
+    'const blend = getStyleBlend(next, role);',
+    'next.color && blend > 0',
+    'return LIVE_COLOR_BLEND;',
   ]) {
     assertSnippet(runtimeText, snippet);
   }
