@@ -1,52 +1,34 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const testsDir = path.join(repoRoot, 'tests');
-const outDir = path.join(repoRoot, '.contract-test-cache');
+const tsxBin = path.join(repoRoot, 'node_modules', '.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx');
 
 const testFiles = readdirSync(testsDir)
     .filter((file) => file.endsWith('.test.ts'))
-    .sort();
+    .sort()
+    .map((file) => path.join('tests', file));
 
 if (testFiles.length === 0) {
     console.error('No contract tests found in tests/*.test.ts');
     process.exit(1);
 }
 
-rmSync(outDir, { recursive: true, force: true });
-mkdirSync(outDir, { recursive: true });
+if (!existsSync(tsxBin)) {
+    console.error('Contract tests require the tsx dev dependency. Run npm install first.');
+    process.exit(1);
+}
 
-const compiledFiles = testFiles.map((file) => {
-    const sourcePath = path.join(testsDir, file);
-    const source = readFileSync(sourcePath, 'utf8');
-    const compiled = ts.transpileModule(source, {
-        compilerOptions: {
-            module: ts.ModuleKind.ESNext,
-            target: ts.ScriptTarget.ES2022,
-            moduleResolution: ts.ModuleResolutionKind.Bundler,
-            esModuleInterop: true,
-            sourceMap: false,
-        },
-        fileName: sourcePath,
-    });
-    const outPath = path.join(outDir, file.replace(/\.ts$/, '.mjs'));
-    writeFileSync(outPath, compiled.outputText, 'utf8');
-    return outPath;
-});
-
-const result = spawnSync(process.execPath, ['--test', ...compiledFiles], {
+const result = spawnSync(tsxBin, ['--test', ...testFiles], {
     stdio: 'inherit',
     shell: false,
     cwd: repoRoot,
 });
-
-rmSync(outDir, { recursive: true, force: true });
 
 if (result.error) {
     throw result.error;
