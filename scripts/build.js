@@ -25,4 +25,5 @@ function run(command, args) {
 }
 
 run(process.execPath, [tscScript, '--noEmit']);
+run(process.execPath, ['--test', 'tests/*.test.ts']);
 run(process.execPath, [viteScript, 'build']);
