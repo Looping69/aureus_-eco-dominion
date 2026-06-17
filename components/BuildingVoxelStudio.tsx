@@ -269,9 +269,21 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     const updateSelectedOutline = (activePartId = selectedPartId, activeSourceMeshId = selectedSourceMeshId): void => {
         const state = sceneStateRef.current;
         if (!state) return;
+
+        if (activePartId) {
+            const part = blueprint.parts.find((candidate) => candidate.id === activePartId);
+            if (part) {
+                const proxy = createSelectionProxy(part);
+                state.selectedOutline.setFromObject(proxy);
+                state.selectedOutline.visible = true;
+                disposeSelectionProxy(proxy);
+                return;
+            }
+        }
+
         const selectedObject = state.hitMeshes.find((object) => {
-            const data = object.userData as { partId?: string; sourceMeshId?: string };
-            return (activePartId && data.partId === activePartId) || (activeSourceMeshId && data.sourceMeshId === activeSourceMeshId);
+            const data = object.userData as { sourceMeshId?: string };
+            return Boolean(activeSourceMeshId && data.sourceMeshId === activeSourceMeshId);
         });
 
         if (selectedObject) {
@@ -284,7 +296,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
 
     useEffect(() => {
         updateSelectedOutline();
-    }, [selectedPartId, selectedSourceMeshId]);
+    }, [selectedPartId, selectedSourceMeshId, blueprint.parts]);
 
     const rebuildBasePreview = (
         type: BuildingType,
@@ -330,22 +342,37 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         state.editMeshes = [];
         state.editHitMeshes = [];
 
+        const groupedParts = new Map<string, BuildingVoxelPart[]>();
         for (const part of parts) {
-            const color = getVoxelRoleColor(part.role, nextSettings);
+            const partShape = part.shape || 'block';
+            const key = `${partShape}:${part.role}`;
+            const bucket = groupedParts.get(key) || [];
+            bucket.push(part);
+            groupedParts.set(key, bucket);
+        }
+
+        for (const groupParts of groupedParts.values()) {
+            const first = groupParts[0];
+            const partShape = first.shape || 'block';
+            const color = getVoxelRoleColor(first.role, nextSettings);
             const material = new THREE.MeshStandardMaterial({
                 color,
-                roughness: part.role === 'accent' ? 0.36 : 0.72,
-                metalness: part.role === 'accent' ? 0.18 : 0.04,
-                emissive: part.role === 'accent' ? new THREE.Color(color) : new THREE.Color('#000000'),
-                emissiveIntensity: part.role === 'accent' ? nextSettings.nightGlow * 0.32 : 0,
+                roughness: first.role === 'accent' ? 0.36 : 0.72,
+                metalness: first.role === 'accent' ? 0.18 : 0.04,
+                emissive: first.role === 'accent' ? new THREE.Color(color) : new THREE.Color('#000000'),
+                emissiveIntensity: first.role === 'accent' ? nextSettings.nightGlow * 0.32 : 0,
             });
-            const mesh = new THREE.Mesh(createPartGeometry(part.shape || 'block'), material);
-            mesh.position.set(part.x, part.y, part.z);
-            mesh.scale.set(part.scaleX ?? 1, part.scaleY ?? 1, part.scaleZ ?? 1);
-            mesh.rotation.y = THREE.MathUtils.degToRad(part.rotationY ?? 0);
+            const mesh = new THREE.InstancedMesh(createPartGeometry(partShape), material, groupParts.length);
+            const partIds: string[] = [];
+            groupParts.forEach((part, index) => {
+                mesh.setMatrixAt(index, createPartMatrix(part));
+                partIds[index] = part.id;
+            });
+            mesh.instanceMatrix.needsUpdate = true;
             mesh.castShadow = true;
             mesh.receiveShadow = true;
-            mesh.userData.partId = part.id;
+            mesh.userData.partIds = partIds;
+            mesh.userData.instancedDetailParts = true;
             mesh.userData.sharedGeometry = true;
             state.editGroup.add(mesh);
             state.editMeshes.push(mesh);
@@ -370,7 +397,10 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
 
         const normal = hit.face?.normal.clone() || new THREE.Vector3(0, 1, 0);
         normal.transformDirection(hit.object.matrixWorld).round();
-        const partId = hit.object.userData.partId as string | undefined;
+        const partIds = hit.object.userData.partIds as string[] | undefined;
+        const partId = partIds && hit.instanceId !== undefined
+            ? partIds[hit.instanceId]
+            : hit.object.userData.partId as string | undefined;
         const sourceMeshId = hit.object.userData.sourceMeshId as string | undefined;
         const hitPart = partId ? blueprint.parts.find((part) => part.id === partId) : undefined;
         const studioHit = { part: hitPart, sourceMeshId, normal, point: hit.point.clone() };
@@ -769,6 +799,28 @@ function createPartGeometry(shape: BuildingVoxelShape): THREE.BufferGeometry {
 
     PART_GEOMETRY_CACHE.set(shape, geometry);
     return geometry;
+}
+
+function createPartMatrix(part: BuildingVoxelPart): THREE.Matrix4 {
+    const position = new THREE.Vector3(part.x, part.y, part.z);
+    const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, THREE.MathUtils.degToRad(part.rotationY ?? 0), 0));
+    const scale = new THREE.Vector3(part.scaleX ?? 1, part.scaleY ?? 1, part.scaleZ ?? 1);
+    return new THREE.Matrix4().compose(position, rotation, scale);
+}
+
+function createSelectionProxy(part: BuildingVoxelPart): THREE.Mesh {
+    const proxy = new THREE.Mesh(createPartGeometry(part.shape || 'block'), new THREE.MeshBasicMaterial());
+    proxy.position.set(part.x, part.y, part.z);
+    proxy.scale.set(part.scaleX ?? 1, part.scaleY ?? 1, part.scaleZ ?? 1);
+    proxy.rotation.y = THREE.MathUtils.degToRad(part.rotationY ?? 0);
+    proxy.updateMatrixWorld(true);
+    return proxy;
+}
+
+function disposeSelectionProxy(proxy: THREE.Mesh): void {
+    const material = proxy.material;
+    if (Array.isArray(material)) material.forEach((item) => item.dispose());
+    else material.dispose();
 }
 
 function createMirroredPart(part: BuildingVoxelPart): BuildingVoxelPart | null {
