@@ -22,6 +22,10 @@ function assertSnippet(text: string, snippet: string) {
   assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
+function assertNoSnippet(text: string, snippet: string) {
+  assert.doesNotMatch(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+}
+
 test('design studio has a browser route entry and game return path', () => {
   const indexText = source(indexPath);
   const studioText = source(studioPath);
@@ -89,9 +93,10 @@ test('game controls expose a compact design studio button', () => {
   }
 });
 
-test('saved style settings preserve authored building material colors', () => {
+test('saved style settings are isolated to the design studio preview', () => {
   const runtimeText = source(styleRuntimePath);
   const voxelText = source(voxelGeneratorsPath);
+  const voxelStudioText = source(voxelStudioPath);
 
   for (const snippet of [
     'export function readSavedBuildingStyle',
@@ -110,11 +115,25 @@ test('saved style settings preserve authored building material colors', () => {
   }
 
   for (const snippet of [
-    "import { applyBuildingStyleToGroup, readSavedBuildingStyle } from '../../../game/design/buildingStyleRuntime';",
-    'function withDesignStudioStyle',
-    '...withDesignStudioStyle(BuildingsFactory)',
+    "import { applyBuildingStyleToGroup } from '../game/design/buildingStyleRuntime';",
+    'applyBuildingStyleToGroup(type, group, settings);',
+  ]) {
+    assertSnippet(voxelStudioText, snippet);
+  }
+
+  for (const snippet of [
+    "import { BuildingsFactory } from '../../data/voxels/buildings';",
+    '...BuildingsFactory,',
   ]) {
     assertSnippet(voxelText, snippet);
+  }
+
+  for (const snippet of [
+    'applyBuildingStyleToGroup',
+    'readSavedBuildingStyle',
+    'withDesignStudioStyle',
+  ]) {
+    assertNoSnippet(voxelText, snippet);
   }
 });
 
