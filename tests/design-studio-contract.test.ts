@@ -165,7 +165,7 @@ test('design studio edits actual source meshes and supports assembly-style part 
   }
 });
 
-test('assembly studio separates base and detail preview rebuilds', () => {
+test('assembly studio separates base/detail rebuilds and instances repeated detail parts', () => {
   const voxelStudioText = source(voxelStudioPath);
 
   for (const snippet of [
@@ -178,6 +178,14 @@ test('assembly studio separates base and detail preview rebuilds', () => {
     '}, [blueprint.parts, settings]);',
     'const PART_GEOMETRY_CACHE = new Map',
     'const updateSelectedOutline =',
+    'const groupedParts = new Map<string, BuildingVoxelPart[]>();',
+    'new THREE.InstancedMesh(createPartGeometry(partShape), material, groupParts.length);',
+    'mesh.setMatrixAt(index, createPartMatrix(part));',
+    'mesh.userData.partIds = partIds;',
+    'hit.instanceId',
+    'function createPartMatrix',
+    'function createSelectionProxy',
+    'disposeSelectionProxy(proxy);',
     'mesh.userData.sharedGeometry = true;',
     'PART_GEOMETRY_CACHE.set(shape, geometry);',
     'function disposeGroupMeshes',
