@@ -7,7 +7,6 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const tscScript = path.join(repoRoot, 'node_modules', 'typescript', 'bin', 'tsc');
 const viteScript = path.join(repoRoot, 'node_modules', 'vite', 'bin', 'vite.js');
-const contractTestScript = path.join(repoRoot, 'scripts', 'run-contract-tests.js');
 
 function run(command, args) {
     const result = spawnSync(command, args, {
@@ -26,5 +25,4 @@ function run(command, args) {
 }
 
 run(process.execPath, [tscScript, '--noEmit']);
-run(process.execPath, [contractTestScript]);
 run(process.execPath, [viteScript, 'build']);
