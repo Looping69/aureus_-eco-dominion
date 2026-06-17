@@ -14,6 +14,10 @@ const INFRASTRUCTURE_STYLE_EXCLUSIONS = new Set([
     'RAIL_LINE',
 ]);
 
+// Global settlement style should never wash out authored building palettes.
+// Custom colors belong to explicit per-building edits, not a broad live overlay.
+const LIVE_COLOR_BLEND = 0;
+
 type StyleRole = 'wall' | 'roof' | 'accent';
 
 type ColorableMaterial = THREE.Material & {
@@ -85,31 +89,30 @@ function styleMaterial(
 ): THREE.Material {
     const next = material.clone() as ColorableMaterial;
     const role = inferStyleRole(mesh, next, materialIndex);
-    const target = role === 'roof'
-        ? settings.roofColor
-        : role === 'accent'
-            ? settings.accentColor
-            : settings.wallColor;
+    const blend = getStyleBlend(next, role);
 
-    if (next.color) {
+    if (next.color && blend > 0) {
         const baseColor = next.color.clone();
-        const targetColor = new THREE.Color(target);
-        next.color.copy(baseColor.lerp(targetColor, getStyleBlend(next, role)));
+        const targetColor = new THREE.Color(role === 'roof'
+            ? settings.roofColor
+            : role === 'accent'
+                ? settings.accentColor
+                : settings.wallColor);
+        next.color.copy(baseColor.lerp(targetColor, blend));
     }
 
     if (next.emissive && role === 'accent') {
-        next.emissive.lerp(new THREE.Color(settings.accentColor), 0.35);
-        next.emissiveIntensity = Math.max(next.emissiveIntensity || 0, settings.nightGlow * 0.22);
+        next.emissiveIntensity = Math.max(next.emissiveIntensity || 0, settings.nightGlow * 0.08);
     }
 
     if (typeof next.roughness === 'number') {
         const targetRoughness = clamp01(0.62 + settings.weathering * 0.18 - settings.greenery * 0.05);
-        next.roughness = THREE.MathUtils.lerp(next.roughness, targetRoughness, 0.2);
+        next.roughness = THREE.MathUtils.lerp(next.roughness, targetRoughness, 0.12);
     }
 
     if (typeof next.metalness === 'number') {
-        const materialBoost = settings.primaryMaterial === 'metal' ? 0.12 : settings.primaryMaterial === 'glass' ? 0.06 : 0;
-        next.metalness = clamp01(THREE.MathUtils.lerp(next.metalness, materialBoost, 0.18));
+        const materialBoost = settings.primaryMaterial === 'metal' ? 0.08 : settings.primaryMaterial === 'glass' ? 0.04 : 0;
+        next.metalness = clamp01(THREE.MathUtils.lerp(next.metalness, materialBoost, 0.1));
     }
 
     next.needsUpdate = true;
@@ -117,11 +120,9 @@ function styleMaterial(
 }
 
 function getStyleBlend(material: ColorableMaterial, role: StyleRole): number {
-    const hasAuthoredDetail = !!material.map || material.vertexColors === true;
-    if (hasAuthoredDetail) {
-        return role === 'accent' ? 0.18 : 0.1;
-    }
-    return role === 'accent' ? 0.32 : role === 'roof' ? 0.26 : 0.22;
+    void material;
+    void role;
+    return LIVE_COLOR_BLEND;
 }
 
 function inferStyleRole(mesh: THREE.Mesh, material: ColorableMaterial, materialIndex: number): StyleRole {
