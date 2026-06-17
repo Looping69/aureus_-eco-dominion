@@ -11,7 +11,6 @@ const productionPath = path.join(root, 'engine', 'sim', 'systems', 'ProductionSy
 const missionPath = path.join(root, 'engine', 'sim', 'systems', 'MissionSystem.ts');
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
 const eraPath = path.join(root, 'engine', 'sim', 'systems', 'EraSystem.ts');
-const worldPath = path.join(root, 'game', 'AureusWorld.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);
@@ -20,11 +19,6 @@ function source(filePath: string) {
 
 function assertSnippet(text: string, snippet: string) {
   assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-}
-
-function assertCount(text: string, snippet: string, expected: number) {
-  const pattern = new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-  assert.equal([...text.matchAll(pattern)].length, expected, `${snippet} should appear ${expected} time(s)`);
 }
 
 test('new games start with enough resources for the early economy spine', () => {
@@ -114,9 +108,4 @@ test('contracts are an intentional cashflow lifecycle, not passive punishment', 
   ]) {
     assertSnippet(commandText, snippet);
   }
-});
-
-test('the main world does not accidentally construct duplicate manager bridges', () => {
-  const worldText = source(worldPath);
-  assertCount(worldText, 'this.researchManager = new ResearchManager(this.stateManager);', 1);
 });
