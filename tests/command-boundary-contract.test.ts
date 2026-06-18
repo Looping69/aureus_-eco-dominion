@@ -6,6 +6,8 @@ import test from 'node:test';
 const root = process.cwd();
 const contractTrackerPath = path.join(root, 'components', 'ContractTracker.tsx');
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
+const aureusWorldPath = path.join(root, 'game', 'AureusWorld.ts');
+const contractBridgePath = path.join(root, 'game', 'world', 'contractBridge.ts');
 const useEnginePath = path.join(root, 'game', 'useAureusEngine.ts');
 
 function source(filePath: string) {
@@ -51,6 +53,38 @@ test('contract lifecycle mutations live in the command dispatcher', () => {
     'this.reportResult(cmd.id, result, state, handledBy, cmd);',
   ]) {
     assertSnippet(dispatcherText, snippet);
+  }
+});
+
+test('world contract methods only queue dispatcher commands', () => {
+  const worldText = source(aureusWorldPath);
+  const bridgeText = source(contractBridgePath);
+
+  assert.equal((worldText.match(/this\.researchManager = new ResearchManager/g) || []).length, 1);
+
+  for (const snippet of [
+    "import { acceptWorldContract, abandonWorldContract, deliverWorldContract } from './world/contractBridge';",
+    'acceptContract(contractId: string): void { acceptWorldContract(this.stateManager, contractId); }',
+    'deliverContract(contractId: string): void { deliverWorldContract(this.stateManager, contractId); }',
+    'abandonContract(contractId: string): void { abandonWorldContract(this.stateManager, contractId); }',
+    "case 'ACCEPT_CONTRACT': this.acceptContract(action.payload?.contractId ?? action.payload); break;",
+    "case 'DELIVER_CONTRACT': this.deliverContract(action.payload?.contractId ?? action.payload); break;",
+    "case 'ABANDON_CONTRACT': this.abandonContract(action.payload?.contractId ?? action.payload); break;",
+  ]) {
+    assertSnippet(worldText, snippet);
+  }
+
+  assert.equal(worldText.includes('state.resources[resource] -= contract.amount;'), false);
+  assert.equal(worldText.includes('state.resources.agt += contract.reward;'), false);
+
+  for (const snippet of [
+    "export type ContractCommandType = 'ACCEPT_CONTRACT' | 'DELIVER_CONTRACT' | 'ABANDON_CONTRACT';",
+    'stateManager.pushCommand(type, { contractId });',
+    "queueContractCommand(stateManager, 'ACCEPT_CONTRACT', contractId);",
+    "queueContractCommand(stateManager, 'DELIVER_CONTRACT', contractId);",
+    "queueContractCommand(stateManager, 'ABANDON_CONTRACT', contractId);",
+  ]) {
+    assertSnippet(bridgeText, snippet);
   }
 });
 
