@@ -48,6 +48,7 @@ import { drawWorldFrame } from './world/renderFrame';
 import { handleSurfaceInteraction as handleWorldSurfaceInteraction, SurfaceInteractionType } from './world/interaction';
 import { initializeWorldRuntime, teardownWorldRuntime } from './world/lifecycle';
 import { hasStoredSave, loadGameState, loadRawState, saveGameQuietly, saveGameWithFeedback } from './world/persistenceBridge';
+import { acceptWorldContract, abandonWorldContract, deliverWorldContract } from './world/contractBridge';
 
 export interface AureusWorldConfig {
     container: HTMLElement;
@@ -174,7 +175,6 @@ export class AureusWorld extends BaseWorld {
 
         this.economyManager = new EconomyManager(this.stateManager);
         this.buildingManager = new BuildingManager(this.stateManager, this.buildingRenderSystem);
-        this.researchManager = new ResearchManager(this.stateManager);
         this.researchManager = new ResearchManager(this.stateManager);
         this.agentManager = new AgentManager(this.stateManager, this.cameraSystem);
     }
@@ -434,26 +434,14 @@ export class AureusWorld extends BaseWorld {
         this.stateManager.notifyIfDirty();
     }
 
-    acceptContract(contractId: string): void { console.log(`[AureusWorld] Accept contract: ${contractId}`); }
+    acceptContract(contractId: string): void { acceptWorldContract(this.stateManager, contractId); }
+    deliverContract(contractId: string): void { deliverWorldContract(this.stateManager, contractId); }
+    abandonContract(contractId: string): void { abandonWorldContract(this.stateManager, contractId); }
     advanceTutorial(): void { this.stateManager.pushCommand('ADVANCE_TUTORIAL', {}); }
 
     startDemo(): void {
         this.stateManager.pushCommand('START_DEMO', {});
         this.setGamePaused(false);
-    }
-
-    deliverContract(contractId: string): void {
-        const state = this.stateManager.getState();
-        const contract = state.contracts.find(c => c.id === contractId);
-        if (contract && contract.amount > 0) {
-            const resource = contract.resource === 'MINERALS' ? 'minerals' : 'gems';
-            if (state.resources[resource] >= contract.amount) {
-                state.resources[resource] -= contract.amount;
-                state.resources.agt += contract.reward;
-                state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.COMPLETE });
-                this.stateManager.markDirty('contracts', 'resources', 'pendingEffects');
-            }
-        }
     }
 
     rehabilitateTile(x: number, z: number): void { this.stateManager.pushCommand('REHABILITATE', { x, z }); }
@@ -716,6 +704,9 @@ export class AureusWorld extends BaseWorld {
             case 'LOAD_GAME': this.loadState(action.payload); break;
             case 'ADVANCE_TUTORIAL': this.advanceTutorial(); break;
             case 'START_DEMO': this.startDemo(); break;
+            case 'ACCEPT_CONTRACT': this.acceptContract(action.payload?.contractId ?? action.payload); break;
+            case 'DELIVER_CONTRACT': this.deliverContract(action.payload?.contractId ?? action.payload); break;
+            case 'ABANDON_CONTRACT': this.abandonContract(action.payload?.contractId ?? action.payload); break;
             case 'ENTER_FPS': this.enterFPS(action.payload || this.stateManager.getState().selectedAgentId || ''); break;
             case 'EXIT_FPS': this.exitFPS(); break;
             case 'DISMISS_NEWS': break;
