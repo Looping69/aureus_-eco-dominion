@@ -1,5 +1,6 @@
 import { ChunkStore } from '../engine/space/ChunkStore';
-import { BuildingType, LogisticsOverlayMode, SfxType, GameCommand, GameState } from '../types';
+import { BuildingType, SfxType } from '../types';
+import type { GameCommand, GameState, LogisticsOverlayMode } from '../types';
 import type { AureusWorld } from './AureusWorld';
 
 export function reloadWorldState(world: AureusWorld, state: GameState): void {
