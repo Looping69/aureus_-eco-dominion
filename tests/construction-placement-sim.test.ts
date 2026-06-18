@@ -15,9 +15,24 @@ function tile(state: GameState, x: number, z: number) {
     return found;
 }
 
+function clearStaffQuartersFootprint(state: GameState): void {
+    for (const [x, z] of STAFF_QUARTERS_FOOTPRINT) {
+        Object.assign(tile(state, x, z), {
+            buildingType: BuildingType.EMPTY,
+            isUnderConstruction: false,
+            constructionTimeLeft: 0,
+            structureHeadX: undefined,
+            structureHeadZ: undefined,
+            foliage: 'NONE',
+            markedForHarvest: false,
+        });
+    }
+}
+
 test('failed multi-tile placement validates the full footprint before mutating tiles', () => {
     const stateManager = new StateManager({ cheatsEnabled: true });
     const state = stateManager.getMutableState();
+    clearStaffQuartersFootprint(state);
 
     tile(state, 1, 1).buildingType = BuildingType.ROAD;
 
@@ -41,6 +56,7 @@ test('multi-tile placement consumes one inventory item and stamps one shared str
         interactionMode: 'BUILD',
     });
     const state = stateManager.getMutableState();
+    clearStaffQuartersFootprint(state);
 
     const result = placeBuildingCore(0, 0, BuildingType.STAFF_QUARTERS, state);
 
@@ -61,6 +77,7 @@ test('multi-tile placement consumes one inventory item and stamps one shared str
 test('worker progress on a child tile completes the shared construction head', () => {
     const stateManager = new StateManager({ cheatsEnabled: true });
     const state = stateManager.getMutableState();
+    clearStaffQuartersFootprint(state);
 
     const result = placeBuildingCore(0, 0, BuildingType.STAFF_QUARTERS, state);
     assert.equal(result.ok, true);
