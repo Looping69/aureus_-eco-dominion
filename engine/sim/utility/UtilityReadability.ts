@@ -2,6 +2,7 @@ import { BuildingDef, BuildingType, GridTile } from '../../../types';
 
 export function getPowerReadability(tile: GridTile, def: BuildingDef): string | null {
     if (!def.power?.consumes) return null;
+    if (tile.buildingType === BuildingType.RESERVOIR && def.water?.produces) return null;
     if (tile.powerStatus === 'CONNECTED') return null;
     return 'Offline: no power';
 }
