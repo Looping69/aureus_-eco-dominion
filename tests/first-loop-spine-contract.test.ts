@@ -7,6 +7,7 @@ const root = process.cwd();
 const resourcesPath = path.join(root, 'engine', 'data', 'resources.ts');
 const constructionPath = path.join(root, 'engine', 'sim', 'systems', 'ConstructionSystem.ts');
 const placementCorePath = path.join(root, 'engine', 'sim', 'construction', 'PlacementCore.ts');
+const utilityReadabilityPath = path.join(root, 'engine', 'sim', 'utility', 'UtilityReadability.ts');
 const agentSystemPath = path.join(root, 'engine', 'sim', 'systems', 'AgentSystem.ts');
 const productionPath = path.join(root, 'engine', 'sim', 'systems', 'ProductionSystem.ts');
 const missionPath = path.join(root, 'engine', 'sim', 'systems', 'MissionSystem.ts');
@@ -91,6 +92,22 @@ test('production and era progression count completed structure heads, not footpr
     'private isStructureHead(tile: GridTile): boolean',
   ]) {
     assertSnippet(eraText, snippet);
+  }
+});
+
+test('utility failures have readable local reasons', () => {
+  const utilityText = source(utilityReadabilityPath);
+
+  for (const snippet of [
+    'export function getPowerReadability',
+    "return 'Offline: no power';",
+    'export function getWaterReadability',
+    "return 'Water-starved';",
+    'export function getProducerReadability',
+    "return 'Reservoir underpowered: 25% output';",
+    'export function getUtilityReadability',
+  ]) {
+    assertSnippet(utilityText, snippet);
   }
 });
 
