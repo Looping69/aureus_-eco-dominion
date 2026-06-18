@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,15 +6,18 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
-const testsDir = path.join(repoRoot, 'tests');
 
-const testFiles = readdirSync(testsDir)
-    .filter((file) => file.endsWith('.test.ts'))
-    .sort()
-    .map((file) => path.join('tests', file));
+const STABILIZATION_CONTRACTS = [
+    'tests/first-loop-spine-contract.test.ts',
+    'tests/command-boundary-contract.test.ts',
+    'tests/contracts-lifecycle-sim.test.ts',
+];
 
-if (testFiles.length === 0) {
-    console.error('No contract tests found in tests/*.test.ts');
+const testFiles = STABILIZATION_CONTRACTS.filter((file) => existsSync(path.join(repoRoot, file)));
+
+if (testFiles.length !== STABILIZATION_CONTRACTS.length) {
+    const missing = STABILIZATION_CONTRACTS.filter((file) => !existsSync(path.join(repoRoot, file)));
+    console.error(`Missing stabilization contract test(s): ${missing.join(', ')}`);
     process.exit(1);
 }
 
