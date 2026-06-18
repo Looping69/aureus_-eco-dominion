@@ -103,7 +103,9 @@ export class ConstructionSystem extends BaseSimSystem {
     }
 
     public placeBuilding(x: number, z: number, buildingType: BuildingType, state: GameState, isInstant: boolean = false, level: number = 1): CommandResult {
-        return placeBuildingCore(x, z, buildingType, state, isInstant, level);
+        const result = placeBuildingCore(x, z, buildingType, state, isInstant, level);
+        if (result.ok) updateWaterConnectivity(state.chunks);
+        return result;
     }
 
     /**
