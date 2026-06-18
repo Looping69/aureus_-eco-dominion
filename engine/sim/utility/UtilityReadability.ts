@@ -1,4 +1,5 @@
-import { BuildingDef, BuildingType, GridTile } from '../../../types';
+import { BuildingType } from '../../../types';
+import type { BuildingDef, GridTile } from '../../../types';
 
 export function getPowerReadability(tile: GridTile, def: BuildingDef): string | null {
     if (!def.power?.consumes) return null;
