@@ -5,8 +5,11 @@ import { StateManager } from '../engine/state/StateManager.ts';
 import { ConstructionSystem } from '../engine/sim/systems/ConstructionSystem.ts';
 import { ChunkStore } from '../engine/space/ChunkStore.ts';
 import { BuildingType } from '../types.ts';
+import type { GameState } from '../types.ts';
 
-function tile(state: ReturnType<StateManager['getMutableState']>, x: number, z: number) {
+const STAFF_QUARTERS_FOOTPRINT: Array<[number, number]> = [[0, 0], [1, 0], [0, 1], [1, 1]];
+
+function tile(state: GameState, x: number, z: number) {
     const found = ChunkStore.getTile(state.chunks, x, z);
     assert.ok(found, `expected tile at ${x},${z}`);
     return found;
@@ -48,7 +51,7 @@ test('multi-tile placement consumes one inventory item and stamps one shared str
     assert.equal(state.selectedBuilding, null);
     assert.equal(state.interactionMode, 'INSPECT');
 
-    for (const [x, z] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+    for (const [x, z] of STAFF_QUARTERS_FOOTPRINT) {
         const placed = tile(state, x, z);
         assert.equal(placed.buildingType, BuildingType.STAFF_QUARTERS);
         assert.equal(placed.structureHeadX, 0);
@@ -68,7 +71,7 @@ test('worker progress on a child tile completes the shared construction head', (
     const finished = construction.progressConstruction(1, 1, 15, state);
 
     assert.equal(finished, true);
-    for (const [x, z] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+    for (const [x, z] of STAFF_QUARTERS_FOOTPRINT) {
         const placed = tile(state, x, z);
         assert.equal(placed.isUnderConstruction, false);
         assert.equal(placed.constructionTimeLeft, 0);
