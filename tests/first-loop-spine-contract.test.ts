@@ -6,6 +6,7 @@ import test from 'node:test';
 const root = process.cwd();
 const resourcesPath = path.join(root, 'engine', 'data', 'resources.ts');
 const constructionPath = path.join(root, 'engine', 'sim', 'systems', 'ConstructionSystem.ts');
+const placementCorePath = path.join(root, 'engine', 'sim', 'construction', 'PlacementCore.ts');
 const agentSystemPath = path.join(root, 'engine', 'sim', 'systems', 'AgentSystem.ts');
 const productionPath = path.join(root, 'engine', 'sim', 'systems', 'ProductionSystem.ts');
 const missionPath = path.join(root, 'engine', 'sim', 'systems', 'MissionSystem.ts');
@@ -37,18 +38,26 @@ test('new games start with enough resources for the early economy spine', () => 
 
 test('building placement is atomic and construction is worker-driven', () => {
   const constructionText = source(constructionPath);
+  const placementCoreText = source(placementCorePath);
   const agentText = source(agentSystemPath);
 
   for (const snippet of [
     'Construction progress is worker-driven through AgentSystem.performWork -> progressConstruction.',
-    'Validate the complete footprint before mutating any tile.',
-    'const footprint: Array<{ tile: GridTile; cx: number; cz: number }> = [];',
-    'for (const { tile, cx, cz } of footprint)',
-    'state.inventory[buildingType] = remaining;',
-    'public progressConstruction',
-    'this.completeConstruction(hx, hz, state);',
+    'return progressConstructionCore(x, z, amount, state,',
+    'return placeBuildingCore(x, z, buildingType, state, isInstant, level);',
   ]) {
     assertSnippet(constructionText, snippet);
+  }
+
+  for (const snippet of [
+    'const footprint: Array<{ tile: GridTile; cx: number; cz: number }> = [];',
+    'return { ok: false, code: CommandErrorCode.TILE_OCCUPIED',
+    'for (const { tile, cx, cz } of footprint)',
+    'state.inventory[buildingType] = remaining;',
+    'export function progressConstructionCore',
+    'completeConstruction(hx, hz, state);',
+  ]) {
+    assertSnippet(placementCoreText, snippet);
   }
 
   for (const snippet of [
