@@ -8,6 +8,7 @@ const contractTrackerPath = path.join(root, 'components', 'ContractTracker.tsx')
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
 const aureusWorldPath = path.join(root, 'game', 'AureusWorld.ts');
 const contractBridgePath = path.join(root, 'game', 'world', 'contractBridge.ts');
+const dispatchBridgePath = path.join(root, 'game', 'world', 'dispatchBridge.ts');
 const useEnginePath = path.join(root, 'game', 'useAureusEngine.ts');
 
 function source(filePath: string) {
@@ -67,9 +68,6 @@ test('world contract methods only queue dispatcher commands', () => {
     'acceptContract(contractId: string): void { acceptWorldContract(this.stateManager, contractId); }',
     'deliverContract(contractId: string): void { deliverWorldContract(this.stateManager, contractId); }',
     'abandonContract(contractId: string): void { abandonWorldContract(this.stateManager, contractId); }',
-    "case 'ACCEPT_CONTRACT': this.acceptContract(action.payload?.contractId ?? action.payload); break;",
-    "case 'DELIVER_CONTRACT': this.deliverContract(action.payload?.contractId ?? action.payload); break;",
-    "case 'ABANDON_CONTRACT': this.abandonContract(action.payload?.contractId ?? action.payload); break;",
   ]) {
     assertSnippet(worldText, snippet);
   }
@@ -85,6 +83,35 @@ test('world contract methods only queue dispatcher commands', () => {
     "queueContractCommand(stateManager, 'ABANDON_CONTRACT', contractId);",
   ]) {
     assertSnippet(bridgeText, snippet);
+  }
+});
+
+test('AureusWorld dispatch delegates to the extracted dispatch bridge', () => {
+  const worldText = source(aureusWorldPath);
+  const dispatchBridgeText = source(dispatchBridgePath);
+
+  for (const snippet of [
+    "import { dispatchWorldAction } from './world/dispatchBridge';",
+    'dispatch(action: Action): void {',
+    'dispatchWorldAction(action, {',
+    'getSelectedAgentId: () => this.stateManager.getState().selectedAgentId,',
+    'pushCommand: (type, payload) => this.stateManager.pushCommand(type, payload),',
+  ]) {
+    assertSnippet(worldText, snippet);
+  }
+
+  assert.equal(worldText.includes("switch (action.type)"), false);
+
+  for (const snippet of [
+    'export interface WorldDispatchBridgeDeps',
+    'export function dispatchWorldAction(action: Action, deps: WorldDispatchBridgeDeps): void',
+    "case 'ACCEPT_CONTRACT': deps.acceptContract(contractIdFromPayload(action.payload)); break;",
+    "case 'DELIVER_CONTRACT': deps.deliverContract(contractIdFromPayload(action.payload)); break;",
+    "case 'ABANDON_CONTRACT': deps.abandonContract(contractIdFromPayload(action.payload)); break;",
+    "case 'BUY_BUILDING':",
+    "case 'SUBMIT_PERMIT': deps.pushCommand('SUBMIT_PERMIT', { permitId: action.payload }); break;",
+  ]) {
+    assertSnippet(dispatchBridgeText, snippet);
   }
 });
 
