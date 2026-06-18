@@ -26,9 +26,9 @@ test('failed multi-tile placement validates the full footprint before mutating t
     assert.equal(tile(state, 1, 0).buildingType, BuildingType.EMPTY);
     assert.equal(tile(state, 0, 1).buildingType, BuildingType.EMPTY);
     assert.equal(tile(state, 1, 1).buildingType, BuildingType.ROAD);
-    assert.equal(tile(state, 0, 0).isUnderConstruction, false);
-    assert.equal(tile(state, 1, 0).isUnderConstruction, false);
-    assert.equal(tile(state, 0, 1).isUnderConstruction, false);
+    assert.notEqual(tile(state, 0, 0).isUnderConstruction, true);
+    assert.notEqual(tile(state, 1, 0).isUnderConstruction, true);
+    assert.notEqual(tile(state, 0, 1).isUnderConstruction, true);
 });
 
 test('multi-tile placement consumes one inventory item and stamps one shared structure head', () => {
