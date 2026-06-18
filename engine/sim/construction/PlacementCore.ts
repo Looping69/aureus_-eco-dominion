@@ -2,7 +2,6 @@ import { CommandErrorCode, CommandResult } from '../../kernel/Types';
 import { BuildingType, GameState, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { ChunkStore } from '../../space/ChunkStore';
-import { updateWaterConnectivity } from '../../utils/GameUtils';
 import { CHUNK_SIZE, worldToChunk } from '../../utils/coords';
 
 export interface CompletedConstructionResult {
@@ -136,7 +135,6 @@ export function placeBuildingCore(
         affectedChunks.add(`${cx},${cz}`);
     }
 
-    updateWaterConnectivity(state.chunks);
     for (const key of affectedChunks) {
         const [cx, cz] = key.split(',').map(Number);
         const chunk = state.chunks[`${cx},${cz}`];
