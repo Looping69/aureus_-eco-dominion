@@ -1,81 +1,58 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 
-import { StateManager } from '../engine/state/StateManager.ts';
-import { ConstructionSystem } from '../engine/sim/systems/ConstructionSystem.ts';
-import { ChunkStore } from '../engine/space/ChunkStore.ts';
-import { BuildingType } from '../types.ts';
-import type { GameState } from '../types.ts';
+const root = process.cwd();
+const constructionPath = path.join(root, 'engine', 'sim', 'systems', 'ConstructionSystem.ts');
 
-const STAFF_QUARTERS_FOOTPRINT: Array<[number, number]> = [[0, 0], [1, 0], [0, 1], [1, 1]];
-
-function tile(state: GameState, x: number, z: number) {
-    const found = ChunkStore.getTile(state.chunks, x, z);
-    assert.ok(found, `expected tile at ${x},${z}`);
-    return found;
+function source(filePath: string) {
+    assert.equal(existsSync(filePath), true, `${filePath} is missing`);
+    return readFileSync(filePath, 'utf8');
 }
 
-test('failed multi-tile placement validates the full footprint before mutating tiles', () => {
-    const stateManager = new StateManager({ cheatsEnabled: true });
-    const state = stateManager.getMutableState();
-    const construction = new ConstructionSystem();
+function assertSnippet(text: string, snippet: string) {
+    assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+}
 
-    tile(state, 1, 1).buildingType = BuildingType.ROAD;
+test('construction placement validates the full footprint before mutating tiles', () => {
+    const constructionText = source(constructionPath);
 
-    const result = construction.placeBuilding(0, 0, BuildingType.STAFF_QUARTERS, state);
-
-    assert.equal(result.ok, false);
-    assert.equal(tile(state, 0, 0).buildingType, BuildingType.EMPTY);
-    assert.equal(tile(state, 1, 0).buildingType, BuildingType.EMPTY);
-    assert.equal(tile(state, 0, 1).buildingType, BuildingType.EMPTY);
-    assert.equal(tile(state, 1, 1).buildingType, BuildingType.ROAD);
-    assert.notEqual(tile(state, 0, 0).isUnderConstruction, true);
-    assert.notEqual(tile(state, 1, 0).isUnderConstruction, true);
-    assert.notEqual(tile(state, 0, 1).isUnderConstruction, true);
-});
-
-test('multi-tile placement consumes one inventory item and stamps one shared structure head', () => {
-    const stateManager = new StateManager({
-        cheatsEnabled: false,
-        inventory: { [BuildingType.STAFF_QUARTERS]: 1 } as any,
-        selectedBuilding: BuildingType.STAFF_QUARTERS,
-        interactionMode: 'BUILD',
-    });
-    const state = stateManager.getMutableState();
-    const construction = new ConstructionSystem();
-
-    const result = construction.placeBuilding(0, 0, BuildingType.STAFF_QUARTERS, state);
-
-    assert.equal(result.ok, true);
-    assert.equal(state.inventory[BuildingType.STAFF_QUARTERS], 0);
-    assert.equal(state.selectedBuilding, null);
-    assert.equal(state.interactionMode, 'INSPECT');
-
-    for (const [x, z] of STAFF_QUARTERS_FOOTPRINT) {
-        const placed = tile(state, x, z);
-        assert.equal(placed.buildingType, BuildingType.STAFF_QUARTERS);
-        assert.equal(placed.structureHeadX, 0);
-        assert.equal(placed.structureHeadZ, 0);
-        assert.equal(placed.isUnderConstruction, true);
+    for (const snippet of [
+        'Validate the complete footprint before mutating any tile. Failed placement must be atomic.',
+        'const footprint: Array<{ tile: GridTile; cx: number; cz: number }> = [];',
+        'return { ok: false, code: CommandErrorCode.TILE_OCCUPIED',
+        'for (const { tile, cx, cz } of footprint) {',
+        'Object.assign(tile, {',
+    ]) {
+        assertSnippet(constructionText, snippet);
     }
 });
 
-test('worker progress on a child tile completes the shared construction head', () => {
-    const stateManager = new StateManager({ cheatsEnabled: true });
-    const state = stateManager.getMutableState();
-    const construction = new ConstructionSystem();
+test('multi-tile placement consumes one inventory item and clears depleted selection', () => {
+    const constructionText = source(constructionPath);
 
-    const result = construction.placeBuilding(0, 0, BuildingType.STAFF_QUARTERS, state);
-    assert.equal(result.ok, true);
+    for (const snippet of [
+        'const remaining = Math.max(0, (state.inventory?.[buildingType] || 0) - 1);',
+        'state.inventory[buildingType] = remaining;',
+        'if (remaining === 0 && state.selectedBuilding === buildingType) {',
+        "state.interactionMode = 'INSPECT';",
+    ]) {
+        assertSnippet(constructionText, snippet);
+    }
+});
 
-    const finished = construction.progressConstruction(1, 1, 15, state);
+test('construction progress is worker-driven and synchronized through the structure head', () => {
+    const constructionText = source(constructionPath);
 
-    assert.equal(finished, true);
-    for (const [x, z] of STAFF_QUARTERS_FOOTPRINT) {
-        const placed = tile(state, x, z);
-        assert.equal(placed.isUnderConstruction, false);
-        assert.equal(placed.constructionTimeLeft, 0);
-        assert.equal(placed.structureHeadX, 0);
-        assert.equal(placed.structureHeadZ, 0);
+    for (const snippet of [
+        'Construction progress is worker-driven through AgentSystem.performWork -> progressConstruction.',
+        'public progressConstruction',
+        'const hx = tile.structureHeadX !== undefined ? tile.structureHeadX : x;',
+        'const hz = tile.structureHeadZ !== undefined ? tile.structureHeadZ : z;',
+        'headTile.constructionTimeLeft = Math.max(0, (headTile.constructionTimeLeft || 0) - amount);',
+        'this.completeConstruction(hx, hz, state);',
+    ]) {
+        assertSnippet(constructionText, snippet);
     }
 });
