@@ -44,7 +44,8 @@ test('building placement is atomic and construction is worker-driven', () => {
   for (const snippet of [
     'Construction progress is worker-driven through AgentSystem.performWork -> progressConstruction.',
     'return progressConstructionCore(x, z, amount, state,',
-    'return placeBuildingCore(x, z, buildingType, state, isInstant, level);',
+    'const result = placeBuildingCore(x, z, buildingType, state, isInstant, level);',
+    'if (result.ok) updateWaterConnectivity(state.chunks);',
   ]) {
     assertSnippet(constructionText, snippet);
   }
