@@ -49,6 +49,7 @@ import { handleSurfaceInteraction as handleWorldSurfaceInteraction, SurfaceInter
 import { initializeWorldRuntime, teardownWorldRuntime } from './world/lifecycle';
 import { hasStoredSave, loadGameState, loadRawState, saveGameQuietly, saveGameWithFeedback } from './world/persistenceBridge';
 import { acceptWorldContract, abandonWorldContract, deliverWorldContract } from './world/contractBridge';
+import { dispatchWorldAction } from './world/dispatchBridge';
 
 export interface AureusWorldConfig {
     container: HTMLElement;
@@ -673,49 +674,41 @@ export class AureusWorld extends BaseWorld {
     toggleView(): void { this.toggleViewMode(); }
 
     dispatch(action: Action): void {
-        console.log(`[AureusWorld] Dispatching: ${action.type}`, (action as any).payload);
-        switch (action.type) {
-            case 'PLACE_BUILDING': this.placeBuilding(action.payload.x, action.payload.z); break;
-            case 'BULLDOZE_TILE': this.bulldozeTile(action.payload.x, action.payload.z); break;
-            case 'ACTIVATE_BULLDOZER': this.setInteractionMode('BULLDOZE'); break;
-            case 'UPGRADE_BUILDING': this.upgradeBuilding(action.payload.x, action.payload.z); break;
-            case 'SPEED_UP_BUILDING': this.speedUpConstruction(action.payload.x, action.payload.z); break;
-            case 'REHABILITATE_TILE': this.rehabilitateTile(action.payload.x, action.payload.z); break;
-            case 'SELECT_BUILDING_TO_PLACE': this.selectBuilding(action.payload); break;
-            case 'SELECT_AGENT': this.selectAgent(action.payload); break;
-            case 'COMMAND_AGENT': this.commandAgent(action.payload.agentId, action.payload.x, action.payload.z); break;
-            case 'SET_INTERACTION_MODE': this.setInteractionMode(action.payload as any); break;
-            case 'SET_LAYERED_ACTIVE_Y': this.setLayeredActiveY(action.payload); break;
-            case 'SELL_MINERALS': this.sellMinerals(); break;
-            case 'SELL_GEMS': this.sellGems(action.payload.address); break;
-            case 'SELL_WOOD': this.sellWood(); break;
-            case 'SELL_STONE': this.sellStone(); break;
-            case 'BUY_RESOURCE': this.buyResource(action.payload.resource, action.payload.amount); break;
-            case 'BUY_BUILDING':
-                this.buyBuilding(action.payload.type, action.payload.cost);
-                this.selectBuilding(action.payload.type);
-                break;
-            case 'UPDATE_LOGISTICS': this.updateLogistics(action.payload); break;
-            case 'UNLOCK_TECH': this.researchTech(action.payload); break;
-            case 'TOGGLE_DEBUG': this.toggleDebug(); break;
-            case 'TOGGLE_CHEATS': this.toggleCheats(); break;
-            case 'TOGGLE_VIEW': this.toggleViewMode(); break;
-            case 'SAVE_GAME': this.saveGame(); break;
-            case 'LOAD_GAME': this.loadState(action.payload); break;
-            case 'ADVANCE_TUTORIAL': this.advanceTutorial(); break;
-            case 'START_DEMO': this.startDemo(); break;
-            case 'ACCEPT_CONTRACT': this.acceptContract(action.payload?.contractId ?? action.payload); break;
-            case 'DELIVER_CONTRACT': this.deliverContract(action.payload?.contractId ?? action.payload); break;
-            case 'ABANDON_CONTRACT': this.abandonContract(action.payload?.contractId ?? action.payload); break;
-            case 'ENTER_FPS': this.enterFPS(action.payload || this.stateManager.getState().selectedAgentId || ''); break;
-            case 'EXIT_FPS': this.exitFPS(); break;
-            case 'DISMISS_NEWS': break;
-            case 'SUBMIT_PERMIT': this.stateManager.pushCommand('SUBMIT_PERMIT', { permitId: action.payload }); break;
-            case 'TALK_TO_NPC': this.stateManager.pushCommand('TALK_TO_NPC', { npcId: action.payload }); break;
-            case 'CHOOSE_DIALOGUE': this.stateManager.pushCommand('CHOOSE_DIALOGUE', { optionIndex: action.payload }); break;
-            case 'CLOSE_DIALOGUE': this.stateManager.pushCommand('CLOSE_DIALOGUE', {}); break;
-            default: console.warn(`[AureusWorld] Unhandled action type: ${(action as any).type}`);
-        }
+        dispatchWorldAction(action, {
+            placeBuilding: (x, z) => this.placeBuilding(x, z),
+            bulldozeTile: (x, z) => this.bulldozeTile(x, z),
+            setInteractionMode: (mode) => this.setInteractionMode(mode),
+            upgradeBuilding: (x, z) => this.upgradeBuilding(x, z),
+            speedUpConstruction: (x, z) => this.speedUpConstruction(x, z),
+            rehabilitateTile: (x, z) => this.rehabilitateTile(x, z),
+            selectBuilding: (type) => this.selectBuilding(type),
+            selectAgent: (agentId) => this.selectAgent(agentId),
+            commandAgent: (agentId, x, z) => this.commandAgent(agentId, x, z),
+            setLayeredActiveY: (y) => this.setLayeredActiveY(y),
+            sellMinerals: () => this.sellMinerals(),
+            sellGems: (address) => this.sellGems(address),
+            sellWood: () => this.sellWood(),
+            sellStone: () => this.sellStone(),
+            buyResource: (resource, amount) => this.buyResource(resource, amount),
+            buyBuilding: (buildingType, cost) => this.buyBuilding(buildingType, cost),
+            updateLogistics: (payload) => this.updateLogistics(payload),
+            researchTech: (techId) => this.researchTech(techId),
+            toggleDebug: () => this.toggleDebug(),
+            toggleCheats: () => this.toggleCheats(),
+            toggleViewMode: () => this.toggleViewMode(),
+            saveGame: () => this.saveGame(),
+            loadState: (saved) => this.loadState(saved),
+            advanceTutorial: () => this.advanceTutorial(),
+            startDemo: () => this.startDemo(),
+            acceptContract: (contractId) => this.acceptContract(contractId),
+            deliverContract: (contractId) => this.deliverContract(contractId),
+            abandonContract: (contractId) => this.abandonContract(contractId),
+            enterFPS: (agentId) => this.enterFPS(agentId),
+            exitFPS: () => this.exitFPS(),
+            getSelectedAgentId: () => this.stateManager.getState().selectedAgentId,
+            pushCommand: (type, payload) => this.stateManager.pushCommand(type, payload),
+            warnUnhandled: (type) => console.warn(`[AureusWorld] Unhandled action type: ${type}`),
+        });
     }
 
     private updateLogistics(payload: any): void {
