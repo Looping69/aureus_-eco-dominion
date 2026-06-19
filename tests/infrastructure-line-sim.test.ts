@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { getInfrastructureLinePlan, isInfrastructureLineType } from '../game/world/infrastructureLine.ts';
 import { BuildingType } from '../types.ts';
@@ -10,6 +12,12 @@ function stateWithInventory(inventory: Partial<Record<BuildingType, number>>, ch
         cheatsEnabled,
         inventory,
     } as GameState;
+}
+
+function source(relativePath: string): string {
+    const filePath = path.join(process.cwd(), relativePath);
+    assert.equal(existsSync(filePath), true, `${relativePath} should exist`);
+    return readFileSync(filePath, 'utf8');
 }
 
 test('infrastructure line helper recognizes only line-placeable building types', () => {
@@ -67,4 +75,18 @@ test('infrastructure line helper limits placement by inventory unless cheats are
     assert.ok(cheatPlan);
     assert.equal(cheatPlan.available, 7);
     assert.equal(cheatPlan.placeCount, 7);
+});
+
+test('AureusWorld delegates infrastructure line math to the shared helper', () => {
+    const aureusWorld = source('game/AureusWorld.ts');
+
+    assert.match(aureusWorld, /getInfrastructureLinePlan/);
+    assert.match(aureusWorld, /isInfrastructureLineType/);
+    assert.equal(aureusWorld.includes('const deltaX = endX - startX'), false);
+    assert.equal(aureusWorld.includes('const deltaZ = endZ - startZ'), false);
+    assert.equal(aureusWorld.includes('Math.abs(deltaX) >= Math.abs(deltaZ)'), false);
+    assert.equal(
+        aureusWorld.includes('Math.max(Math.abs(finalX - startX), Math.abs(finalZ - startZ)) + 1'),
+        false
+    );
 });
