@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { BUILDINGS } from '../engine/data/VoxelConstants.ts';
 import { StateManager } from '../engine/state/StateManager.ts';
 import { ChunkStore } from '../engine/space/ChunkStore.ts';
 import { PowerGridSystem } from '../engine/sim/systems/PowerGridSystem.ts';
@@ -54,6 +55,23 @@ function place(state: GameState, x: number, z: number, buildingType: BuildingTyp
     return target;
 }
 
+function placeFootprint(state: GameState, x: number, z: number, buildingType: BuildingType): GridTile[] {
+    const def = BUILDINGS[buildingType];
+    assert.ok(def, `expected definition for ${buildingType}`);
+    const placed: GridTile[] = [];
+
+    for (let dz = 0; dz < (def.depth || 1); dz++) {
+        for (let dx = 0; dx < (def.width || 1); dx++) {
+            const target = place(state, x + dx, z + dz, buildingType);
+            target.structureHeadX = x;
+            target.structureHeadZ = z;
+            placed.push(target);
+        }
+    }
+
+    return placed;
+}
+
 test('power allocation keeps priority housing supplied during a brownout', () => {
     const state = new StateManager({ cheatsEnabled: true }).getMutableState();
     clearWorld(state);
@@ -100,4 +118,34 @@ test('water allocation keeps priority housing supplied during a shortage', () =>
     assert.equal(washPlant.waterStatus, 'CONNECTED');
     assert.equal(refinery.waterStatus, 'CONNECTED');
     assert.equal(trainStation.waterStatus, 'DISCONNECTED');
+});
+
+test('power status assignment reaches every tile in a multi-tile footprint', () => {
+    const state = new StateManager({ cheatsEnabled: true }).getMutableState();
+    clearWorld(state);
+
+    place(state, 0, 10, BuildingType.GENERATOR);
+    place(state, 1, 10, BuildingType.POWER_LINE);
+    const housingTiles = placeFootprint(state, 2, 10, BuildingType.STAFF_QUARTERS);
+
+    new PowerGridSystem().tick({ time: 1.1 } as any, state);
+
+    for (const placedTile of housingTiles) {
+        assert.equal(placedTile.powerStatus, 'CONNECTED', `expected powered footprint tile ${placedTile.x},${placedTile.z}`);
+    }
+});
+
+test('water status assignment reaches every tile in a multi-tile footprint', () => {
+    const state = new StateManager({ cheatsEnabled: true }).getMutableState();
+    clearWorld(state);
+
+    place(state, 0, 14, BuildingType.WATER_WELL);
+    place(state, 1, 14, BuildingType.PIPE);
+    const housingTiles = placeFootprint(state, 2, 14, BuildingType.STAFF_QUARTERS);
+
+    new WaterNetworkSystem().tick({ time: 1.1 } as any, state);
+
+    for (const placedTile of housingTiles) {
+        assert.equal(placedTile.waterStatus, 'CONNECTED', `expected watered footprint tile ${placedTile.x},${placedTile.z}`);
+    }
 });
