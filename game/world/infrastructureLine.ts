@@ -1,4 +1,5 @@
-import { BuildingType, GameState } from '../../types';
+import { BuildingType } from '../../types';
+import type { GameState } from '../../types';
 
 export const INFRASTRUCTURE_LINE_TYPES = new Set<BuildingType>([
     BuildingType.ROAD,
