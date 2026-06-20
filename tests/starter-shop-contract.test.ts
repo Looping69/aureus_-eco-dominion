@@ -16,18 +16,21 @@ function assertSnippet(text: string, snippet: string) {
   assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
-test('starter shop includes shelter, storage, mining, water, and power before Growth', () => {
+test('starter shop includes infrastructure, shelter, storage, mining, water, and power before Growth', () => {
   const text = source(supplySidebarPath);
 
   for (const snippet of [
     'const STARTER_SHOP_TYPES = new Set<BuildingType>([',
+    'BuildingType.ROAD,',
+    'BuildingType.PIPE,',
+    'BuildingType.POWER_LINE,',
     'BuildingType.STAFF_QUARTERS,',
     'BuildingType.STORAGE_DEPOT,',
     'BuildingType.MINING_HEADFRAME,',
     'BuildingType.SURVEY_DRILL,',
     'BuildingType.GENERATOR,',
     'BuildingType.WATER_WELL,',
-    "? 'Starter Assets: Shelter, Storage, Mining, Water, Power'",
+    "? 'Starter Assets: Roads, Utilities, Shelter, Storage, Mining'",
     '? all.filter(type => STARTER_SHOP_TYPES.has(type))',
   ]) {
     assertSnippet(text, snippet);
