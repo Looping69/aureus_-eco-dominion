@@ -31,6 +31,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
 
         let totalProduced = 0;
         const weatherEffects = getWeatherGameplayEffects(state.weather);
+        const previouslyWateredConsumers = this.getPreviouslyWateredConsumers(state);
 
         // 1. Identify Sources and reset network state
         const openSet: { x: number, z: number }[] = []; // Tiles with water
@@ -137,7 +138,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
         }
 
         const connectedDemand = connectedConsumers.reduce((sum, tile) => sum + (BUILDINGS[tile.buildingType]?.water?.consumes || 0), 0);
-        const suppliedConsumers = this.allocateWaterBudget(state, connectedConsumers, totalProduced);
+        const suppliedConsumers = this.allocateWaterBudget(ctx, state, connectedConsumers, totalProduced, previouslyWateredConsumers);
         const totalConsumed = suppliedConsumers.reduce((sum, tile) => sum + (BUILDINGS[tile.buildingType]?.water?.consumes || 0), 0);
 
 
@@ -150,7 +151,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
         (state.waterNetwork as any).strandedDemand = strandedDemand;
     }
 
-    private allocateWaterBudget(state: GameState, consumers: GridTile[], totalProduced: number): GridTile[] {
+    private allocateWaterBudget(ctx: FixedContext, state: GameState, consumers: GridTile[], totalProduced: number, previouslyWateredConsumers: Set<string>): GridTile[] {
         let remaining = totalProduced;
         const supplied: GridTile[] = [];
 
@@ -160,6 +161,9 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 remaining -= demand;
                 this.markStructureWaterStatus(state, tile, 'CONNECTED');
                 supplied.push(tile);
+                if (!previouslyWateredConsumers.has(this.getStructureKey(tile))) {
+                    this.pushWaterRestoredNews(ctx, state, tile);
+                }
             } else {
                 this.markStructureWaterStatus(state, tile, 'DISCONNECTED');
             }
@@ -223,5 +227,35 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 }
             }
         }
+    }
+
+    private getPreviouslyWateredConsumers(state: GameState): Set<string> {
+        const connected = new Set<string>();
+        for (const chunk of Object.values(state.chunks)) {
+            for (const tile of chunk.tiles) {
+                if (!tile || tile.isUnderConstruction || !this.isStructureHead(tile)) continue;
+                const def = BUILDINGS[tile.buildingType];
+                if (def?.water?.consumes && tile.waterStatus === 'CONNECTED') {
+                    connected.add(this.getStructureKey(tile));
+                }
+            }
+        }
+        return connected;
+    }
+
+    private getStructureKey(tile: GridTile): string {
+        const x = tile.structureHeadX ?? tile.x;
+        const z = tile.structureHeadZ ?? tile.z;
+        return `${tile.buildingType}:${x},${z}`;
+    }
+
+    private pushWaterRestoredNews(ctx: FixedContext, state: GameState, tile: GridTile): void {
+        const name = BUILDINGS[tile.buildingType]?.name || tile.buildingType;
+        state.newsFeed.unshift({
+            id: ctx.getNextId?.('water_restored') || `water_restored_${tile.x}_${tile.z}_${state.tickCount}`,
+            headline: `RADIO: Water restored to ${name} at X${tile.x}, Z${tile.z}.`,
+            type: 'POSITIVE',
+            timestamp: state.tickCount,
+        });
     }
 }
