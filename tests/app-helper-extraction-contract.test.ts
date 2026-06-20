@@ -22,6 +22,15 @@ test('App delegates tile selection and FPS HUD helpers to small modules', () => 
     assert.equal(app.includes('const canTileOpenModal'), false);
 });
 
+test('BuildingInspectorModal delegates utility failure labels to UtilityReadability', () => {
+    const modals = source('components/Modals.tsx');
+
+    assert.match(modals, /getUtilityReadability/);
+    assert.match(modals, /from '\.\.\/engine\/sim\/utility\/UtilityReadability'/);
+    assert.equal(modals.includes("if (needsPower) {\n        if (tile.powerStatus !== 'CONNECTED')"), false);
+    assert.equal(modals.includes("if (needsWater) {\n        if (tile.waterStatus !== 'CONNECTED')"), false);
+});
+
 test('tile selection helper identifies line placement infrastructure', () => {
     assert.equal(isLinePlacementType(BuildingType.ROAD), true);
     assert.equal(isLinePlacementType(BuildingType.PIPE), true);
