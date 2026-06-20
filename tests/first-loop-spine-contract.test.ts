@@ -111,6 +111,23 @@ test('utility failures have readable local reasons', () => {
   }
 });
 
+test('starter utility guidance appears when early buildings need connections', () => {
+  const missionText = source(missionPath);
+
+  for (const snippet of [
+    "UTILITY_GUIDANCE_DISPATCH_ID = 'starter_utility_connection_dispatch'",
+    'this.seedUtilityGuidanceDispatch(state);',
+    "state.unlockedEras?.includes('GROWTH' as any)",
+    'this.isUtilityStarvedStructure(tile)',
+    'Offline or Water-starved',
+    'Generator or Water Well',
+    'Power Line or Pipe',
+    "item.id === UTILITY_GUIDANCE_DISPATCH_ID",
+  ]) {
+    assertSnippet(missionText, snippet);
+  }
+});
+
 test('contracts are an intentional cashflow lifecycle, not passive punishment', () => {
   const missionText = source(missionPath);
   const commandText = source(commandDispatcherPath);
