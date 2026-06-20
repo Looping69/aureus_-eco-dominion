@@ -29,7 +29,8 @@ test('radio dispatch names utility-starved structures and connection pieces', ()
     'const utilityAlerts = getUtilityAlerts(state);',
     'const firstAlert = utilityAlerts[0];',
     '`${firstAlert.buildingName} at X${firstAlert.x}, Z${firstAlert.z} needs ${firstAlert.connector}`',
-    '`${utilityAlerts.length} sites need attention.`',
+    'utilityAlerts.length > 1',
+    'sites need attention.',
     'Connect the missing utility from Supply Command',
   ]) {
     assertSnippet(text, snippet);
