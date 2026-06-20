@@ -15,6 +15,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/utility-readability-sim.test.ts',
     'tests/utility-allocation-sim.test.ts',
     'tests/infrastructure-line-sim.test.ts',
+    'tests/app-helper-extraction-contract.test.ts',
 ];
 
 const testFiles = STABILIZATION_CONTRACTS.filter((file) => existsSync(path.join(repoRoot, file)));
