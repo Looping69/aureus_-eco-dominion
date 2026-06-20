@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+
+import { BuildingType } from '../types.ts';
+import { canTileOpenModal, isLinePlacementType } from '../game/ui/tileSelection.ts';
+
+function source(relativePath: string): string {
+    const filePath = path.join(process.cwd(), relativePath);
+    assert.equal(existsSync(filePath), true, `${relativePath} should exist`);
+    return readFileSync(filePath, 'utf8');
+}
+
+test('App delegates tile selection and FPS HUD helpers to small modules', () => {
+    const app = source('App.tsx');
+
+    assert.match(app, /from '\.\/game\/ui\/tileSelection'/);
+    assert.match(app, /from '\.\/components\/FPSAbilityHUD'/);
+    assert.equal(app.includes('const LINE_PLACEMENT_TYPES'), false);
+    assert.equal(app.includes('const FPSAbilityHUD'), false);
+    assert.equal(app.includes('const canTileOpenModal'), false);
+});
+
+test('tile selection helper identifies line placement infrastructure', () => {
+    assert.equal(isLinePlacementType(BuildingType.ROAD), true);
+    assert.equal(isLinePlacementType(BuildingType.PIPE), true);
+    assert.equal(isLinePlacementType(BuildingType.POWER_LINE), true);
+    assert.equal(isLinePlacementType(BuildingType.FENCE), true);
+    assert.equal(isLinePlacementType(BuildingType.STAFF_QUARTERS), false);
+});
+
+test('tile selection helper opens modals only for inspectable tiles', () => {
+    assert.equal(canTileOpenModal(null), false);
+    assert.equal(canTileOpenModal({ foliage: 'MINE_HOLE' }), true);
+    assert.equal(canTileOpenModal({ isUnderConstruction: true }), true);
+    assert.equal(canTileOpenModal({ buildingType: BuildingType.EMPTY }), false);
+    assert.equal(canTileOpenModal({ buildingType: BuildingType.POND }), false);
+    assert.equal(canTileOpenModal({ buildingType: BuildingType.STAFF_QUARTERS }), true);
+});
