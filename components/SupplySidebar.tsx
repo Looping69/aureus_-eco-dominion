@@ -149,6 +149,9 @@ const ITEM_CATEGORIES: Record<BuildingType, CategoryType> = {
 };
 
 const STARTER_SHOP_TYPES = new Set<BuildingType>([
+    BuildingType.ROAD,
+    BuildingType.PIPE,
+    BuildingType.POWER_LINE,
     BuildingType.STAFF_QUARTERS,
     BuildingType.STORAGE_DEPOT,
     BuildingType.MINING_HEADFRAME,
@@ -313,7 +316,7 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
                                     {state.activeView === 'DUNGEON'
                                         ? 'Survey Intel & Subsurface Operations'
                                         : isStarterPhase
-                                            ? 'Starter Assets: Shelter, Storage, Mining, Water, Power'
+                                            ? 'Starter Assets: Roads, Utilities, Shelter, Storage, Mining'
                                             : 'Authorized Assets & Infrastructure'}
                                 </p>
                             </div>
