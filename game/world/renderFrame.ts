@@ -27,6 +27,8 @@ export interface RenderFrameDeps {
 
 let buildingStatusLabelLayer: BuildingStatusLabelLayer | null = null;
 const dungeonBackgroundColor = new THREE.Color(0x000000);
+const STARTER_FOG_CLEAR_RADIUS = 18;
+const STARTER_FOG_MAX_TILES = 12000;
 
 type HoverCell = { x: number; z: number } | null;
 
@@ -133,7 +135,95 @@ class LayeredWorldOverlay {
     }
 }
 
+class StarterFogOfWarOverlay {
+    private group = new THREE.Group();
+    private geometry = new THREE.PlaneGeometry(1.04, 1.04).rotateX(-Math.PI / 2);
+    private material = new THREE.MeshBasicMaterial({
+        color: 0x020617,
+        transparent: true,
+        opacity: 0.72,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+    });
+    private mesh: THREE.InstancedMesh | null = null;
+    private lastSignature = '';
+    private matrix = new THREE.Matrix4();
+
+    constructor(scene: THREE.Scene) {
+        this.group.name = 'starter-fog-of-war-overlay';
+        this.group.renderOrder = 70;
+        scene.add(this.group);
+    }
+
+    setVisible(visible: boolean): void {
+        this.group.visible = visible;
+    }
+
+    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number): void {
+        if (state.activeView !== 'SURFACE') {
+            this.setVisible(false);
+            this.lastSignature = '';
+            return;
+        }
+
+        const chunkKeys = Object.keys(state.chunks || {});
+        if (chunkKeys.length === 0) {
+            this.setVisible(false);
+            this.lastSignature = '';
+            return;
+        }
+
+        this.setVisible(true);
+        const spawnX = Math.round(state.spawnX ?? 0);
+        const spawnZ = Math.round(state.spawnZ ?? 0);
+        const signature = `${spawnX},${spawnZ}|${chunkKeys.length}|${state.tickCount}|${state.activeView}`;
+        if (signature === this.lastSignature) return;
+        this.lastSignature = signature;
+
+        const fogTiles: Array<{ x: number; z: number; y: number }> = [];
+        const radiusSq = STARTER_FOG_CLEAR_RADIUS * STARTER_FOG_CLEAR_RADIUS;
+
+        for (const chunk of Object.values(state.chunks) as any[]) {
+            for (const tile of chunk.tiles || []) {
+                const dx = tile.x - spawnX;
+                const dz = tile.z - spawnZ;
+                if ((dx * dx) + (dz * dz) <= radiusSq) continue;
+                fogTiles.push({ x: tile.x, z: tile.z, y: getTerrainHeight(tile.x, tile.z) + 0.12 });
+                if (fogTiles.length >= STARTER_FOG_MAX_TILES) break;
+            }
+            if (fogTiles.length >= STARTER_FOG_MAX_TILES) break;
+        }
+
+        this.ensureMesh(Math.max(1, fogTiles.length));
+        if (!this.mesh) return;
+
+        for (let i = 0; i < fogTiles.length; i += 1) {
+            const tile = fogTiles[i];
+            this.matrix.makeTranslation(tile.x, tile.y, tile.z);
+            this.mesh.setMatrixAt(i, this.matrix);
+        }
+
+        this.mesh.count = fogTiles.length;
+        this.mesh.instanceMatrix.needsUpdate = true;
+    }
+
+    private ensureMesh(count: number): void {
+        if (this.mesh && this.mesh.instanceMatrix.count >= count) return;
+        if (this.mesh) {
+            this.group.remove(this.mesh);
+            this.mesh.dispose();
+        }
+        this.mesh = new THREE.InstancedMesh(this.geometry, this.material, count);
+        this.mesh.name = 'starter-fog-tiles';
+        this.mesh.frustumCulled = false;
+        this.mesh.renderOrder = 70;
+        this.group.add(this.mesh);
+    }
+}
+
 let layeredWorldOverlay: LayeredWorldOverlay | null = null;
+let starterFogOfWarOverlay: StarterFogOfWarOverlay | null = null;
 
 function getBuildingStatusLabelLayer(deps: RenderFrameDeps): BuildingStatusLabelLayer {
     if (!buildingStatusLabelLayer) {
@@ -147,6 +237,13 @@ function getLayeredWorldOverlay(deps: RenderFrameDeps): LayeredWorldOverlay {
         layeredWorldOverlay = new LayeredWorldOverlay(deps.render.getScene());
     }
     return layeredWorldOverlay;
+}
+
+function getStarterFogOfWarOverlay(deps: RenderFrameDeps): StarterFogOfWarOverlay {
+    if (!starterFogOfWarOverlay) {
+        starterFogOfWarOverlay = new StarterFogOfWarOverlay(deps.render.getScene());
+    }
+    return starterFogOfWarOverlay;
 }
 
 function setObjectVisible(object: THREE.Object3D | null | undefined, visible: boolean): void {
@@ -290,6 +387,7 @@ function updateDungeonView(state: any, deps: RenderFrameDeps): void {
     deps.dungeonRenderSystem.update(state.dungeon);
     buildingStatusLabelLayer?.clear();
     layeredWorldOverlay?.setVisible(false);
+    starterFogOfWarOverlay?.setVisible(false);
 
     if (!deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(true);
     if (deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(false);
@@ -312,6 +410,7 @@ function updateFirstPersonView(
     deps.foliageRenderSystem?.updateGroundDetailTime?.(ctx.time, state.dayNightCycle?.timeOfDay ?? 12000);
     deps.dungeonRenderSystem.setVisible(false);
     layeredWorldOverlay?.setVisible(false);
+    starterFogOfWarOverlay?.setVisible(false);
 
     if (deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(false);
     if (deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(false);
@@ -370,6 +469,7 @@ function updateSurfaceView(
     const cursor = deps.inputSystem?.getCurrentCursor() || null;
     const hoverCell = cursor ? { x: Math.round(cursor.x), z: Math.round(cursor.z) } : null;
     getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight, hoverCell);
+    getStarterFogOfWarOverlay(deps).update(state, deps.getTerrainHeight);
 
     deps.buildingRenderSystem.update(
         ctx.dt,
