@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronUp, Maximize2, Radio, Signal, Trees, Users, Zap } from 'lucide-react';
 import { BuildingType, Era, GameState, SfxType } from '../types';
+import { BUILDINGS } from '../engine/data/VoxelConstants';
 
 interface NarrativePanelProps {
     state: GameState;
@@ -17,6 +18,14 @@ type Dispatch = {
     community: string;
     land: string;
     tone: SignalTone;
+};
+
+type UtilityAlert = {
+    buildingName: string;
+    x: number;
+    z: number;
+    reason: 'power' | 'water';
+    connector: 'Power Line' | 'Pipe';
 };
 
 const STORAGE_KEY = 'aureus_narrative_panel_collapsed';
@@ -46,6 +55,25 @@ function countBuildings(state: GameState, type?: BuildingType): number {
         .length;
 }
 
+function getUtilityAlerts(state: GameState): UtilityAlert[] {
+    return Object.values(state.chunks)
+        .flatMap(chunk => chunk.tiles)
+        .filter(tile => tile.buildingType !== BuildingType.EMPTY && !tile.isUnderConstruction && isStructureHead(tile))
+        .flatMap(tile => {
+            const def = BUILDINGS[tile.buildingType];
+            if (!def) return [];
+            const buildingName = def.name || tile.buildingType;
+            const alerts: UtilityAlert[] = [];
+            if (def.power?.consumes && tile.powerStatus !== 'CONNECTED') {
+                alerts.push({ buildingName, x: tile.x, z: tile.z, reason: 'power', connector: 'Power Line' });
+            }
+            if (def.water?.consumes && tile.waterStatus !== 'CONNECTED') {
+                alerts.push({ buildingName, x: tile.x, z: tile.z, reason: 'water', connector: 'Pipe' });
+            }
+            return alerts;
+        });
+}
+
 function getEraName(era: Era): string {
     return ERA_CHAPTER[era] || 'Field Log';
 }
@@ -72,12 +100,18 @@ function getDispatch(state: GameState): Dispatch {
         };
     }
 
-    if ((state.powerGrid?.deficit || 0) > 0 || (state.waterNetwork?.deficit || 0) > 0) {
-        const problem = (state.powerGrid?.deficit || 0) > 0 ? 'power' : 'water';
+    const utilityAlerts = getUtilityAlerts(state);
+    if ((state.powerGrid?.deficit || 0) > 0 || (state.waterNetwork?.deficit || 0) > 0 || utilityAlerts.length > 0) {
+        const firstAlert = utilityAlerts[0];
+        const problem = firstAlert?.reason || ((state.powerGrid?.deficit || 0) > 0 ? 'power' : 'water');
+        const siteDetail = firstAlert
+            ? `${firstAlert.buildingName} at X${firstAlert.x}, Z${firstAlert.z} needs ${firstAlert.connector}`
+            : `the grid needs more ${problem} supply`;
+        const alertCount = utilityAlerts.length > 1 ? ` ${utilityAlerts.length} sites need attention.` : '';
         return {
             chapter,
             title: `The settlement is short on ${problem}`,
-            body: `Work has not stopped, but everyone can feel the strain. Fixing ${problem} will make the colony feel less like a camp and more like a place that can last.`,
+            body: `${siteDetail}.${alertCount} Connect the missing utility from Supply Command so the colony feels less like a camp and more like a place that can last.`,
             crew: 'Foremen are rationing active equipment.',
             community: 'Families trust systems they can see working.',
             land: problem === 'water' ? 'Dry ground is starting to show around the pumps.' : 'The night grid flickers across the valley.',
