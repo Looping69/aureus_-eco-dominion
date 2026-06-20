@@ -7,6 +7,7 @@ import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
 import { BuildingType, Contract, GameState, GridTile } from '../../../types';
 import { generateGoal } from '../logic/AiLogic';
+import { BUILDINGS } from '../../data/VoxelConstants';
 
 const MAX_ACTIVE_CONTRACTS = 3;
 const CONTRACT_WORK_SECONDS = 300;
@@ -15,6 +16,7 @@ const TERMINAL_DISPLAY_SECONDS = 75;
 const FIRST_MINERAL_CONTRACT_AMOUNT = 80;
 const FIRST_MINERAL_CONTRACT_REWARD = 2000;
 const OPENING_DISPATCH_ID = 'story_opening_dispatch';
+const UTILITY_GUIDANCE_DISPATCH_ID = 'starter_utility_connection_dispatch';
 
 export class MissionSystem extends BaseSimSystem {
     readonly id = 'missions';
@@ -25,6 +27,7 @@ export class MissionSystem extends BaseSimSystem {
 
     tick(ctx: FixedContext, state: GameState): void {
         this.seedOpeningDispatch(state);
+        this.seedUtilityGuidanceDispatch(state);
 
         // 1. Goal progress updates every mission tick so objectives reflect live play.
         this.updateGoalProgress(state);
@@ -55,6 +58,33 @@ export class MissionSystem extends BaseSimSystem {
             type: 'NEUTRAL',
             timestamp: state.tickCount,
         });
+    }
+
+    private seedUtilityGuidanceDispatch(state: GameState): void {
+        if (state.unlockedEras?.includes('GROWTH' as any)) return;
+        if (state.newsFeed.some(item => item.id === UTILITY_GUIDANCE_DISPATCH_ID)) return;
+
+        const needsUtilityConnection = Object.values(state.chunks)
+            .flatMap(chunk => chunk.tiles)
+            .some(tile => this.isUtilityStarvedStructure(tile));
+
+        if (!needsUtilityConnection) return;
+
+        state.newsFeed.unshift({
+            id: UTILITY_GUIDANCE_DISPATCH_ID,
+            headline: 'RADIO: Utility warning. If a building says Offline or Water-starved, buy a Generator or Water Well, then connect it with Power Line or Pipe from Supply Command.',
+            type: 'NEUTRAL',
+            timestamp: state.tickCount,
+        });
+    }
+
+    private isUtilityStarvedStructure(tile: GridTile): boolean {
+        if (tile.buildingType === BuildingType.EMPTY || tile.isUnderConstruction || !this.isStructureHead(tile)) return false;
+        const def = BUILDINGS[tile.buildingType];
+        if (!def) return false;
+        const needsPower = Boolean(def.power?.consumes) && tile.powerStatus !== 'CONNECTED';
+        const needsWater = Boolean(def.water?.consumes) && tile.waterStatus !== 'CONNECTED';
+        return needsPower || needsWater;
     }
 
     private updateGoalProgress(state: GameState): void {
