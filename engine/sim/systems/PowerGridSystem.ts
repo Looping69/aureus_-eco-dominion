@@ -25,6 +25,7 @@ export class PowerGridSystem extends BaseSimSystem {
 
         let totalProduced = 0;
         let strandedDemand = 0;
+        const previouslyPoweredConsumers = this.getPreviouslyPoweredConsumers(state);
 
         // 1. Identify Sources and reset network state
         const openSet: { x: number, z: number }[] = [];
@@ -133,7 +134,7 @@ export class PowerGridSystem extends BaseSimSystem {
         }
 
         const connectedDemand = connectedConsumers.reduce((sum, tile) => sum + (BUILDINGS[tile.buildingType]?.power?.consumes || 0), 0);
-        const suppliedConsumers = this.allocatePowerBudget(state, connectedConsumers, totalProduced);
+        const suppliedConsumers = this.allocatePowerBudget(ctx, state, connectedConsumers, totalProduced, previouslyPoweredConsumers);
         const totalConsumed = suppliedConsumers.reduce((sum, tile) => sum + (BUILDINGS[tile.buildingType]?.power?.consumes || 0), 0);
         const industrialDemand = suppliedConsumers.reduce((sum, tile) => {
             const demand = BUILDINGS[tile.buildingType]?.power?.consumes || 0;
@@ -149,7 +150,7 @@ export class PowerGridSystem extends BaseSimSystem {
         };
     }
 
-    private allocatePowerBudget(state: GameState, consumers: GridTile[], totalProduced: number): GridTile[] {
+    private allocatePowerBudget(ctx: FixedContext, state: GameState, consumers: GridTile[], totalProduced: number, previouslyPoweredConsumers: Set<string>): GridTile[] {
         let remaining = totalProduced;
         const supplied: GridTile[] = [];
 
@@ -159,6 +160,9 @@ export class PowerGridSystem extends BaseSimSystem {
                 remaining -= demand;
                 this.markStructurePowerStatus(state, tile, 'CONNECTED');
                 supplied.push(tile);
+                if (!previouslyPoweredConsumers.has(this.getStructureKey(tile))) {
+                    this.pushPowerRestoredNews(ctx, state, tile);
+                }
             } else {
                 this.markStructurePowerStatus(state, tile, 'DISCONNECTED');
             }
@@ -209,6 +213,36 @@ export class PowerGridSystem extends BaseSimSystem {
                 }
             }
         }
+    }
+
+    private getPreviouslyPoweredConsumers(state: GameState): Set<string> {
+        const connected = new Set<string>();
+        for (const chunk of Object.values(state.chunks)) {
+            for (const tile of chunk.tiles) {
+                if (!tile || tile.isUnderConstruction || !this.isStructureHead(tile)) continue;
+                const def = BUILDINGS[tile.buildingType];
+                if (def?.power?.consumes && tile.powerStatus === 'CONNECTED') {
+                    connected.add(this.getStructureKey(tile));
+                }
+            }
+        }
+        return connected;
+    }
+
+    private getStructureKey(tile: GridTile): string {
+        const x = tile.structureHeadX ?? tile.x;
+        const z = tile.structureHeadZ ?? tile.z;
+        return `${tile.buildingType}:${x},${z}`;
+    }
+
+    private pushPowerRestoredNews(ctx: FixedContext, state: GameState, tile: GridTile): void {
+        const name = BUILDINGS[tile.buildingType]?.name || tile.buildingType;
+        state.newsFeed.unshift({
+            id: ctx.getNextId?.('power_restored') || `power_restored_${tile.x}_${tile.z}_${state.tickCount}`,
+            headline: `RADIO: Power restored to ${name} at X${tile.x}, Z${tile.z}.`,
+            type: 'POSITIVE',
+            timestamp: state.tickCount,
+        });
     }
 
     private isIndustrialConsumer(type: BuildingType): boolean {
