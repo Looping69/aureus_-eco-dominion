@@ -153,6 +153,8 @@ const STARTER_SHOP_TYPES = new Set<BuildingType>([
     BuildingType.STORAGE_DEPOT,
     BuildingType.MINING_HEADFRAME,
     BuildingType.SURVEY_DRILL,
+    BuildingType.GENERATOR,
+    BuildingType.WATER_WELL,
 ]);
 
 export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, world, dispatch, onClose, playSfx }) => {
@@ -311,7 +313,7 @@ export const SupplySidebar: React.FC<SupplySidebarProps> = ({ isOpen, state, wor
                                     {state.activeView === 'DUNGEON'
                                         ? 'Survey Intel & Subsurface Operations'
                                         : isStarterPhase
-                                            ? 'Starter Assets: Shelter, Storage, Mining'
+                                            ? 'Starter Assets: Shelter, Storage, Mining, Water, Power'
                                             : 'Authorized Assets & Infrastructure'}
                                 </p>
                             </div>
