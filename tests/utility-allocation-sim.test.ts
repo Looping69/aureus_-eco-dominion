@@ -149,3 +149,41 @@ test('water status assignment reaches every tile in a multi-tile footprint', () 
         assert.equal(placedTile.waterStatus, 'CONNECTED', `expected watered footprint tile ${placedTile.x},${placedTile.z}`);
     }
 });
+
+test('power restoration creates positive radio feedback only after a disconnected consumer reconnects', () => {
+    const state = new StateManager({ cheatsEnabled: true }).getMutableState();
+    clearWorld(state);
+    state.newsFeed.length = 0;
+
+    const system = new PowerGridSystem();
+    const housing = place(state, 8, 0, BuildingType.STAFF_QUARTERS);
+    system.tick({ time: 1.1 } as any, state);
+    assert.equal(housing.powerStatus, 'DISCONNECTED');
+    assert.equal(state.newsFeed.some((item) => item.headline.includes('Power restored')), false);
+
+    place(state, 6, 0, BuildingType.GENERATOR);
+    place(state, 7, 0, BuildingType.POWER_LINE);
+    system.tick({ time: 2.2 } as any, state);
+
+    assert.equal(housing.powerStatus, 'CONNECTED');
+    assert.equal(state.newsFeed.some((item) => item.headline.includes('Power restored to Staff Quarters')), true);
+});
+
+test('water restoration creates positive radio feedback only after a disconnected consumer reconnects', () => {
+    const state = new StateManager({ cheatsEnabled: true }).getMutableState();
+    clearWorld(state);
+    state.newsFeed.length = 0;
+
+    const system = new WaterNetworkSystem();
+    const housing = place(state, 8, 5, BuildingType.STAFF_QUARTERS);
+    system.tick({ time: 1.1 } as any, state);
+    assert.equal(housing.waterStatus, 'DISCONNECTED');
+    assert.equal(state.newsFeed.some((item) => item.headline.includes('Water restored')), false);
+
+    place(state, 6, 5, BuildingType.WATER_WELL);
+    place(state, 7, 5, BuildingType.PIPE);
+    system.tick({ time: 2.2 } as any, state);
+
+    assert.equal(housing.waterStatus, 'CONNECTED');
+    assert.equal(state.newsFeed.some((item) => item.headline.includes('Water restored to Staff Quarters')), true);
+});
