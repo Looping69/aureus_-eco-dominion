@@ -50,6 +50,7 @@ import { initializeWorldRuntime, teardownWorldRuntime } from './world/lifecycle'
 import { hasStoredSave, loadGameState, loadRawState, saveGameQuietly, saveGameWithFeedback } from './world/persistenceBridge';
 import { acceptWorldContract, abandonWorldContract, deliverWorldContract } from './world/contractBridge';
 import { dispatchWorldAction } from './world/dispatchBridge';
+import { getInfrastructureLinePlan, isInfrastructureLineType } from './world/infrastructureLine';
 
 export interface AureusWorldConfig {
     container: HTMLElement;
@@ -59,13 +60,6 @@ export interface AureusWorldConfig {
     onTileHover?: (x: number | null, z: number | null) => void;
     onSfx?: (type: SfxType) => void;
 }
-
-const INFRASTRUCTURE_LINE_TYPES = new Set<BuildingType>([
-    BuildingType.ROAD,
-    BuildingType.PIPE,
-    BuildingType.POWER_LINE,
-    BuildingType.FENCE,
-]);
 
 export class AureusWorld extends BaseWorld {
     readonly id = 'aureus-main';
@@ -262,19 +256,18 @@ export class AureusWorld extends BaseWorld {
     previewInfrastructureLine(startX: number, startZ: number, endX: number, endZ: number, type?: string): void {
         const state = this.stateManager.getState();
         const buildingType = (type || state.selectedBuilding) as BuildingType;
-        if (!INFRASTRUCTURE_LINE_TYPES.has(buildingType)) {
+        if (!isInfrastructureLineType(buildingType)) {
             this.clearInfrastructureLinePreview();
             return;
         }
 
-        const deltaX = endX - startX;
-        const deltaZ = endZ - startZ;
-        const horizontal = Math.abs(deltaX) >= Math.abs(deltaZ);
-        const finalX = horizontal ? endX : startX;
-        const finalZ = horizontal ? startZ : endZ;
-        const requestedLength = Math.max(Math.abs(finalX - startX), Math.abs(finalZ - startZ)) + 1;
-        const available = state.cheatsEnabled ? requestedLength : (state.inventory?.[buildingType] || 0);
-        this.linePlacementPreview.setLine(startX, startZ, endX, endZ, buildingType, available);
+        const plan = getInfrastructureLinePlan(startX, startZ, endX, endZ, buildingType, state);
+        if (!plan) {
+            this.clearInfrastructureLinePreview();
+            return;
+        }
+
+        this.linePlacementPreview.setLine(startX, startZ, endX, endZ, plan.buildingType, plan.available);
     }
 
     clearInfrastructureLinePreview(): void {
@@ -284,43 +277,39 @@ export class AureusWorld extends BaseWorld {
     placeInfrastructureLine(startX: number, startZ: number, endX: number, endZ: number, type?: string): void {
         const state = this.stateManager.getState();
         const buildingType = (type || state.selectedBuilding) as BuildingType;
-        if (!INFRASTRUCTURE_LINE_TYPES.has(buildingType)) {
+        if (!isInfrastructureLineType(buildingType)) {
+            this.placeBuilding(endX, endZ, buildingType);
+            return;
+        }
+
+        const plan = getInfrastructureLinePlan(startX, startZ, endX, endZ, buildingType, state);
+        if (!plan) {
             this.placeBuilding(endX, endZ, buildingType);
             return;
         }
 
         this.clearInfrastructureLinePreview();
-        const deltaX = endX - startX;
-        const deltaZ = endZ - startZ;
-        const horizontal = Math.abs(deltaX) >= Math.abs(deltaZ);
-        const finalX = horizontal ? endX : startX;
-        const finalZ = horizontal ? startZ : endZ;
-        const stepX = Math.sign(finalX - startX);
-        const stepZ = Math.sign(finalZ - startZ);
-        const requestedLength = Math.max(Math.abs(finalX - startX), Math.abs(finalZ - startZ)) + 1;
-        const available = state.cheatsEnabled ? requestedLength : (state.inventory?.[buildingType] || 0);
-        const placeCount = Math.min(requestedLength, available);
 
-        if (placeCount <= 0) {
+        if (plan.placeCount <= 0) {
             this.stateManager.pushEffect({ type: 'AUDIO', sfx: SfxType.ERROR });
             return;
         }
 
-        for (let i = 0; i < placeCount; i++) {
+        for (let i = 0; i < plan.placeCount; i++) {
             this.stateManager.pushCommand('PLACE_BUILDING', {
-                x: startX + stepX * i,
-                z: startZ + stepZ * i,
-                buildingType,
+                x: startX + plan.stepX * i,
+                z: startZ + plan.stepZ * i,
+                buildingType: plan.buildingType,
             });
         }
 
         this.stateManager.pushEffect({ type: 'AUDIO', sfx: SfxType.BUILD });
 
-        if (placeCount < requestedLength) {
-            const def = BUILDINGS[buildingType];
+        if (plan.placeCount < plan.requestedLength) {
+            const def = BUILDINGS[plan.buildingType];
             state.newsFeed.unshift({
                 id: `line_short_${Date.now()}`,
-                headline: `Only ${placeCount}/${requestedLength} ${def?.name || 'infrastructure'} pieces available for that line.`,
+                headline: `Only ${plan.placeCount}/${plan.requestedLength} ${def?.name || 'infrastructure'} pieces available for that line.`,
                 type: 'NEGATIVE',
                 timestamp: state.tickCount,
             });
