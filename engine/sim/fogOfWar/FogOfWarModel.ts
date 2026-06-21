@@ -1,4 +1,5 @@
-import { BuildingType, GameState } from '../../../types';
+import { BuildingType } from '../../../types';
+import type { GameState } from '../../../types';
 import { CHUNK_SIZE, ChunkStore } from '../../space/ChunkStore';
 import { toChunkKey, worldToChunk } from '../../utils/coords';
 
