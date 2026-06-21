@@ -12,6 +12,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/starter-shop-contract.test.ts',
     'tests/narrative-panel-contract.test.ts',
     'tests/render-frame-contract.test.ts',
+    'tests/fog-of-war-model-sim.test.ts',
     'tests/command-boundary-contract.test.ts',
     'tests/contracts-lifecycle-sim.test.ts',
     'tests/construction-placement-sim.test.ts',
