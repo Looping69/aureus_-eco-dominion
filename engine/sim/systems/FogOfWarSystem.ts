@@ -1,5 +1,5 @@
 import type { FixedContext } from '../../kernel';
-import type { GameState } from '../../../types';
+import type { GameState } from '../../types/game';
 import { BaseSimSystem } from '../Simulation';
 import { FOG_REVEAL_UPDATE_SECONDS, revealFogOfWarAroundSources } from '../fogOfWar/FogOfWarModel';
 
