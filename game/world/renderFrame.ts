@@ -30,6 +30,7 @@ const dungeonBackgroundColor = new THREE.Color(0x000000);
 const STARTER_FOG_CLEAR_RADIUS = 18;
 const STARTER_FOG_FEATHER_RADIUS = 8;
 const STARTER_FOG_WORLD_EXTENT = 4096;
+const STARTER_FOG_RENDER_ORDER = 10000;
 const STARTER_FOG_FEATHER_BANDS = [
     { name: 'starter-fog-feather-1', opacity: 0.2 },
     { name: 'starter-fog-feather-2', opacity: 0.42 },
@@ -146,6 +147,8 @@ class StarterFogOfWarOverlay {
     private group = new THREE.Group();
     private coverMaterial = new THREE.MeshBasicMaterial({
         color: 0x000000,
+        transparent: true,
+        opacity: 1,
         depthWrite: false,
         depthTest: false,
         side: THREE.DoubleSide,
@@ -164,7 +167,7 @@ class StarterFogOfWarOverlay {
 
     constructor(scene: THREE.Scene) {
         this.group.name = 'starter-fog-of-war-overlay';
-        this.group.renderOrder = 70;
+        this.group.renderOrder = STARTER_FOG_RENDER_ORDER;
         scene.add(this.group);
     }
 
@@ -198,7 +201,7 @@ class StarterFogOfWarOverlay {
         this.coverMesh = new THREE.Mesh(coverGeometry, this.coverMaterial);
         this.coverMesh.name = 'starter-fog-full-world-cover';
         this.coverMesh.frustumCulled = false;
-        this.coverMesh.renderOrder = 70;
+        this.coverMesh.renderOrder = STARTER_FOG_RENDER_ORDER;
         this.group.add(this.coverMesh);
 
         const bandWidth = STARTER_FOG_FEATHER_RADIUS / STARTER_FOG_FEATHER_BANDS.length;
@@ -209,7 +212,7 @@ class StarterFogOfWarOverlay {
             const mesh = new THREE.Mesh(geometry, this.featherMaterials[i]);
             mesh.name = STARTER_FOG_FEATHER_BANDS[i].name;
             mesh.frustumCulled = false;
-            mesh.renderOrder = 70;
+            mesh.renderOrder = STARTER_FOG_RENDER_ORDER;
             this.featherMeshes.push(mesh);
             this.group.add(mesh);
         }
