@@ -56,7 +56,6 @@ export class ChunkStore {
                     locked: false,
                     revealed: false,
                     explored: true,
-                    fogExplored: false,
                     markedForHarvest: false
                 });
             }
