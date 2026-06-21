@@ -28,7 +28,15 @@ export interface RenderFrameDeps {
 let buildingStatusLabelLayer: BuildingStatusLabelLayer | null = null;
 const dungeonBackgroundColor = new THREE.Color(0x000000);
 const STARTER_FOG_CLEAR_RADIUS = 18;
+const STARTER_FOG_FEATHER_RADIUS = 8;
 const STARTER_FOG_MAX_TILES = 12000;
+const STARTER_FOG_BANDS = [
+    { name: 'starter-fog-feather-1', opacity: 0.2 },
+    { name: 'starter-fog-feather-2', opacity: 0.42 },
+    { name: 'starter-fog-feather-3', opacity: 0.66 },
+    { name: 'starter-fog-feather-4', opacity: 0.86 },
+    { name: 'starter-fog-full', opacity: 1 },
+] as const;
 
 type HoverCell = { x: number; z: number } | null;
 
@@ -137,16 +145,16 @@ class LayeredWorldOverlay {
 
 class StarterFogOfWarOverlay {
     private group = new THREE.Group();
-    private geometry = new THREE.PlaneGeometry(1.04, 1.04).rotateX(-Math.PI / 2);
-    private material = new THREE.MeshBasicMaterial({
-        color: 0x020617,
-        transparent: true,
-        opacity: 0.72,
+    private geometry = new THREE.PlaneGeometry(1.08, 1.08).rotateX(-Math.PI / 2);
+    private materials = STARTER_FOG_BANDS.map(({ opacity }) => new THREE.MeshBasicMaterial({
+        color: 0x000000,
+        transparent: opacity < 1,
+        opacity,
         depthWrite: false,
         depthTest: false,
         side: THREE.DoubleSide,
-    });
-    private mesh: THREE.InstancedMesh | null = null;
+    }));
+    private meshes: Array<THREE.InstancedMesh | null> = STARTER_FOG_BANDS.map(() => null);
     private lastSignature = '';
     private matrix = new THREE.Matrix4();
 
@@ -167,7 +175,7 @@ class StarterFogOfWarOverlay {
             return;
         }
 
-        const chunkKeys = Object.keys(state.chunks || {});
+        const chunkKeys = Object.keys(state.chunks || {}).sort();
         if (chunkKeys.length === 0) {
             this.setVisible(false);
             this.lastSignature = '';
@@ -177,48 +185,66 @@ class StarterFogOfWarOverlay {
         this.setVisible(true);
         const spawnX = Math.round(state.spawnX ?? 0);
         const spawnZ = Math.round(state.spawnZ ?? 0);
-        const signature = `${spawnX},${spawnZ}|${chunkKeys.length}|${state.tickCount}|${state.activeView}`;
+        const chunkSignature = chunkKeys
+            .map((key) => `${key}:${state.chunks[key]?.version ?? state.chunks[key]?.renderVersion ?? 0}`)
+            .join('|');
+        const signature = `${spawnX},${spawnZ}|${chunkSignature}|${state.activeView}`;
         if (signature === this.lastSignature) return;
         this.lastSignature = signature;
 
-        const fogTiles: Array<{ x: number; z: number; y: number }> = [];
-        const radiusSq = STARTER_FOG_CLEAR_RADIUS * STARTER_FOG_CLEAR_RADIUS;
+        const fogBands: Array<Array<{ x: number; z: number; y: number }>> = STARTER_FOG_BANDS.map(() => []);
+        const fullFogRadius = STARTER_FOG_CLEAR_RADIUS + STARTER_FOG_FEATHER_RADIUS;
+        const maxFeatherBand = STARTER_FOG_BANDS.length - 2;
+        let fogTileCount = 0;
 
         for (const chunk of Object.values(state.chunks) as any[]) {
             for (const tile of chunk.tiles || []) {
                 const dx = tile.x - spawnX;
                 const dz = tile.z - spawnZ;
-                if ((dx * dx) + (dz * dz) <= radiusSq) continue;
-                fogTiles.push({ x: tile.x, z: tile.z, y: getTerrainHeight(tile.x, tile.z) + 0.12 });
-                if (fogTiles.length >= STARTER_FOG_MAX_TILES) break;
+                const distance = Math.sqrt((dx * dx) + (dz * dz));
+                if (distance <= STARTER_FOG_CLEAR_RADIUS) continue;
+
+                const bandIndex = distance >= fullFogRadius
+                    ? STARTER_FOG_BANDS.length - 1
+                    : Math.min(maxFeatherBand, Math.floor(((distance - STARTER_FOG_CLEAR_RADIUS) / STARTER_FOG_FEATHER_RADIUS) * (maxFeatherBand + 1)));
+
+                fogBands[bandIndex].push({ x: tile.x, z: tile.z, y: getTerrainHeight(tile.x, tile.z) + 0.12 });
+                fogTileCount += 1;
+                if (fogTileCount >= STARTER_FOG_MAX_TILES) break;
             }
-            if (fogTiles.length >= STARTER_FOG_MAX_TILES) break;
+            if (fogTileCount >= STARTER_FOG_MAX_TILES) break;
         }
 
-        this.ensureMesh(Math.max(1, fogTiles.length));
-        if (!this.mesh) return;
+        for (let bandIndex = 0; bandIndex < fogBands.length; bandIndex += 1) {
+            const fogTiles = fogBands[bandIndex];
+            const mesh = this.ensureMesh(bandIndex, Math.max(1, fogTiles.length));
 
-        for (let i = 0; i < fogTiles.length; i += 1) {
-            const tile = fogTiles[i];
-            this.matrix.makeTranslation(tile.x, tile.y, tile.z);
-            this.mesh.setMatrixAt(i, this.matrix);
+            for (let i = 0; i < fogTiles.length; i += 1) {
+                const tile = fogTiles[i];
+                this.matrix.makeTranslation(tile.x, tile.y, tile.z);
+                mesh.setMatrixAt(i, this.matrix);
+            }
+
+            mesh.count = fogTiles.length;
+            mesh.instanceMatrix.needsUpdate = true;
         }
-
-        this.mesh.count = fogTiles.length;
-        this.mesh.instanceMatrix.needsUpdate = true;
     }
 
-    private ensureMesh(count: number): void {
-        if (this.mesh && this.mesh.instanceMatrix.count >= count) return;
-        if (this.mesh) {
-            this.group.remove(this.mesh);
-            this.mesh.dispose();
+    private ensureMesh(bandIndex: number, count: number): THREE.InstancedMesh {
+        const existingMesh = this.meshes[bandIndex];
+        if (existingMesh && existingMesh.instanceMatrix.count >= count) return existingMesh;
+        if (existingMesh) {
+            this.group.remove(existingMesh);
+            existingMesh.dispose();
         }
-        this.mesh = new THREE.InstancedMesh(this.geometry, this.material, count);
-        this.mesh.name = 'starter-fog-tiles';
-        this.mesh.frustumCulled = false;
-        this.mesh.renderOrder = 70;
-        this.group.add(this.mesh);
+
+        const mesh = new THREE.InstancedMesh(this.geometry, this.materials[bandIndex], count);
+        mesh.name = STARTER_FOG_BANDS[bandIndex].name;
+        mesh.frustumCulled = false;
+        mesh.renderOrder = 70;
+        this.meshes[bandIndex] = mesh;
+        this.group.add(mesh);
+        return mesh;
     }
 }
 
