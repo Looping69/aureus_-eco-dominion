@@ -82,5 +82,4 @@ export interface GridTile {
     rehabProgress?: number; // 0-100
     markedForHarvest?: boolean;
     explored?: boolean;
-    fogExplored?: boolean;
 }
