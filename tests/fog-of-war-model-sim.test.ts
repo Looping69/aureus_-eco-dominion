@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { BuildingType } from '../types';
+import { BuildingType, GridTile } from '../types';
 import { ChunkStore } from '../engine/space/ChunkStore';
 import {
   FOG_AGENT_REVEAL_RADIUS,
@@ -20,6 +20,12 @@ function makeState() {
   } as any;
 }
 
+function requireTile(state: ReturnType<typeof makeState>, x: number, z: number): GridTile {
+  const tile = ChunkStore.getTile(state.chunks, x, z);
+  assert.ok(tile, `expected tile at ${x},${z}`);
+  return tile;
+}
+
 test('new chunks start unexplored so fog can hide unrevealed terrain', () => {
   const chunk = ChunkStore.createChunk(0, 0, 0);
   assert.equal(chunk.tiles.every(tile => tile.explored === false), true);
@@ -27,15 +33,15 @@ test('new chunks start unexplored so fog can hide unrevealed terrain', () => {
 
 test('fog reveal marks spawn and surface agent areas explored permanently', () => {
   const state = makeState();
-  const originTile = ChunkStore.getTile(state.chunks, 4, 4);
-  const farTile = ChunkStore.getTile(state.chunks, 15, 15);
-  assert.equal(originTile?.explored, false);
-  assert.equal(farTile?.explored, false);
+  const originTile = requireTile(state, 4, 4);
+  const farTile = requireTile(state, 15, 15);
+  assert.equal(originTile.explored, false);
+  assert.equal(farTile.explored, false);
 
   const changedFromSpawn = revealFogOfWarAroundSources(state);
   assert.equal(changedFromSpawn, true);
-  assert.equal(originTile?.explored, true);
-  assert.equal(farTile?.explored, true);
+  assert.equal(originTile.explored, true);
+  assert.equal(farTile.explored, true);
 
   state.agents.push({ id: 'agent_1', x: 15, z: 0, visualX: 15, visualZ: 0, layer: 0 });
   const sources = getFogOfWarRevealSources(state);
@@ -45,8 +51,7 @@ test('fog reveal marks spawn and surface agent areas explored permanently', () =
 
 test('completed surface buildings become reveal sources', () => {
   const state = makeState();
-  const tile = ChunkStore.getTile(state.chunks, 12, 12);
-  assert.ok(tile);
+  const tile = requireTile(state, 12, 12);
   tile.buildingType = BuildingType.STAFF_QUARTERS;
   tile.isUnderConstruction = false;
 
