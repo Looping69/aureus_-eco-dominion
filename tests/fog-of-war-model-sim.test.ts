@@ -23,7 +23,8 @@ test('fog of war model keeps unrevealed terrain hidden and reveal sources shared
   const renderFrame = source(renderFramePath);
 
   for (const snippet of [
-    'explored: false,',
+    'explored: true,',
+    'fogExplored: false,',
   ]) {
     assertSnippet(chunkStore, snippet);
   }
@@ -35,7 +36,7 @@ test('fog of war model keeps unrevealed terrain hidden and reveal sources shared
     'export function getFogOfWarRevealSources(state: GameState): FogRevealSource[]',
     'export function getFogRevealDistance(x: number, z: number, sources: FogRevealSource[]): number',
     'export function revealFogOfWarAroundSources(state: GameState',
-    'tile.explored = true;',
+    'tile.fogExplored = true;',
     'chunk.version += 1;',
   ]) {
     assertSnippet(fogModel, snippet);
@@ -43,7 +44,7 @@ test('fog of war model keeps unrevealed terrain hidden and reveal sources shared
 
   for (const snippet of [
     'const revealSources = getFogOfWarRevealSources(state);',
-    'if (tile.explored) continue;',
+    'if (tile.fogExplored) continue;',
     'const revealDistance = getFogRevealDistance(tile.x, tile.z, revealSources);',
   ]) {
     assertSnippet(renderFrame, snippet);
