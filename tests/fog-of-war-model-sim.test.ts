@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { BuildingType, GridTile } from '../types';
+import { BuildingType } from '../types';
+import type { GridTile } from '../types';
 import { ChunkStore } from '../engine/space/ChunkStore';
 import {
   FOG_AGENT_REVEAL_RADIUS,
