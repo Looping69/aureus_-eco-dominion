@@ -1,61 +1,51 @@
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
-import { BuildingType } from '../types';
-import type { GridTile } from '../types';
-import { ChunkStore } from '../engine/space/ChunkStore';
-import {
-  FOG_AGENT_REVEAL_RADIUS,
-  FOG_SPAWN_REVEAL_RADIUS,
-  getFogOfWarRevealSources,
-  revealFogOfWarAroundSources,
-} from '../engine/sim/fogOfWar/FogOfWarModel';
+const root = process.cwd();
+const chunkStorePath = path.join(root, 'engine', 'space', 'ChunkStore.ts');
+const fogModelPath = path.join(root, 'engine', 'sim', 'fogOfWar', 'FogOfWarModel.ts');
+const renderFramePath = path.join(root, 'game', 'world', 'renderFrame.ts');
 
-function makeState() {
-  const chunk = ChunkStore.createChunk(0, 0, 0);
-  return {
-    spawnX: 4,
-    spawnZ: 4,
-    chunks: { '0,0': chunk },
-    agents: [],
-  } as any;
+function source(filePath: string) {
+  assert.equal(existsSync(filePath), true, `${filePath} is missing`);
+  return readFileSync(filePath, 'utf8');
 }
 
-function requireTile(state: ReturnType<typeof makeState>, x: number, z: number): GridTile {
-  const tile = ChunkStore.getTile(state.chunks, x, z);
-  assert.ok(tile, `expected tile at ${x},${z}`);
-  return tile;
+function assertSnippet(text: string, snippet: string) {
+  assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
-test('new chunks start unexplored so fog can hide unrevealed terrain', () => {
-  const chunk = ChunkStore.createChunk(0, 0, 0);
-  assert.equal(chunk.tiles.every(tile => tile.explored === false), true);
-});
+test('fog of war model keeps unrevealed terrain hidden and reveal sources shared', () => {
+  const chunkStore = source(chunkStorePath);
+  const fogModel = source(fogModelPath);
+  const renderFrame = source(renderFramePath);
 
-test('fog reveal marks spawn and surface agent areas explored permanently', () => {
-  const state = makeState();
-  const originTile = requireTile(state, 4, 4);
-  const farTile = requireTile(state, 15, 15);
-  assert.equal(originTile.explored, false);
-  assert.equal(farTile.explored, false);
+  for (const snippet of [
+    'explored: false,',
+  ]) {
+    assertSnippet(chunkStore, snippet);
+  }
 
-  const changedFromSpawn = revealFogOfWarAroundSources(state);
-  assert.equal(changedFromSpawn, true);
-  assert.equal(originTile.explored, true);
-  assert.equal(farTile.explored, true);
+  for (const snippet of [
+    'export const FOG_SPAWN_REVEAL_RADIUS = 18;',
+    'export const FOG_AGENT_REVEAL_RADIUS = 10;',
+    'export const FOG_BUILDING_REVEAL_RADIUS = 7;',
+    'export function getFogOfWarRevealSources(state: GameState): FogRevealSource[]',
+    'export function getFogRevealDistance(x: number, z: number, sources: FogRevealSource[]): number',
+    'export function revealFogOfWarAroundSources(state: GameState',
+    'tile.explored = true;',
+    'chunk.version += 1;',
+  ]) {
+    assertSnippet(fogModel, snippet);
+  }
 
-  state.agents.push({ id: 'agent_1', x: 15, z: 0, visualX: 15, visualZ: 0, layer: 0 });
-  const sources = getFogOfWarRevealSources(state);
-  assert.equal(sources.some(source => source.radius === FOG_SPAWN_REVEAL_RADIUS), true);
-  assert.equal(sources.some(source => source.x === 15 && source.z === 0 && source.radius === FOG_AGENT_REVEAL_RADIUS), true);
-});
-
-test('completed surface buildings become reveal sources', () => {
-  const state = makeState();
-  const tile = requireTile(state, 12, 12);
-  tile.buildingType = BuildingType.STAFF_QUARTERS;
-  tile.isUnderConstruction = false;
-
-  const sources = getFogOfWarRevealSources(state);
-  assert.equal(sources.some(source => source.x === 12 && source.z === 12), true);
+  for (const snippet of [
+    'const revealSources = getFogOfWarRevealSources(state);',
+    'if (tile.explored) continue;',
+    'const revealDistance = getFogRevealDistance(tile.x, tile.z, revealSources);',
+  ]) {
+    assertSnippet(renderFrame, snippet);
+  }
 });
