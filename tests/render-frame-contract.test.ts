@@ -15,23 +15,24 @@ function assertSnippet(text: string, snippet: string) {
   assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
-test('surface renderer darkens the world outside the starting area with feathered black fog', () => {
+test('surface renderer darkens unexplored tiles with feathered black fog', () => {
   const text = source(renderFramePath);
 
   for (const snippet of [
-    'const STARTER_FOG_CLEAR_RADIUS = 18;',
-    'const STARTER_FOG_FEATHER_RADIUS = 8;',
+    "import { getFogOfWarRevealSources, getFogRevealDistance } from '../../engine/sim/fogOfWar/FogOfWarModel';",
+    'const FOG_EDGE_FEATHER_RADIUS = 8;',
     "{ name: 'starter-fog-full', opacity: 1 },",
     'class StarterFogOfWarOverlay',
     "this.group.name = 'starter-fog-of-war-overlay';",
     'color: 0x000000,',
     'transparent: opacity < 1,',
     'depthTest: false,',
-    'const spawnX = Math.round(state.spawnX ?? 0);',
-    'const spawnZ = Math.round(state.spawnZ ?? 0);',
-    'const fullFogRadius = STARTER_FOG_CLEAR_RADIUS + STARTER_FOG_FEATHER_RADIUS;',
-    'if (distance <= STARTER_FOG_CLEAR_RADIUS) continue;',
-    'Math.floor(((distance - STARTER_FOG_CLEAR_RADIUS) / STARTER_FOG_FEATHER_RADIUS)',
+    'const revealSources = getFogOfWarRevealSources(state);',
+    'const sourceSignature = revealSources.map(source => `${source.x},${source.z},${source.radius}`).join('|');',
+    'if (tile.explored) continue;',
+    'const revealDistance = getFogRevealDistance(tile.x, tile.z, revealSources);',
+    'if (revealDistance <= 0) continue;',
+    'Math.floor((revealDistance / FOG_EDGE_FEATHER_RADIUS)',
     'getStarterFogOfWarOverlay(deps).update(state, deps.getTerrainHeight);',
     'starterFogOfWarOverlay?.setVisible(false);',
   ]) {
