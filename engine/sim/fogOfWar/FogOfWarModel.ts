@@ -1,5 +1,3 @@
-import { BuildingType } from '../../types/buildings';
-import type { GameState } from '../../types/game';
 import { CHUNK_SIZE, ChunkStore } from '../../space/ChunkStore';
 import { toChunkKey, worldToChunk } from '../../utils/coords';
 
@@ -14,7 +12,7 @@ export const FOG_AGENT_REVEAL_RADIUS = 10;
 export const FOG_BUILDING_REVEAL_RADIUS = 7;
 export const FOG_REVEAL_UPDATE_SECONDS = 0.5;
 
-export function getFogOfWarRevealSources(state: GameState): FogRevealSource[] {
+export function getFogOfWarRevealSources(state: any): FogRevealSource[] {
     const sources: FogRevealSource[] = [{
         x: Math.round(state.spawnX ?? 0),
         z: Math.round(state.spawnZ ?? 0),
@@ -30,8 +28,8 @@ export function getFogOfWarRevealSources(state: GameState): FogRevealSource[] {
         });
     }
 
-    for (const chunk of Object.values(state.chunks)) {
-        for (const tile of chunk.tiles) {
+    for (const chunk of Object.values(state.chunks || {}) as any[]) {
+        for (const tile of chunk.tiles || []) {
             if (!isCompletedSurfaceStructure(tile)) continue;
             sources.push({
                 x: tile.x,
@@ -54,7 +52,7 @@ export function getFogRevealDistance(x: number, z: number, sources: FogRevealSou
     return nearest;
 }
 
-export function revealFogOfWarAroundSources(state: GameState, sources = getFogOfWarRevealSources(state)): boolean {
+export function revealFogOfWarAroundSources(state: any, sources = getFogOfWarRevealSources(state)): boolean {
     const changedChunkKeys = new Set<string>();
 
     for (const source of sources) {
@@ -85,8 +83,8 @@ export function revealFogOfWarAroundSources(state: GameState, sources = getFogOf
     return changedChunkKeys.size > 0;
 }
 
-function isCompletedSurfaceStructure(tile: { buildingType: BuildingType; isUnderConstruction?: boolean; structureHeadX?: number; structureHeadZ?: number; x: number; z: number }): boolean {
-    if (tile.buildingType === BuildingType.EMPTY || tile.buildingType === BuildingType.POND) return false;
+function isCompletedSurfaceStructure(tile: any): boolean {
+    if (!tile || tile.buildingType === 'EMPTY' || tile.buildingType === 'POND') return false;
     if (tile.isUnderConstruction) return false;
     return tile.structureHeadX === undefined || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
 }
