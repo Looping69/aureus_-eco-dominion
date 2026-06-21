@@ -198,10 +198,13 @@ class StarterFogOfWarOverlay {
 
         for (const chunk of Object.values(state.chunks) as any[]) {
             for (const tile of chunk.tiles || []) {
-                if (tile.explored) continue;
+                if (tile.fogExplored) continue;
 
                 const revealDistance = getFogRevealDistance(tile.x, tile.z, revealSources);
-                if (revealDistance <= 0) continue;
+                if (revealDistance <= 0) {
+                    tile.fogExplored = true;
+                    continue;
+                }
 
                 const bandIndex = revealDistance >= FOG_EDGE_FEATHER_RADIUS
                     ? STARTER_FOG_BANDS.length - 1
