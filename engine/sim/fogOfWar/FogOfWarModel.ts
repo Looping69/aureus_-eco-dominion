@@ -67,9 +67,9 @@ export function revealFogOfWarAroundSources(state: GameState, sources = getFogOf
                 if ((dx * dx) + (dz * dz) > radiusSq) continue;
 
                 const tile = ChunkStore.getTile(state.chunks, x, z);
-                if (!tile || tile.explored) continue;
+                if (!tile || tile.fogExplored) continue;
 
-                tile.explored = true;
+                tile.fogExplored = true;
                 const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
                 changedChunkKeys.add(toChunkKey(cx, cz));
             }
