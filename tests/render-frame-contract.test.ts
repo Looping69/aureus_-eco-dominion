@@ -42,3 +42,23 @@ test('surface renderer covers the full world outside the starting area with feat
     assertSnippet(text, snippet);
   }
 });
+
+test('first person view shows unexplored starter fog as dark mist', () => {
+  const text = source(renderFramePath);
+
+  for (const snippet of [
+    'const firstPersonFogColor = new THREE.Color(0x05070b);',
+    'const FIRST_PERSON_MIST_HEIGHT = 72;',
+    'const FIRST_PERSON_MIST_RENDER_ORDER = 9990;',
+    'const FIRST_PERSON_MIST_BANDS = [',
+    'class FirstPersonFogOfWarMist',
+    "this.group.name = 'first-person-fog-of-war-mist';",
+    'new THREE.CylinderGeometry(band.radius, band.radius, FIRST_PERSON_MIST_HEIGHT, 192, 1, true)',
+    'mesh.renderOrder = FIRST_PERSON_MIST_RENDER_ORDER;',
+    'getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight);',
+    'firstPersonFogOfWarMist?.setVisible(false);',
+    'scene.fog = new THREE.Fog(firstPersonFogColor, STARTER_FOG_CLEAR_RADIUS, STARTER_FOG_CLEAR_RADIUS + (STARTER_FOG_FEATHER_RADIUS * 3));',
+  ]) {
+    assertSnippet(text, snippet);
+  }
+});
