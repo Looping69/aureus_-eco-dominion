@@ -3,6 +3,7 @@ import { FrameContext } from '../../engine/kernel';
 import { ChunkStore } from '../../engine/space/ChunkStore';
 import { DungeonEngine } from '../../engine/dungeon/DungeonEngine';
 import { waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial } from '../../engine/render/materials/VoxelMaterials';
+import { getFogOfWarRevealSources, getFogRevealDistance } from '../../engine/sim/fogOfWar/FogOfWarModel';
 import { BuildingStatusLabelLayer } from '../render/systems/BuildingStatusLabelLayer';
 
 export interface RenderFrameDeps {
@@ -27,8 +28,7 @@ export interface RenderFrameDeps {
 
 let buildingStatusLabelLayer: BuildingStatusLabelLayer | null = null;
 const dungeonBackgroundColor = new THREE.Color(0x000000);
-const STARTER_FOG_CLEAR_RADIUS = 18;
-const STARTER_FOG_FEATHER_RADIUS = 8;
+const FOG_EDGE_FEATHER_RADIUS = 8;
 const STARTER_FOG_MAX_TILES = 12000;
 const STARTER_FOG_BANDS = [
     { name: 'starter-fog-feather-1', opacity: 0.2 },
@@ -183,30 +183,29 @@ class StarterFogOfWarOverlay {
         }
 
         this.setVisible(true);
-        const spawnX = Math.round(state.spawnX ?? 0);
-        const spawnZ = Math.round(state.spawnZ ?? 0);
+        const revealSources = getFogOfWarRevealSources(state);
+        const sourceSignature = revealSources.map(source => `${source.x},${source.z},${source.radius}`).join('|');
         const chunkSignature = chunkKeys
             .map((key) => `${key}:${state.chunks[key]?.version ?? state.chunks[key]?.renderVersion ?? 0}`)
             .join('|');
-        const signature = `${spawnX},${spawnZ}|${chunkSignature}|${state.activeView}`;
+        const signature = `${chunkSignature}|${sourceSignature}|${state.activeView}`;
         if (signature === this.lastSignature) return;
         this.lastSignature = signature;
 
         const fogBands: Array<Array<{ x: number; z: number; y: number }>> = STARTER_FOG_BANDS.map(() => []);
-        const fullFogRadius = STARTER_FOG_CLEAR_RADIUS + STARTER_FOG_FEATHER_RADIUS;
         const maxFeatherBand = STARTER_FOG_BANDS.length - 2;
         let fogTileCount = 0;
 
         for (const chunk of Object.values(state.chunks) as any[]) {
             for (const tile of chunk.tiles || []) {
-                const dx = tile.x - spawnX;
-                const dz = tile.z - spawnZ;
-                const distance = Math.sqrt((dx * dx) + (dz * dz));
-                if (distance <= STARTER_FOG_CLEAR_RADIUS) continue;
+                if (tile.explored) continue;
 
-                const bandIndex = distance >= fullFogRadius
+                const revealDistance = getFogRevealDistance(tile.x, tile.z, revealSources);
+                if (revealDistance <= 0) continue;
+
+                const bandIndex = revealDistance >= FOG_EDGE_FEATHER_RADIUS
                     ? STARTER_FOG_BANDS.length - 1
-                    : Math.min(maxFeatherBand, Math.floor(((distance - STARTER_FOG_CLEAR_RADIUS) / STARTER_FOG_FEATHER_RADIUS) * (maxFeatherBand + 1)));
+                    : Math.min(maxFeatherBand, Math.floor((revealDistance / FOG_EDGE_FEATHER_RADIUS) * (maxFeatherBand + 1)));
 
                 fogBands[bandIndex].push({ x: tile.x, z: tile.z, y: getTerrainHeight(tile.x, tile.z) + 0.12 });
                 fogTileCount += 1;
