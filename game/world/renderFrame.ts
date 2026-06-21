@@ -27,15 +27,23 @@ export interface RenderFrameDeps {
 
 let buildingStatusLabelLayer: BuildingStatusLabelLayer | null = null;
 const dungeonBackgroundColor = new THREE.Color(0x000000);
+const firstPersonFogColor = new THREE.Color(0x05070b);
 const STARTER_FOG_CLEAR_RADIUS = 18;
 const STARTER_FOG_FEATHER_RADIUS = 8;
 const STARTER_FOG_WORLD_EXTENT = 4096;
 const STARTER_FOG_RENDER_ORDER = 10000;
+const FIRST_PERSON_MIST_HEIGHT = 72;
+const FIRST_PERSON_MIST_RENDER_ORDER = 9990;
 const STARTER_FOG_FEATHER_BANDS = [
     { name: 'starter-fog-feather-1', opacity: 0.2 },
     { name: 'starter-fog-feather-2', opacity: 0.42 },
     { name: 'starter-fog-feather-3', opacity: 0.66 },
     { name: 'starter-fog-feather-4', opacity: 0.86 },
+] as const;
+const FIRST_PERSON_MIST_BANDS = [
+    { name: 'first-person-fog-mist-1', radius: STARTER_FOG_CLEAR_RADIUS + 1.5, opacity: 0.16 },
+    { name: 'first-person-fog-mist-2', radius: STARTER_FOG_CLEAR_RADIUS + 4.5, opacity: 0.3 },
+    { name: 'first-person-fog-mist-3', radius: STARTER_FOG_CLEAR_RADIUS + STARTER_FOG_FEATHER_RADIUS, opacity: 0.48 },
 ] as const;
 
 type HoverCell = { x: number; z: number } | null;
@@ -219,8 +227,66 @@ class StarterFogOfWarOverlay {
     }
 }
 
+class FirstPersonFogOfWarMist {
+    private group = new THREE.Group();
+    private materials = FIRST_PERSON_MIST_BANDS.map(({ opacity }) => new THREE.MeshBasicMaterial({
+        color: firstPersonFogColor,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+    }));
+    private meshes: THREE.Mesh[] = [];
+    private lastSignature = '';
+
+    constructor(scene: THREE.Scene) {
+        this.group.name = 'first-person-fog-of-war-mist';
+        this.group.renderOrder = FIRST_PERSON_MIST_RENDER_ORDER;
+        scene.add(this.group);
+    }
+
+    setVisible(visible: boolean): void {
+        this.group.visible = visible;
+    }
+
+    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number): void {
+        if (state.activeView !== 'SURFACE') {
+            this.setVisible(false);
+            this.lastSignature = '';
+            return;
+        }
+
+        const spawnX = Math.round(state.spawnX ?? 0);
+        const spawnZ = Math.round(state.spawnZ ?? 0);
+        const signature = `${spawnX},${spawnZ}|${state.activeView}`;
+        this.ensureMeshes();
+        this.group.position.set(spawnX, getTerrainHeight(spawnX, spawnZ) + (FIRST_PERSON_MIST_HEIGHT / 2) - 1, spawnZ);
+        this.setVisible(true);
+
+        if (signature === this.lastSignature) return;
+        this.lastSignature = signature;
+    }
+
+    private ensureMeshes(): void {
+        if (this.meshes.length > 0) return;
+
+        for (let i = 0; i < FIRST_PERSON_MIST_BANDS.length; i += 1) {
+            const band = FIRST_PERSON_MIST_BANDS[i];
+            const geometry = new THREE.CylinderGeometry(band.radius, band.radius, FIRST_PERSON_MIST_HEIGHT, 192, 1, true);
+            const mesh = new THREE.Mesh(geometry, this.materials[i]);
+            mesh.name = band.name;
+            mesh.frustumCulled = false;
+            mesh.renderOrder = FIRST_PERSON_MIST_RENDER_ORDER;
+            this.meshes.push(mesh);
+            this.group.add(mesh);
+        }
+    }
+}
+
 let layeredWorldOverlay: LayeredWorldOverlay | null = null;
 let starterFogOfWarOverlay: StarterFogOfWarOverlay | null = null;
+let firstPersonFogOfWarMist: FirstPersonFogOfWarMist | null = null;
 
 function getBuildingStatusLabelLayer(deps: RenderFrameDeps): BuildingStatusLabelLayer {
     if (!buildingStatusLabelLayer) {
@@ -241,6 +307,13 @@ function getStarterFogOfWarOverlay(deps: RenderFrameDeps): StarterFogOfWarOverla
         starterFogOfWarOverlay = new StarterFogOfWarOverlay(deps.render.getScene());
     }
     return starterFogOfWarOverlay;
+}
+
+function getFirstPersonFogOfWarMist(deps: RenderFrameDeps): FirstPersonFogOfWarMist {
+    if (!firstPersonFogOfWarMist) {
+        firstPersonFogOfWarMist = new FirstPersonFogOfWarMist(deps.render.getScene());
+    }
+    return firstPersonFogOfWarMist;
 }
 
 function setObjectVisible(object: THREE.Object3D | null | undefined, visible: boolean): void {
@@ -385,6 +458,7 @@ function updateDungeonView(state: any, deps: RenderFrameDeps): void {
     buildingStatusLabelLayer?.clear();
     layeredWorldOverlay?.setVisible(false);
     starterFogOfWarOverlay?.setVisible(false);
+    firstPersonFogOfWarMist?.setVisible(false);
 
     if (!deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(true);
     if (deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(false);
@@ -408,6 +482,7 @@ function updateFirstPersonView(
     deps.dungeonRenderSystem.setVisible(false);
     layeredWorldOverlay?.setVisible(false);
     starterFogOfWarOverlay?.setVisible(false);
+    getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight);
 
     if (deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(false);
     if (deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(false);
@@ -444,6 +519,7 @@ function updateSurfaceView(
 ): void {
     setSurfaceRenderVisible(deps, true);
     deps.dungeonRenderSystem.setVisible(false);
+    firstPersonFogOfWarMist?.setVisible(false);
 
     if (!deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(true);
     if (deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(false);
@@ -521,6 +597,10 @@ function updateEnvironmentAndDraw(ctx: FrameContext, state: any, deps: RenderFra
         state.weather,
         deps.cameraSystem.cameraFocus
     );
+
+    if (deps.fpsCameraSystem.enabled) {
+        scene.fog = new THREE.Fog(firstPersonFogColor, STARTER_FOG_CLEAR_RADIUS, STARTER_FOG_CLEAR_RADIUS + (STARTER_FOG_FEATHER_RADIUS * 3));
+    }
 
     deps.render.draw(ctx);
 }
