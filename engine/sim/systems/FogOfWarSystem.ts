@@ -1,5 +1,3 @@
-import type { FixedContext } from '../../kernel';
-import type { GameState } from '../../types/game';
 import { BaseSimSystem } from '../Simulation';
 import { FOG_REVEAL_UPDATE_SECONDS, revealFogOfWarAroundSources } from '../fogOfWar/FogOfWarModel';
 
@@ -9,7 +7,7 @@ export class FogOfWarSystem extends BaseSimSystem {
 
     private lastRevealAt = Number.NEGATIVE_INFINITY;
 
-    tick(ctx: FixedContext, state: GameState): void {
+    tick(ctx: any, state: any): void {
         if (ctx.time - this.lastRevealAt < FOG_REVEAL_UPDATE_SECONDS) return;
         this.lastRevealAt = ctx.time;
         revealFogOfWarAroundSources(state);
