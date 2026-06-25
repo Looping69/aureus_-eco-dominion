@@ -31,15 +31,13 @@ const firstPersonFogColor = new THREE.Color(0x05070b);
 const STARTER_FOG_CLEAR_RADIUS = 18;
 const STARTER_FOG_FEATHER_RADIUS = 8;
 const STARTER_FOG_WORLD_EXTENT = 4096;
+const STARTER_FOG_MASK_TEXTURE_SIZE = 2048;
+const STARTER_FOG_REVEAL_GRID = 6;
 const STARTER_FOG_RENDER_ORDER = 10000;
+const AGENT_FOG_REVEAL_RADIUS = 12;
+const BUILDING_FOG_REVEAL_RADIUS = 14;
 const FIRST_PERSON_MIST_HEIGHT = 72;
 const FIRST_PERSON_MIST_RENDER_ORDER = 9990;
-const STARTER_FOG_FEATHER_BANDS = [
-    { name: 'starter-fog-feather-1', opacity: 0.2 },
-    { name: 'starter-fog-feather-2', opacity: 0.42 },
-    { name: 'starter-fog-feather-3', opacity: 0.66 },
-    { name: 'starter-fog-feather-4', opacity: 0.86 },
-] as const;
 const FIRST_PERSON_MIST_BANDS = [
     { name: 'first-person-fog-mist-1', radius: STARTER_FOG_CLEAR_RADIUS + 1.5, opacity: 0.16 },
     { name: 'first-person-fog-mist-2', radius: STARTER_FOG_CLEAR_RADIUS + 4.5, opacity: 0.3 },
@@ -47,6 +45,109 @@ const FIRST_PERSON_MIST_BANDS = [
 ] as const;
 
 type HoverCell = { x: number; z: number } | null;
+type FogRevealCenter = { key: string; x: number; z: number; radius: number };
+
+function finiteNumber(value: unknown): number | null {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function pointFromEntity(entity: any): { x: number; z: number } | null {
+    const x = finiteNumber(entity?.x) ?? finiteNumber(entity?.position?.x) ?? finiteNumber(entity?.worldX);
+    const z = finiteNumber(entity?.z) ?? finiteNumber(entity?.position?.z) ?? finiteNumber(entity?.worldZ);
+    return x === null || z === null ? null : { x, z };
+}
+
+function quantizedKey(prefix: string, x: number, z: number): string {
+    const qx = Math.round(x / STARTER_FOG_REVEAL_GRID) * STARTER_FOG_REVEAL_GRID;
+    const qz = Math.round(z / STARTER_FOG_REVEAL_GRID) * STARTER_FOG_REVEAL_GRID;
+    return `${prefix}:${qx},${qz}`;
+}
+
+function isCompletedBuildingTile(tile: any): boolean {
+    if (!tile || tile.isUnderConstruction) return false;
+    return Boolean(
+        tile.buildingId
+        || tile.buildingType
+        || tile.structureId
+        || tile.structureType
+        || tile.building
+        || tile.structure
+    );
+}
+
+function collectCurrentFogRevealCenters(state: any): FogRevealCenter[] {
+    const centers: FogRevealCenter[] = [];
+    const spawnX = Math.round(state.spawnX ?? 0);
+    const spawnZ = Math.round(state.spawnZ ?? 0);
+    centers.push({ key: 'spawn', x: spawnX, z: spawnZ, radius: STARTER_FOG_CLEAR_RADIUS });
+
+    const agents = [...(state.agents ?? []), ...(state.ambientNpcs ?? [])];
+    for (const agent of agents) {
+        const point = pointFromEntity(agent);
+        if (!point) continue;
+        centers.push({
+            key: quantizedKey('agent', point.x, point.z),
+            x: point.x,
+            z: point.z,
+            radius: AGENT_FOG_REVEAL_RADIUS,
+        });
+    }
+
+    for (const chunk of Object.values(state.chunks ?? {}) as any[]) {
+        for (const tile of chunk?.tiles ?? []) {
+            if (!isCompletedBuildingTile(tile)) continue;
+            const x = finiteNumber(tile.x) ?? finiteNumber(tile.worldX);
+            const z = finiteNumber(tile.z) ?? finiteNumber(tile.worldZ);
+            if (x === null || z === null) continue;
+            centers.push({
+                key: quantizedKey('building', x, z),
+                x,
+                z,
+                radius: BUILDING_FOG_REVEAL_RADIUS,
+            });
+        }
+    }
+
+    return centers;
+}
+
+class FogExplorationTracker {
+    private centers = new Map<string, FogRevealCenter>();
+    private version = 0;
+
+    updateFromState(state: any): void {
+        for (const center of collectCurrentFogRevealCenters(state)) {
+            const previous = this.centers.get(center.key);
+            if (previous && previous.radius >= center.radius) continue;
+            this.centers.set(center.key, center);
+            this.version += 1;
+        }
+    }
+
+    getCenters(): FogRevealCenter[] {
+        return Array.from(this.centers.values());
+    }
+
+    getVersion(): number {
+        return this.version;
+    }
+
+    getNearestCenter(point: THREE.Vector3): FogRevealCenter | null {
+        let nearest: FogRevealCenter | null = null;
+        let nearestDistanceSq = Infinity;
+        for (const center of this.centers.values()) {
+            const dx = center.x - point.x;
+            const dz = center.z - point.z;
+            const distanceSq = (dx * dx) + (dz * dz);
+            if (distanceSq >= nearestDistanceSq) continue;
+            nearest = center;
+            nearestDistanceSq = distanceSq;
+        }
+        return nearest;
+    }
+}
+
+const fogExplorationTracker = new FogExplorationTracker();
 
 class LayeredWorldOverlay {
     private group = new THREE.Group();
@@ -153,27 +254,28 @@ class LayeredWorldOverlay {
 
 class StarterFogOfWarOverlay {
     private group = new THREE.Group();
-    private coverMaterial = new THREE.MeshBasicMaterial({
-        color: 0x000000,
-        transparent: true,
-        opacity: 1,
-        depthWrite: false,
-        depthTest: false,
-        side: THREE.DoubleSide,
-    });
-    private featherMaterials = STARTER_FOG_FEATHER_BANDS.map(({ opacity }) => new THREE.MeshBasicMaterial({
-        color: 0x000000,
-        transparent: true,
-        opacity,
-        depthWrite: false,
-        depthTest: false,
-        side: THREE.DoubleSide,
-    }));
+    private canvas = document.createElement('canvas');
+    private context: CanvasRenderingContext2D | null = null;
+    private texture: THREE.CanvasTexture;
+    private coverMaterial: THREE.MeshBasicMaterial;
     private coverMesh: THREE.Mesh | null = null;
-    private featherMeshes: THREE.Mesh[] = [];
     private lastSignature = '';
 
     constructor(scene: THREE.Scene) {
+        this.canvas.width = STARTER_FOG_MASK_TEXTURE_SIZE;
+        this.canvas.height = STARTER_FOG_MASK_TEXTURE_SIZE;
+        this.context = this.canvas.getContext('2d');
+        this.texture = new THREE.CanvasTexture(this.canvas);
+        this.texture.needsUpdate = true;
+        this.coverMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            map: this.texture,
+            transparent: true,
+            opacity: 1,
+            depthWrite: false,
+            depthTest: false,
+            side: THREE.DoubleSide,
+        });
         this.group.name = 'starter-fog-of-war-overlay';
         this.group.renderOrder = STARTER_FOG_RENDER_ORDER;
         scene.add(this.group);
@@ -192,38 +294,59 @@ class StarterFogOfWarOverlay {
 
         const spawnX = Math.round(state.spawnX ?? 0);
         const spawnZ = Math.round(state.spawnZ ?? 0);
-        const signature = `${spawnX},${spawnZ}|${state.activeView}`;
+        fogExplorationTracker.updateFromState(state);
+        const signature = `${spawnX},${spawnZ}|${state.activeView}|${fogExplorationTracker.getVersion()}`;
         this.ensureMeshes();
         this.group.position.set(spawnX, getTerrainHeight(spawnX, spawnZ) + 0.16, spawnZ);
         this.setVisible(true);
 
         if (signature === this.lastSignature) return;
+        this.drawMask(fogExplorationTracker.getCenters(), spawnX, spawnZ);
         this.lastSignature = signature;
     }
 
     private ensureMeshes(): void {
         if (this.coverMesh) return;
 
-        const fullFogRadius = STARTER_FOG_CLEAR_RADIUS + STARTER_FOG_FEATHER_RADIUS;
-        const coverGeometry = new THREE.RingGeometry(fullFogRadius, STARTER_FOG_WORLD_EXTENT, 192, 1).rotateX(-Math.PI / 2);
+        const coverGeometry = new THREE.PlaneGeometry(STARTER_FOG_WORLD_EXTENT * 2, STARTER_FOG_WORLD_EXTENT * 2).rotateX(-Math.PI / 2);
         this.coverMesh = new THREE.Mesh(coverGeometry, this.coverMaterial);
-        this.coverMesh.name = 'starter-fog-full-world-cover';
+        this.coverMesh.name = 'starter-fog-persistent-world-mask';
         this.coverMesh.frustumCulled = false;
         this.coverMesh.renderOrder = STARTER_FOG_RENDER_ORDER;
         this.group.add(this.coverMesh);
+    }
 
-        const bandWidth = STARTER_FOG_FEATHER_RADIUS / STARTER_FOG_FEATHER_BANDS.length;
-        for (let i = 0; i < STARTER_FOG_FEATHER_BANDS.length; i += 1) {
-            const innerRadius = STARTER_FOG_CLEAR_RADIUS + (bandWidth * i);
-            const outerRadius = innerRadius + bandWidth;
-            const geometry = new THREE.RingGeometry(innerRadius, outerRadius, 192, 1).rotateX(-Math.PI / 2);
-            const mesh = new THREE.Mesh(geometry, this.featherMaterials[i]);
-            mesh.name = STARTER_FOG_FEATHER_BANDS[i].name;
-            mesh.frustumCulled = false;
-            mesh.renderOrder = STARTER_FOG_RENDER_ORDER;
-            this.featherMeshes.push(mesh);
-            this.group.add(mesh);
+    private drawMask(centers: FogRevealCenter[], originX: number, originZ: number): void {
+        if (!this.context) return;
+        const ctx = this.context;
+        const textureSize = STARTER_FOG_MASK_TEXTURE_SIZE;
+        const worldSize = STARTER_FOG_WORLD_EXTENT * 2;
+        const worldToTexture = textureSize / worldSize;
+
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.clearRect(0, 0, textureSize, textureSize);
+        ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+        ctx.fillRect(0, 0, textureSize, textureSize);
+        ctx.globalCompositeOperation = 'destination-out';
+
+        for (const center of centers) {
+            const x = (textureSize / 2) + ((center.x - originX) * worldToTexture);
+            const y = (textureSize / 2) + ((center.z - originZ) * worldToTexture);
+            const clearRadius = center.radius * worldToTexture;
+            const featherRadius = STARTER_FOG_FEATHER_RADIUS * worldToTexture;
+            const gradientRadius = Math.max(clearRadius + featherRadius, 1);
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, gradientRadius);
+            gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
+            gradient.addColorStop(Math.min(clearRadius / gradientRadius, 0.98), 'rgba(0, 0, 0, 1)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, gradientRadius, 0, Math.PI * 2);
+            ctx.fill();
         }
+
+        ctx.globalCompositeOperation = 'source-over';
+        this.texture.needsUpdate = true;
     }
 }
 
@@ -250,18 +373,23 @@ class FirstPersonFogOfWarMist {
         this.group.visible = visible;
     }
 
-    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number): void {
+    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number, cameraPosition: THREE.Vector3): void {
         if (state.activeView !== 'SURFACE') {
             this.setVisible(false);
             this.lastSignature = '';
             return;
         }
 
-        const spawnX = Math.round(state.spawnX ?? 0);
-        const spawnZ = Math.round(state.spawnZ ?? 0);
-        const signature = `${spawnX},${spawnZ}|${state.activeView}`;
+        fogExplorationTracker.updateFromState(state);
+        const center = fogExplorationTracker.getNearestCenter(cameraPosition) ?? {
+            key: 'spawn',
+            x: Math.round(state.spawnX ?? 0),
+            z: Math.round(state.spawnZ ?? 0),
+            radius: STARTER_FOG_CLEAR_RADIUS,
+        };
+        const signature = `${center.key}|${fogExplorationTracker.getVersion()}`;
         this.ensureMeshes();
-        this.group.position.set(spawnX, getTerrainHeight(spawnX, spawnZ) + (FIRST_PERSON_MIST_HEIGHT / 2) - 1, spawnZ);
+        this.group.position.set(center.x, getTerrainHeight(center.x, center.z) + (FIRST_PERSON_MIST_HEIGHT / 2) - 1, center.z);
         this.setVisible(true);
 
         if (signature === this.lastSignature) return;
@@ -482,13 +610,13 @@ function updateFirstPersonView(
     deps.dungeonRenderSystem.setVisible(false);
     layeredWorldOverlay?.setVisible(false);
     starterFogOfWarOverlay?.setVisible(false);
-    getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight);
 
     if (deps.cameraSystem.enabled) deps.cameraSystem.setEnabled(false);
     if (deps.dungeonCameraSystem.enabled) deps.dungeonCameraSystem.setEnabled(false);
 
     const camera = deps.render.getCamera();
     deps.fpsCameraSystem.update(ctx.dt, state.agents, deps.getTerrainHeight);
+    getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight, camera.position);
     deps.agentRenderSystem.setSelectedAgent(state.selectedAgentId);
 
     const allAgents = [...state.agents, ...state.ambientNpcs];
