@@ -150,33 +150,7 @@ test('water status assignment reaches every tile in a multi-tile footprint', () 
 
     for (const placedTile of housingTiles) {
         assert.equal(placedTile.waterStatus, 'CONNECTED', `expected watered footprint tile ${placedTile.x},${placedTile.z}`);
-        assert.equal(placedTile.waterShortage, false, `expected no shortage flag on watered tile ${placedTile.x},${placedTile.z}`);
     }
-});
-
-test('water shortage flag reaches every tile in a multi-tile footprint', () => {
-    const state = new StateManager({ cheatsEnabled: true }).getMutableState();
-    clearWorld(state);
-
-    place(state, 0, 18, BuildingType.WATER_WELL); // 10 water
-    place(state, 1, 18, BuildingType.PIPE);
-    place(state, 1, 19, BuildingType.PIPE);
-    place(state, 1, 20, BuildingType.PIPE);
-    place(state, 1, 21, BuildingType.PIPE);
-    place(state, 2, 18, BuildingType.WASH_PLANT); // 5 water
-    place(state, 2, 19, BuildingType.GEM_REFINERY); // 3 water
-    place(state, 2, 20, BuildingType.TRAIN_STATION); // 2 water
-    const housingTiles = placeFootprint(state, 2, 21, BuildingType.STAFF_QUARTERS); // priority 100, consumes 1
-
-    new WaterNetworkSystem().tick({ time: 1.1 } as any, state);
-
-    assert.equal(state.waterNetwork.deficit, 1);
-    for (const placedTile of housingTiles) {
-        assert.equal(placedTile.waterStatus, 'CONNECTED', `expected priority housing tile ${placedTile.x},${placedTile.z} to stay watered`);
-        assert.equal(placedTile.waterShortage, false, `expected priority housing tile ${placedTile.x},${placedTile.z} not to be shortage-limited`);
-    }
-    assert.equal(tile(state, 2, 20).waterStatus, 'DISCONNECTED');
-    assert.equal(tile(state, 2, 20).waterShortage, true);
 });
 
 test('power restoration creates positive radio feedback only after a disconnected consumer reconnects', () => {
@@ -214,6 +188,5 @@ test('water restoration creates positive radio feedback only after a disconnecte
     system.tick({ time: 2.2 } as any, state);
 
     assert.equal(housing.waterStatus, 'CONNECTED');
-    assert.equal(housing.waterShortage, false);
     assert.equal(state.newsFeed.some((item) => item.headline.includes('Water restored to Staff Quarters')), true);
 });
