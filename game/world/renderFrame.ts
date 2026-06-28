@@ -46,9 +46,33 @@ const FIRST_PERSON_MIST_BANDS = [
 
 type HoverCell = { x: number; z: number } | null;
 type FogRevealCenter = { key: string; x: number; z: number; radius: number };
+type FogExplorationState = { centers: FogRevealCenter[]; version: number };
 
 function finiteNumber(value: unknown): number | null {
     return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function normalizeFogRevealCenter(center: any): FogRevealCenter | null {
+    if (typeof center?.key !== 'string') return null;
+    const x = finiteNumber(center.x);
+    const z = finiteNumber(center.z);
+    const radius = finiteNumber(center.radius);
+    if (x === null || z === null || radius === null || radius <= 0) return null;
+    return { key: center.key, x, z, radius };
+}
+
+function ensureFogExplorationState(state: any): FogExplorationState {
+    const existing = state.fogExploration;
+    const centers = Array.isArray(existing?.centers)
+        ? existing.centers.map(normalizeFogRevealCenter).filter((center): center is FogRevealCenter => Boolean(center))
+        : [];
+    const version = finiteNumber(existing?.version) ?? centers.length;
+
+    if (!existing || !Array.isArray(existing.centers) || centers.length !== existing.centers.length || !Number.isFinite(existing.version)) {
+        state.fogExploration = { centers, version };
+    }
+
+    return state.fogExploration;
 }
 
 function pointFromEntity(entity: any): { x: number; z: number } | null {
@@ -114,14 +138,23 @@ function collectCurrentFogRevealCenters(state: any): FogRevealCenter[] {
 class FogExplorationTracker {
     private centers = new Map<string, FogRevealCenter>();
     private version = 0;
+    private hydratedVersion = -1;
 
-    updateFromState(state: any): void {
+    updateFromState(state: any, onChanged?: () => void): void {
+        this.hydrateFromState(state);
+        let changed = false;
+
         for (const center of collectCurrentFogRevealCenters(state)) {
             const previous = this.centers.get(center.key);
             if (previous && previous.radius >= center.radius) continue;
             this.centers.set(center.key, center);
             this.version += 1;
+            changed = true;
         }
+
+        if (!changed) return;
+        this.writeToState(state);
+        onChanged?.();
     }
 
     getCenters(): FogRevealCenter[] {
@@ -144,6 +177,21 @@ class FogExplorationTracker {
             nearestDistanceSq = distanceSq;
         }
         return nearest;
+    }
+
+    private hydrateFromState(state: any): void {
+        const fogState = ensureFogExplorationState(state);
+        if (fogState.version === this.hydratedVersion) return;
+        this.centers = new Map(fogState.centers.map((center) => [center.key, center]));
+        this.version = fogState.version;
+        this.hydratedVersion = fogState.version;
+    }
+
+    private writeToState(state: any): void {
+        const fogState = ensureFogExplorationState(state);
+        fogState.centers = this.getCenters();
+        fogState.version = this.version;
+        this.hydratedVersion = this.version;
     }
 }
 
@@ -285,7 +333,7 @@ class StarterFogOfWarOverlay {
         this.group.visible = visible;
     }
 
-    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number): void {
+    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number, markFogExplorationDirty?: () => void): void {
         if (state.activeView !== 'SURFACE') {
             this.setVisible(false);
             this.lastSignature = '';
@@ -294,7 +342,7 @@ class StarterFogOfWarOverlay {
 
         const spawnX = Math.round(state.spawnX ?? 0);
         const spawnZ = Math.round(state.spawnZ ?? 0);
-        fogExplorationTracker.updateFromState(state);
+        fogExplorationTracker.updateFromState(state, markFogExplorationDirty);
         const signature = `${spawnX},${spawnZ}|${state.activeView}|${fogExplorationTracker.getVersion()}`;
         this.ensureMeshes();
         this.group.position.set(spawnX, getTerrainHeight(spawnX, spawnZ) + 0.16, spawnZ);
@@ -373,14 +421,14 @@ class FirstPersonFogOfWarMist {
         this.group.visible = visible;
     }
 
-    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number, cameraPosition: THREE.Vector3): void {
+    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number, cameraPosition: THREE.Vector3, markFogExplorationDirty?: () => void): void {
         if (state.activeView !== 'SURFACE') {
             this.setVisible(false);
             this.lastSignature = '';
             return;
         }
 
-        fogExplorationTracker.updateFromState(state);
+        fogExplorationTracker.updateFromState(state, markFogExplorationDirty);
         const center = fogExplorationTracker.getNearestCenter(cameraPosition) ?? {
             key: 'spawn',
             x: Math.round(state.spawnX ?? 0),
@@ -616,7 +664,7 @@ function updateFirstPersonView(
 
     const camera = deps.render.getCamera();
     deps.fpsCameraSystem.update(ctx.dt, state.agents, deps.getTerrainHeight);
-    getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight, camera.position);
+    getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight, camera.position, () => deps.stateManager.markDirty?.('fogExploration'));
     deps.agentRenderSystem.setSelectedAgent(state.selectedAgentId);
 
     const allAgents = [...state.agents, ...state.ambientNpcs];
@@ -670,7 +718,7 @@ function updateSurfaceView(
     const cursor = deps.inputSystem?.getCurrentCursor() || null;
     const hoverCell = cursor ? { x: Math.round(cursor.x), z: Math.round(cursor.z) } : null;
     getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight, hoverCell);
-    getStarterFogOfWarOverlay(deps).update(state, deps.getTerrainHeight);
+    getStarterFogOfWarOverlay(deps).update(state, deps.getTerrainHeight, () => deps.stateManager.markDirty?.('fogExploration'));
 
     deps.buildingRenderSystem.update(
         ctx.dt,
