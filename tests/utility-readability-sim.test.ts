@@ -6,7 +6,7 @@ import { getUtilityReadability } from '../engine/sim/utility/UtilityReadability.
 import { BuildingType } from '../types.ts';
 import type { GridTile } from '../types.ts';
 
-function tile(buildingType: BuildingType, powerStatus: GridTile['powerStatus'], waterStatus: GridTile['waterStatus']): GridTile {
+function tile(buildingType: BuildingType, powerStatus: GridTile['powerStatus'], waterStatus: GridTile['waterStatus'], waterShortage = false): GridTile {
     return {
         id: 1,
         x: 0,
@@ -18,6 +18,7 @@ function tile(buildingType: BuildingType, powerStatus: GridTile['powerStatus'], 
         foliage: 'NONE',
         powerStatus,
         waterStatus,
+        waterShortage,
     };
 }
 
@@ -38,7 +39,7 @@ test('utility readability distinguishes piped water shortages from missing pipes
     assert.ok(washPlant, 'expected wash plant building definition');
 
     const reasons = getUtilityReadability(
-        tile(BuildingType.WASH_PLANT, 'CONNECTED', 'SHORTAGE'),
+        tile(BuildingType.WASH_PLANT, 'CONNECTED', 'DISCONNECTED', true),
         washPlant
     );
 
