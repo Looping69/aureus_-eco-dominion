@@ -775,9 +775,5 @@ function updateEnvironmentAndDraw(ctx: FrameContext, state: any, deps: RenderFra
         deps.cameraSystem.cameraFocus
     );
 
-    if (deps.fpsCameraSystem.enabled) {
-        scene.fog = new THREE.Fog(firstPersonFogColor, STARTER_FOG_CLEAR_RADIUS, STARTER_FOG_CLEAR_RADIUS + (STARTER_FOG_FEATHER_RADIUS * 3));
-    }
-
     deps.render.draw(ctx);
 }
