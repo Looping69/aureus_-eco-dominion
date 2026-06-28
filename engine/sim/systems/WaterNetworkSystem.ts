@@ -1,7 +1,7 @@
 /**
  * Water Network System
  * Calculates water production and allocates connected demand by priority.
- * Buildings that are piped but not supplied during a shortage are marked disconnected.
+ * Buildings that are piped but not supplied during a shortage are marked as shortage-limited.
  */
 
 import { BaseSimSystem } from '../Simulation';
@@ -165,7 +165,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
                     this.pushWaterRestoredNews(ctx, state, tile);
                 }
             } else {
-                this.markStructureWaterStatus(state, tile, 'DISCONNECTED');
+                this.markStructureWaterStatus(state, tile, 'SHORTAGE');
             }
         }
 
@@ -205,7 +205,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
     private markStructureWaterStatus(
         state: GameState,
         headTile: GridTile,
-        status: 'CONNECTED' | 'DISCONNECTED',
+        status: 'CONNECTED' | 'DISCONNECTED' | 'SHORTAGE',
         suppliedTiles?: Set<string>,
         openSet?: { x: number, z: number }[],
     ): void {
