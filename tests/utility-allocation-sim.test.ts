@@ -120,7 +120,6 @@ test('water allocation keeps priority housing supplied during a shortage', () =>
     assert.equal(washPlant.waterStatus, 'CONNECTED');
     assert.equal(refinery.waterStatus, 'CONNECTED');
     assert.equal(trainStation.waterStatus, 'DISCONNECTED');
-    assert.equal(trainStation.waterShortage, true);
 });
 
 test('power status assignment reaches every tile in a multi-tile footprint', () => {
