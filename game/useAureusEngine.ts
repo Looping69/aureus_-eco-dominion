@@ -342,6 +342,21 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 return;
             }
 
+            if (action?.type === 'REMOVE_FOG_OF_WAR') {
+                const state = world.getState();
+                const updatedState = {
+                    ...state,
+                    fogOfWarDisabled: true,
+                    fogExploration: {
+                        centers: state.fogExploration?.centers ?? [],
+                        version: (state.fogExploration?.version ?? 0) + 1,
+                    },
+                } as GameState & { fogOfWarDisabled: boolean };
+                callbacksRef.current.onSfx?.(SfxType.UI_CLICK);
+                reloadWorldState(world, updatedState);
+                return;
+            }
+
             if (action?.type === 'CLAIM_GOAL') {
                 const state = world.getState();
                 const updatedState = claimCompletedGoal(state);
