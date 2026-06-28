@@ -231,22 +231,20 @@ export class BuildingStatusLabelLayer {
     private getBuildingStatus(tile: GridTile): { label: string; tone: BuildingStatusTone; priority: number; showLabel: boolean } | null {
         const def = BUILDINGS[tile.buildingType];
         const name = def?.name || 'Building';
-        const hasWaterProblem = tile.waterStatus === 'DISCONNECTED';
 
         if (tile.isUnderConstruction) {
             const buildTime = def?.buildTime || 1;
             const progress = Math.max(0, Math.min(1, 1 - ((tile.constructionTimeLeft || 0) / buildTime)));
             return { label: `Building ${name}: ${Math.round(progress * 100)}%`, tone: 'construction', priority: 2, showLabel: true };
         }
-        if (tile.powerStatus === 'DISCONNECTED' && hasWaterProblem) {
-            const waterLabel = tile.waterShortage ? 'water shortage' : 'no pipe';
-            return { label: `${name} offline: no power + ${waterLabel}`, tone: 'blocked', priority: 5, showLabel: true };
+        if (tile.powerStatus === 'DISCONNECTED' && tile.waterStatus === 'DISCONNECTED') {
+            return { label: `${name} offline: no power + water`, tone: 'blocked', priority: 5, showLabel: true };
         }
         if (tile.powerStatus === 'DISCONNECTED') {
             return { label: `${name} offline: no power`, tone: 'blocked', priority: 4, showLabel: true };
         }
         if (tile.waterStatus === 'DISCONNECTED') {
-            return { label: tile.waterShortage ? `${name} water shortage` : `${name} no pipe`, tone: 'warning', priority: 3, showLabel: true };
+            return { label: `${name} water-starved`, tone: 'warning', priority: 3, showLabel: true };
         }
         if (def?.production || def?.power?.produces || def?.power?.consumes || def?.water?.produces || def?.water?.consumes) {
             return { label: `${name} online`, tone: 'online', priority: 1, showLabel: false };
