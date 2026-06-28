@@ -1,4 +1,4 @@
-import { Agent, BuildingType, Era, GameState, GameStep } from '../../types';
+import { Agent, BuildingType, Era, FogExplorationState, GameState, GameStep } from '../../types';
 import { INITIAL_PERMITS, INITIAL_NPCS } from '../data/bureaucracy';
 import { INITIAL_RESOURCES } from '../data/resources';
 import { DAY_NIGHT } from '../sim/dayNightCycle';
@@ -118,6 +118,28 @@ function normalizeLastCommandResult(
     };
 }
 
+function normalizeFogExplorationState(fogExploration: any): FogExplorationState {
+    const centers = Array.isArray(fogExploration?.centers)
+        ? fogExploration.centers.filter((center: any) => (
+            typeof center?.key === 'string'
+            && typeof center.x === 'number'
+            && Number.isFinite(center.x)
+            && typeof center.z === 'number'
+            && Number.isFinite(center.z)
+            && typeof center.radius === 'number'
+            && Number.isFinite(center.radius)
+            && center.radius > 0
+        ))
+        : [];
+
+    return {
+        centers,
+        version: typeof fogExploration?.version === 'number' && Number.isFinite(fogExploration.version)
+            ? fogExploration.version
+            : centers.length,
+    };
+}
+
 export class StateManager {
     private state: GameState;
     private listeners = new Set<StateListener>();
@@ -187,6 +209,7 @@ export class StateManager {
             seed,
             spawnX,
             spawnZ,
+            fogExploration: { centers: [], version: 0 },
             logistics: {
                 autoSell: false,
                 sellThreshold: 100,
@@ -299,6 +322,7 @@ export class StateManager {
             ambientNpcs: overrides?.ambientNpcs ?? baseState.ambientNpcs,
             jobs: overrides?.jobs ?? baseState.jobs,
             inventory: overrides?.inventory ?? baseState.inventory,
+            fogExploration: normalizeFogExplorationState(overrides?.fogExploration ?? baseState.fogExploration),
             logistics: {
                 ...baseState.logistics,
                 ...overrides?.logistics,
