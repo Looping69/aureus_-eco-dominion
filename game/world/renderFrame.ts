@@ -335,7 +335,7 @@ class StarterFogOfWarOverlay {
     }
 
     update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number, markFogExplorationDirty?: () => void): void {
-        if (state.activeView !== 'SURFACE') {
+        if (state.fogOfWarDisabled || state.activeView !== 'SURFACE') {
             this.setVisible(false);
             this.lastSignature = '';
             return;
@@ -423,7 +423,7 @@ class FirstPersonFogOfWarMist {
     }
 
     update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number, cameraPosition: THREE.Vector3, markFogExplorationDirty?: () => void): void {
-        if (state.activeView !== 'SURFACE') {
+        if (state.fogOfWarDisabled || state.activeView !== 'SURFACE') {
             this.setVisible(false);
             this.lastSignature = '';
             return;
