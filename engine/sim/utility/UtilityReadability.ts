@@ -11,7 +11,7 @@ export function getPowerReadability(tile: GridTile, def: BuildingDef): string | 
 export function getWaterReadability(tile: GridTile, def: BuildingDef): string | null {
     if (!def.water?.consumes) return null;
     if (tile.waterStatus === 'CONNECTED') return null;
-    if (tile.waterStatus === 'SHORTAGE') return 'Water shortage: add supply';
+    if (tile.waterShortage) return 'Water shortage: add supply';
     return 'No pipe connection';
 }
 
