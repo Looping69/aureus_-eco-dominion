@@ -27,6 +27,7 @@ function clearTile(state: GameState, x: number, z: number): GridTile {
         structureHeadZ: undefined,
         powerStatus: undefined,
         waterStatus: undefined,
+        waterShortage: undefined,
     });
     return target;
 }
@@ -44,6 +45,7 @@ function clearWorld(state: GameState): void {
                 structureHeadZ: undefined,
                 powerStatus: undefined,
                 waterStatus: undefined,
+                waterShortage: undefined,
             });
         }
     }
@@ -117,7 +119,8 @@ test('water allocation keeps priority housing supplied during a shortage', () =>
     assert.equal(housing.waterStatus, 'CONNECTED');
     assert.equal(washPlant.waterStatus, 'CONNECTED');
     assert.equal(refinery.waterStatus, 'CONNECTED');
-    assert.equal(trainStation.waterStatus, 'SHORTAGE');
+    assert.equal(trainStation.waterStatus, 'DISCONNECTED');
+    assert.equal(trainStation.waterShortage, true);
 });
 
 test('power status assignment reaches every tile in a multi-tile footprint', () => {
@@ -147,10 +150,11 @@ test('water status assignment reaches every tile in a multi-tile footprint', () 
 
     for (const placedTile of housingTiles) {
         assert.equal(placedTile.waterStatus, 'CONNECTED', `expected watered footprint tile ${placedTile.x},${placedTile.z}`);
+        assert.equal(placedTile.waterShortage, false, `expected no shortage flag on watered tile ${placedTile.x},${placedTile.z}`);
     }
 });
 
-test('water shortage status assignment reaches every tile in a multi-tile footprint', () => {
+test('water shortage flag reaches every tile in a multi-tile footprint', () => {
     const state = new StateManager({ cheatsEnabled: true }).getMutableState();
     clearWorld(state);
 
@@ -169,8 +173,10 @@ test('water shortage status assignment reaches every tile in a multi-tile footpr
     assert.equal(state.waterNetwork.deficit, 1);
     for (const placedTile of housingTiles) {
         assert.equal(placedTile.waterStatus, 'CONNECTED', `expected priority housing tile ${placedTile.x},${placedTile.z} to stay watered`);
+        assert.equal(placedTile.waterShortage, false, `expected priority housing tile ${placedTile.x},${placedTile.z} not to be shortage-limited`);
     }
-    assert.equal(tile(state, 2, 20).waterStatus, 'SHORTAGE');
+    assert.equal(tile(state, 2, 20).waterStatus, 'DISCONNECTED');
+    assert.equal(tile(state, 2, 20).waterShortage, true);
 });
 
 test('power restoration creates positive radio feedback only after a disconnected consumer reconnects', () => {
@@ -208,5 +214,6 @@ test('water restoration creates positive radio feedback only after a disconnecte
     system.tick({ time: 2.2 } as any, state);
 
     assert.equal(housing.waterStatus, 'CONNECTED');
+    assert.equal(housing.waterShortage, false);
     assert.equal(state.newsFeed.some((item) => item.headline.includes('Water restored to Staff Quarters')), true);
 });
