@@ -19,6 +19,10 @@ function assertSnippet(text: string, snippet: string) {
   assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
+function assertNoSnippet(text: string, snippet: string) {
+  assert.doesNotMatch(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+}
+
 test('surface renderer keeps explored fog areas revealed with a persistent mask', () => {
   const text = source(renderFramePath);
 
@@ -53,10 +57,11 @@ test('first person view anchors unexplored mist to the nearest persistent reveal
     "getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight, camera.position, () => deps.stateManager.markDirty?.('fogExploration'));",
     'this.group.position.set(center.x, getTerrainHeight(center.x, center.z) + (FIRST_PERSON_MIST_HEIGHT / 2) + FIRST_PERSON_MIST_GROUND_OFFSET, center.z);',
     'firstPersonFogOfWarMist?.setVisible(false);',
-    'scene.fog = new THREE.Fog(firstPersonFogColor, STARTER_FOG_CLEAR_RADIUS, STARTER_FOG_CLEAR_RADIUS + (STARTER_FOG_FEATHER_RADIUS * 3));',
   ]) {
     assertSnippet(text, snippet);
   }
+
+  assertNoSnippet(text, 'scene.fog = new THREE.Fog(firstPersonFogColor, STARTER_FOG_CLEAR_RADIUS, STARTER_FOG_CLEAR_RADIUS + (STARTER_FOG_FEATHER_RADIUS * 3));');
 });
 
 test('environment sun and moon render above first person fog overlays', () => {
