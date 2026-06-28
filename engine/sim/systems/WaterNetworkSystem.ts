@@ -1,7 +1,7 @@
 /**
  * Water Network System
  * Calculates water production and allocates connected demand by priority.
- * Buildings that are piped but not supplied during a shortage remain disconnected with a shortage flag.
+ * Buildings that are piped but not supplied during a shortage are marked disconnected.
  */
 
 import { BaseSimSystem } from '../Simulation';
@@ -48,7 +48,6 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 // Reset status primarily for Pipes and Consumers
                 const isWaterParticipant = tile.buildingType === BuildingType.PIPE || Boolean(def.water?.produces || def.water?.consumes);
                 if (isWaterParticipant) {
-                    tile.waterShortage = false;
                     if (tile.isUnderConstruction) {
                         tile.waterStatus = undefined;
                         continue;
@@ -109,7 +108,6 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 // If it's a Pipe, it accepts water and continues the flow
                 if (neighbor.buildingType === BuildingType.PIPE) {
                     neighbor.waterStatus = 'CONNECTED';
-                    neighbor.waterShortage = false;
                     suppliedTiles.add(key);
                     openSet.push({ x: nx, z: nz }); // Continue flow
                 }
@@ -167,7 +165,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
                     this.pushWaterRestoredNews(ctx, state, tile);
                 }
             } else {
-                this.markStructureWaterStatus(state, tile, 'DISCONNECTED', undefined, undefined, true);
+                this.markStructureWaterStatus(state, tile, 'DISCONNECTED');
             }
         }
 
@@ -210,7 +208,6 @@ export class WaterNetworkSystem extends BaseSimSystem {
         status: 'CONNECTED' | 'DISCONNECTED',
         suppliedTiles?: Set<string>,
         openSet?: { x: number, z: number }[],
-        waterShortage = false,
     ): void {
         const def = BUILDINGS[headTile.buildingType];
         const width = def?.width || 1;
@@ -222,7 +219,6 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 if (!tile || tile.buildingType !== headTile.buildingType || tile.isUnderConstruction) continue;
 
                 tile.waterStatus = status;
-                tile.waterShortage = waterShortage;
                 if (suppliedTiles) {
                     suppliedTiles.add(`${tile.x},${tile.z}`);
                 }
