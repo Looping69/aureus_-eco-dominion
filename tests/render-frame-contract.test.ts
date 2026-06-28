@@ -15,47 +15,36 @@ function assertSnippet(text: string, snippet: string) {
   assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
-test('surface renderer covers the full world outside the starting area with feathered black fog', () => {
+test('surface renderer keeps explored fog areas revealed with a persistent mask', () => {
   const text = source(renderFramePath);
 
   for (const snippet of [
-    'const STARTER_FOG_CLEAR_RADIUS = 18;',
-    'const STARTER_FOG_FEATHER_RADIUS = 8;',
-    'const STARTER_FOG_WORLD_EXTENT = 4096;',
-    'const STARTER_FOG_RENDER_ORDER = 10000;',
-    'class StarterFogOfWarOverlay',
-    "this.group.name = 'starter-fog-of-war-overlay';",
-    'this.group.renderOrder = STARTER_FOG_RENDER_ORDER;',
-    'private coverMaterial = new THREE.MeshBasicMaterial',
-    'transparent: true,',
-    'opacity: 1,',
-    'private featherMaterials = STARTER_FOG_FEATHER_BANDS.map',
-    'new THREE.RingGeometry(fullFogRadius, STARTER_FOG_WORLD_EXTENT, 192, 1)',
-    "this.coverMesh.name = 'starter-fog-full-world-cover';",
-    'this.coverMesh.renderOrder = STARTER_FOG_RENDER_ORDER;',
-    'new THREE.RingGeometry(innerRadius, outerRadius, 192, 1)',
-    'mesh.renderOrder = STARTER_FOG_RENDER_ORDER;',
-    'this.group.position.set(spawnX, getTerrainHeight(spawnX, spawnZ) + 0.16, spawnZ);',
+    'const STARTER_FOG_MASK_TEXTURE_SIZE = 2048;',
+    'const STARTER_FOG_REVEAL_GRID = 6;',
+    'const AGENT_FOG_REVEAL_RADIUS = 12;',
+    'const BUILDING_FOG_REVEAL_RADIUS = 14;',
+    'class FogExplorationTracker',
+    'private centers = new Map<string, FogRevealCenter>();',
+    'function collectCurrentFogRevealCenters(state: any): FogRevealCenter[]',
+    'fogExplorationTracker.updateFromState(state);',
+    'this.drawMask(fogExplorationTracker.getCenters(), spawnX, spawnZ);',
+    "this.coverMesh.name = 'starter-fog-persistent-world-mask';",
+    "ctx.globalCompositeOperation = 'destination-out';",
+    'this.texture.needsUpdate = true;',
     'getStarterFogOfWarOverlay(deps).update(state, deps.getTerrainHeight);',
-    'starterFogOfWarOverlay?.setVisible(false);',
   ]) {
     assertSnippet(text, snippet);
   }
 });
 
-test('first person view shows unexplored starter fog as dark mist', () => {
+test('first person view anchors unexplored mist to the nearest persistent reveal', () => {
   const text = source(renderFramePath);
 
   for (const snippet of [
-    'const firstPersonFogColor = new THREE.Color(0x05070b);',
-    'const FIRST_PERSON_MIST_HEIGHT = 72;',
-    'const FIRST_PERSON_MIST_RENDER_ORDER = 9990;',
-    'const FIRST_PERSON_MIST_BANDS = [',
     'class FirstPersonFogOfWarMist',
-    "this.group.name = 'first-person-fog-of-war-mist';",
-    'new THREE.CylinderGeometry(band.radius, band.radius, FIRST_PERSON_MIST_HEIGHT, 192, 1, true)',
-    'mesh.renderOrder = FIRST_PERSON_MIST_RENDER_ORDER;',
-    'getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight);',
+    'getNearestCenter(point: THREE.Vector3): FogRevealCenter | null',
+    'const center = fogExplorationTracker.getNearestCenter(cameraPosition)',
+    'getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight, camera.position);',
     'firstPersonFogOfWarMist?.setVisible(false);',
     'scene.fog = new THREE.Fog(firstPersonFogColor, STARTER_FOG_CLEAR_RADIUS, STARTER_FOG_CLEAR_RADIUS + (STARTER_FOG_FEATHER_RADIUS * 3));',
   ]) {
