@@ -5,6 +5,7 @@ import test from 'node:test';
 
 const root = process.cwd();
 const renderFramePath = path.join(root, 'game', 'world', 'renderFrame.ts');
+const environmentRenderPath = path.join(root, 'game', 'render', 'systems', 'EnvironmentRenderSystem.ts');
 const gameTypesPath = path.join(root, 'engine', 'types', 'game.ts');
 const stateManagerPath = path.join(root, 'engine', 'state', 'StateManager.ts');
 const persistenceManagerPath = path.join(root, 'engine', 'sim', 'PersistenceManager.ts');
@@ -53,6 +54,21 @@ test('first person view anchors unexplored mist to the nearest persistent reveal
     'this.group.position.set(center.x, getTerrainHeight(center.x, center.z) + (FIRST_PERSON_MIST_HEIGHT / 2) + FIRST_PERSON_MIST_GROUND_OFFSET, center.z);',
     'firstPersonFogOfWarMist?.setVisible(false);',
     'scene.fog = new THREE.Fog(firstPersonFogColor, STARTER_FOG_CLEAR_RADIUS, STARTER_FOG_CLEAR_RADIUS + (STARTER_FOG_FEATHER_RADIUS * 3));',
+  ]) {
+    assertSnippet(text, snippet);
+  }
+});
+
+test('environment sun and moon render above first person fog overlays', () => {
+  const text = source(environmentRenderPath);
+
+  for (const snippet of [
+    'const CELESTIAL_RENDER_ORDER = 10050;',
+    'depthTest: false,',
+    'depthWrite: false,',
+    'fog: false // Sun not affected by fog',
+    "mesh.name = 'environment-sun-moon';",
+    'mesh.renderOrder = CELESTIAL_RENDER_ORDER;',
   ]) {
     assertSnippet(text, snippet);
   }
