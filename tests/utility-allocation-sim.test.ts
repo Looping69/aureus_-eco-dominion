@@ -27,7 +27,6 @@ function clearTile(state: GameState, x: number, z: number): GridTile {
         structureHeadZ: undefined,
         powerStatus: undefined,
         waterStatus: undefined,
-        waterShortage: undefined,
     });
     return target;
 }
@@ -45,7 +44,6 @@ function clearWorld(state: GameState): void {
                 structureHeadZ: undefined,
                 powerStatus: undefined,
                 waterStatus: undefined,
-                waterShortage: undefined,
             });
         }
     }
