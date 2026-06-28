@@ -40,14 +40,17 @@ test('surface renderer keeps explored fog areas revealed with a persistent mask'
   }
 });
 
-test('first person view anchors unexplored mist to the nearest persistent reveal', () => {
+test('first person view anchors unexplored mist to the nearest persistent reveal without covering the sky', () => {
   const text = source(renderFramePath);
 
   for (const snippet of [
     'class FirstPersonFogOfWarMist',
+    'const FIRST_PERSON_MIST_HEIGHT = 18;',
+    'const FIRST_PERSON_MIST_GROUND_OFFSET = 0.25;',
     'getNearestCenter(point: THREE.Vector3): FogRevealCenter | null',
     'const center = fogExplorationTracker.getNearestCenter(cameraPosition)',
     "getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight, camera.position, () => deps.stateManager.markDirty?.('fogExploration'));",
+    'this.group.position.set(center.x, getTerrainHeight(center.x, center.z) + (FIRST_PERSON_MIST_HEIGHT / 2) + FIRST_PERSON_MIST_GROUND_OFFSET, center.z);',
     'firstPersonFogOfWarMist?.setVisible(false);',
     'scene.fog = new THREE.Fog(firstPersonFogColor, STARTER_FOG_CLEAR_RADIUS, STARTER_FOG_CLEAR_RADIUS + (STARTER_FOG_FEATHER_RADIUS * 3));',
   ]) {
