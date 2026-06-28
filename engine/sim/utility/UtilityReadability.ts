@@ -1,5 +1,6 @@
 import { BuildingType } from '../../../types';
 import type { BuildingDef, GridTile } from '../../../types';
+import { getWaterDiagnostic } from './WaterDiagnostics';
 
 export function getPowerReadability(tile: GridTile, def: BuildingDef): string | null {
     if (!def.power?.consumes) return null;
@@ -9,9 +10,9 @@ export function getPowerReadability(tile: GridTile, def: BuildingDef): string | 
 }
 
 export function getWaterReadability(tile: GridTile, def: BuildingDef): string | null {
-    if (!def.water?.consumes) return null;
-    if (tile.waterStatus === 'CONNECTED') return null;
-    return 'Water-starved';
+    const diagnostic = getWaterDiagnostic(tile, def);
+    if (diagnostic.code === 'NO_PIPE_CONNECTION') return 'Water-starved';
+    return diagnostic.label;
 }
 
 export function getProducerReadability(tile: GridTile, def: BuildingDef): string | null {
