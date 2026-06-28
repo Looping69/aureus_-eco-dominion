@@ -292,6 +292,18 @@ export interface IndustryState {
     gridLoad: number;
 }
 
+export interface FogRevealCenter {
+    key: string;
+    x: number;
+    z: number;
+    radius: number;
+}
+
+export interface FogExplorationState {
+    centers: FogRevealCenter[];
+    version: number;
+}
+
 export interface GameState {
     resources: GameResources;
     industry?: IndustryState;
@@ -311,6 +323,7 @@ export interface GameState {
     seed: number;
     spawnX: number;
     spawnZ: number;
+    fogExploration?: FogExplorationState;
     logistics: LogisticsState;
     factory?: FactoryState;
     activeGoal: Goal | null;
