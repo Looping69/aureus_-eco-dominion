@@ -36,7 +36,8 @@ const STARTER_FOG_REVEAL_GRID = 6;
 const STARTER_FOG_RENDER_ORDER = 10000;
 const AGENT_FOG_REVEAL_RADIUS = 12;
 const BUILDING_FOG_REVEAL_RADIUS = 14;
-const FIRST_PERSON_MIST_HEIGHT = 72;
+const FIRST_PERSON_MIST_HEIGHT = 18;
+const FIRST_PERSON_MIST_GROUND_OFFSET = 0.25;
 const FIRST_PERSON_MIST_RENDER_ORDER = 9990;
 const FIRST_PERSON_MIST_BANDS = [
     { name: 'first-person-fog-mist-1', radius: STARTER_FOG_CLEAR_RADIUS + 1.5, opacity: 0.16 },
@@ -437,7 +438,7 @@ class FirstPersonFogOfWarMist {
         };
         const signature = `${center.key}|${fogExplorationTracker.getVersion()}`;
         this.ensureMeshes();
-        this.group.position.set(center.x, getTerrainHeight(center.x, center.z) + (FIRST_PERSON_MIST_HEIGHT / 2) - 1, center.z);
+        this.group.position.set(center.x, getTerrainHeight(center.x, center.z) + (FIRST_PERSON_MIST_HEIGHT / 2) + FIRST_PERSON_MIST_GROUND_OFFSET, center.z);
         this.setVisible(true);
 
         if (signature === this.lastSignature) return;
