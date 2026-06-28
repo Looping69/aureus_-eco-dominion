@@ -5,7 +5,7 @@
 */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, Cpu, Database, Box, Users, Layers, Zap, X, Monitor, ToggleLeft, ToggleRight, Unlock, Eye, Image, FileCode, Hash } from 'lucide-react';
+import { Activity, Cpu, Database, Box, Users, Layers, Zap, X, Monitor, ToggleLeft, ToggleRight, Unlock, Eye, EyeOff, Image, FileCode, Hash } from 'lucide-react';
 import { GameState, Action } from '../types';
 
 interface DebugMenuProps {
@@ -19,6 +19,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
   const [stats, setStats] = useState<any>(null);
   const [fps, setFps] = useState(0);
   const [frameTime, setFrameTime] = useState(0);
+  const fogRemoved = Boolean((state as GameState & { fogOfWarDisabled?: boolean }).fogOfWarDisabled);
 
   const frameCountRef = useRef(0);
   const lastTimeRef = useRef(performance.now());
@@ -209,6 +210,22 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
             </button>
             <p className="text-[8px] text-slate-500 mt-1 italic leading-tight">
               Bypasses all building costs, eco requirements, and tech locks.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!fogRemoved) dispatch({ type: 'REMOVE_FOG_OF_WAR' });
+              }}
+              disabled={fogRemoved}
+              className={`w-full mt-3 py-2 px-2 rounded-[2px] font-bold text-[10px] flex items-center justify-between transition-all border ${fogRemoved ? 'bg-emerald-950/30 text-emerald-400 border-emerald-600/50 cursor-default' : 'bg-slate-800 text-slate-400 hover:bg-slate-750 border-slate-700'}`}
+              title="Remove fog of war from both map and first-person views"
+            >
+              <span className="font-['Rajdhani'] uppercase tracking-wider">{fogRemoved ? 'Fog Removed' : 'Remove Fog'}</span>
+              {fogRemoved ? <Eye size={16} className="text-emerald-400" /> : <EyeOff size={16} className="text-slate-500" />}
+            </button>
+            <p className="text-[8px] text-slate-500 mt-1 italic leading-tight">
+              Reveals the world by disabling the fog-of-war overlay and first-person mist.
             </p>
 
             <button
