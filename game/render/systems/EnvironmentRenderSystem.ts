@@ -13,6 +13,7 @@ import { getCelestialPosition, getDaylightFactor, isDaytime } from '../../../eng
 import { isRainWeather, isStormWeather, normalizeWeatherState } from '../../../engine/weather/weatherModel';
 
 const WATER_REFLECTION_MATERIALS = [waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial] as THREE.Material[];
+const CELESTIAL_RENDER_ORDER = 10050;
 
 function tuneWaterReflectionForPhase(isNight: boolean): void {
     WATER_REFLECTION_MATERIALS.forEach((material) => {
@@ -118,10 +119,13 @@ export class EnvironmentRenderSystem {
             color: 0xffdd44,
             transparent: true,
             opacity: 0.95,
+            depthTest: false,
+            depthWrite: false,
             fog: false // Sun not affected by fog
         });
         const mesh = new THREE.Mesh(geo, mat);
-        mesh.renderOrder = 999; // Render on top
+        mesh.name = 'environment-sun-moon';
+        mesh.renderOrder = CELESTIAL_RENDER_ORDER;
         return mesh;
     }
 
