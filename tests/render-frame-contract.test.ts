@@ -9,6 +9,8 @@ const environmentRenderPath = path.join(root, 'game', 'render', 'systems', 'Envi
 const gameTypesPath = path.join(root, 'engine', 'types', 'game.ts');
 const stateManagerPath = path.join(root, 'engine', 'state', 'StateManager.ts');
 const persistenceManagerPath = path.join(root, 'engine', 'sim', 'PersistenceManager.ts');
+const debugMenuPath = path.join(root, 'components', 'DebugMenu.tsx');
+const useAureusEnginePath = path.join(root, 'game', 'useAureusEngine.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);
@@ -62,6 +64,38 @@ test('first person view anchors unexplored mist to the nearest persistent reveal
   }
 
   assertNoSnippet(text, 'scene.fog = new THREE.Fog(firstPersonFogColor, STARTER_FOG_CLEAR_RADIUS, STARTER_FOG_CLEAR_RADIUS + (STARTER_FOG_FEATHER_RADIUS * 3));');
+});
+
+test('system monitor can remove fog overlays completely', () => {
+  const debugMenu = source(debugMenuPath);
+  const useAureusEngine = source(useAureusEnginePath);
+  const renderFrame = source(renderFramePath);
+
+  for (const snippet of [
+    "dispatch({ type: 'REMOVE_FOG_OF_WAR' });",
+    'fogOfWarDisabled?: boolean',
+    "{fogRemoved ? 'Fog Removed' : 'Remove Fog'}",
+    'Remove fog of war from both map and first-person views',
+  ]) {
+    assertSnippet(debugMenu, snippet);
+  }
+
+  for (const snippet of [
+    "if (action?.type === 'REMOVE_FOG_OF_WAR')",
+    'fogOfWarDisabled: true,',
+    'version: (state.fogExploration?.version ?? 0) + 1,',
+    'reloadWorldState(world, updatedState);',
+  ]) {
+    assertSnippet(useAureusEngine, snippet);
+  }
+
+  for (const snippet of [
+    "if (state.fogOfWarDisabled || state.activeView !== 'SURFACE')",
+    'starterFogOfWarOverlay?.setVisible(false);',
+    'firstPersonFogOfWarMist?.setVisible(false);',
+  ]) {
+    assertSnippet(renderFrame, snippet);
+  }
 });
 
 test('environment sun and moon render above first person fog overlays', () => {
