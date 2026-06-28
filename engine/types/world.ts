@@ -59,6 +59,9 @@ export interface Chunk {
     version: number;
 }
 
+export type UtilityConnectionStatus = 'CONNECTED' | 'DISCONNECTED';
+export type WaterConnectionStatus = UtilityConnectionStatus | 'SHORTAGE';
+
 export interface GridTile {
     id: number; // Global or chunk-unique ID
     x: number; // World X
@@ -77,8 +80,8 @@ export interface GridTile {
     constructionTimeLeft?: number;
     structureHeadX?: number;
     structureHeadZ?: number;
-    waterStatus?: 'CONNECTED' | 'DISCONNECTED';
-    powerStatus?: 'CONNECTED' | 'DISCONNECTED';
+    waterStatus?: WaterConnectionStatus;
+    powerStatus?: UtilityConnectionStatus;
     rehabProgress?: number; // 0-100
     markedForHarvest?: boolean;
     explored?: boolean;
