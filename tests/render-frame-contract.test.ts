@@ -46,8 +46,8 @@ test('first person view anchors unexplored mist to the nearest persistent reveal
 
   for (const snippet of [
     'class FirstPersonFogOfWarMist',
-    'const FIRST_PERSON_MIST_HEIGHT = 18;',
-    'const FIRST_PERSON_MIST_GROUND_OFFSET = 0.25;',
+    'const FIRST_PERSON_MIST_HEIGHT = 2.5;',
+    'const FIRST_PERSON_MIST_GROUND_OFFSET = 0.05;',
     'getNearestCenter(point: THREE.Vector3): FogRevealCenter | null',
     'const center = fogExplorationTracker.getNearestCenter(cameraPosition)',
     "getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight, camera.position, () => deps.stateManager.markDirty?.('fogExploration'));",
