@@ -39,6 +39,7 @@ export class LinePlacementPreview {
     constructor(scene: THREE.Scene, getTerrainHeight: (worldX: number, worldZ: number) => number) {
         this.scene = scene;
         this.getTerrainHeight = getTerrainHeight;
+        this.group.name = 'line-placement-preview';
         this.group.renderOrder = 12;
         this.scene.add(this.group);
     }
