@@ -20,19 +20,25 @@ test('radio dispatch names utility-starved structures and connection pieces', ()
 
   for (const snippet of [
     "import { BUILDINGS } from '../engine/data/VoxelConstants';",
+    "import { getWaterDiagnostic } from '../engine/sim/utility/WaterDiagnostics';",
     'type UtilityAlert = {',
     'function getUtilityAlerts(state: GameState): UtilityAlert[]',
     "reason: 'power'",
     "connector: 'Power Line'",
+    'const waterDiagnostic = getWaterDiagnostic(tile, def);',
+    'if (waterDiagnostic.blocksProduction)',
     "reason: 'water'",
-    "connector: 'Pipe'",
+    "waterDiagnostic.code === 'SUPPLY_SHORTAGE' ? 'Water Supply' : 'Pipe'",
+    "detail: waterDiagnostic.label || 'water supply interrupted'",
     'const utilityAlerts = getUtilityAlerts(state);',
     'const firstAlert = utilityAlerts[0];',
-    '`${firstAlert.buildingName} at X${firstAlert.x}, Z${firstAlert.z} needs ${firstAlert.connector}`',
+    '`${firstAlert.buildingName} at X${firstAlert.x}, Z${firstAlert.z}: ${firstAlert.detail}`',
     'utilityAlerts.length > 1',
     'sites need attention.',
     'Connect the missing utility from Supply Command',
   ]) {
     assertSnippet(text, snippet);
   }
+
+  assert.equal(text.includes("def.water?.consumes && tile.waterStatus !== 'CONNECTED'"), false);
 });
