@@ -83,6 +83,8 @@ export interface GridTile {
     undergroundPipe?: boolean;
     undergroundPipeUnderConstruction?: boolean;
     undergroundPipePhase?: UndergroundPipeConstructionPhase;
+    undergroundPipeBlockCleared?: boolean;
+    undergroundPipeInstalled?: boolean;
     waterStatus?: UtilityConnectionStatus;
     waterShortage?: boolean;
     powerStatus?: UtilityConnectionStatus;
