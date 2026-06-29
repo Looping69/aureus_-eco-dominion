@@ -145,6 +145,14 @@ test('pipe tool uses two placement clicks instead of drag callbacks', () => {
     assert.equal(aureusWorld.includes('onTileDragEnd'), false);
 });
 
+test('pipe placement keeps the surface render fully visible', () => {
+    const renderFrame = source('game/world/renderFrame.ts');
+
+    assert.match(renderFrame, /function isUndergroundPipeToolActive\(state: any\): boolean \{/);
+    assert.match(renderFrame, /state\.selectedBuilding === BuildingType\.PIPE\s*&& false/);
+    assert.match(renderFrame, /getSurfacePipeToolTransparency\(\)\.update\(deps, isUndergroundPipeToolActive\(state\)\)/);
+});
+
 test('water view has a direct toggle in the controls', () => {
     const controls = source('components/Controls.tsx');
     const gameTypes = source('engine/types/game.ts');
