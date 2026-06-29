@@ -18,6 +18,26 @@ export const DEFAULT_VIEW_RADIUS = 6;
 
 import { ChunkStore } from '../space/ChunkStore';
 
+const WATER_PIPE_SUPPLY_RADIUS = 3;
+
+function hasWaterPipe(tile: GridTile | null | undefined): boolean {
+    return Boolean(tile && (tile.buildingType === BuildingType.PIPE || tile.undergroundPipe));
+}
+
+function isWaterSource(tile: GridTile | null | undefined): boolean {
+    return Boolean(tile && (tile.buildingType === BuildingType.WATER_WELL || tile.buildingType === BuildingType.POND));
+}
+
+function hasConnectedPipeInRadius(chunks: Record<string, Chunk>, connectedCoords: Set<string>, x: number, z: number): boolean {
+    for (let dz = -WATER_PIPE_SUPPLY_RADIUS; dz <= WATER_PIPE_SUPPLY_RADIUS; dz++) {
+        for (let dx = -WATER_PIPE_SUPPLY_RADIUS; dx <= WATER_PIPE_SUPPLY_RADIUS; dx++) {
+            const tile = ChunkStore.getTile(chunks, x + dx, z + dz);
+            if (hasWaterPipe(tile) && connectedCoords.has(`${x + dx},${z + dz}`)) return true;
+        }
+    }
+    return false;
+}
+
 /**
  * Propagates water connectivity across the entire chunked world.
  */
@@ -28,7 +48,7 @@ export function updateWaterConnectivity(chunks: Record<string, Chunk>): Record<s
     // 1. Seed queue with all Water Sources
     for (const chunk of Object.values(chunks)) {
         for (const tile of chunk.tiles) {
-            if (tile.buildingType === BuildingType.POND || tile.buildingType === BuildingType.WATER_WELL) {
+            if (isWaterSource(tile)) {
                 const key = `${tile.x},${tile.z}`;
                 if (!connectedCoords.has(key)) {
                     connectedCoords.add(key);
@@ -58,9 +78,9 @@ export function updateWaterConnectivity(chunks: Record<string, Chunk>): Record<s
             if (!tile) continue;
 
             // Propagation happens via pipes
-            const hasPipe = tile.buildingType === BuildingType.PIPE;
+            const hasPipe = hasWaterPipe(tile);
             // Also sources themselves act as nodes in the network
-            const isSource = tile.buildingType === BuildingType.WATER_WELL || tile.buildingType === BuildingType.POND;
+            const isSource = isWaterSource(tile);
 
             if (hasPipe || isSource) {
                 connectedCoords.add(key);
@@ -73,9 +93,9 @@ export function updateWaterConnectivity(chunks: Record<string, Chunk>): Record<s
     for (const chunk of Object.values(chunks)) {
         for (let i = 0; i < chunk.tiles.length; i++) {
             const tile = chunk.tiles[i];
-            const isNetworked = connectedCoords.has(`${tile.x},${tile.z}`);
+            const isNetworked = connectedCoords.has(`${tile.x},${tile.z}`) || hasConnectedPipeInRadius(chunks, connectedCoords, tile.x, tile.z);
 
-            if (tile.buildingType !== BuildingType.EMPTY) {
+            if (tile.buildingType !== BuildingType.EMPTY || tile.undergroundPipe) {
                 const newStatus = isNetworked ? 'CONNECTED' : 'DISCONNECTED';
                 if (tile.waterStatus !== newStatus) {
                     chunk.tiles[i] = { ...tile, waterStatus: newStatus };
@@ -112,11 +132,11 @@ export function isConnectedToWater(chunks: Record<string, Chunk>, startX: number
             const tile = ChunkStore.getTile(chunks, n.x, n.z);
             if (!tile) continue;
 
-            if (tile.buildingType === BuildingType.POND || tile.buildingType === BuildingType.WATER_WELL) {
+            if (isWaterSource(tile)) {
                 return true;
             }
 
-            if (tile.buildingType === BuildingType.PIPE) {
+            if (hasWaterPipe(tile)) {
                 visited.add(key);
                 queue.push(n);
             }
