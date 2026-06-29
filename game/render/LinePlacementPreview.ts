@@ -4,6 +4,8 @@ import { getInfrastructureAnchorY, getInfrastructurePreviewY } from '../../engin
 
 const PIPE_SUPPLY_RADIUS = 3;
 const PIPE_UNDERGROUND_PREVIEW_OFFSET = -0.35;
+const PIPE_PREVIEW_RADIUS = 0.095;
+const PIPE_PREVIEW_LENGTH = 0.9;
 
 const PREVIEW_COLORS: Partial<Record<BuildingType, number>> = {
     [BuildingType.ROAD]: 0x94a3b8,
@@ -72,10 +74,12 @@ export class LinePlacementPreview {
             const y = type === BuildingType.PIPE
                 ? getInfrastructurePreviewY(terrainY) + PIPE_UNDERGROUND_PREVIEW_OFFSET
                 : getInfrastructurePreviewY(terrainY);
-            const tile = new THREE.Mesh(
-                new THREE.BoxGeometry(0.86, 0.055, 0.86),
-                this.material
-            );
+            const tile = type === BuildingType.PIPE
+                ? this.createPipePreviewMesh(x, z, y, horizontal)
+                : new THREE.Mesh(
+                    new THREE.BoxGeometry(0.86, 0.055, 0.86),
+                    this.material
+                );
             tile.position.set(x, y, z);
             tile.renderOrder = 122;
             this.group.add(tile);
@@ -93,7 +97,9 @@ export class LinePlacementPreview {
             ? getInfrastructureAnchorY(this.getTerrainHeight(startX, startZ)) + PIPE_UNDERGROUND_PREVIEW_OFFSET
             : getInfrastructureAnchorY(this.getTerrainHeight(startX, startZ));
         const anchor = new THREE.Mesh(
-            new THREE.BoxGeometry(0.34, 0.16, 0.34),
+            type === BuildingType.PIPE
+                ? new THREE.SphereGeometry(0.19, 16, 10)
+                : new THREE.BoxGeometry(0.34, 0.16, 0.34),
             this.anchorMaterial
         );
         anchor.position.set(startX, anchorY, startZ);
@@ -111,6 +117,18 @@ export class LinePlacementPreview {
         this.material.dispose();
         this.anchorMaterial.dispose();
         this.pipeCoverageMaterial.dispose();
+    }
+
+    private createPipePreviewMesh(x: number, z: number, y: number, horizontal: boolean): THREE.Mesh {
+        const geometry = new THREE.CylinderGeometry(PIPE_PREVIEW_RADIUS, PIPE_PREVIEW_RADIUS, PIPE_PREVIEW_LENGTH, 18, 1, false);
+        if (horizontal) {
+            geometry.rotateZ(Math.PI / 2);
+        } else {
+            geometry.rotateX(Math.PI / 2);
+        }
+        const mesh = new THREE.Mesh(geometry, this.material);
+        mesh.position.set(x, y, z);
+        return mesh;
     }
 
     private collectPipeCoverage(pipeCoverage: Set<string>, centerX: number, centerZ: number): void {
