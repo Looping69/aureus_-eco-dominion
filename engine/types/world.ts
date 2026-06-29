@@ -60,6 +60,7 @@ export interface Chunk {
 }
 
 export type UtilityConnectionStatus = 'CONNECTED' | 'DISCONNECTED';
+export type UndergroundPipeConstructionPhase = 'EXCAVATE' | 'INSTALL' | 'COVER';
 
 export interface GridTile {
     id: number; // Global or chunk-unique ID
@@ -80,6 +81,8 @@ export interface GridTile {
     structureHeadX?: number;
     structureHeadZ?: number;
     undergroundPipe?: boolean;
+    undergroundPipeUnderConstruction?: boolean;
+    undergroundPipePhase?: UndergroundPipeConstructionPhase;
     waterStatus?: UtilityConnectionStatus;
     waterShortage?: boolean;
     powerStatus?: UtilityConnectionStatus;
