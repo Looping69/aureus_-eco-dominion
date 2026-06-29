@@ -591,11 +591,17 @@ function getUtilityAlerts(tile: any, currentDef: any): UtilityAlert[] {
                 title: `${currentDef.name} offline: no power`,
                 detail: 'Connect a live power line or add generation. Brownouts prioritize housing, reservoirs, then industry.'
             });
-        } else if (reason === 'Water-starved') {
+        } else if (reason === 'No pipe connection') {
             alerts.push({
                 kind: 'danger',
-                title: `${currentDef.name} water-starved`,
-                detail: 'Connect pipes to a producing source or increase water output before production can stabilize.'
+                title: `${currentDef.name}: no pipe connection`,
+                detail: 'Connect pipes from a producing water source before this building can run reliably.'
+            });
+        } else if (reason === 'Water shortage: add supply') {
+            alerts.push({
+                kind: 'danger',
+                title: `${currentDef.name}: water shortage`,
+                detail: 'This building is piped, but total water demand is higher than supply. Add wells, reservoirs, or reduce demand.'
             });
         } else if (reason === 'Reservoir underpowered: 25% output') {
             alerts.push({
