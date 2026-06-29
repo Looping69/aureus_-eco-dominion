@@ -108,18 +108,19 @@ export function placeBuildingCore(
     state: GameState,
     isInstant: boolean = false,
     level: number = 1,
+    skipInventorySpend: boolean = false,
 ): CommandResult {
     const def = BUILDINGS[buildingType];
     if (!def) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Unknown building type: ${buildingType}` };
 
     const available = state.inventory?.[buildingType] || 0;
-    if (!state.cheatsEnabled && available <= 0) {
+    if (!skipInventorySpend && !state.cheatsEnabled && available <= 0) {
         state.pendingEffects.push({ type: 'AUDIO', sfx: 'ERROR' as any });
         return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: `No ${def.name} in inventory` };
     }
 
     if (buildingType === BuildingType.PIPE) {
-        return placeUndergroundPipe(x, z, state);
+        return placeUndergroundPipe(x, z, state, skipInventorySpend);
     }
 
     const w = def.width || 1;
@@ -197,12 +198,12 @@ export function placeBuildingCore(
     }
     state.pendingEffects.push({ type: 'AUDIO', sfx: 'BUILD_START' as any });
 
-    spendInventory(state, buildingType);
+    if (!skipInventorySpend) spendInventory(state, buildingType);
 
     return { ok: true };
 }
 
-function placeUndergroundPipe(x: number, z: number, state: GameState): CommandResult {
+function placeUndergroundPipe(x: number, z: number, state: GameState, skipInventorySpend: boolean = false): CommandResult {
     const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
     ChunkStore.ensureChunk(state.chunks, cx, cz, state.seed);
     const tile = ChunkStore.getTile(state.chunks, x, z);
@@ -249,7 +250,7 @@ function placeUndergroundPipe(x: number, z: number, state: GameState): CommandRe
 
     state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
     state.pendingEffects.push({ type: 'AUDIO', sfx: 'BUILD_START' as any });
-    spendInventory(state, BuildingType.PIPE);
+    if (!skipInventorySpend) spendInventory(state, BuildingType.PIPE);
 
     return { ok: true };
 }
