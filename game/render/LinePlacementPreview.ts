@@ -7,7 +7,7 @@ const PIPE_UNDERGROUND_PREVIEW_OFFSET = -0.35;
 
 const PREVIEW_COLORS: Partial<Record<BuildingType, number>> = {
     [BuildingType.ROAD]: 0x94a3b8,
-    [BuildingType.PIPE]: 0x22d3ee,
+    [BuildingType.PIPE]: 0x67e8f9,
     [BuildingType.POWER_LINE]: 0xfacc15,
     [BuildingType.FENCE]: 0x34d399,
 };
@@ -17,36 +17,42 @@ export class LinePlacementPreview {
     private getTerrainHeight: (worldX: number, worldZ: number) => number;
     private group = new THREE.Group();
     private material = new THREE.MeshBasicMaterial({
-        color: 0x22d3ee,
+        color: 0x67e8f9,
         transparent: true,
-        opacity: 0.55,
+        opacity: 0.82,
         depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
     });
     private anchorMaterial = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.92,
         depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
     });
     private pipeCoverageMaterial = new THREE.MeshBasicMaterial({
-        color: 0x22d3ee,
+        color: 0x67e8f9,
         transparent: true,
-        opacity: 0.18,
+        opacity: 0.28,
         depthWrite: false,
+        depthTest: false,
         side: THREE.DoubleSide,
+        toneMapped: false,
     });
 
     constructor(scene: THREE.Scene, getTerrainHeight: (worldX: number, worldZ: number) => number) {
         this.scene = scene;
         this.getTerrainHeight = getTerrainHeight;
         this.group.name = 'line-placement-preview';
-        this.group.renderOrder = 12;
+        this.group.renderOrder = 120;
         this.scene.add(this.group);
     }
 
     setLine(startX: number, startZ: number, endX: number, endZ: number, type: BuildingType, available: number = Infinity): void {
         this.clearChildren();
-        this.material.color.setHex(PREVIEW_COLORS[type] ?? 0x22d3ee);
+        this.material.color.setHex(PREVIEW_COLORS[type] ?? 0x67e8f9);
 
         const deltaX = endX - startX;
         const deltaZ = endZ - startZ;
@@ -71,6 +77,7 @@ export class LinePlacementPreview {
                 this.material
             );
             tile.position.set(x, y, z);
+            tile.renderOrder = 122;
             this.group.add(tile);
 
             if (type === BuildingType.PIPE) {
@@ -90,6 +97,7 @@ export class LinePlacementPreview {
             this.anchorMaterial
         );
         anchor.position.set(startX, anchorY, startZ);
+        anchor.renderOrder = 123;
         this.group.add(anchor);
     }
 
@@ -122,7 +130,7 @@ export class LinePlacementPreview {
                 this.pipeCoverageMaterial
             );
             tile.position.set(x, y, z);
-            tile.renderOrder = 11;
+            tile.renderOrder = 121;
             this.group.add(tile);
         }
     }
