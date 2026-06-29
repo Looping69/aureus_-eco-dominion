@@ -79,6 +79,7 @@ export interface GridTile {
     constructionTimeLeft?: number;
     structureHeadX?: number;
     structureHeadZ?: number;
+    undergroundPipe?: boolean;
     waterStatus?: UtilityConnectionStatus;
     waterShortage?: boolean;
     powerStatus?: UtilityConnectionStatus;
