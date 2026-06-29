@@ -48,6 +48,25 @@ test('infrastructure line helper snaps diagonal drags to the dominant axis', () 
     assert.equal(plan.placeCount, 5);
 });
 
+test('infrastructure line helper supports dragged pipe runs', () => {
+    const plan = getInfrastructureLinePlan(
+        2,
+        4,
+        2,
+        7,
+        BuildingType.PIPE,
+        stateWithInventory({ [BuildingType.PIPE]: 20 })
+    );
+
+    assert.ok(plan);
+    assert.equal(plan.finalX, 2);
+    assert.equal(plan.finalZ, 7);
+    assert.equal(plan.stepX, 0);
+    assert.equal(plan.stepZ, 1);
+    assert.equal(plan.requestedLength, 4);
+    assert.equal(plan.placeCount, 4);
+});
+
 test('infrastructure line helper limits placement by inventory unless cheats are enabled', () => {
     const limitedPlan = getInfrastructureLinePlan(
         0,
@@ -82,10 +101,38 @@ test('pipe line preview shows the underground layer and three tile supplied area
 
     assert.match(preview, /const PIPE_SUPPLY_RADIUS = 3;/);
     assert.match(preview, /const PIPE_UNDERGROUND_PREVIEW_OFFSET = -0\.35;/);
+    assert.match(preview, /line-placement-preview/);
     assert.match(preview, /pipeCoverageMaterial/);
     assert.match(preview, /collectPipeCoverage/);
     assert.match(preview, /addPipeCoverageTiles/);
     assert.match(preview, /type === BuildingType\.PIPE/);
+});
+
+test('pipe tool drag path previews and places infrastructure lines', () => {
+    const inputSystem = source('engine/input/InputSystem.ts');
+    const aureusWorld = source('game/AureusWorld.ts');
+
+    assert.match(inputSystem, /onTileDragStart/);
+    assert.match(inputSystem, /onTileDragMove/);
+    assert.match(inputSystem, /onTileDragEnd/);
+    assert.match(inputSystem, /handleTileDragMove/);
+    assert.match(inputSystem, /handleTileDragEnd/);
+    assert.match(aureusWorld, /handleInfrastructureLineDragStart/);
+    assert.match(aureusWorld, /handleInfrastructureLineDragMove/);
+    assert.match(aureusWorld, /handleInfrastructureLineDragEnd/);
+    assert.match(aureusWorld, /previewInfrastructureLine\(startX, startZ, endX, endZ, buildingType\)/);
+    assert.match(aureusWorld, /placeInfrastructureLine\(startX, startZ, endX, endZ, buildingType\)/);
+});
+
+test('pipe tool fades the surface while underground placement is active', () => {
+    const renderFrame = source('game/world/renderFrame.ts');
+
+    assert.match(renderFrame, /PIPE_TOOL_SURFACE_OPACITY = 0\.28/);
+    assert.match(renderFrame, /PIPE_TOOL_WATER_OPACITY = 0\.18/);
+    assert.match(renderFrame, /class SurfacePipeToolTransparency/);
+    assert.match(renderFrame, /state\.selectedBuilding === BuildingType\.PIPE/);
+    assert.match(renderFrame, /getSurfacePipeToolTransparency\(\)\.update\(deps, isUndergroundPipeToolActive\(state\)\)/);
+    assert.match(renderFrame, /getSurfacePipeToolTransparency\(\)\.update\(deps, false\)/);
 });
 
 test('AureusWorld delegates infrastructure line math to the shared helper', () => {
