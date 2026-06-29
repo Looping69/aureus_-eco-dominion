@@ -10,9 +10,7 @@ export function getPowerReadability(tile: GridTile, def: BuildingDef): string | 
 }
 
 export function getWaterReadability(tile: GridTile, def: BuildingDef): string | null {
-    const diagnostic = getWaterDiagnostic(tile, def);
-    if (diagnostic.code === 'NO_PIPE_CONNECTION') return 'Water-starved';
-    return diagnostic.label;
+    return getWaterDiagnostic(tile, def).label;
 }
 
 export function getProducerReadability(tile: GridTile, def: BuildingDef): string | null {
