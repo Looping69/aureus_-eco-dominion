@@ -11,6 +11,7 @@ import { BUILDINGS } from '../../data/VoxelConstants';
 import { ChunkStore } from '../../space/ChunkStore';
 import { getWeatherGameplayEffects } from '../../weather/weatherModel';
 
+const PIPE_SUPPLY_RADIUS = 3;
 
 export class WaterNetworkSystem extends BaseSimSystem {
     readonly id = 'waterNetwork';
@@ -43,10 +44,10 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 if (!tile) continue;
 
                 const def = BUILDINGS[tile.buildingType];
-                if (!def) continue;
 
                 // Reset status primarily for Pipes and Consumers
-                const isWaterParticipant = tile.buildingType === BuildingType.PIPE || Boolean(def.water?.produces || def.water?.consumes);
+                const isPipe = this.isPipeTile(tile);
+                const isWaterParticipant = isPipe || Boolean(def?.water?.produces || def?.water?.consumes);
                 if (isWaterParticipant) {
                     if (tile.isUnderConstruction) {
                         tile.waterStatus = undefined;
@@ -57,6 +58,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
                     tile.waterShortage = false;
                 }
 
+                if (!def) continue;
                 if (!this.isStructureHead(tile)) continue;
 
                 // Sources start connected and count once per structure, not once per footprint tile.
@@ -83,10 +85,11 @@ export class WaterNetworkSystem extends BaseSimSystem {
 
 
         // 2. BFS Propagation
-        // Flows from Sources -> Pipes -> Pipes/Consumers
+        // Flows from Sources -> Pipes. Connected pipes supply consumers within a small underground service radius.
         let head = 0;
         while (head < openSet.length) {
             const { x, z } = openSet[head++];
+            this.markNearbyConsumersConnected(state, x, z, suppliedTiles);
 
             // Get neighbors (NSEW)
             const neighbors = [
@@ -104,21 +107,12 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 const neighbor = ChunkStore.getTile(state.chunks, nx, nz);
                 if (!neighbor || neighbor.isUnderConstruction) continue;
 
-                const nDef = BUILDINGS[neighbor.buildingType];
-                if (!nDef) continue;
-
                 // If it's a Pipe, it accepts water and continues the flow
-                if (neighbor.buildingType === BuildingType.PIPE) {
+                if (this.isPipeTile(neighbor)) {
                     neighbor.waterStatus = 'CONNECTED';
                     neighbor.waterShortage = false;
                     suppliedTiles.add(key);
                     openSet.push({ x: nx, z: nz }); // Continue flow
-                }
-                // If it's a Consumer, it accepts water but STOPS flow (terminal node)
-                else if (nDef.water?.consumes) {
-                    const headTile = this.getStructureHeadTile(state, neighbor);
-                    this.markStructureWaterStatus(state, headTile, 'CONNECTED', false, suppliedTiles);
-                    // Do NOT push to openSet; consumers don't output water to neighbors
                 }
             }
         }
@@ -193,6 +187,25 @@ export class WaterNetworkSystem extends BaseSimSystem {
             BuildingType.WORKSHOP,
             BuildingType.GREEN_TECH_LAB,
         ].includes(type);
+    }
+
+    private isPipeTile(tile: GridTile): boolean {
+        return tile.buildingType === BuildingType.PIPE || tile.undergroundPipe === true;
+    }
+
+    private markNearbyConsumersConnected(state: GameState, centerX: number, centerZ: number, suppliedTiles: Set<string>): void {
+        for (let dz = -PIPE_SUPPLY_RADIUS; dz <= PIPE_SUPPLY_RADIUS; dz++) {
+            for (let dx = -PIPE_SUPPLY_RADIUS; dx <= PIPE_SUPPLY_RADIUS; dx++) {
+                if (Math.max(Math.abs(dx), Math.abs(dz)) > PIPE_SUPPLY_RADIUS) continue;
+                const tile = ChunkStore.getTile(state.chunks, centerX + dx, centerZ + dz);
+                if (!tile || tile.isUnderConstruction) continue;
+                const def = BUILDINGS[tile.buildingType];
+                if (!def?.water?.consumes) continue;
+
+                const headTile = this.getStructureHeadTile(state, tile);
+                this.markStructureWaterStatus(state, headTile, 'CONNECTED', false, suppliedTiles);
+            }
+        }
     }
 
     private isStructureHead(tile: GridTile): boolean {
