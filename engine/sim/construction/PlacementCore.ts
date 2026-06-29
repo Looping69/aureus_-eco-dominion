@@ -9,6 +9,13 @@ export interface CompletedConstructionResult {
     affectedChunks: Set<string>;
 }
 
+function getPipeConstructionPhase(timeLeft: number, buildTime: number): GridTile['undergroundPipePhase'] {
+    const progress = buildTime <= 0 ? 1 : 1 - (timeLeft / buildTime);
+    if (progress < 0.34) return 'EXCAVATE';
+    if (progress < 0.67) return 'INSTALL';
+    return 'COVER';
+}
+
 export function completeConstructionCore(
     hx: number,
     hz: number,
@@ -16,6 +23,21 @@ export function completeConstructionCore(
 ): CompletedConstructionResult | null {
     const headTile = ChunkStore.getTile(state.chunks, hx, hz);
     if (!headTile) return null;
+
+    if (headTile.undergroundPipeUnderConstruction) {
+        headTile.undergroundPipe = true;
+        headTile.undergroundPipeUnderConstruction = false;
+        headTile.undergroundPipePhase = undefined;
+        headTile.isUnderConstruction = false;
+        headTile.constructionTimeLeft = 0;
+        headTile.structureHeadX = undefined;
+        headTile.structureHeadZ = undefined;
+        headTile.waterStatus = 'DISCONNECTED';
+        headTile.waterShortage = false;
+
+        const { cx, cz } = worldToChunk(hx, hz, CHUNK_SIZE);
+        return { headTile, affectedChunks: new Set([`${cx},${cz}`]) };
+    }
 
     const def = BUILDINGS[headTile.buildingType];
     if (!def) return null;
@@ -66,6 +88,11 @@ export function progressConstructionCore(
 
     headTile.constructionTimeLeft = Math.max(0, (headTile.constructionTimeLeft || 0) - amount);
 
+    if (headTile.undergroundPipeUnderConstruction) {
+        const buildTime = BUILDINGS[BuildingType.PIPE]?.buildTime || 1;
+        headTile.undergroundPipePhase = getPipeConstructionPhase(headTile.constructionTimeLeft || 0, buildTime);
+    }
+
     if (headTile.constructionTimeLeft <= 0) {
         completeConstruction(hx, hz, state);
         return true;
@@ -110,11 +137,17 @@ export function placeBuildingCore(
 
             if (tile.buildingType === BuildingType.PIPE) {
                 tile.undergroundPipe = true;
+                tile.undergroundPipeUnderConstruction = false;
+                tile.undergroundPipePhase = undefined;
                 tile.buildingType = BuildingType.EMPTY;
                 tile.isUnderConstruction = false;
                 tile.constructionTimeLeft = 0;
                 tile.structureHeadX = undefined;
                 tile.structureHeadZ = undefined;
+            }
+
+            if (tile.undergroundPipeUnderConstruction) {
+                return { ok: false, code: CommandErrorCode.ALREADY_PROCESSING, reason: `Tile at (${tx}, ${tz}) is being excavated for a pipe` };
             }
 
             if (tile.buildingType !== BuildingType.EMPTY && tile.buildingType !== BuildingType.POND) {
@@ -175,26 +208,43 @@ function placeUndergroundPipe(x: number, z: number, state: GameState): CommandRe
     const tile = ChunkStore.getTile(state.chunks, x, z);
     if (!tile) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Tile at (${x}, ${z}) not found despite generation` };
 
-    if (tile.undergroundPipe || tile.buildingType === BuildingType.PIPE) {
+    if (tile.undergroundPipe || tile.undergroundPipeUnderConstruction || tile.buildingType === BuildingType.PIPE) {
         return { ok: false, code: CommandErrorCode.TILE_OCCUPIED, reason: `Tile at (${x}, ${z}) already has an underground pipe` };
     }
 
-    tile.undergroundPipe = true;
+    if (tile.buildingType !== BuildingType.EMPTY && tile.buildingType !== BuildingType.POND) {
+        return { ok: false, code: CommandErrorCode.TILE_OCCUPIED, reason: `Clear the surface tile at (${x}, ${z}) before excavating a pipe` };
+    }
+
+    tile.undergroundPipe = false;
+    tile.undergroundPipeUnderConstruction = true;
+    tile.undergroundPipePhase = 'EXCAVATE';
+    tile.isUnderConstruction = true;
+    tile.constructionTimeLeft = BUILDINGS[BuildingType.PIPE]?.buildTime || 1;
+    tile.structureHeadX = x;
+    tile.structureHeadZ = z;
     tile.explored = true;
     tile.waterStatus = 'DISCONNECTED';
     tile.waterShortage = false;
-
-    if (tile.buildingType === BuildingType.EMPTY) {
-        tile.isUnderConstruction = false;
-        tile.constructionTimeLeft = 0;
-        tile.structureHeadX = undefined;
-        tile.structureHeadZ = undefined;
-    }
+    tile.foliage = 'NONE';
+    tile.markedForHarvest = false;
 
     const chunk = state.chunks[`${cx},${cz}`];
     if (chunk) {
         chunk.meshDirty = true;
         chunk.simDirty = true;
+    }
+
+    const existingJob = state.jobs.some(job => job.type === 'BUILD' && job.targetX === x && job.targetZ === z);
+    if (!existingJob) {
+        state.jobs.push({
+            id: `build_pipe_${x}_${z}_${state.tickCount}`,
+            type: 'BUILD',
+            targetX: x,
+            targetZ: z,
+            priority: 30,
+            assignedAgentId: null,
+        });
     }
 
     state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
