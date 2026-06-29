@@ -77,6 +77,17 @@ test('infrastructure line helper limits placement by inventory unless cheats are
     assert.equal(cheatPlan.placeCount, 7);
 });
 
+test('pipe line preview shows the underground layer and three tile supplied area', () => {
+    const preview = source('game/render/LinePlacementPreview.ts');
+
+    assert.match(preview, /const PIPE_SUPPLY_RADIUS = 3;/);
+    assert.match(preview, /const PIPE_UNDERGROUND_PREVIEW_OFFSET = -0\.35;/);
+    assert.match(preview, /pipeCoverageMaterial/);
+    assert.match(preview, /collectPipeCoverage/);
+    assert.match(preview, /addPipeCoverageTiles/);
+    assert.match(preview, /type === BuildingType\.PIPE/);
+});
+
 test('AureusWorld delegates infrastructure line math to the shared helper', () => {
     const aureusWorld = source('game/AureusWorld.ts');
 
