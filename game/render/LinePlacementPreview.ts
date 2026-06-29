@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { BuildingType } from '../../types';
 import { getInfrastructureAnchorY, getInfrastructurePreviewY } from '../../engine/render/utils/GroundAnchors';
 
+const PIPE_SUPPLY_RADIUS = 3;
+const PIPE_UNDERGROUND_PREVIEW_OFFSET = -0.35;
+
 const PREVIEW_COLORS: Partial<Record<BuildingType, number>> = {
     [BuildingType.ROAD]: 0x94a3b8,
     [BuildingType.PIPE]: 0x22d3ee,
@@ -25,6 +28,13 @@ export class LinePlacementPreview {
         opacity: 0.85,
         depthWrite: false,
     });
+    private pipeCoverageMaterial = new THREE.MeshBasicMaterial({
+        color: 0x22d3ee,
+        transparent: true,
+        opacity: 0.18,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+    });
 
     constructor(scene: THREE.Scene, getTerrainHeight: (worldX: number, worldZ: number) => number) {
         this.scene = scene;
@@ -46,20 +56,34 @@ export class LinePlacementPreview {
         const stepZ = Math.sign(finalZ - startZ);
         const requestedLength = Math.max(Math.abs(finalX - startX), Math.abs(finalZ - startZ)) + 1;
         const count = Math.max(1, Math.min(requestedLength, available));
+        const pipeCoverage = new Set<string>();
 
         for (let i = 0; i < count; i++) {
             const x = startX + stepX * i;
             const z = startZ + stepZ * i;
-            const y = getInfrastructurePreviewY(this.getTerrainHeight(x, z));
+            const terrainY = this.getTerrainHeight(x, z);
+            const y = type === BuildingType.PIPE
+                ? getInfrastructurePreviewY(terrainY) + PIPE_UNDERGROUND_PREVIEW_OFFSET
+                : getInfrastructurePreviewY(terrainY);
             const tile = new THREE.Mesh(
                 new THREE.BoxGeometry(0.86, 0.055, 0.86),
                 this.material
             );
             tile.position.set(x, y, z);
             this.group.add(tile);
+
+            if (type === BuildingType.PIPE) {
+                this.collectPipeCoverage(pipeCoverage, x, z);
+            }
         }
 
-        const anchorY = getInfrastructureAnchorY(this.getTerrainHeight(startX, startZ));
+        if (type === BuildingType.PIPE) {
+            this.addPipeCoverageTiles(pipeCoverage);
+        }
+
+        const anchorY = type === BuildingType.PIPE
+            ? getInfrastructureAnchorY(this.getTerrainHeight(startX, startZ)) + PIPE_UNDERGROUND_PREVIEW_OFFSET
+            : getInfrastructureAnchorY(this.getTerrainHeight(startX, startZ));
         const anchor = new THREE.Mesh(
             new THREE.BoxGeometry(0.34, 0.16, 0.34),
             this.anchorMaterial
@@ -77,6 +101,29 @@ export class LinePlacementPreview {
         this.scene.remove(this.group);
         this.material.dispose();
         this.anchorMaterial.dispose();
+        this.pipeCoverageMaterial.dispose();
+    }
+
+    private collectPipeCoverage(pipeCoverage: Set<string>, centerX: number, centerZ: number): void {
+        for (let dz = -PIPE_SUPPLY_RADIUS; dz <= PIPE_SUPPLY_RADIUS; dz++) {
+            for (let dx = -PIPE_SUPPLY_RADIUS; dx <= PIPE_SUPPLY_RADIUS; dx++) {
+                pipeCoverage.add(`${centerX + dx},${centerZ + dz}`);
+            }
+        }
+    }
+
+    private addPipeCoverageTiles(pipeCoverage: Set<string>): void {
+        for (const key of pipeCoverage) {
+            const [x, z] = key.split(',').map(Number);
+            const y = this.getTerrainHeight(x, z) + 0.075;
+            const tile = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.92, 0.92).rotateX(-Math.PI / 2),
+                this.pipeCoverageMaterial
+            );
+            tile.position.set(x, y, z);
+            tile.renderOrder = 11;
+            this.group.add(tile);
+        }
     }
 
     private clearChildren(): void {
