@@ -56,6 +56,7 @@ export function completeConstructionCore(
         headTile.undergroundPipePhase = undefined;
         headTile.undergroundPipeBlockCleared = false;
         headTile.undergroundPipeInstalled = true;
+        headTile.buildingType = BuildingType.EMPTY;
         headTile.isUnderConstruction = false;
         headTile.constructionTimeLeft = 0;
         headTile.structureHeadX = undefined;
@@ -166,6 +167,10 @@ export function placeBuildingCore(
             const tile = ChunkStore.getTile(state.chunks, tx, tz);
             if (!tile) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Tile at (${tx}, ${tz}) not found despite generation` };
 
+            if (tile.undergroundPipeUnderConstruction) {
+                return { ok: false, code: CommandErrorCode.ALREADY_PROCESSING, reason: `Tile at (${tx}, ${tz}) is being excavated for a pipe` };
+            }
+
             if (tile.buildingType === BuildingType.PIPE) {
                 tile.undergroundPipe = true;
                 tile.undergroundPipeUnderConstruction = false;
@@ -177,10 +182,6 @@ export function placeBuildingCore(
                 tile.constructionTimeLeft = 0;
                 tile.structureHeadX = undefined;
                 tile.structureHeadZ = undefined;
-            }
-
-            if (tile.undergroundPipeUnderConstruction) {
-                return { ok: false, code: CommandErrorCode.ALREADY_PROCESSING, reason: `Tile at (${tx}, ${tz}) is being excavated for a pipe` };
             }
 
             if (tile.buildingType !== BuildingType.EMPTY && tile.buildingType !== BuildingType.POND) {
@@ -249,6 +250,7 @@ function placeUndergroundPipe(x: number, z: number, state: GameState, skipInvent
         return { ok: false, code: CommandErrorCode.TILE_OCCUPIED, reason: `Clear the surface tile at (${x}, ${z}) before excavating a pipe` };
     }
 
+    tile.buildingType = BuildingType.PIPE;
     tile.undergroundPipe = false;
     tile.undergroundPipeUnderConstruction = true;
     tile.undergroundPipePhase = 'EXCAVATE';
