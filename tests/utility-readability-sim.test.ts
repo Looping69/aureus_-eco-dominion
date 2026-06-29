@@ -32,7 +32,19 @@ test('utility readability reports local consumer failures', () => {
         washPlant
     );
 
-    assert.deepEqual(reasons, ['Offline: no power', 'Water-starved']);
+    assert.deepEqual(reasons, ['Offline: no power', 'No pipe connection']);
+});
+
+test('utility readability reports water supply shortages separately from missing pipes', () => {
+    const washPlant = BUILDINGS[BuildingType.WASH_PLANT];
+    assert.ok(washPlant, 'expected wash plant building definition');
+
+    const reasons = getUtilityReadability(
+        tile(BuildingType.WASH_PLANT, 'CONNECTED', 'DISCONNECTED', true),
+        washPlant
+    );
+
+    assert.deepEqual(reasons, ['Water shortage: add supply']);
 });
 
 test('utility readability stays quiet for fully supplied consumers', () => {
