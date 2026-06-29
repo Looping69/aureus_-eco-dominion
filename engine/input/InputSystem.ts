@@ -12,8 +12,6 @@ type TerrainPickSceneData = THREE.Scene['userData'] & {
     intersectTerrain?: (raycaster: THREE.Raycaster) => THREE.Intersection | null;
 };
 
-type TileHit = { x: number; z: number; point: THREE.Vector3 };
-
 export class InputSystem {
     private raycaster: THREE.Raycaster;
     private mouse: THREE.Vector2;
@@ -21,9 +19,6 @@ export class InputSystem {
     private rayPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     private dragStartPoint = new THREE.Vector3();
     private dragStartScreen = new THREE.Vector2();
-    private dragStartHit: TileHit | null = null;
-    private dragCurrentHit: TileHit | null = null;
-    private dragCallbacksStarted = false;
     private isDragging = false;
     private isRightClick = false;
     private activePointers: Set<number> = new Set();
@@ -40,9 +35,6 @@ export class InputSystem {
     public onTileClick?: (x: number, z: number, isTouch: boolean, clientX: number, clientY: number) => void;
     public onTileRightClick?: (x: number, z: number, isTouch: boolean, clientX: number, clientY: number) => void;
     public onTileHover?: (x: number | null, z: number | null, clientX: number, clientY: number) => void;
-    public onTileDragStart?: (x: number, z: number, isTouch: boolean, clientX: number, clientY: number) => void;
-    public onTileDragMove?: (startX: number, startZ: number, endX: number, endZ: number, isTouch: boolean, clientX: number, clientY: number) => void;
-    public onTileDragEnd?: (startX: number, startZ: number, endX: number, endZ: number, isTouch: boolean, clientX: number, clientY: number) => void;
 
     constructor(renderAdapter: ThreeRenderAdapter, getTerrainHeight: (worldX: number, worldZ: number) => number) {
         this.renderAdapter = renderAdapter;
@@ -109,11 +101,7 @@ export class InputSystem {
         }
         if (this.activePointers.size === 1) {
             this.isDragging = false; // Assume click until moved
-            this.dragCallbacksStarted = false;
             this.dragStartScreen.set(e.clientX, e.clientY);
-            this.dragStartHit = this.isDungeonPointerMode() ? null : this.getIntersection(e.clientX, e.clientY);
-            this.dragCurrentHit = this.dragStartHit;
-            if (this.dragStartHit) this.dragStartPoint.copy(this.dragStartHit.point);
             this.isRightClick = (e.button === 2 || e.pointerType === 'touch' && e.isPrimary === false);
         }
     }
@@ -132,11 +120,6 @@ export class InputSystem {
             if (dist > 5) {
                 this.isDragging = true;
             }
-        }
-
-        if (this.isDragging && !this.isRightClick && !this.hadMultiTouchGesture) {
-            this.handleTileDragMove(e);
-            return;
         }
 
         // Hover Logic
@@ -164,12 +147,6 @@ export class InputSystem {
     }
 
     private handlePointerUp(e: PointerEvent) {
-        const wasDragging = this.isDragging;
-        const hadMultiTouch = this.hadMultiTouchGesture;
-        if (wasDragging && !this.isRightClick && !hadMultiTouch) {
-            this.handleTileDragEnd(e);
-        }
-
         const shouldHandleClick = shouldHandlePointerUp({
             pointerId: e.pointerId,
             activePointerIds: this.activePointers,
@@ -190,9 +167,6 @@ export class InputSystem {
         }
 
         this.isDragging = false;
-        this.dragCallbacksStarted = false;
-        this.dragStartHit = null;
-        this.dragCurrentHit = null;
         if (this.activePointers.size <= 1) {
             this.hadMultiTouchGesture = false;
         }
@@ -210,7 +184,7 @@ export class InputSystem {
         return this.renderAdapter.getCamera().layers.isEnabled(1);
     }
 
-    private getIntersection(clientX: number, clientY: number): TileHit | null {
+    private getIntersection(clientX: number, clientY: number): { x: number, z: number, point: THREE.Vector3 } | null {
         // Normalized Device Coordinates
         const rect = this.domElement.getBoundingClientRect();
         this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
@@ -242,7 +216,7 @@ export class InputSystem {
             // If we're close enough (within 0.1 units), accept this result
             if (Math.abs(terrainHeight - currentPlaneHeight) < 0.1) {
                 hit.y = terrainHeight;
-                return { x: tileX, z: tileZ, point: hit.clone() };
+                return { x: tileX, z: tileZ, point: hit };
             }
 
             // Refine: use terrain height for next iteration
@@ -253,52 +227,12 @@ export class InputSystem {
         const tileX = Math.round(target.x);
         const tileZ = Math.round(target.z);
         target.y = this.getTerrainHeight(target.x, target.z);
-        return { x: tileX, z: tileZ, point: target.clone() };
+        return { x: tileX, z: tileZ, point: target };
     }
 
     private getPreciseTerrainHit(): THREE.Intersection | null {
         const sceneData = this.renderAdapter.getScene().userData as TerrainPickSceneData;
         return sceneData.intersectTerrain?.(this.raycaster) ?? null;
-    }
-
-    private handleTileDragMove(e: PointerEvent): void {
-        if (this.isDungeonPointerMode() || !this.dragStartHit) return;
-        const hit = this.getIntersection(e.clientX, e.clientY);
-        if (!hit) return;
-
-        const isTouch = e.pointerType === 'touch';
-        this.dragCurrentHit = hit;
-        if (!this.dragCallbacksStarted) {
-            this.dragCallbacksStarted = true;
-            this.onTileDragStart?.(this.dragStartHit.x, this.dragStartHit.z, isTouch, e.clientX, e.clientY);
-        }
-
-        this.onTileDragMove?.(
-            this.dragStartHit.x,
-            this.dragStartHit.z,
-            hit.x,
-            hit.z,
-            isTouch,
-            e.clientX,
-            e.clientY,
-        );
-    }
-
-    private handleTileDragEnd(e: PointerEvent): void {
-        if (this.isDungeonPointerMode() || !this.dragStartHit) return;
-        const hit = this.getIntersection(e.clientX, e.clientY) ?? this.dragCurrentHit;
-        if (!hit) return;
-
-        const isTouch = e.pointerType === 'touch';
-        this.onTileDragEnd?.(
-            this.dragStartHit.x,
-            this.dragStartHit.z,
-            hit.x,
-            hit.z,
-            isTouch,
-            e.clientX,
-            e.clientY,
-        );
     }
 
     private handleClick(x: number, y: number, isRight: boolean, isTouch: boolean) {
