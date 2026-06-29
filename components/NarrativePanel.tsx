@@ -1,7 +1,9 @@
 import React from 'react';
 import { ChevronUp, Maximize2, Radio, Signal, Trees, Users, Zap } from 'lucide-react';
 import { BuildingType, Era, GameState, SfxType } from '../types';
+import type { BuildingDef, GridTile } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { getWaterDiagnostic } from '../engine/sim/utility/WaterDiagnostics';
 
 interface NarrativePanelProps {
     state: GameState;
@@ -25,7 +27,8 @@ type UtilityAlert = {
     x: number;
     z: number;
     reason: 'power' | 'water';
-    connector: 'Power Line' | 'Pipe';
+    connector: 'Power Line' | 'Pipe' | 'Water Supply';
+    detail: string;
 };
 
 const STORAGE_KEY = 'aureus_narrative_panel_collapsed';
@@ -59,17 +62,34 @@ function getUtilityAlerts(state: GameState): UtilityAlert[] {
     return Object.values(state.chunks)
         .flatMap(chunk => chunk.tiles)
         .filter(tile => tile.buildingType !== BuildingType.EMPTY && !tile.isUnderConstruction && isStructureHead(tile))
-        .flatMap(tile => {
-            const def = BUILDINGS[tile.buildingType];
+        .flatMap((tile: GridTile) => {
+            const def = BUILDINGS[tile.buildingType] as BuildingDef | undefined;
             if (!def) return [];
             const buildingName = def.name || tile.buildingType;
             const alerts: UtilityAlert[] = [];
             if (def.power?.consumes && tile.powerStatus !== 'CONNECTED') {
-                alerts.push({ buildingName, x: tile.x, z: tile.z, reason: 'power', connector: 'Power Line' });
+                alerts.push({
+                    buildingName,
+                    x: tile.x,
+                    z: tile.z,
+                    reason: 'power',
+                    connector: 'Power Line',
+                    detail: 'no power connection',
+                });
             }
-            if (def.water?.consumes && tile.waterStatus !== 'CONNECTED') {
-                alerts.push({ buildingName, x: tile.x, z: tile.z, reason: 'water', connector: 'Pipe' });
+
+            const waterDiagnostic = getWaterDiagnostic(tile, def);
+            if (waterDiagnostic.blocksProduction) {
+                alerts.push({
+                    buildingName,
+                    x: tile.x,
+                    z: tile.z,
+                    reason: 'water',
+                    connector: waterDiagnostic.code === 'SUPPLY_SHORTAGE' ? 'Water Supply' : 'Pipe',
+                    detail: waterDiagnostic.label || 'water supply interrupted',
+                });
             }
+
             return alerts;
         });
 }
@@ -105,7 +125,7 @@ function getDispatch(state: GameState): Dispatch {
         const firstAlert = utilityAlerts[0];
         const problem = firstAlert?.reason || ((state.powerGrid?.deficit || 0) > 0 ? 'power' : 'water');
         const siteDetail = firstAlert
-            ? `${firstAlert.buildingName} at X${firstAlert.x}, Z${firstAlert.z} needs ${firstAlert.connector}`
+            ? `${firstAlert.buildingName} at X${firstAlert.x}, Z${firstAlert.z}: ${firstAlert.detail}`
             : `the grid needs more ${problem} supply`;
         const alertCount = utilityAlerts.length > 1 ? ` ${utilityAlerts.length} sites need attention.` : '';
         return {
