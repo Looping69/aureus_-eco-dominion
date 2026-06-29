@@ -91,6 +91,10 @@ export function placeBuildingCore(
         return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: `No ${def.name} in inventory` };
     }
 
+    if (buildingType === BuildingType.PIPE) {
+        return placeUndergroundPipe(x, z, state);
+    }
+
     const w = def.width || 1;
     const d = def.depth || 1;
     const footprint: Array<{ tile: GridTile; cx: number; cz: number }> = [];
@@ -103,6 +107,15 @@ export function placeBuildingCore(
             ChunkStore.ensureChunk(state.chunks, cx, cz, state.seed);
             const tile = ChunkStore.getTile(state.chunks, tx, tz);
             if (!tile) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Tile at (${tx}, ${tz}) not found despite generation` };
+
+            if (tile.buildingType === BuildingType.PIPE) {
+                tile.undergroundPipe = true;
+                tile.buildingType = BuildingType.EMPTY;
+                tile.isUnderConstruction = false;
+                tile.constructionTimeLeft = 0;
+                tile.structureHeadX = undefined;
+                tile.structureHeadZ = undefined;
+            }
 
             if (tile.buildingType !== BuildingType.EMPTY && tile.buildingType !== BuildingType.POND) {
                 return { ok: false, code: CommandErrorCode.TILE_OCCUPIED, reason: `Tile at (${tx}, ${tz}) is already occupied` };
@@ -151,14 +164,53 @@ export function placeBuildingCore(
     }
     state.pendingEffects.push({ type: 'AUDIO', sfx: 'BUILD_START' as any });
 
-    if (!state.cheatsEnabled) {
-        const remaining = Math.max(0, (state.inventory?.[buildingType] || 0) - 1);
-        state.inventory[buildingType] = remaining;
-        if (remaining === 0 && state.selectedBuilding === buildingType) {
-            state.selectedBuilding = null;
-            state.interactionMode = 'INSPECT';
-        }
-    }
+    spendInventory(state, buildingType);
 
     return { ok: true };
+}
+
+function placeUndergroundPipe(x: number, z: number, state: GameState): CommandResult {
+    const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
+    ChunkStore.ensureChunk(state.chunks, cx, cz, state.seed);
+    const tile = ChunkStore.getTile(state.chunks, x, z);
+    if (!tile) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Tile at (${x}, ${z}) not found despite generation` };
+
+    if (tile.undergroundPipe || tile.buildingType === BuildingType.PIPE) {
+        return { ok: false, code: CommandErrorCode.TILE_OCCUPIED, reason: `Tile at (${x}, ${z}) already has an underground pipe` };
+    }
+
+    tile.undergroundPipe = true;
+    tile.explored = true;
+    tile.waterStatus = 'DISCONNECTED';
+    tile.waterShortage = false;
+
+    if (tile.buildingType === BuildingType.EMPTY) {
+        tile.isUnderConstruction = false;
+        tile.constructionTimeLeft = 0;
+        tile.structureHeadX = undefined;
+        tile.structureHeadZ = undefined;
+    }
+
+    const chunk = state.chunks[`${cx},${cz}`];
+    if (chunk) {
+        chunk.meshDirty = true;
+        chunk.simDirty = true;
+    }
+
+    state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: [tile] });
+    state.pendingEffects.push({ type: 'AUDIO', sfx: 'BUILD_START' as any });
+    spendInventory(state, BuildingType.PIPE);
+
+    return { ok: true };
+}
+
+function spendInventory(state: GameState, buildingType: BuildingType): void {
+    if (state.cheatsEnabled) return;
+
+    const remaining = Math.max(0, (state.inventory?.[buildingType] || 0) - 1);
+    state.inventory[buildingType] = remaining;
+    if (remaining === 0 && state.selectedBuilding === buildingType) {
+        state.selectedBuilding = null;
+        state.interactionMode = 'INSPECT';
+    }
 }
