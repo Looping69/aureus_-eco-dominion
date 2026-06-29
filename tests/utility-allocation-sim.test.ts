@@ -27,6 +27,7 @@ function clearTile(state: GameState, x: number, z: number): GridTile {
         structureHeadZ: undefined,
         powerStatus: undefined,
         waterStatus: undefined,
+        waterShortage: undefined,
     });
     return target;
 }
@@ -44,6 +45,7 @@ function clearWorld(state: GameState): void {
                 structureHeadZ: undefined,
                 powerStatus: undefined,
                 waterStatus: undefined,
+                waterShortage: undefined,
             });
         }
     }
@@ -115,9 +117,25 @@ test('water allocation keeps priority housing supplied during a shortage', () =>
 
     assert.equal(state.waterNetwork.deficit, 1);
     assert.equal(housing.waterStatus, 'CONNECTED');
+    assert.equal(housing.waterShortage, false);
     assert.equal(washPlant.waterStatus, 'CONNECTED');
+    assert.equal(washPlant.waterShortage, false);
     assert.equal(refinery.waterStatus, 'CONNECTED');
+    assert.equal(refinery.waterShortage, false);
     assert.equal(trainStation.waterStatus, 'DISCONNECTED');
+    assert.equal(trainStation.waterShortage, true);
+});
+
+test('water shortage flag stays false when a consumer has no pipe path', () => {
+    const state = new StateManager({ cheatsEnabled: true }).getMutableState();
+    clearWorld(state);
+
+    const housing = place(state, 8, 5, BuildingType.STAFF_QUARTERS);
+
+    new WaterNetworkSystem().tick({ time: 1.1 } as any, state);
+
+    assert.equal(housing.waterStatus, 'DISCONNECTED');
+    assert.equal(housing.waterShortage, false);
 });
 
 test('power status assignment reaches every tile in a multi-tile footprint', () => {
@@ -147,6 +165,7 @@ test('water status assignment reaches every tile in a multi-tile footprint', () 
 
     for (const placedTile of housingTiles) {
         assert.equal(placedTile.waterStatus, 'CONNECTED', `expected watered footprint tile ${placedTile.x},${placedTile.z}`);
+        assert.equal(placedTile.waterShortage, false, `expected no shortage flag on footprint tile ${placedTile.x},${placedTile.z}`);
     }
 });
 
@@ -178,6 +197,7 @@ test('water restoration creates positive radio feedback only after a disconnecte
     const housing = place(state, 8, 5, BuildingType.STAFF_QUARTERS);
     system.tick({ time: 1.1 } as any, state);
     assert.equal(housing.waterStatus, 'DISCONNECTED');
+    assert.equal(housing.waterShortage, false);
     assert.equal(state.newsFeed.some((item) => item.headline.includes('Water restored')), false);
 
     place(state, 6, 5, BuildingType.WATER_WELL);
@@ -185,5 +205,6 @@ test('water restoration creates positive radio feedback only after a disconnecte
     system.tick({ time: 2.2 } as any, state);
 
     assert.equal(housing.waterStatus, 'CONNECTED');
+    assert.equal(housing.waterShortage, false);
     assert.equal(state.newsFeed.some((item) => item.headline.includes('Water restored to Staff Quarters')), true);
 });
