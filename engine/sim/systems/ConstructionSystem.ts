@@ -71,7 +71,9 @@ export class ConstructionSystem extends BaseSimSystem {
             if (chunk) {
                 chunk.meshDirty = true;
                 chunk.simDirty = true;
-                state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates: chunk.tiles.filter(t => (t.structureHeadX === hx && t.structureHeadZ === hz)) });
+                const updates = chunk.tiles.filter(t => (t.structureHeadX === hx && t.structureHeadZ === hz));
+                if (updates.length === 0) updates.push(headTile);
+                state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates });
             }
         }
         updateWaterConnectivity(state.chunks);
@@ -147,6 +149,8 @@ export class ConstructionSystem extends BaseSimSystem {
                                 structureHeadX: undefined,
                                 structureHeadZ: undefined,
                                 constructionTimeLeft: 0,
+                                undergroundPipeUnderConstruction: false,
+                                undergroundPipePhase: undefined,
                             });
                             updates.push(pTile);
                             const { cx, cz } = worldToChunk(tx, tz, CHUNK_SIZE);
@@ -160,6 +164,8 @@ export class ConstructionSystem extends BaseSimSystem {
             tile.isUnderConstruction = false;
             tile.structureHeadX = undefined;
             tile.structureHeadZ = undefined;
+            tile.undergroundPipeUnderConstruction = false;
+            tile.undergroundPipePhase = undefined;
             updates.push(tile);
             const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
             affectedChunks.add(`${cx},${cz}`);
