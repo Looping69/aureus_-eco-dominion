@@ -108,6 +108,17 @@ test('pipe line preview shows the underground layer and three tile supplied area
     assert.match(preview, /type === BuildingType\.PIPE/);
 });
 
+test('pipe preview renders as bright tube segments', () => {
+    const preview = source('game/render/LinePlacementPreview.ts');
+
+    assert.match(preview, /const PIPE_PREVIEW_RADIUS = 0\.095;/);
+    assert.match(preview, /createPipePreviewMesh/);
+    assert.match(preview, /new THREE\.CylinderGeometry/);
+    assert.match(preview, /geometry\.rotateZ\(Math\.PI \/ 2\)/);
+    assert.match(preview, /geometry\.rotateX\(Math\.PI \/ 2\)/);
+    assert.match(preview, /new THREE\.SphereGeometry/);
+});
+
 test('pipe preview stays bright above the faded surface at night', () => {
     const preview = source('game/render/LinePlacementPreview.ts');
 
@@ -123,10 +134,12 @@ test('pipe tool uses two placement clicks instead of drag callbacks', () => {
     const app = source('App.tsx');
     const inputSystem = source('engine/input/InputSystem.ts');
     const aureusWorld = source('game/AureusWorld.ts');
+    const engineHook = source('game/useAureusEngine.ts');
 
     assert.match(app, /linePlacementStart/);
     assert.match(app, /previewInfrastructureLine\?\.\(x, z, x, z, selectedBuilding\)/);
     assert.match(app, /placeInfrastructureLine\(\s*linePlacementStart\.x,\s*linePlacementStart\.z,\s*x,\s*z,\s*selectedBuilding\s*\)/);
+    assert.match(engineHook, /callbacksRef\.current = \{ onTileClick, onTileRightClick, onAgentClick, onTileHover, onSfx \};/);
     assert.equal(inputSystem.includes('onTileDragEnd'), false);
     assert.equal(aureusWorld.includes('onTileDragEnd'), false);
 });
