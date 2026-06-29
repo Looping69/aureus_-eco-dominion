@@ -20,6 +20,28 @@ function hasQueuedPipeRun(state: GameState): boolean {
     return state.jobs.some(job => job.type === 'BUILD' && job.id.startsWith('build_pipe_'));
 }
 
+function applyPipeConstructionPhase(tile: GridTile, state: GameState): void {
+    if (tile.undergroundPipePhase === 'EXCAVATE') {
+        tile.undergroundPipeBlockCleared = false;
+        tile.undergroundPipeInstalled = false;
+        state.pendingEffects.push({ type: 'FX', fxType: 'MINING', x: tile.x, z: tile.z });
+        return;
+    }
+
+    if (tile.undergroundPipePhase === 'INSTALL') {
+        tile.undergroundPipeBlockCleared = true;
+        tile.undergroundPipeInstalled = false;
+        state.pendingEffects.push({ type: 'FX', fxType: 'SMOKE', x: tile.x, z: tile.z });
+        return;
+    }
+
+    if (tile.undergroundPipePhase === 'COVER') {
+        tile.undergroundPipeBlockCleared = true;
+        tile.undergroundPipeInstalled = true;
+        state.pendingEffects.push({ type: 'FX', fxType: 'DUST', x: tile.x, z: tile.z });
+    }
+}
+
 export function completeConstructionCore(
     hx: number,
     hz: number,
@@ -32,6 +54,8 @@ export function completeConstructionCore(
         headTile.undergroundPipe = true;
         headTile.undergroundPipeUnderConstruction = false;
         headTile.undergroundPipePhase = undefined;
+        headTile.undergroundPipeBlockCleared = false;
+        headTile.undergroundPipeInstalled = true;
         headTile.isUnderConstruction = false;
         headTile.constructionTimeLeft = 0;
         headTile.structureHeadX = undefined;
@@ -95,6 +119,7 @@ export function progressConstructionCore(
     if (headTile.undergroundPipeUnderConstruction) {
         const buildTime = BUILDINGS[BuildingType.PIPE]?.buildTime || 1;
         headTile.undergroundPipePhase = getPipeConstructionPhase(headTile.constructionTimeLeft || 0, buildTime);
+        applyPipeConstructionPhase(headTile, state);
     }
 
     if (headTile.constructionTimeLeft <= 0) {
@@ -145,6 +170,8 @@ export function placeBuildingCore(
                 tile.undergroundPipe = true;
                 tile.undergroundPipeUnderConstruction = false;
                 tile.undergroundPipePhase = undefined;
+                tile.undergroundPipeBlockCleared = false;
+                tile.undergroundPipeInstalled = true;
                 tile.buildingType = BuildingType.EMPTY;
                 tile.isUnderConstruction = false;
                 tile.constructionTimeLeft = 0;
@@ -225,6 +252,8 @@ function placeUndergroundPipe(x: number, z: number, state: GameState, skipInvent
     tile.undergroundPipe = false;
     tile.undergroundPipeUnderConstruction = true;
     tile.undergroundPipePhase = 'EXCAVATE';
+    tile.undergroundPipeBlockCleared = false;
+    tile.undergroundPipeInstalled = false;
     tile.isUnderConstruction = true;
     tile.constructionTimeLeft = BUILDINGS[BuildingType.PIPE]?.buildTime || 1;
     tile.structureHeadX = x;
