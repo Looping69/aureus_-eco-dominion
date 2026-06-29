@@ -4,7 +4,7 @@
 */
 
 import React from 'react';
-import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX, Droplets } from 'lucide-react';
+import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX } from 'lucide-react';
 import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode, SfxType } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import { useAureusAudio } from '../game/audio/useAureusAudio';
@@ -163,7 +163,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                     title={overlayMode === 'WATER' ? 'Hide Water View' : 'Show Water View'}
                     aria-label={overlayMode === 'WATER' ? 'Hide Water View' : 'Show Water View'}
                 >
-                    <Droplets size={20} />
+                    <Layers size={20} />
                 </button>
 
                 <button
