@@ -31,6 +31,15 @@ test('BuildingInspectorModal delegates utility failure labels to UtilityReadabil
     assert.equal(modals.includes("if (needsWater) {\n        if (tile.waterStatus !== 'CONNECTED')"), false);
 });
 
+test('BuildingStatusLabelLayer delegates water labels to WaterDiagnostics', () => {
+    const labels = source('game/render/systems/BuildingStatusLabelLayer.ts');
+
+    assert.match(labels, /getWaterDiagnostic/);
+    assert.match(labels, /from '\.\.\/\.\.\/\.\.\/engine\/sim\/utility\/WaterDiagnostics'/);
+    assert.match(labels, /waterDiagnostic\.blocksProduction/);
+    assert.equal(labels.includes("tile.waterStatus === 'DISCONNECTED'"), false);
+});
+
 test('tile selection helper identifies line placement infrastructure', () => {
     assert.equal(isLinePlacementType(BuildingType.ROAD), true);
     assert.equal(isLinePlacementType(BuildingType.PIPE), true);
