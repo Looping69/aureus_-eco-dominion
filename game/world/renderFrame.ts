@@ -3,6 +3,7 @@ import { FrameContext } from '../../engine/kernel';
 import { ChunkStore } from '../../engine/space/ChunkStore';
 import { DungeonEngine } from '../../engine/dungeon/DungeonEngine';
 import { waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial } from '../../engine/render/materials/VoxelMaterials';
+import { BuildingType } from '../../types';
 import { BuildingStatusLabelLayer } from '../render/systems/BuildingStatusLabelLayer';
 
 export interface RenderFrameDeps {
@@ -39,6 +40,9 @@ const BUILDING_FOG_REVEAL_RADIUS = 14;
 const FIRST_PERSON_MIST_HEIGHT = 2.5;
 const FIRST_PERSON_MIST_GROUND_OFFSET = 0.05;
 const FIRST_PERSON_MIST_RENDER_ORDER = 9990;
+const PIPE_TOOL_SURFACE_OPACITY = 0.28;
+const PIPE_TOOL_WATER_OPACITY = 0.18;
+const PIPE_TOOL_AGENT_OPACITY = 0.38;
 const FIRST_PERSON_MIST_BANDS = [
     { name: 'first-person-fog-mist-1', radius: STARTER_FOG_CLEAR_RADIUS + 1.5, opacity: 0.16 },
     { name: 'first-person-fog-mist-2', radius: STARTER_FOG_CLEAR_RADIUS + 4.5, opacity: 0.3 },
@@ -48,6 +52,7 @@ const FIRST_PERSON_MIST_BANDS = [
 type HoverCell = { x: number; z: number } | null;
 type FogRevealCenter = { key: string; x: number; z: number; radius: number };
 type FogExplorationState = { centers: FogRevealCenter[]; version: number };
+type MaterialFadeState = { transparent: boolean; opacity: number; depthWrite: boolean };
 
 function finiteNumber(value: unknown): number | null {
     return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -461,9 +466,101 @@ class FirstPersonFogOfWarMist {
     }
 }
 
+class SurfacePipeToolTransparency {
+    private originalMaterials = new Map<string, { material: THREE.Material; state: MaterialFadeState }>();
+
+    update(deps: RenderFrameDeps, active: boolean): void {
+        if (!active) {
+            this.restore();
+            return;
+        }
+
+        this.fadeTerrain(deps);
+        this.fadeFoliage(deps);
+        this.fadeBuildings(deps);
+        this.fadeAgents(deps);
+    }
+
+    private fadeTerrain(deps: RenderFrameDeps): void {
+        const terrainChunks = deps.terrainRenderSystem?.['chunks'] as Map<string, any> | undefined;
+        terrainChunks?.forEach((chunk) => {
+            this.fadeObject(chunk.mesh, PIPE_TOOL_SURFACE_OPACITY);
+            this.fadeObject(chunk.waterMesh, PIPE_TOOL_WATER_OPACITY);
+            this.fadeObject(chunk.ghostMesh, PIPE_TOOL_WATER_OPACITY);
+        });
+    }
+
+    private fadeFoliage(deps: RenderFrameDeps): void {
+        const foliageChunks = deps.foliageRenderSystem?.['chunkMeshes'] as Map<string, Map<string, THREE.Object3D>> | undefined;
+        foliageChunks?.forEach((meshes) => {
+            meshes.forEach((mesh) => this.fadeObject(mesh, PIPE_TOOL_SURFACE_OPACITY));
+        });
+    }
+
+    private fadeBuildings(deps: RenderFrameDeps): void {
+        const buildingMeshes = deps.buildingRenderSystem?.['buildingMeshes'] as Map<number, THREE.Object3D> | undefined;
+        buildingMeshes?.forEach((mesh) => this.fadeObject(mesh, PIPE_TOOL_SURFACE_OPACITY));
+        this.fadeObject(deps.buildingRenderSystem?.['packetGroup'], PIPE_TOOL_SURFACE_OPACITY);
+        this.fadeObject(deps.buildingRenderSystem?.['overlayGroup'], PIPE_TOOL_SURFACE_OPACITY);
+        this.fadeObject(deps.buildingRenderSystem?.['packetInstanceLayer']?.['root'], PIPE_TOOL_SURFACE_OPACITY);
+        this.fadeObject(deps.buildingRenderSystem?.['overlayInstanceLayer']?.['root'], PIPE_TOOL_SURFACE_OPACITY);
+
+        const particles = deps.buildingRenderSystem?.['particles'] as Array<{ mesh?: THREE.Object3D }> | undefined;
+        particles?.forEach((particle) => this.fadeObject(particle.mesh, PIPE_TOOL_SURFACE_OPACITY));
+    }
+
+    private fadeAgents(deps: RenderFrameDeps): void {
+        const agentMeshes = deps.agentRenderSystem?.['agentMeshes'] as Map<string, THREE.Object3D> | undefined;
+        agentMeshes?.forEach((mesh) => this.fadeObject(mesh, PIPE_TOOL_AGENT_OPACITY));
+        const contactShadows = deps.agentRenderSystem?.['agentContactShadows'] as Map<string, THREE.Object3D> | undefined;
+        contactShadows?.forEach((shadow) => this.fadeObject(shadow, PIPE_TOOL_WATER_OPACITY));
+    }
+
+    private fadeObject(object: THREE.Object3D | null | undefined, opacity: number): void {
+        if (!object) return;
+        object.traverse((child: THREE.Object3D) => {
+            const material = (child as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+            if (Array.isArray(material)) {
+                material.forEach((entry) => this.fadeMaterial(entry, opacity));
+            } else if (material) {
+                this.fadeMaterial(material, opacity);
+            }
+        });
+    }
+
+    private fadeMaterial(material: THREE.Material, opacity: number): void {
+        if (!this.originalMaterials.has(material.uuid)) {
+            this.originalMaterials.set(material.uuid, {
+                material,
+                state: {
+                    transparent: material.transparent,
+                    opacity: material.opacity,
+                    depthWrite: material.depthWrite,
+                },
+            });
+        }
+
+        material.transparent = true;
+        material.opacity = Math.min(this.originalMaterials.get(material.uuid)?.state.opacity ?? 1, opacity);
+        material.depthWrite = false;
+        material.needsUpdate = true;
+    }
+
+    private restore(): void {
+        this.originalMaterials.forEach(({ material, state }) => {
+            material.transparent = state.transparent;
+            material.opacity = state.opacity;
+            material.depthWrite = state.depthWrite;
+            material.needsUpdate = true;
+        });
+        this.originalMaterials.clear();
+    }
+}
+
 let layeredWorldOverlay: LayeredWorldOverlay | null = null;
 let starterFogOfWarOverlay: StarterFogOfWarOverlay | null = null;
 let firstPersonFogOfWarMist: FirstPersonFogOfWarMist | null = null;
+let surfacePipeToolTransparency: SurfacePipeToolTransparency | null = null;
 
 function getBuildingStatusLabelLayer(deps: RenderFrameDeps): BuildingStatusLabelLayer {
     if (!buildingStatusLabelLayer) {
@@ -491,6 +588,19 @@ function getFirstPersonFogOfWarMist(deps: RenderFrameDeps): FirstPersonFogOfWarM
         firstPersonFogOfWarMist = new FirstPersonFogOfWarMist(deps.render.getScene());
     }
     return firstPersonFogOfWarMist;
+}
+
+function getSurfacePipeToolTransparency(): SurfacePipeToolTransparency {
+    if (!surfacePipeToolTransparency) {
+        surfacePipeToolTransparency = new SurfacePipeToolTransparency();
+    }
+    return surfacePipeToolTransparency;
+}
+
+function isUndergroundPipeToolActive(state: any): boolean {
+    return state.activeView === 'SURFACE'
+        && state.interactionMode === 'BUILD'
+        && state.selectedBuilding === BuildingType.PIPE;
 }
 
 function setObjectVisible(object: THREE.Object3D | null | undefined, visible: boolean): void {
@@ -628,6 +738,7 @@ function updateActiveView(
 }
 
 function updateDungeonView(state: any, deps: RenderFrameDeps): void {
+    getSurfacePipeToolTransparency().update(deps, false);
     setSurfaceRenderVisible(deps, false);
     deps.wildlifeRenderSystem?.setVisible?.(false);
     deps.dungeonRenderSystem.setVisible(true);
@@ -653,6 +764,7 @@ function updateFirstPersonView(
     renderDirtyKeys: Set<string>,
     deps: RenderFrameDeps
 ): void {
+    getSurfacePipeToolTransparency().update(deps, false);
     setSurfaceRenderVisible(deps, true);
     deps.foliageRenderSystem?.setGroundDetailVisible?.(true);
     deps.foliageRenderSystem?.updateGroundDetailTime?.(ctx.time, state.dayNightCycle?.timeOfDay ?? 12000);
@@ -734,6 +846,7 @@ function updateSurfaceView(
         deps.render.getRuntimeQuality().smoothDetail
     );
     getBuildingStatusLabelLayer(deps).update(state.chunks, camera, ctx.time, zoomLevel, 'SURFACE');
+    getSurfacePipeToolTransparency().update(deps, isUndergroundPipeToolActive(state));
 }
 
 function updateCursor(state: any, deps: RenderFrameDeps): void {
