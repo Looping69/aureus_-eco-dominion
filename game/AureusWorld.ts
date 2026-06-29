@@ -438,35 +438,6 @@ export class AureusWorld extends BaseWorld {
     saveGame(): void { saveGameWithFeedback(this.getPersistenceDeps()); }
     loadGame(data?: string): void { loadGameState(data, this.getPersistenceDeps()); }
 
-    private getSelectedInfrastructureLineTool(): BuildingType | null {
-        const state = this.stateManager.getState();
-        if (state.activeView !== 'SURFACE') return null;
-        if (state.interactionMode !== 'BUILD') return null;
-        const selectedBuilding = state.selectedBuilding as BuildingType | null;
-        return isInfrastructureLineType(selectedBuilding) ? selectedBuilding : null;
-    }
-
-    private handleInfrastructureLineDragStart(startX: number, startZ: number): void {
-        const buildingType = this.getSelectedInfrastructureLineTool();
-        if (!buildingType) return;
-        this.clearPinnedBuilding();
-        this.previewInfrastructureLine(startX, startZ, startX, startZ, buildingType);
-    }
-
-    private handleInfrastructureLineDragMove(startX: number, startZ: number, endX: number, endZ: number): void {
-        const buildingType = this.getSelectedInfrastructureLineTool();
-        if (!buildingType) return;
-        this.previewInfrastructureLine(startX, startZ, endX, endZ, buildingType);
-    }
-
-    private handleInfrastructureLineDragEnd(startX: number, startZ: number, endX: number, endZ: number): void {
-        const buildingType = this.getSelectedInfrastructureLineTool();
-        if (!buildingType) return;
-        this.placeInfrastructureLine(startX, startZ, endX, endZ, buildingType);
-        this.selectBuilding(null);
-        this.clearPinnedBuilding();
-    }
-
     configure(config: AureusWorldConfig): void {
         this.config = config;
         this.inputSystem = new InputSystem(this.render, this.getTerrainHeight);
@@ -479,15 +450,6 @@ export class AureusWorld extends BaseWorld {
         this.inputSystem.onTileHover = (x, z, clientX, clientY) => {
             this.handleSurfaceInteraction(x || 0, z || 0, 'hover', false, clientX, clientY);
             this.config?.onTileHover?.(x, z);
-        };
-        this.inputSystem.onTileDragStart = (x, z) => {
-            this.handleInfrastructureLineDragStart(x, z);
-        };
-        this.inputSystem.onTileDragMove = (startX, startZ, endX, endZ) => {
-            this.handleInfrastructureLineDragMove(startX, startZ, endX, endZ);
-        };
-        this.inputSystem.onTileDragEnd = (startX, startZ, endX, endZ) => {
-            this.handleInfrastructureLineDragEnd(startX, startZ, endX, endZ);
         };
         this.fpsCameraSystem.onLeftClick = () => {
             const hit = this.getFPSIntersection();
