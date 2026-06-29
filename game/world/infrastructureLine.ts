@@ -41,7 +41,8 @@ export function getInfrastructureLinePlan(
     const stepX = Math.sign(finalX - startX);
     const stepZ = Math.sign(finalZ - startZ);
     const requestedLength = Math.max(Math.abs(finalX - startX), Math.abs(finalZ - startZ)) + 1;
-    const available = state.cheatsEnabled ? requestedLength : (state.inventory?.[buildingType] || 0);
+    const ownedCount = state.cheatsEnabled ? requestedLength : (state.inventory?.[buildingType] || 0);
+    const available = buildingType === BuildingType.PIPE && ownedCount > 0 ? requestedLength : ownedCount;
     const placeCount = Math.min(requestedLength, available);
 
     return {
