@@ -29,6 +29,8 @@ function clearStaffQuartersFootprint(state: GameState): void {
             undergroundPipe: undefined,
             undergroundPipeUnderConstruction: undefined,
             undergroundPipePhase: undefined,
+            undergroundPipeBlockCleared: undefined,
+            undergroundPipeInstalled: undefined,
         });
     }
 }
@@ -101,6 +103,8 @@ test('pipes start underground construction without occupying the surface tile', 
     assert.notEqual(placed.undergroundPipe, true);
     assert.equal(placed.undergroundPipeUnderConstruction, true);
     assert.equal(placed.undergroundPipePhase, 'EXCAVATE');
+    assert.equal(placed.undergroundPipeBlockCleared, false);
+    assert.equal(placed.undergroundPipeInstalled, false);
     assert.equal(placed.isUnderConstruction, true);
     assert.equal(placed.structureHeadX, 0);
     assert.equal(placed.structureHeadZ, 0);
@@ -120,16 +124,24 @@ test('worker progress excavates installs covers and activates underground pipes'
 
     assert.equal(progressConstructionCore(0, 0, buildTime * 0.4, state, completeConstructionCore), false);
     assert.equal(tile(state, 0, 0).undergroundPipePhase, 'INSTALL');
+    assert.equal(tile(state, 0, 0).undergroundPipeBlockCleared, true);
+    assert.equal(tile(state, 0, 0).undergroundPipeInstalled, false);
     assert.equal(tile(state, 0, 0).undergroundPipe, false);
+    assert.equal(state.pendingEffects.some(effect => effect.type === 'FX' && effect.fxType === 'SMOKE'), true);
 
     assert.equal(progressConstructionCore(0, 0, buildTime * 0.35, state, completeConstructionCore), false);
     assert.equal(tile(state, 0, 0).undergroundPipePhase, 'COVER');
+    assert.equal(tile(state, 0, 0).undergroundPipeBlockCleared, true);
+    assert.equal(tile(state, 0, 0).undergroundPipeInstalled, true);
+    assert.equal(state.pendingEffects.some(effect => effect.type === 'FX' && effect.fxType === 'DUST'), true);
 
     assert.equal(progressConstructionCore(0, 0, buildTime, state, completeConstructionCore), true);
     assert.equal(tile(state, 0, 0).buildingType, BuildingType.EMPTY);
     assert.equal(tile(state, 0, 0).undergroundPipe, true);
     assert.equal(tile(state, 0, 0).undergroundPipeUnderConstruction, false);
     assert.equal(tile(state, 0, 0).undergroundPipePhase, undefined);
+    assert.equal(tile(state, 0, 0).undergroundPipeBlockCleared, false);
+    assert.equal(tile(state, 0, 0).undergroundPipeInstalled, true);
     assert.equal(tile(state, 0, 0).isUnderConstruction, false);
     assert.equal(tile(state, 0, 0).structureHeadX, undefined);
     assert.equal(tile(state, 0, 0).structureHeadZ, undefined);
