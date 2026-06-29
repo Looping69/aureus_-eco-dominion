@@ -4,7 +4,7 @@
 */
 
 import React from 'react';
-import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX } from 'lucide-react';
+import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX, Droplets } from 'lucide-react';
 import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode, SfxType } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import { useAureusAudio } from '../game/audio/useAureusAudio';
@@ -72,13 +72,18 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
 
     const highlightOps = step === GameStep.TUTORIAL_SELL;
     const highlightBuild = step === GameStep.TUTORIAL_MINE || step === GameStep.TUTORIAL_BUY;
-    const nextOverlayMode = OVERLAY_SEQUENCE[(OVERLAY_SEQUENCE.indexOf(overlayMode) + 1) % OVERLAY_SEQUENCE.length];
+    const normalizedOverlayMode = overlayMode === 'WATER' ? 'OFF' : overlayMode;
+    const nextOverlayMode = OVERLAY_SEQUENCE[(OVERLAY_SEQUENCE.indexOf(normalizedOverlayMode) + 1) % OVERLAY_SEQUENCE.length];
     const canUseLayerTools = activeView === 'SURFACE' && (undergroundUnlocked || debugMode);
     const isBelowSurface = activeLayer < SURFACE_LAYER;
     const lowerLayer = Math.max(minLayer, activeLayer - 1);
     const upperLayer = Math.min(maxLayer, activeLayer + 1);
     const setLayerTool = (mode: LayerToolMode) => {
         dispatch({ type: 'SET_INTERACTION_MODE', payload: interactionMode === mode ? 'INSPECT' : mode });
+        playSfx('UI_CLICK');
+    };
+    const toggleWaterView = () => {
+        dispatch({ type: 'UPDATE_LOGISTICS', payload: { overlayMode: overlayMode === 'WATER' ? 'OFF' : 'WATER' } });
         playSfx('UI_CLICK');
     };
 
@@ -143,7 +148,22 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                     className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-slate-800 border-slate-950 hover:-translate-y-0.5 border-2 border-b-[4px]"
                     title={`Logistics Overlay: ${overlayMode}`}
                 >
-                    <Layers size={20} className={overlayMode === 'OFF' ? 'text-slate-500' : 'text-cyan-400'} />
+                    <Layers size={20} className={overlayMode === 'OFF' || overlayMode === 'WATER' ? 'text-slate-500' : 'text-cyan-400'} />
+                </button>
+
+                <button
+                    type="button"
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleWaterView();
+                    }}
+                    className={`w-12 h-12 rounded-[4px] flex items-center justify-center transition-all border-2 border-b-[4px] ${overlayMode === 'WATER' ? 'bg-cyan-500 border-cyan-900 text-cyan-950 border-b-2 translate-y-[2px]' : 'bg-slate-800 border-slate-950 text-cyan-300 hover:-translate-y-0.5'}`}
+                    title={overlayMode === 'WATER' ? 'Hide Water View' : 'Show Water View'}
+                    aria-label={overlayMode === 'WATER' ? 'Hide Water View' : 'Show Water View'}
+                >
+                    <Droplets size={20} />
                 </button>
 
                 <button
