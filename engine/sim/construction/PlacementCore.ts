@@ -16,6 +16,10 @@ function getPipeConstructionPhase(timeLeft: number, buildTime: number): GridTile
     return 'COVER';
 }
 
+function hasQueuedPipeRun(state: GameState): boolean {
+    return state.jobs.some(job => job.type === 'BUILD' && job.id.startsWith('build_pipe_'));
+}
+
 export function completeConstructionCore(
     hx: number,
     hz: number,
@@ -114,13 +118,14 @@ export function placeBuildingCore(
     if (!def) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `Unknown building type: ${buildingType}` };
 
     const available = state.inventory?.[buildingType] || 0;
-    if (!skipInventorySpend && !state.cheatsEnabled && available <= 0) {
+    const canContinueQueuedPipeRun = buildingType === BuildingType.PIPE && hasQueuedPipeRun(state);
+    if (!skipInventorySpend && !canContinueQueuedPipeRun && !state.cheatsEnabled && available <= 0) {
         state.pendingEffects.push({ type: 'AUDIO', sfx: 'ERROR' as any });
         return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: `No ${def.name} in inventory` };
     }
 
     if (buildingType === BuildingType.PIPE) {
-        return placeUndergroundPipe(x, z, state, skipInventorySpend);
+        return placeUndergroundPipe(x, z, state, skipInventorySpend || canContinueQueuedPipeRun);
     }
 
     const w = def.width || 1;
