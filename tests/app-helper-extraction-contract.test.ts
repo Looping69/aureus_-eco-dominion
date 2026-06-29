@@ -31,6 +31,17 @@ test('BuildingInspectorModal delegates utility failure labels to UtilityReadabil
     assert.equal(modals.includes("if (needsWater) {\n        if (tile.waterStatus !== 'CONNECTED')"), false);
 });
 
+test('BuildingInspectorModal shows specific water diagnostic copy', () => {
+    const modals = source('components/Modals.tsx');
+
+    assert.match(modals, /reason === 'No pipe connection'/);
+    assert.match(modals, /reason === 'Water shortage: add supply'/);
+    assert.match(modals, /no pipe connection/);
+    assert.match(modals, /total water demand is higher than supply/);
+    assert.equal(modals.includes('Water-starved'), false);
+    assert.equal(modals.includes('water-starved'), false);
+});
+
 test('BuildingStatusLabelLayer delegates water labels to WaterDiagnostics', () => {
     const labels = source('game/render/systems/BuildingStatusLabelLayer.ts');
 
