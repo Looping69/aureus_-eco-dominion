@@ -28,6 +28,7 @@ function clearTile(state: GameState, x: number, z: number): GridTile {
         powerStatus: undefined,
         waterStatus: undefined,
         waterShortage: undefined,
+        undergroundPipe: undefined,
     });
     return target;
 }
@@ -46,6 +47,7 @@ function clearWorld(state: GameState): void {
                 powerStatus: undefined,
                 waterStatus: undefined,
                 waterShortage: undefined,
+                undergroundPipe: undefined,
             });
         }
     }
@@ -54,6 +56,12 @@ function clearWorld(state: GameState): void {
 function place(state: GameState, x: number, z: number, buildingType: BuildingType): GridTile {
     const target = clearTile(state, x, z);
     target.buildingType = buildingType;
+    return target;
+}
+
+function placeUndergroundPipe(state: GameState, x: number, z: number): GridTile {
+    const target = clearTile(state, x, z);
+    target.undergroundPipe = true;
     return target;
 }
 
@@ -124,6 +132,37 @@ test('water allocation keeps priority housing supplied during a shortage', () =>
     assert.equal(refinery.waterShortage, false);
     assert.equal(trainStation.waterStatus, 'DISCONNECTED');
     assert.equal(trainStation.waterShortage, true);
+});
+
+test('underground pipes supply buildings within a three tile radius', () => {
+    const state = new StateManager({ cheatsEnabled: true }).getMutableState();
+    clearWorld(state);
+
+    place(state, 0, 20, BuildingType.WATER_WELL);
+    placeUndergroundPipe(state, 1, 20);
+    const inRadius = place(state, 4, 20, BuildingType.STAFF_QUARTERS);
+    const outOfRadius = place(state, 5, 20, BuildingType.TRAIN_STATION);
+
+    new WaterNetworkSystem().tick({ time: 1.1 } as any, state);
+
+    assert.equal(inRadius.waterStatus, 'CONNECTED');
+    assert.equal(outOfRadius.waterStatus, 'DISCONNECTED');
+});
+
+test('surface buildings can sit over underground pipes and receive water', () => {
+    const state = new StateManager({ cheatsEnabled: true }).getMutableState();
+    clearWorld(state);
+
+    place(state, 0, 24, BuildingType.WATER_WELL);
+    placeUndergroundPipe(state, 1, 24);
+    const housing = place(state, 1, 24, BuildingType.STAFF_QUARTERS);
+    housing.undergroundPipe = true;
+
+    new WaterNetworkSystem().tick({ time: 1.1 } as any, state);
+
+    assert.equal(housing.buildingType, BuildingType.STAFF_QUARTERS);
+    assert.equal(housing.undergroundPipe, true);
+    assert.equal(housing.waterStatus, 'CONNECTED');
 });
 
 test('water shortage flag stays false when a consumer has no pipe path', () => {
