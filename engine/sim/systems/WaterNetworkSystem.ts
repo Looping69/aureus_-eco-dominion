@@ -1,7 +1,7 @@
 /**
  * Water Network System
  * Calculates water production and allocates connected demand by priority.
- * Buildings that are piped but not supplied during a shortage are marked disconnected.
+ * Buildings that are piped but not supplied during a shortage are marked disconnected with a shortage flag.
  */
 
 import { BaseSimSystem } from '../Simulation';
@@ -50,9 +50,11 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 if (isWaterParticipant) {
                     if (tile.isUnderConstruction) {
                         tile.waterStatus = undefined;
+                        tile.waterShortage = undefined;
                         continue;
                     }
                     tile.waterStatus = 'DISCONNECTED';
+                    tile.waterShortage = false;
                 }
 
                 if (!this.isStructureHead(tile)) continue;
@@ -74,7 +76,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
                     totalProduced += production;
 
                     // Mark the full footprint as a water source so pipes can connect to any edge.
-                    this.markStructureWaterStatus(state, tile, 'CONNECTED', suppliedTiles, openSet);
+                    this.markStructureWaterStatus(state, tile, 'CONNECTED', false, suppliedTiles, openSet);
                 }
             }
         }
@@ -108,13 +110,14 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 // If it's a Pipe, it accepts water and continues the flow
                 if (neighbor.buildingType === BuildingType.PIPE) {
                     neighbor.waterStatus = 'CONNECTED';
+                    neighbor.waterShortage = false;
                     suppliedTiles.add(key);
                     openSet.push({ x: nx, z: nz }); // Continue flow
                 }
                 // If it's a Consumer, it accepts water but STOPS flow (terminal node)
                 else if (nDef.water?.consumes) {
                     const headTile = this.getStructureHeadTile(state, neighbor);
-                    this.markStructureWaterStatus(state, headTile, 'CONNECTED', suppliedTiles);
+                    this.markStructureWaterStatus(state, headTile, 'CONNECTED', false, suppliedTiles);
                     // Do NOT push to openSet; consumers don't output water to neighbors
                 }
             }
@@ -159,13 +162,13 @@ export class WaterNetworkSystem extends BaseSimSystem {
             const demand = BUILDINGS[tile.buildingType]?.water?.consumes || 0;
             if (demand <= remaining) {
                 remaining -= demand;
-                this.markStructureWaterStatus(state, tile, 'CONNECTED');
+                this.markStructureWaterStatus(state, tile, 'CONNECTED', false);
                 supplied.push(tile);
                 if (!previouslyWateredConsumers.has(this.getStructureKey(tile))) {
                     this.pushWaterRestoredNews(ctx, state, tile);
                 }
             } else {
-                this.markStructureWaterStatus(state, tile, 'DISCONNECTED');
+                this.markStructureWaterStatus(state, tile, 'DISCONNECTED', true);
             }
         }
 
@@ -206,6 +209,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
         state: GameState,
         headTile: GridTile,
         status: 'CONNECTED' | 'DISCONNECTED',
+        waterShortage: boolean = false,
         suppliedTiles?: Set<string>,
         openSet?: { x: number, z: number }[],
     ): void {
@@ -219,6 +223,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
                 if (!tile || tile.buildingType !== headTile.buildingType || tile.isUnderConstruction) continue;
 
                 tile.waterStatus = status;
+                tile.waterShortage = waterShortage;
                 if (suppliedTiles) {
                     suppliedTiles.add(`${tile.x},${tile.z}`);
                 }
