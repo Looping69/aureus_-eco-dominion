@@ -25,6 +25,7 @@ function clearStaffQuartersFootprint(state: GameState): void {
             structureHeadZ: undefined,
             foliage: 'NONE',
             markedForHarvest: false,
+            undergroundPipe: undefined,
         });
     }
 }
@@ -72,6 +73,52 @@ test('multi-tile placement consumes one inventory item and stamps one shared str
         assert.equal(placed.structureHeadZ, 0);
         assert.equal(placed.isUnderConstruction, true);
     }
+});
+
+test('pipes place underground without occupying the surface tile', () => {
+    const stateManager = new StateManager({
+        cheatsEnabled: false,
+        inventory: { [BuildingType.PIPE]: 1 } as any,
+        selectedBuilding: BuildingType.PIPE,
+        interactionMode: 'BUILD',
+    });
+    const state = stateManager.getMutableState();
+    clearStaffQuartersFootprint(state);
+
+    const result = placeBuildingCore(0, 0, BuildingType.PIPE, state);
+
+    assert.equal(result.ok, true);
+    assert.equal(tile(state, 0, 0).buildingType, BuildingType.EMPTY);
+    assert.equal(tile(state, 0, 0).undergroundPipe, true);
+    assert.equal(state.inventory[BuildingType.PIPE], 0);
+    assert.equal(state.selectedBuilding, null);
+    assert.equal(state.interactionMode, 'INSPECT');
+});
+
+test('surface buildings can be placed over underground pipes', () => {
+    const stateManager = new StateManager({ cheatsEnabled: true });
+    const state = stateManager.getMutableState();
+    clearStaffQuartersFootprint(state);
+
+    assert.equal(placeBuildingCore(0, 0, BuildingType.PIPE, state).ok, true);
+    const result = placeBuildingCore(0, 0, BuildingType.STAFF_QUARTERS, state);
+
+    assert.equal(result.ok, true);
+    assert.equal(tile(state, 0, 0).buildingType, BuildingType.STAFF_QUARTERS);
+    assert.equal(tile(state, 0, 0).undergroundPipe, true);
+});
+
+test('surface buildings can replace legacy surface pipes while preserving underground pipe state', () => {
+    const stateManager = new StateManager({ cheatsEnabled: true });
+    const state = stateManager.getMutableState();
+    clearStaffQuartersFootprint(state);
+    tile(state, 0, 0).buildingType = BuildingType.PIPE;
+
+    const result = placeBuildingCore(0, 0, BuildingType.STAFF_QUARTERS, state);
+
+    assert.equal(result.ok, true);
+    assert.equal(tile(state, 0, 0).buildingType, BuildingType.STAFF_QUARTERS);
+    assert.equal(tile(state, 0, 0).undergroundPipe, true);
 });
 
 test('worker progress on a child tile completes the shared construction head', () => {
