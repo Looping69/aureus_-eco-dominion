@@ -102,7 +102,7 @@ test('utility failures have readable local reasons', () => {
     'export function getPowerReadability',
     "return 'Offline: no power';",
     'export function getWaterReadability',
-    "return 'Water-starved';",
+    'return getWaterDiagnostic(tile, def).label;',
     'export function getProducerReadability',
     "return 'Reservoir underpowered: 25% output';",
     'export function getUtilityReadability',
