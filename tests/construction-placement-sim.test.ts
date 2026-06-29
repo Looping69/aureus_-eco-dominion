@@ -85,7 +85,7 @@ test('multi-tile placement consumes one inventory item and stamps one shared str
     }
 });
 
-test('pipes start underground construction without occupying the surface tile', () => {
+test('pipes use visible construction before burying the finished pipe underground', () => {
     const stateManager = new StateManager({
         cheatsEnabled: false,
         inventory: { [BuildingType.PIPE]: 1 } as any,
@@ -99,7 +99,7 @@ test('pipes start underground construction without occupying the surface tile', 
     const placed = tile(state, 0, 0);
 
     assert.equal(result.ok, true);
-    assert.equal(placed.buildingType, BuildingType.EMPTY);
+    assert.equal(placed.buildingType, BuildingType.PIPE);
     assert.notEqual(placed.undergroundPipe, true);
     assert.equal(placed.undergroundPipeUnderConstruction, true);
     assert.equal(placed.undergroundPipePhase, 'EXCAVATE');
@@ -123,6 +123,7 @@ test('worker progress excavates installs covers and activates underground pipes'
     const buildTime = BUILDINGS[BuildingType.PIPE]?.buildTime || 1;
 
     assert.equal(progressConstructionCore(0, 0, buildTime * 0.4, state, completeConstructionCore), false);
+    assert.equal(tile(state, 0, 0).buildingType, BuildingType.PIPE);
     assert.equal(tile(state, 0, 0).undergroundPipePhase, 'INSTALL');
     assert.equal(tile(state, 0, 0).undergroundPipeBlockCleared, true);
     assert.equal(tile(state, 0, 0).undergroundPipeInstalled, false);
@@ -130,6 +131,7 @@ test('worker progress excavates installs covers and activates underground pipes'
     assert.equal(state.pendingEffects.some(effect => effect.type === 'FX' && effect.fxType === 'SMOKE'), true);
 
     assert.equal(progressConstructionCore(0, 0, buildTime * 0.35, state, completeConstructionCore), false);
+    assert.equal(tile(state, 0, 0).buildingType, BuildingType.PIPE);
     assert.equal(tile(state, 0, 0).undergroundPipePhase, 'COVER');
     assert.equal(tile(state, 0, 0).undergroundPipeBlockCleared, true);
     assert.equal(tile(state, 0, 0).undergroundPipeInstalled, true);
@@ -171,7 +173,7 @@ test('surface buildings wait until underground pipe excavation is covered', () =
 
     assert.equal(result.ok, false);
     assert.equal(result.code, 'ALREADY_PROCESSING');
-    assert.equal(tile(state, 0, 0).buildingType, BuildingType.EMPTY);
+    assert.equal(tile(state, 0, 0).buildingType, BuildingType.PIPE);
 });
 
 test('surface buildings can replace legacy surface pipes while preserving underground pipe state', () => {
