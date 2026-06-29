@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Text } from 'troika-three-text';
 import { BuildingType, Chunk, GridTile } from '../../../types';
 import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { getWaterDiagnostic } from '../../../engine/sim/utility/WaterDiagnostics';
 
 type BuildingStatusText = InstanceType<typeof Text>;
 type BuildingStatusTone = 'online' | 'construction' | 'warning' | 'blocked';
@@ -231,20 +232,22 @@ export class BuildingStatusLabelLayer {
     private getBuildingStatus(tile: GridTile): { label: string; tone: BuildingStatusTone; priority: number; showLabel: boolean } | null {
         const def = BUILDINGS[tile.buildingType];
         const name = def?.name || 'Building';
+        const waterDiagnostic = getWaterDiagnostic(tile, def);
+        const waterIssueLabel = waterDiagnostic.code === 'SUPPLY_SHORTAGE' ? 'water shortage' : 'no pipe';
 
         if (tile.isUnderConstruction) {
             const buildTime = def?.buildTime || 1;
             const progress = Math.max(0, Math.min(1, 1 - ((tile.constructionTimeLeft || 0) / buildTime)));
             return { label: `Building ${name}: ${Math.round(progress * 100)}%`, tone: 'construction', priority: 2, showLabel: true };
         }
-        if (tile.powerStatus === 'DISCONNECTED' && tile.waterStatus === 'DISCONNECTED') {
-            return { label: `${name} offline: no power + water`, tone: 'blocked', priority: 5, showLabel: true };
+        if (tile.powerStatus === 'DISCONNECTED' && waterDiagnostic.blocksProduction) {
+            return { label: `${name} offline: no power + ${waterIssueLabel}`, tone: 'blocked', priority: 5, showLabel: true };
         }
         if (tile.powerStatus === 'DISCONNECTED') {
             return { label: `${name} offline: no power`, tone: 'blocked', priority: 4, showLabel: true };
         }
-        if (tile.waterStatus === 'DISCONNECTED') {
-            return { label: `${name} water-starved`, tone: 'warning', priority: 3, showLabel: true };
+        if (waterDiagnostic.blocksProduction) {
+            return { label: `${name} ${waterIssueLabel}`, tone: 'warning', priority: 3, showLabel: true };
         }
         if (def?.production || def?.power?.produces || def?.power?.consumes || def?.water?.produces || def?.water?.consumes) {
             return { label: `${name} online`, tone: 'online', priority: 1, showLabel: false };
