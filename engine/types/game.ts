@@ -140,7 +140,7 @@ export interface GameCommand {
     issuedAtTick?: number;
 }
 
-export type LogisticsOverlayMode = 'OFF' | 'FLOW' | 'CONGESTION' | 'JUNCTIONS';
+export type LogisticsOverlayMode = 'OFF' | 'FLOW' | 'CONGESTION' | 'JUNCTIONS' | 'WATER';
 export type FactoryResourceType =
     | 'ORE'
     | 'CONCENTRATE'
