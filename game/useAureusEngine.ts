@@ -108,6 +108,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
     }, [state]);
 
     const callbacksRef = useRef({ onTileClick, onTileRightClick, onAgentClick, onTileHover, onSfx });
+    callbacksRef.current = { onTileClick, onTileRightClick, onAgentClick, onTileHover, onSfx };
     useEffect(() => {
         callbacksRef.current = { onTileClick, onTileRightClick, onAgentClick, onTileHover, onSfx };
     }, [onTileClick, onTileRightClick, onAgentClick, onTileHover, onSfx]);
