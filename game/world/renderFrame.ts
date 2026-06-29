@@ -600,7 +600,8 @@ function getSurfacePipeToolTransparency(): SurfacePipeToolTransparency {
 function isUndergroundPipeToolActive(state: any): boolean {
     return state.activeView === 'SURFACE'
         && state.interactionMode === 'BUILD'
-        && state.selectedBuilding === BuildingType.PIPE;
+        && state.selectedBuilding === BuildingType.PIPE
+        && false;
 }
 
 function setObjectVisible(object: THREE.Object3D | null | undefined, visible: boolean): void {
