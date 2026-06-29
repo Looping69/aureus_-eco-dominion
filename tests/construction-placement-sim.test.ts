@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { BUILDINGS } from '../engine/data/VoxelConstants.ts';
 import { StateManager } from '../engine/state/StateManager.ts';
 import { ChunkStore } from '../engine/space/ChunkStore.ts';
 import { BuildingType } from '../types.ts';
@@ -26,8 +27,15 @@ function clearStaffQuartersFootprint(state: GameState): void {
             foliage: 'NONE',
             markedForHarvest: false,
             undergroundPipe: undefined,
+            undergroundPipeUnderConstruction: undefined,
+            undergroundPipePhase: undefined,
         });
     }
+}
+
+function finishConstruction(state: GameState, x: number, z: number): void {
+    const buildTime = BUILDINGS[BuildingType.PIPE]?.buildTime || 1;
+    assert.equal(progressConstructionCore(x, z, buildTime + 1, state, completeConstructionCore), true);
 }
 
 test('failed multi-tile placement validates the full footprint before mutating tiles', () => {
@@ -75,7 +83,7 @@ test('multi-tile placement consumes one inventory item and stamps one shared str
     }
 });
 
-test('pipes place underground without occupying the surface tile', () => {
+test('pipes start underground construction without occupying the surface tile', () => {
     const stateManager = new StateManager({
         cheatsEnabled: false,
         inventory: { [BuildingType.PIPE]: 1 } as any,
@@ -86,16 +94,62 @@ test('pipes place underground without occupying the surface tile', () => {
     clearStaffQuartersFootprint(state);
 
     const result = placeBuildingCore(0, 0, BuildingType.PIPE, state);
+    const placed = tile(state, 0, 0);
 
     assert.equal(result.ok, true);
-    assert.equal(tile(state, 0, 0).buildingType, BuildingType.EMPTY);
-    assert.equal(tile(state, 0, 0).undergroundPipe, true);
+    assert.equal(placed.buildingType, BuildingType.EMPTY);
+    assert.notEqual(placed.undergroundPipe, true);
+    assert.equal(placed.undergroundPipeUnderConstruction, true);
+    assert.equal(placed.undergroundPipePhase, 'EXCAVATE');
+    assert.equal(placed.isUnderConstruction, true);
+    assert.equal(placed.structureHeadX, 0);
+    assert.equal(placed.structureHeadZ, 0);
+    assert.equal(state.jobs.some(job => job.type === 'BUILD' && job.targetX === 0 && job.targetZ === 0), true);
     assert.equal(state.inventory[BuildingType.PIPE], 0);
     assert.equal(state.selectedBuilding, null);
     assert.equal(state.interactionMode, 'INSPECT');
 });
 
-test('surface buildings can be placed over underground pipes', () => {
+test('worker progress excavates installs covers and activates underground pipes', () => {
+    const stateManager = new StateManager({ cheatsEnabled: true });
+    const state = stateManager.getMutableState();
+    clearStaffQuartersFootprint(state);
+
+    assert.equal(placeBuildingCore(0, 0, BuildingType.PIPE, state).ok, true);
+    const buildTime = BUILDINGS[BuildingType.PIPE]?.buildTime || 1;
+
+    assert.equal(progressConstructionCore(0, 0, buildTime * 0.4, state, completeConstructionCore), false);
+    assert.equal(tile(state, 0, 0).undergroundPipePhase, 'INSTALL');
+    assert.equal(tile(state, 0, 0).undergroundPipe, false);
+
+    assert.equal(progressConstructionCore(0, 0, buildTime * 0.35, state, completeConstructionCore), false);
+    assert.equal(tile(state, 0, 0).undergroundPipePhase, 'COVER');
+
+    assert.equal(progressConstructionCore(0, 0, buildTime, state, completeConstructionCore), true);
+    assert.equal(tile(state, 0, 0).buildingType, BuildingType.EMPTY);
+    assert.equal(tile(state, 0, 0).undergroundPipe, true);
+    assert.equal(tile(state, 0, 0).undergroundPipeUnderConstruction, false);
+    assert.equal(tile(state, 0, 0).undergroundPipePhase, undefined);
+    assert.equal(tile(state, 0, 0).isUnderConstruction, false);
+    assert.equal(tile(state, 0, 0).structureHeadX, undefined);
+    assert.equal(tile(state, 0, 0).structureHeadZ, undefined);
+});
+
+test('surface buildings can be placed over completed underground pipes', () => {
+    const stateManager = new StateManager({ cheatsEnabled: true });
+    const state = stateManager.getMutableState();
+    clearStaffQuartersFootprint(state);
+
+    assert.equal(placeBuildingCore(0, 0, BuildingType.PIPE, state).ok, true);
+    finishConstruction(state, 0, 0);
+    const result = placeBuildingCore(0, 0, BuildingType.STAFF_QUARTERS, state);
+
+    assert.equal(result.ok, true);
+    assert.equal(tile(state, 0, 0).buildingType, BuildingType.STAFF_QUARTERS);
+    assert.equal(tile(state, 0, 0).undergroundPipe, true);
+});
+
+test('surface buildings wait until underground pipe excavation is covered', () => {
     const stateManager = new StateManager({ cheatsEnabled: true });
     const state = stateManager.getMutableState();
     clearStaffQuartersFootprint(state);
@@ -103,9 +157,9 @@ test('surface buildings can be placed over underground pipes', () => {
     assert.equal(placeBuildingCore(0, 0, BuildingType.PIPE, state).ok, true);
     const result = placeBuildingCore(0, 0, BuildingType.STAFF_QUARTERS, state);
 
-    assert.equal(result.ok, true);
-    assert.equal(tile(state, 0, 0).buildingType, BuildingType.STAFF_QUARTERS);
-    assert.equal(tile(state, 0, 0).undergroundPipe, true);
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'ALREADY_PROCESSING');
+    assert.equal(tile(state, 0, 0).buildingType, BuildingType.EMPTY);
 });
 
 test('surface buildings can replace legacy surface pipes while preserving underground pipe state', () => {
