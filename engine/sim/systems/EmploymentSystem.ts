@@ -2,6 +2,7 @@
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
 import { GameState, BuildingType, Agent, Chunk } from '../../../types';
+import { getAgentRoleForWorkplace, getProfessionalWorkplaceTypes } from '../../data/agentRoles';
 
 /**
  * EmploymentSystem manages persistent job assignments.
@@ -66,14 +67,7 @@ export class EmploymentSystem extends BaseSimSystem {
     }
 
     private isProfessionalWorkplace(type: BuildingType): boolean {
-        return [
-            BuildingType.SAWMILL,
-            BuildingType.STONE_QUARRY,
-            BuildingType.WASH_PLANT,
-            BuildingType.MINING_HEADFRAME,
-            BuildingType.ORE_FOUNDRY,
-            BuildingType.WORKSHOP
-        ].includes(type);
+        return getProfessionalWorkplaceTypes().includes(type);
     }
 
     private validateCurrentEmployees(agents: Agent[], chunks: Record<string, Chunk>) {
@@ -92,19 +86,10 @@ export class EmploymentSystem extends BaseSimSystem {
     }
 
     private assignJob(agent: Agent, workplace: { x: number, z: number, type: BuildingType }, state: GameState, ctx: FixedContext) {
-        let role = 'WORKER';
-        switch (workplace.type) {
-            case BuildingType.SAWMILL: role = 'LUMBERJACK'; break;
-            case BuildingType.STONE_QUARRY: role = 'QUARRYMAN'; break;
-            case BuildingType.WASH_PLANT:
-            case BuildingType.MINING_HEADFRAME:
-            case BuildingType.ORE_FOUNDRY:
-                role = 'MINER'; break;
-            case BuildingType.WORKSHOP: role = 'ENGINEER'; break;
-        }
+        const role = getAgentRoleForWorkplace(workplace.type) || 'WORKER';
 
         agent.profession = role;
-        agent.type = role as any; // Update legacy type field as well
+        agent.type = role; // Update legacy type field as well
         agent.workPlaceX = workplace.x;
         agent.workPlaceZ = workplace.z;
 
