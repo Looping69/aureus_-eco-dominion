@@ -15,6 +15,8 @@ const STABILIZATION_CONTRACTS = [
     'tests/command-boundary-contract.test.ts',
     'tests/deterministic-network-layer-contract.test.ts',
     'tests/lockstep-command-buffer-contract.test.ts',
+    'tests/lockstep-state-bridge-contract.test.ts',
+    'tests/lockstep-replay-contract.test.ts',
     'tests/contracts-lifecycle-sim.test.ts',
     'tests/construction-placement-sim.test.ts',
     'tests/utility-readability-sim.test.ts',
