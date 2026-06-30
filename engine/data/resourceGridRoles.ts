@@ -42,13 +42,14 @@ export function buildResourceGridBuildingRoles(
         const roleDef: ResourceGridBuildingRoleDef = {
             networkType: entry.networkType,
             roles: [...entry.roles],
-            serviceRadius: entry.serviceRadius,
-            serviceMetric: entry.serviceMetric,
-            priority: entry.priority,
-            baseProduction: entry.baseProduction,
-            baseDemand: entry.baseDemand,
-            productionModifiers: entry.productionModifiers ? [...entry.productionModifiers] : undefined,
         };
+
+        if (entry.serviceRadius !== undefined) roleDef.serviceRadius = entry.serviceRadius;
+        if (entry.serviceMetric !== undefined) roleDef.serviceMetric = entry.serviceMetric;
+        if (entry.priority !== undefined) roleDef.priority = entry.priority;
+        if (entry.baseProduction !== undefined) roleDef.baseProduction = entry.baseProduction;
+        if (entry.baseDemand !== undefined) roleDef.baseDemand = entry.baseDemand;
+        if (entry.productionModifiers !== undefined) roleDef.productionModifiers = [...entry.productionModifiers];
 
         rolesByBuilding[buildingType] = [...(rolesByBuilding[buildingType] || []), roleDef];
     }
