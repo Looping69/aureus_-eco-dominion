@@ -1,5 +1,4 @@
 import { BuildingType, GameState, GridTile } from '../../../types';
-import { BUILDINGS } from '../../data/VoxelConstants';
 import { getResourceGridConsumerPriority, getResourceGridRoleDef } from '../../data/resourceGridRoles';
 import type { ResourceGridBuildingRoleDef } from '../../data/resourceGridRoles';
 import { getWeatherGameplayEffects } from '../../weather/weatherModel';
@@ -26,9 +25,6 @@ export function collectAureusPowerGridParticipants(state: GameState): AureusPowe
         for (const tile of chunk.tiles) {
             if (!tile || tile.isUnderConstruction) continue;
 
-            const def = BUILDINGS[tile.buildingType];
-            if (!def) continue;
-
             const roles: ResourceGridParticipant['roles'] = [];
             let production = 0;
             let demand = 0;
@@ -38,13 +34,14 @@ export function collectAureusPowerGridParticipants(state: GameState): AureusPowe
 
             const carrierDef = getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'CARRIER');
             const producerDef = getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'PRODUCER');
+            const consumerDef = getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'CONSUMER');
             if (carrierDef) {
                 roles.push('CARRIER');
                 serviceRadius = carrierDef.serviceRadius ?? POWER_LINE_SERVICE_RADIUS;
                 serviceMetric = carrierDef.serviceMetric ?? 'MANHATTAN';
             }
 
-            if (producerDef && def.power?.produces) {
+            if (hasResourceGridProduction(producerDef)) {
                 roles.push('PRODUCER', ...producerDef.roles.filter(role => role !== 'PRODUCER'));
                 serviceRadius = producerDef.serviceRadius ?? carrierDef?.serviceRadius ?? POWER_LINE_SERVICE_RADIUS;
                 serviceMetric = producerDef.serviceMetric ?? carrierDef?.serviceMetric ?? 'MANHATTAN';
@@ -54,9 +51,9 @@ export function collectAureusPowerGridParticipants(state: GameState): AureusPowe
                 }
             }
 
-            if (def.power?.consumes && isStructureHead(tile)) {
+            if (hasResourceGridDemand(consumerDef) && isStructureHead(tile)) {
                 roles.push('CONSUMER');
-                demand = def.power.consumes;
+                demand = consumerDef.baseDemand;
                 priority = getResourceGridConsumerPriority(tile.buildingType, POWER_NETWORK_TYPE);
             }
 
@@ -83,14 +80,16 @@ export function collectAureusPowerGridParticipants(state: GameState): AureusPowe
 }
 
 export function isPowerParticipantTile(tile: GridTile): boolean {
-    const def = BUILDINGS[tile.buildingType];
     return Boolean(getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'CARRIER'))
-        || Boolean(getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'PRODUCER'))
-        || Boolean(def?.power?.consumes);
+        || hasResourceGridProduction(getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'PRODUCER'))
+        || hasResourceGridDemand(getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'CONSUMER'));
 }
 
 export function getPowerParticipantId(tile: GridTile): string {
-    return getResourceParticipantId(tile, Boolean(BUILDINGS[tile.buildingType]?.power?.consumes));
+    return getResourceParticipantId(
+        tile,
+        hasResourceGridDemand(getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'CONSUMER')),
+    );
 }
 
 export function isIndustrialPowerConsumer(type: BuildingType): boolean {
@@ -104,18 +103,23 @@ export function isIndustrialPowerConsumer(type: BuildingType): boolean {
     ].includes(type);
 }
 
+function hasResourceGridProduction(def: ResourceGridBuildingRoleDef | undefined): def is ResourceGridBuildingRoleDef & { baseProduction: number } {
+    return typeof def?.baseProduction === 'number';
+}
+
+function hasResourceGridDemand(def: ResourceGridBuildingRoleDef | undefined): def is ResourceGridBuildingRoleDef & { baseDemand: number } {
+    return typeof def?.baseDemand === 'number';
+}
+
 function getPowerProduction(
     tile: GridTile,
-    producerDef: ResourceGridBuildingRoleDef,
+    producerDef: ResourceGridBuildingRoleDef & { baseProduction: number },
     isDaytime: boolean,
     timeOfDay: number,
     solarMult: number,
     windMult: number,
 ): number {
-    const def = BUILDINGS[tile.buildingType];
-    if (!def?.power?.produces) return 0;
-
-    let production = def.power.produces;
+    let production = producerDef.baseProduction;
     const modifiers = producerDef.productionModifiers || [];
 
     if (modifiers.includes('SOLAR_DAYLIGHT')) {
