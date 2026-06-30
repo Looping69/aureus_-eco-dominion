@@ -1,6 +1,7 @@
-import { BuildingType, GameState, GridTile } from '../../../types';
+import { GameState, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { getResourceGridConsumerPriority, getResourceGridRoleDef } from '../../data/resourceGridRoles';
+import type { ResourceGridBuildingRoleDef } from '../../data/resourceGridRoles';
 import { getWeatherGameplayEffects } from '../../weather/weatherModel';
 import { getSolarEfficiency } from '../dayNightCycle';
 import type { ResourceGridParticipant, ResourceGridServiceMetric } from './ResourceGridSolver';
@@ -36,20 +37,20 @@ export function collectAureusPowerGridParticipants(state: GameState): AureusPowe
             let serviceMetric: ResourceGridServiceMetric = 'MANHATTAN';
 
             const carrierDef = getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'CARRIER');
+            const producerDef = getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'PRODUCER');
             if (carrierDef) {
                 roles.push('CARRIER');
                 serviceRadius = carrierDef.serviceRadius ?? POWER_LINE_SERVICE_RADIUS;
                 serviceMetric = carrierDef.serviceMetric ?? 'MANHATTAN';
             }
 
-            if (def.power?.produces) {
-                roles.push('CARRIER');
-                serviceRadius = carrierDef?.serviceRadius ?? POWER_LINE_SERVICE_RADIUS;
-                serviceMetric = carrierDef?.serviceMetric ?? 'MANHATTAN';
+            if (producerDef && def.power?.produces) {
+                roles.push('PRODUCER', ...producerDef.roles.filter(role => role !== 'PRODUCER'));
+                serviceRadius = producerDef.serviceRadius ?? carrierDef?.serviceRadius ?? POWER_LINE_SERVICE_RADIUS;
+                serviceMetric = producerDef.serviceMetric ?? carrierDef?.serviceMetric ?? 'MANHATTAN';
 
                 if (isStructureHead(tile)) {
-                    roles.push('PRODUCER');
-                    production = getPowerProduction(tile, isDaytime, timeOfDay, weatherEffects.solarMult, weatherEffects.windMult);
+                    production = getPowerProduction(tile, producerDef, isDaytime, timeOfDay, weatherEffects.solarMult, weatherEffects.windMult);
                 }
             }
 
@@ -84,26 +85,28 @@ export function collectAureusPowerGridParticipants(state: GameState): AureusPowe
 export function isPowerParticipantTile(tile: GridTile): boolean {
     const def = BUILDINGS[tile.buildingType];
     return Boolean(getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'CARRIER'))
-        || Boolean(def?.power?.produces || def?.power?.consumes);
+        || Boolean(getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'PRODUCER'))
+        || Boolean(def?.power?.consumes);
 }
 
 export function getPowerParticipantId(tile: GridTile): string {
     return getResourceParticipantId(tile, Boolean(BUILDINGS[tile.buildingType]?.power?.consumes));
 }
 
-export function isIndustrialPowerConsumer(type: BuildingType): boolean {
+export function isIndustrialPowerConsumer(type: GridTile['buildingType']): boolean {
     return [
-        BuildingType.WASH_PLANT,
-        BuildingType.RECYCLING_PLANT,
-        BuildingType.ORE_FOUNDRY,
-        BuildingType.GEM_REFINERY,
-        BuildingType.WORKSHOP,
-        BuildingType.GREEN_TECH_LAB,
+        'WASH_PLANT',
+        'RECYCLING_PLANT',
+        'ORE_FOUNDRY',
+        'GEM_REFINERY',
+        'WORKSHOP',
+        'GREEN_TECH_LAB',
     ].includes(type);
 }
 
 function getPowerProduction(
     tile: GridTile,
+    producerDef: ResourceGridBuildingRoleDef,
     isDaytime: boolean,
     timeOfDay: number,
     solarMult: number,
@@ -112,14 +115,17 @@ function getPowerProduction(
     const def = BUILDINGS[tile.buildingType];
     if (!def?.power?.produces) return 0;
 
-    if (tile.buildingType === BuildingType.SOLAR_ARRAY) {
+    let production = def.power.produces;
+    const modifiers = producerDef.productionModifiers || [];
+
+    if (modifiers.includes('SOLAR_DAYLIGHT')) {
         if (!isDaytime) return 0;
-        return Math.floor(def.power.produces * getSolarEfficiency(timeOfDay) * solarMult);
+        production = Math.floor(production * getSolarEfficiency(timeOfDay) * solarMult);
     }
 
-    if (tile.buildingType === BuildingType.WIND_TURBINE) {
-        return Math.floor(def.power.produces * windMult);
+    if (modifiers.includes('WIND_WEATHER')) {
+        production = Math.floor(production * windMult);
     }
 
-    return def.power.produces;
+    return production;
 }
