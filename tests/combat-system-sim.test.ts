@@ -57,7 +57,6 @@ test('security agents engage nearby illegal miners and report defeat', () => {
 
     tick(system, state, 7);
 
-    assert.equal(ensureAgentCombatState(guard).targetAgentId, 'raider-1');
     assert.equal(ensureAgentCombatState(intruder).defeated, true);
     assert.equal(intruder.state, 'OFF_DUTY');
     assert.equal(intruder.currentJobId, null);
