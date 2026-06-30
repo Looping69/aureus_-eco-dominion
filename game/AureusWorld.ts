@@ -18,7 +18,7 @@ import {
     PowerGridSystem, WaterNetworkSystem,
     TutorialDemoSystem, CommandDispatcher, UndergroundSurveySystem,
     ResearchSystem, EmploymentSystem, BureaucracySystem, AmbientNPCSystem,
-    AIOverseerSystem
+    AIOverseerSystem, CombatSystem
 } from '../engine/sim/systems';
 import { DungeonMinerSystem } from '../engine/sim/systems/DungeonMinerSystem';
 import { DungeonStabilitySystem } from '../engine/sim/systems/DungeonStabilitySystem';
@@ -219,6 +219,7 @@ export class AureusWorld extends BaseWorld {
         this.agentSystem = new AgentSystem(this.jobs, this.constructionSystem);
         this.sim.addSystem(this.agentSystem);
         this.sim.addSystem(new AmbientNPCSystem());
+        this.sim.addSystem(new CombatSystem());
 
         const researchSystem = new ResearchSystem();
         this.sim.addSystem(researchSystem);
