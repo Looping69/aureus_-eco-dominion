@@ -7,6 +7,7 @@ export * from './ColonySystem';
 export * from './LogisticsSystem';
 export * from './EventSystem';
 export * from './MissionSystem';
+export * from './CombatSystem';
 export * from './ProductionSystem';
 export * from './ConstructionSystem';
 export * from './EraSystem';
