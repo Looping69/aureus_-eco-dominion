@@ -2,6 +2,11 @@ import { BuildingType } from '../../types';
 import type { ResourceGridRole, ResourceGridServiceMetric } from '../sim/resourceGrid/ResourceGridSolver';
 
 export type AureusResourceGridNetworkType = 'water' | 'power';
+export type ResourceGridProductionModifier =
+    | 'POND_WEATHER'
+    | 'RESERVOIR_POWER_DEPENDENCY'
+    | 'SOLAR_DAYLIGHT'
+    | 'WIND_WEATHER';
 
 export interface ResourceGridBuildingRoleDef {
     networkType: AureusResourceGridNetworkType;
@@ -9,6 +14,7 @@ export interface ResourceGridBuildingRoleDef {
     serviceRadius?: number;
     serviceMetric?: ResourceGridServiceMetric;
     priority?: number;
+    productionModifiers?: ResourceGridProductionModifier[];
 }
 
 export const DEFAULT_RESOURCE_GRID_CONSUMER_PRIORITY: Record<AureusResourceGridNetworkType, number> = {
@@ -23,6 +29,28 @@ export const RESOURCE_GRID_BUILDING_ROLES: Partial<Record<BuildingType, Resource
     [BuildingType.POWER_LINE]: [
         { networkType: 'power', roles: ['CARRIER'], serviceRadius: 1, serviceMetric: 'MANHATTAN' },
     ],
+    [BuildingType.POND]: [
+        { networkType: 'water', roles: ['PRODUCER', 'CARRIER'], serviceRadius: 3, serviceMetric: 'CHEBYSHEV', productionModifiers: ['POND_WEATHER'] },
+    ],
+    [BuildingType.WATER_WELL]: [
+        { networkType: 'water', roles: ['PRODUCER', 'CARRIER'], serviceRadius: 3, serviceMetric: 'CHEBYSHEV' },
+    ],
+    [BuildingType.RESERVOIR]: [
+        { networkType: 'water', roles: ['PRODUCER', 'CARRIER'], serviceRadius: 3, serviceMetric: 'CHEBYSHEV', productionModifiers: ['RESERVOIR_POWER_DEPENDENCY'] },
+        { networkType: 'power', roles: ['CONSUMER'], priority: 100 },
+    ],
+    [BuildingType.SOLAR_ARRAY]: [
+        { networkType: 'power', roles: ['PRODUCER', 'CARRIER'], serviceRadius: 1, serviceMetric: 'MANHATTAN', productionModifiers: ['SOLAR_DAYLIGHT'] },
+    ],
+    [BuildingType.WIND_TURBINE]: [
+        { networkType: 'power', roles: ['PRODUCER', 'CARRIER'], serviceRadius: 1, serviceMetric: 'MANHATTAN', productionModifiers: ['WIND_WEATHER'] },
+    ],
+    [BuildingType.GENERATOR]: [
+        { networkType: 'power', roles: ['PRODUCER', 'CARRIER'], serviceRadius: 1, serviceMetric: 'MANHATTAN' },
+    ],
+    [BuildingType.GEOTHERMAL_PLANT]: [
+        { networkType: 'power', roles: ['PRODUCER', 'CARRIER'], serviceRadius: 1, serviceMetric: 'MANHATTAN' },
+    ],
     [BuildingType.STAFF_QUARTERS]: [
         { networkType: 'water', roles: ['CONSUMER'], priority: 100 },
         { networkType: 'power', roles: ['CONSUMER'], priority: 90 },
@@ -36,9 +64,6 @@ export const RESOURCE_GRID_BUILDING_ROLES: Partial<Record<BuildingType, Resource
     [BuildingType.GREEN_TECH_LAB]: [
         { networkType: 'water', roles: ['CONSUMER'], priority: 80 },
         { networkType: 'power', roles: ['CONSUMER'], priority: 70 },
-    ],
-    [BuildingType.RESERVOIR]: [
-        { networkType: 'power', roles: ['CONSUMER'], priority: 100 },
     ],
     [BuildingType.WASH_PLANT]: [
         { networkType: 'water', roles: ['CONSUMER'], priority: 65 },
