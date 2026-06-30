@@ -1,5 +1,4 @@
 import { BuildingType, GameState, GridTile } from '../../../types';
-import { BUILDINGS } from '../../data/VoxelConstants';
 import { getResourceGridConsumerPriority, getResourceGridRoleDef } from '../../data/resourceGridRoles';
 import type { ResourceGridBuildingRoleDef } from '../../data/resourceGridRoles';
 import { getWeatherGameplayEffects } from '../../weather/weatherModel';
@@ -23,7 +22,6 @@ export function collectAureusWaterGridParticipants(state: GameState): AureusWate
         for (const tile of chunk.tiles) {
             if (!tile || tile.isUnderConstruction) continue;
 
-            const def = BUILDINGS[tile.buildingType];
             const roles: ResourceGridParticipant['roles'] = [];
             let production = 0;
             let demand = 0;
@@ -33,22 +31,23 @@ export function collectAureusWaterGridParticipants(state: GameState): AureusWate
 
             const carrierDef = getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'CARRIER');
             const producerDef = getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'PRODUCER');
+            const consumerDef = getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'CONSUMER');
             if (isWaterPipeTile(tile) || carrierDef) {
                 roles.push('CARRIER');
                 serviceRadius = carrierDef?.serviceRadius ?? WATER_PIPE_SERVICE_RADIUS;
                 serviceMetric = carrierDef?.serviceMetric ?? 'CHEBYSHEV';
             }
 
-            if (producerDef && def?.water?.produces && isStructureHead(tile)) {
+            if (hasResourceGridProduction(producerDef) && isStructureHead(tile)) {
                 roles.push('PRODUCER', ...producerDef.roles.filter(role => role !== 'PRODUCER'));
                 production = getWaterProduction(tile, producerDef, weatherEffects.waterCollectionMult);
                 serviceRadius = producerDef.serviceRadius ?? carrierDef?.serviceRadius ?? WATER_PIPE_SERVICE_RADIUS;
                 serviceMetric = producerDef.serviceMetric ?? carrierDef?.serviceMetric ?? 'CHEBYSHEV';
             }
 
-            if (def?.water?.consumes && isStructureHead(tile)) {
+            if (hasResourceGridDemand(consumerDef) && isStructureHead(tile)) {
                 roles.push('CONSUMER');
-                demand = def.water.consumes;
+                demand = consumerDef.baseDemand;
                 priority = getResourceGridConsumerPriority(tile.buildingType, WATER_NETWORK_TYPE);
             }
 
@@ -79,22 +78,29 @@ export function isWaterPipeTile(tile: GridTile): boolean {
 }
 
 export function isWaterParticipantTile(tile: GridTile): boolean {
-    const def = BUILDINGS[tile.buildingType];
     return isWaterPipeTile(tile)
         || Boolean(getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'CARRIER'))
-        || Boolean(getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'PRODUCER'))
-        || Boolean(def?.water?.consumes);
+        || hasResourceGridProduction(getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'PRODUCER'))
+        || hasResourceGridDemand(getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'CONSUMER'));
 }
 
 export function getWaterParticipantId(tile: GridTile): string {
-    return getResourceParticipantId(tile, Boolean(BUILDINGS[tile.buildingType]?.water?.consumes));
+    return getResourceParticipantId(
+        tile,
+        hasResourceGridDemand(getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'CONSUMER')),
+    );
 }
 
-function getWaterProduction(tile: GridTile, producerDef: ResourceGridBuildingRoleDef, waterCollectionMult: number): number {
-    const def = BUILDINGS[tile.buildingType];
-    if (!def?.water?.produces) return 0;
+function hasResourceGridProduction(def: ResourceGridBuildingRoleDef | undefined): def is ResourceGridBuildingRoleDef & { baseProduction: number } {
+    return typeof def?.baseProduction === 'number';
+}
 
-    let production = def.water.produces;
+function hasResourceGridDemand(def: ResourceGridBuildingRoleDef | undefined): def is ResourceGridBuildingRoleDef & { baseDemand: number } {
+    return typeof def?.baseDemand === 'number';
+}
+
+function getWaterProduction(tile: GridTile, producerDef: ResourceGridBuildingRoleDef & { baseProduction: number }, waterCollectionMult: number): number {
+    let production = producerDef.baseProduction;
     const modifiers = producerDef.productionModifiers || [];
 
     if (modifiers.includes('POND_WEATHER')) {
