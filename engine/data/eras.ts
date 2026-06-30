@@ -17,6 +17,7 @@ export const ERAS: Record<Era, EraDef> = {
     name: 'Chapter II: The Camp Becomes A Town',
     description: 'Beds, storage, and the first honest delivery turn a claim into a place people might trust.',
     unlockConditions: {
+      minColonists: 3,
       minAgt: 5000,
       minBuildings: 3,
       requiredBuildings: [BuildingType.STAFF_QUARTERS, BuildingType.STORAGE_DEPOT, BuildingType.MINING_HEADFRAME]
@@ -46,7 +47,7 @@ export const ERAS: Record<Era, EraDef> = {
     unlockConditions: { minEco: 70, minTrust: 60, minAgt: 50000 },
     color: '#3b82f6',
     milestones: [
-      { id: 'green_future', name: 'Green Haven', target: 70 },
+      { id: 'green_future', name: 'Land Recovered', target: 70 },
       { id: 'social_harmony', name: 'Trusted Enough To Stay', target: 60 }
     ]
   },
