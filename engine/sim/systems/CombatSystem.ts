@@ -2,57 +2,24 @@ import { BaseSimSystem } from '../Simulation';
 import type { FixedContext } from '../../kernel';
 import { SfxType } from '../../../types';
 import type { Agent, AgentCombatState, AgentRole, CombatFaction, GameState } from '../../../types';
+import { getAgentRoleDef } from '../../data/agentRoles';
 
 export const COMBAT_SCAN_RANGE = 7;
 export const DEFAULT_COMBAT_RANGE = 1.6;
 
 type CombatProfile = Omit<AgentCombatState, 'cooldownRemaining' | 'targetAgentId' | 'defeated' | 'defeatReported'>;
 
-const ROLE_COMBAT_PROFILES: Partial<Record<AgentRole, CombatProfile>> = {
-    SECURITY: {
-        faction: 'COLONY',
-        currentHealth: 125,
-        maxHealth: 125,
-        attack: 18,
-        defense: 5,
-        range: DEFAULT_COMBAT_RANGE,
-        cooldownSeconds: 1,
-    },
-    ILLEGAL_MINER: {
-        faction: 'HOSTILE',
-        currentHealth: 75,
-        maxHealth: 75,
-        attack: 10,
-        defense: 2,
-        range: 1.25,
-        cooldownSeconds: 1.35,
-    },
-};
-
-const DEFAULT_COLONIST_PROFILE: CombatProfile = {
-    faction: 'COLONY',
-    currentHealth: 100,
-    maxHealth: 100,
-    attack: 4,
-    defense: 1,
-    range: 1.1,
-    cooldownSeconds: 1.8,
-};
-
-const DEFAULT_NEUTRAL_PROFILE: CombatProfile = {
-    faction: 'NEUTRAL',
-    currentHealth: 90,
-    maxHealth: 90,
-    attack: 2,
-    defense: 1,
-    range: 1,
-    cooldownSeconds: 2,
-};
-
 export function getDefaultCombatProfile(role: AgentRole): CombatProfile {
-    if (ROLE_COMBAT_PROFILES[role]) return { ...ROLE_COMBAT_PROFILES[role]! };
-    if (role === 'CITIZEN' || role === 'UNEMPLOYED') return { ...DEFAULT_NEUTRAL_PROFILE };
-    return { ...DEFAULT_COLONIST_PROFILE };
+    const combat = getAgentRoleDef(role).combat;
+    return {
+        faction: combat.faction,
+        currentHealth: combat.maxHealth,
+        maxHealth: combat.maxHealth,
+        attack: combat.attack,
+        defense: combat.defense,
+        range: combat.range,
+        cooldownSeconds: combat.cooldownSeconds,
+    };
 }
 
 export function ensureAgentCombatState(agent: Agent): AgentCombatState {
