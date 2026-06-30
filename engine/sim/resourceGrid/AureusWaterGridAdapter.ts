@@ -1,6 +1,7 @@
 import { BuildingType, GameState, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { getResourceGridConsumerPriority, getResourceGridRoleDef } from '../../data/resourceGridRoles';
+import type { ResourceGridBuildingRoleDef } from '../../data/resourceGridRoles';
 import { getWeatherGameplayEffects } from '../../weather/weatherModel';
 import type { ResourceGridParticipant, ResourceGridServiceMetric } from './ResourceGridSolver';
 import { getResourceParticipantId, isStructureHead, uniqueResourceGridRoles } from './AureusResourceGridAdapterUtils';
@@ -31,17 +32,18 @@ export function collectAureusWaterGridParticipants(state: GameState): AureusWate
             let serviceMetric: ResourceGridServiceMetric = 'CHEBYSHEV';
 
             const carrierDef = getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'CARRIER');
+            const producerDef = getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'PRODUCER');
             if (isWaterPipeTile(tile) || carrierDef) {
                 roles.push('CARRIER');
                 serviceRadius = carrierDef?.serviceRadius ?? WATER_PIPE_SERVICE_RADIUS;
                 serviceMetric = carrierDef?.serviceMetric ?? 'CHEBYSHEV';
             }
 
-            if (def?.water?.produces && isStructureHead(tile)) {
-                roles.push('PRODUCER', 'CARRIER');
-                production = getWaterProduction(tile, weatherEffects.waterCollectionMult);
-                serviceRadius = carrierDef?.serviceRadius ?? WATER_PIPE_SERVICE_RADIUS;
-                serviceMetric = carrierDef?.serviceMetric ?? 'CHEBYSHEV';
+            if (producerDef && def?.water?.produces && isStructureHead(tile)) {
+                roles.push('PRODUCER', ...producerDef.roles.filter(role => role !== 'PRODUCER'));
+                production = getWaterProduction(tile, producerDef, weatherEffects.waterCollectionMult);
+                serviceRadius = producerDef.serviceRadius ?? carrierDef?.serviceRadius ?? WATER_PIPE_SERVICE_RADIUS;
+                serviceMetric = producerDef.serviceMetric ?? carrierDef?.serviceMetric ?? 'CHEBYSHEV';
             }
 
             if (def?.water?.consumes && isStructureHead(tile)) {
@@ -78,24 +80,30 @@ export function isWaterPipeTile(tile: GridTile): boolean {
 
 export function isWaterParticipantTile(tile: GridTile): boolean {
     const def = BUILDINGS[tile.buildingType];
-    return isWaterPipeTile(tile) || Boolean(def?.water?.produces || def?.water?.consumes);
+    return isWaterPipeTile(tile)
+        || Boolean(getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'CARRIER'))
+        || Boolean(getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'PRODUCER'))
+        || Boolean(def?.water?.consumes);
 }
 
 export function getWaterParticipantId(tile: GridTile): string {
     return getResourceParticipantId(tile, Boolean(BUILDINGS[tile.buildingType]?.water?.consumes));
 }
 
-function getWaterProduction(tile: GridTile, waterCollectionMult: number): number {
+function getWaterProduction(tile: GridTile, producerDef: ResourceGridBuildingRoleDef, waterCollectionMult: number): number {
     const def = BUILDINGS[tile.buildingType];
     if (!def?.water?.produces) return 0;
 
-    if (tile.buildingType === BuildingType.POND) {
-        return Math.floor(def.water.produces * waterCollectionMult);
+    let production = def.water.produces;
+    const modifiers = producerDef.productionModifiers || [];
+
+    if (modifiers.includes('POND_WEATHER')) {
+        production = Math.floor(production * waterCollectionMult);
     }
 
-    if (tile.buildingType === BuildingType.RESERVOIR && tile.powerStatus !== 'CONNECTED') {
-        return Math.floor(def.water.produces * 0.25);
+    if (modifiers.includes('RESERVOIR_POWER_DEPENDENCY') && tile.powerStatus !== 'CONNECTED') {
+        production = Math.floor(production * 0.25);
     }
 
-    return def.water.produces;
+    return production;
 }
