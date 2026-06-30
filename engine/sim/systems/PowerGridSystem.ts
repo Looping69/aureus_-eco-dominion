@@ -8,16 +8,14 @@ import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
 import { GameState, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
-import { ChunkStore } from '../../space/ChunkStore';
 import { solveResourceGridNetwork } from '../resourceGrid/ResourceGridSolver';
 import {
     collectAureusPowerGridParticipants,
-    getStructureKey,
     isIndustrialPowerConsumer,
     isPowerParticipantTile,
-    isStructureHead,
     POWER_NETWORK_TYPE,
 } from '../resourceGrid/AureusPowerGridAdapter';
+import { getStructureKey, isStructureHead, setStructureUtilityStatus } from '../resourceGrid/AureusResourceGridAdapterUtils';
 
 export class PowerGridSystem extends BaseSimSystem {
     readonly id = 'powerGrid';
@@ -88,18 +86,7 @@ export class PowerGridSystem extends BaseSimSystem {
         headTile: GridTile,
         status: 'CONNECTED' | 'DISCONNECTED',
     ): void {
-        const def = BUILDINGS[headTile.buildingType];
-        const width = def?.width || 1;
-        const depth = def?.depth || 1;
-
-        for (let dz = 0; dz < depth; dz++) {
-            for (let dx = 0; dx < width; dx++) {
-                const tile = ChunkStore.getTile(state.chunks, headTile.x + dx, headTile.z + dz);
-                if (!tile || tile.buildingType !== headTile.buildingType || tile.isUnderConstruction) continue;
-
-                tile.powerStatus = status;
-            }
-        }
+        setStructureUtilityStatus(state, headTile, { powerStatus: status });
     }
 
     private getPreviouslyPoweredConsumers(state: GameState): Set<string> {
