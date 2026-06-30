@@ -1,4 +1,4 @@
-import { GameState, GridTile } from '../../../types';
+import { BuildingType, GameState, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { getResourceGridConsumerPriority, getResourceGridRoleDef } from '../../data/resourceGridRoles';
 import type { ResourceGridBuildingRoleDef } from '../../data/resourceGridRoles';
@@ -93,14 +93,14 @@ export function getPowerParticipantId(tile: GridTile): string {
     return getResourceParticipantId(tile, Boolean(BUILDINGS[tile.buildingType]?.power?.consumes));
 }
 
-export function isIndustrialPowerConsumer(type: GridTile['buildingType']): boolean {
+export function isIndustrialPowerConsumer(type: BuildingType): boolean {
     return [
-        'WASH_PLANT',
-        'RECYCLING_PLANT',
-        'ORE_FOUNDRY',
-        'GEM_REFINERY',
-        'WORKSHOP',
-        'GREEN_TECH_LAB',
+        BuildingType.WASH_PLANT,
+        BuildingType.RECYCLING_PLANT,
+        BuildingType.ORE_FOUNDRY,
+        BuildingType.GEM_REFINERY,
+        BuildingType.WORKSHOP,
+        BuildingType.GREEN_TECH_LAB,
     ].includes(type);
 }
 
