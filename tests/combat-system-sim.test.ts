@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CombatSystem, areHostile, chebyshevDistance, ensureAgentCombatState } from '../engine/sim/systems/CombatSystem.ts';
-import type { Agent, GameState } from '../types.ts';
+import { CombatSystem, areHostile, chebyshevDistance, ensureAgentCombatState, getEffectiveCombatStats } from '../engine/sim/systems/CombatSystem.ts';
+import { getPerimeterCombatModifier } from '../engine/data/combatPerimeters.ts';
+import { BuildingType } from '../types.ts';
+import type { Agent, GameState, GridTile } from '../types.ts';
 
 function agent(id: string, name: string, type: Agent['type'], x: number, z: number): Agent {
     return {
@@ -25,10 +27,24 @@ function agent(id: string, name: string, type: Agent['type'], x: number, z: numb
     };
 }
 
-function combatState(agents: Agent[], ambientNpcs: Agent[] = []): GameState {
+function tile(id: number, x: number, z: number, buildingType: BuildingType, isUnderConstruction = false): GridTile {
+    return {
+        id,
+        x,
+        z,
+        buildingType,
+        level: 1,
+        terrainHeight: 1,
+        biome: 'GRASS',
+        isUnderConstruction,
+    } as GridTile;
+}
+
+function combatState(agents: Agent[], ambientNpcs: Agent[] = [], tiles: GridTile[] = []): GameState {
     return {
         agents,
         ambientNpcs,
+        chunks: tiles.length > 0 ? { '0,0': { cx: 0, cz: 0, tiles } } : {},
         newsFeed: [],
         pendingEffects: [],
         tickCount: 1,
@@ -89,4 +105,38 @@ test('combat ignores agents below the surface for now', () => {
 
     assert.equal(ensureAgentCombatState(guard).targetAgentId, null);
     assert.equal(ensureAgentCombatState(intruder).currentHealth, ensureAgentCombatState(intruder).maxHealth);
+});
+
+test('security posts extend defensive engagement around the perimeter', () => {
+    const guard = agent('guard-1', 'Kaya', 'SECURITY', 0, 0);
+    const intruder = agent('raider-1', 'Claim Jumper', 'ILLEGAL_MINER', 6, 0);
+    const state = combatState([guard], [intruder], [tile(1, 0, 0, BuildingType.SECURITY_POST)]);
+    const stats = getEffectiveCombatStats(state, guard);
+
+    assert.equal(stats.scanRange > 7, true);
+    assert.equal(stats.range > 6, true);
+
+    new CombatSystem().tick({ fixedDt: 1, stepIndex: 0, time: 1, getNextId: (prefix) => `${prefix}_1` } as any, state);
+
+    assert.equal(ensureAgentCombatState(guard).targetAgentId, 'raider-1');
+    assert.equal(ensureAgentCombatState(intruder).currentHealth < ensureAgentCombatState(intruder).maxHealth, true);
+});
+
+test('fence perimeter weakens hostile attacks near the line', () => {
+    const intruder = agent('raider-1', 'Claim Jumper', 'ILLEGAL_MINER', 1, 0);
+    const state = combatState([], [intruder], [tile(1, 0, 0, BuildingType.FENCE)]);
+    const modifier = getPerimeterCombatModifier(state, intruder, 'HOSTILE');
+    const effective = getEffectiveCombatStats(state, intruder);
+
+    assert.equal(modifier.attackPenalty, 2);
+    assert.equal(effective.attack, ensureAgentCombatState(intruder).attack - 2);
+});
+
+test('unfinished perimeter structures do not grant defensive bonuses', () => {
+    const guard = agent('guard-1', 'Kaya', 'SECURITY', 0, 0);
+    const state = combatState([guard], [], [tile(1, 0, 0, BuildingType.SECURITY_POST, true)]);
+    const stats = getEffectiveCombatStats(state, guard);
+
+    assert.equal(stats.scanRange, 7);
+    assert.equal(stats.range, 1.6);
 });
