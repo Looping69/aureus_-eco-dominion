@@ -3,11 +3,20 @@ import type { FixedContext } from '../../kernel';
 import { SfxType } from '../../../types';
 import type { Agent, AgentCombatState, AgentRole, CombatFaction, GameState } from '../../../types';
 import { getAgentRoleDef } from '../../data/agentRoles';
+import { getPerimeterCombatModifier } from '../../data/combatPerimeters';
 
 export const COMBAT_SCAN_RANGE = 7;
 export const DEFAULT_COMBAT_RANGE = 1.6;
 
 type CombatProfile = Omit<AgentCombatState, 'cooldownRemaining' | 'targetAgentId' | 'defeated' | 'defeatReported'>;
+
+interface EffectiveCombatStats {
+    faction: CombatFaction;
+    attack: number;
+    defense: number;
+    range: number;
+    scanRange: number;
+}
 
 export function getDefaultCombatProfile(role: AgentRole): CombatProfile {
     const combat = getAgentRoleDef(role).combat;
@@ -45,6 +54,19 @@ export function ensureAgentCombatState(agent: Agent): AgentCombatState {
     return agent.combat;
 }
 
+export function getEffectiveCombatStats(state: GameState, agent: Agent): EffectiveCombatStats {
+    const combat = ensureAgentCombatState(agent);
+    const perimeter = getPerimeterCombatModifier(state, agent, combat.faction);
+
+    return {
+        faction: combat.faction,
+        attack: Math.max(1, combat.attack + perimeter.attackBonus - perimeter.attackPenalty),
+        defense: Math.max(0, combat.defense + perimeter.defenseBonus),
+        range: Math.max(0.5, combat.range + perimeter.rangeBonus),
+        scanRange: Math.max(1, COMBAT_SCAN_RANGE + perimeter.scanRangeBonus),
+    };
+}
+
 export class CombatSystem extends BaseSimSystem {
     readonly id = 'combat';
     readonly priority = 96;
@@ -61,15 +83,16 @@ export class CombatSystem extends BaseSimSystem {
                 continue;
             }
 
-            const target = this.findNearestHostile(agent, combatants);
+            const effectiveStats = getEffectiveCombatStats(state, agent);
+            const target = this.findNearestHostile(state, agent, combatants, effectiveStats);
             combat.targetAgentId = target?.id ?? null;
             if (!target) continue;
 
             const targetCombat = ensureAgentCombatState(target);
             const distance = chebyshevDistance(agent, target);
-            if (distance > combat.range || combat.cooldownRemaining > 0) continue;
+            if (distance > effectiveStats.range || combat.cooldownRemaining > 0) continue;
 
-            this.resolveAttack(ctx, state, agent, combat, target, targetCombat);
+            this.resolveAttack(ctx, state, agent, combat, effectiveStats, target, targetCombat);
         }
     }
 
@@ -79,17 +102,21 @@ export class CombatSystem extends BaseSimSystem {
             .filter((agent) => ensureAgentCombatState(agent).faction !== 'NEUTRAL');
     }
 
-    private findNearestHostile(agent: Agent, combatants: Agent[]): Agent | null {
-        const combat = ensureAgentCombatState(agent);
+    private findNearestHostile(
+        state: GameState,
+        agent: Agent,
+        combatants: Agent[],
+        effectiveStats: EffectiveCombatStats,
+    ): Agent | null {
         let best: Agent | null = null;
         let bestDistance = Infinity;
 
         for (const candidate of combatants) {
             if (candidate.id === agent.id) continue;
-            const candidateCombat = ensureAgentCombatState(candidate);
-            if (candidateCombat.defeated || !areHostile(combat.faction, candidateCombat.faction)) continue;
+            const candidateStats = getEffectiveCombatStats(state, candidate);
+            if (ensureAgentCombatState(candidate).defeated || !areHostile(effectiveStats.faction, candidateStats.faction)) continue;
             const distance = chebyshevDistance(agent, candidate);
-            if (distance > COMBAT_SCAN_RANGE || distance >= bestDistance) continue;
+            if (distance > effectiveStats.scanRange || distance >= bestDistance) continue;
             best = candidate;
             bestDistance = distance;
         }
@@ -102,10 +129,12 @@ export class CombatSystem extends BaseSimSystem {
         state: GameState,
         attacker: Agent,
         attackerCombat: AgentCombatState,
+        attackerStats: EffectiveCombatStats,
         target: Agent,
         targetCombat: AgentCombatState,
     ): void {
-        const damage = Math.max(1, attackerCombat.attack - targetCombat.defense);
+        const targetStats = getEffectiveCombatStats(state, target);
+        const damage = Math.max(1, attackerStats.attack - targetStats.defense);
         targetCombat.currentHealth = Math.max(0, targetCombat.currentHealth - damage);
         attackerCombat.cooldownRemaining = attackerCombat.cooldownSeconds;
         attacker.statusReason = `Engaging ${target.name}.`;
