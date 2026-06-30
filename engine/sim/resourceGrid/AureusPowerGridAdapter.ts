@@ -3,6 +3,7 @@ import { BUILDINGS } from '../../data/VoxelConstants';
 import { getWeatherGameplayEffects } from '../../weather/weatherModel';
 import { getSolarEfficiency } from '../dayNightCycle';
 import type { ResourceGridParticipant } from './ResourceGridSolver';
+import { getResourceParticipantId, isStructureHead, uniqueResourceGridRoles } from './AureusResourceGridAdapterUtils';
 
 export const POWER_NETWORK_TYPE = 'power';
 export const POWER_LINE_SERVICE_RADIUS = 1;
@@ -61,7 +62,7 @@ export function collectAureusPowerGridParticipants(state: GameState): AureusPowe
                 networkType: POWER_NETWORK_TYPE,
                 x: tile.x,
                 z: tile.z,
-                roles: uniqueRoles(roles),
+                roles: uniqueResourceGridRoles(roles),
                 production,
                 demand,
                 priority,
@@ -80,22 +81,8 @@ export function isPowerParticipantTile(tile: GridTile): boolean {
     return tile.buildingType === BuildingType.POWER_LINE || Boolean(def?.power?.produces || def?.power?.consumes);
 }
 
-export function isStructureHead(tile: GridTile): boolean {
-    return tile.structureHeadX === undefined
-        || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
-}
-
-export function getStructureKey(tile: GridTile): string {
-    const x = tile.structureHeadX ?? tile.x;
-    const z = tile.structureHeadZ ?? tile.z;
-    return `${tile.buildingType}:${x},${z}`;
-}
-
 export function getPowerParticipantId(tile: GridTile): string {
-    if (isStructureHead(tile) && BUILDINGS[tile.buildingType]?.power?.consumes) {
-        return getStructureKey(tile);
-    }
-    return `${tile.x},${tile.z}`;
+    return getResourceParticipantId(tile, Boolean(BUILDINGS[tile.buildingType]?.power?.consumes));
 }
 
 export function getAureusPowerPriority(type: BuildingType): number {
@@ -136,8 +123,4 @@ function getPowerProduction(
     }
 
     return def.power.produces;
-}
-
-function uniqueRoles(roles: ResourceGridParticipant['roles']): ResourceGridParticipant['roles'] {
-    return Array.from(new Set(roles));
 }
