@@ -1,6 +1,7 @@
 import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
-import { Agent, AgentCombatState, AgentRole, CombatFaction, GameState, SfxType } from '../../../types';
+import type { FixedContext } from '../../kernel';
+import { SfxType } from '../../../types';
+import type { Agent, AgentCombatState, AgentRole, CombatFaction, GameState } from '../../../types';
 
 export const COMBAT_SCAN_RANGE = 7;
 export const DEFAULT_COMBAT_RANGE = 1.6;
