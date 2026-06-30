@@ -14,6 +14,8 @@ function source(relativePath: string): string {
 test('engine exposes deterministic network primitives without socket coupling', () => {
     const envelope = source('engine/net/DeterministicCommand.ts');
     const buffer = source('engine/net/LockstepCommandBuffer.ts');
+    const bridge = source('engine/net/LockstepStateBridge.ts');
+    const replay = source('engine/net/LockstepReplay.ts');
     const exports = source('engine/net/index.ts');
 
     assert.match(envelope, /DeterministicCommandEnvelope/);
@@ -23,10 +25,17 @@ test('engine exposes deterministic network primitives without socket coupling', 
     assert.match(buffer, /LockstepCommandBuffer/);
     assert.match(buffer, /drainReadyCommands/);
     assert.match(buffer, /DUPLICATE_SEQUENCE/);
+    assert.match(bridge, /flushLockstepCommandsToQueue/);
+    assert.match(bridge, /commandQueue\.push/);
+    assert.match(replay, /serializeLockstepReplay/);
+    assert.match(replay, /deserializeLockstepReplay/);
+    assert.match(replay, /payload hash mismatch/);
     assert.match(exports, /DeterministicCommand/);
     assert.match(exports, /LockstepCommandBuffer/);
+    assert.match(exports, /LockstepStateBridge/);
+    assert.match(exports, /LockstepReplay/);
 
-    for (const text of [envelope, buffer]) {
+    for (const text of [envelope, buffer, bridge, replay]) {
         assert.equal(/WebSocket|BroadcastChannel|fetch\(/.test(text), false);
     }
 });
