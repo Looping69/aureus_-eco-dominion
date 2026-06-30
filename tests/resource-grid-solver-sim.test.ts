@@ -100,7 +100,10 @@ test('water network delegates connectivity and allocation to the resource grid s
     assert.equal(waterSystem.includes('const openSet'), false);
     assert.equal(waterSystem.includes('markNearbyConsumersConnected'), false);
     assert.match(adapter, /getResourceGridRoleDef\(tile\.buildingType, WATER_NETWORK_TYPE, 'CARRIER'\)/);
+    assert.match(adapter, /getResourceGridRoleDef\(tile\.buildingType, WATER_NETWORK_TYPE, 'PRODUCER'\)/);
     assert.match(adapter, /getResourceGridConsumerPriority\(tile\.buildingType, WATER_NETWORK_TYPE\)/);
+    assert.match(adapter, /modifiers\.includes\('POND_WEATHER'\)/);
+    assert.match(adapter, /modifiers\.includes\('RESERVOIR_POWER_DEPENDENCY'\)/);
     assert.match(adapter, /tile\.buildingType === BuildingType\.PIPE \|\| tile\.undergroundPipe === true/);
 });
 
@@ -113,9 +116,10 @@ test('power grid delegates connectivity and allocation to the resource grid solv
     assert.equal(powerSystem.includes('const openSet'), false);
     assert.equal(powerSystem.includes('allocatePowerBudget'), false);
     assert.match(adapter, /getResourceGridRoleDef\(tile\.buildingType, POWER_NETWORK_TYPE, 'CARRIER'\)/);
+    assert.match(adapter, /getResourceGridRoleDef\(tile\.buildingType, POWER_NETWORK_TYPE, 'PRODUCER'\)/);
     assert.match(adapter, /getResourceGridConsumerPriority\(tile\.buildingType, POWER_NETWORK_TYPE\)/);
-    assert.match(adapter, /getSolarEfficiency\(timeOfDay\)/);
-    assert.match(adapter, /weatherEffects\.windMult/);
+    assert.match(adapter, /modifiers\.includes\('SOLAR_DAYLIGHT'\)/);
+    assert.match(adapter, /modifiers\.includes\('WIND_WEATHER'\)/);
 });
 
 test('Aureus adapters share structure and footprint helper logic', () => {
@@ -143,15 +147,26 @@ test('static resource grid roles live in declarative data', () => {
     const powerAdapter = source('engine/sim/resourceGrid/AureusPowerGridAdapter.ts');
 
     assert.match(roleData, /RESOURCE_GRID_BUILDING_ROLES/);
+    assert.match(roleData, /ResourceGridProductionModifier/);
     assert.match(roleData, /BuildingType\.PIPE/);
     assert.match(roleData, /networkType: 'water'/);
     assert.match(roleData, /roles: \['CARRIER'\]/);
     assert.match(roleData, /serviceRadius: 3/);
     assert.match(roleData, /serviceMetric: 'CHEBYSHEV'/);
+    assert.match(roleData, /BuildingType\.POND/);
+    assert.match(roleData, /productionModifiers: \['POND_WEATHER'\]/);
+    assert.match(roleData, /BuildingType\.RESERVOIR/);
+    assert.match(roleData, /productionModifiers: \['RESERVOIR_POWER_DEPENDENCY'\]/);
     assert.match(roleData, /BuildingType\.POWER_LINE/);
     assert.match(roleData, /networkType: 'power'/);
     assert.match(roleData, /serviceRadius: 1/);
     assert.match(roleData, /serviceMetric: 'MANHATTAN'/);
+    assert.match(roleData, /BuildingType\.SOLAR_ARRAY/);
+    assert.match(roleData, /productionModifiers: \['SOLAR_DAYLIGHT'\]/);
+    assert.match(roleData, /BuildingType\.WIND_TURBINE/);
+    assert.match(roleData, /productionModifiers: \['WIND_WEATHER'\]/);
+    assert.match(roleData, /BuildingType\.GENERATOR/);
+    assert.match(roleData, /BuildingType\.GEOTHERMAL_PLANT/);
     assert.match(roleData, /export function getResourceGridConsumerPriority/);
     assert.equal(waterAdapter.includes('function getAureusWaterPriority'), false);
     assert.equal(powerAdapter.includes('function getAureusPowerPriority'), false);
