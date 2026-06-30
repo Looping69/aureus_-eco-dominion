@@ -118,3 +118,22 @@ test('power grid delegates connectivity and allocation to the resource grid solv
     assert.match(adapter, /getSolarEfficiency\(timeOfDay\)/);
     assert.match(adapter, /weatherEffects\.windMult/);
 });
+
+test('Aureus adapters share structure and footprint helper logic', () => {
+    const utilities = source('engine/sim/resourceGrid/AureusResourceGridAdapterUtils.ts');
+    const waterAdapter = source('engine/sim/resourceGrid/AureusWaterGridAdapter.ts');
+    const powerAdapter = source('engine/sim/resourceGrid/AureusPowerGridAdapter.ts');
+    const waterSystem = source('engine/sim/systems/WaterNetworkSystem.ts');
+    const powerSystem = source('engine/sim/systems/PowerGridSystem.ts');
+
+    assert.match(utilities, /export function isStructureHead/);
+    assert.match(utilities, /export function getStructureKey/);
+    assert.match(utilities, /export function getResourceParticipantId/);
+    assert.match(utilities, /export function setStructureUtilityStatus/);
+    assert.match(waterAdapter, /AureusResourceGridAdapterUtils/);
+    assert.match(powerAdapter, /AureusResourceGridAdapterUtils/);
+    assert.match(waterSystem, /setStructureUtilityStatus\(state, headTile, \{ waterStatus: status, waterShortage \}\)/);
+    assert.match(powerSystem, /setStructureUtilityStatus\(state, headTile, \{ powerStatus: status \}\)/);
+    assert.equal(waterSystem.includes('ChunkStore'), false);
+    assert.equal(powerSystem.includes('ChunkStore'), false);
+});
