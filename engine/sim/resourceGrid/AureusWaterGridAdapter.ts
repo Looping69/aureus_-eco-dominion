@@ -1,7 +1,8 @@
 import { BuildingType, GameState, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
+import { getResourceGridConsumerPriority, getResourceGridRoleDef } from '../../data/resourceGridRoles';
 import { getWeatherGameplayEffects } from '../../weather/weatherModel';
-import type { ResourceGridParticipant } from './ResourceGridSolver';
+import type { ResourceGridParticipant, ResourceGridServiceMetric } from './ResourceGridSolver';
 import { getResourceParticipantId, isStructureHead, uniqueResourceGridRoles } from './AureusResourceGridAdapterUtils';
 
 export const WATER_NETWORK_TYPE = 'water';
@@ -27,22 +28,26 @@ export function collectAureusWaterGridParticipants(state: GameState): AureusWate
             let demand = 0;
             let priority = 0;
             let serviceRadius = 0;
+            let serviceMetric: ResourceGridServiceMetric = 'CHEBYSHEV';
 
-            if (isWaterPipeTile(tile)) {
+            const carrierDef = getResourceGridRoleDef(tile.buildingType, WATER_NETWORK_TYPE, 'CARRIER');
+            if (isWaterPipeTile(tile) || carrierDef) {
                 roles.push('CARRIER');
-                serviceRadius = WATER_PIPE_SERVICE_RADIUS;
+                serviceRadius = carrierDef?.serviceRadius ?? WATER_PIPE_SERVICE_RADIUS;
+                serviceMetric = carrierDef?.serviceMetric ?? 'CHEBYSHEV';
             }
 
             if (def?.water?.produces && isStructureHead(tile)) {
                 roles.push('PRODUCER', 'CARRIER');
                 production = getWaterProduction(tile, weatherEffects.waterCollectionMult);
-                serviceRadius = WATER_PIPE_SERVICE_RADIUS;
+                serviceRadius = carrierDef?.serviceRadius ?? WATER_PIPE_SERVICE_RADIUS;
+                serviceMetric = carrierDef?.serviceMetric ?? 'CHEBYSHEV';
             }
 
             if (def?.water?.consumes && isStructureHead(tile)) {
                 roles.push('CONSUMER');
                 demand = def.water.consumes;
-                priority = getAureusWaterPriority(tile.buildingType);
+                priority = getResourceGridConsumerPriority(tile.buildingType, WATER_NETWORK_TYPE);
             }
 
             if (roles.length === 0) continue;
@@ -58,7 +63,7 @@ export function collectAureusWaterGridParticipants(state: GameState): AureusWate
                 demand,
                 priority,
                 serviceRadius,
-                serviceMetric: 'CHEBYSHEV',
+                serviceMetric,
             });
             tilesByParticipantId.set(id, tile);
         }
@@ -80,15 +85,6 @@ export function getWaterParticipantId(tile: GridTile): string {
     return getResourceParticipantId(tile, Boolean(BUILDINGS[tile.buildingType]?.water?.consumes));
 }
 
-export function getAureusWaterPriority(type: BuildingType): number {
-    if (type === BuildingType.STAFF_QUARTERS) return 100;
-    if (type === BuildingType.COMMUNITY_GARDEN) return 95;
-    if (type === BuildingType.WASTE_TREATMENT) return 90;
-    if (type === BuildingType.GREEN_TECH_LAB) return 80;
-    if (isIndustrialWaterConsumer(type)) return 65;
-    return 50;
-}
-
 function getWaterProduction(tile: GridTile, waterCollectionMult: number): number {
     const def = BUILDINGS[tile.buildingType];
     if (!def?.water?.produces) return 0;
@@ -102,15 +98,4 @@ function getWaterProduction(tile: GridTile, waterCollectionMult: number): number
     }
 
     return def.water.produces;
-}
-
-function isIndustrialWaterConsumer(type: BuildingType): boolean {
-    return [
-        BuildingType.WASH_PLANT,
-        BuildingType.RECYCLING_PLANT,
-        BuildingType.ORE_FOUNDRY,
-        BuildingType.GEM_REFINERY,
-        BuildingType.WORKSHOP,
-        BuildingType.GREEN_TECH_LAB,
-    ].includes(type);
 }
