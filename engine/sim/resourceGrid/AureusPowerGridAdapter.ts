@@ -1,8 +1,9 @@
 import { BuildingType, GameState, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
+import { getResourceGridConsumerPriority, getResourceGridRoleDef } from '../../data/resourceGridRoles';
 import { getWeatherGameplayEffects } from '../../weather/weatherModel';
 import { getSolarEfficiency } from '../dayNightCycle';
-import type { ResourceGridParticipant } from './ResourceGridSolver';
+import type { ResourceGridParticipant, ResourceGridServiceMetric } from './ResourceGridSolver';
 import { getResourceParticipantId, isStructureHead, uniqueResourceGridRoles } from './AureusResourceGridAdapterUtils';
 
 export const POWER_NETWORK_TYPE = 'power';
@@ -32,15 +33,19 @@ export function collectAureusPowerGridParticipants(state: GameState): AureusPowe
             let demand = 0;
             let priority = 0;
             let serviceRadius = 0;
+            let serviceMetric: ResourceGridServiceMetric = 'MANHATTAN';
 
-            if (tile.buildingType === BuildingType.POWER_LINE) {
+            const carrierDef = getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'CARRIER');
+            if (carrierDef) {
                 roles.push('CARRIER');
-                serviceRadius = POWER_LINE_SERVICE_RADIUS;
+                serviceRadius = carrierDef.serviceRadius ?? POWER_LINE_SERVICE_RADIUS;
+                serviceMetric = carrierDef.serviceMetric ?? 'MANHATTAN';
             }
 
             if (def.power?.produces) {
                 roles.push('CARRIER');
-                serviceRadius = POWER_LINE_SERVICE_RADIUS;
+                serviceRadius = carrierDef?.serviceRadius ?? POWER_LINE_SERVICE_RADIUS;
+                serviceMetric = carrierDef?.serviceMetric ?? 'MANHATTAN';
 
                 if (isStructureHead(tile)) {
                     roles.push('PRODUCER');
@@ -51,7 +56,7 @@ export function collectAureusPowerGridParticipants(state: GameState): AureusPowe
             if (def.power?.consumes && isStructureHead(tile)) {
                 roles.push('CONSUMER');
                 demand = def.power.consumes;
-                priority = getAureusPowerPriority(tile.buildingType);
+                priority = getResourceGridConsumerPriority(tile.buildingType, POWER_NETWORK_TYPE);
             }
 
             if (roles.length === 0) continue;
@@ -67,7 +72,7 @@ export function collectAureusPowerGridParticipants(state: GameState): AureusPowe
                 demand,
                 priority,
                 serviceRadius,
-                serviceMetric: 'MANHATTAN',
+                serviceMetric,
             });
             tilesByParticipantId.set(id, tile);
         }
@@ -78,18 +83,12 @@ export function collectAureusPowerGridParticipants(state: GameState): AureusPowe
 
 export function isPowerParticipantTile(tile: GridTile): boolean {
     const def = BUILDINGS[tile.buildingType];
-    return tile.buildingType === BuildingType.POWER_LINE || Boolean(def?.power?.produces || def?.power?.consumes);
+    return Boolean(getResourceGridRoleDef(tile.buildingType, POWER_NETWORK_TYPE, 'CARRIER'))
+        || Boolean(def?.power?.produces || def?.power?.consumes);
 }
 
 export function getPowerParticipantId(tile: GridTile): string {
     return getResourceParticipantId(tile, Boolean(BUILDINGS[tile.buildingType]?.power?.consumes));
-}
-
-export function getAureusPowerPriority(type: BuildingType): number {
-    if (type === BuildingType.RESERVOIR) return 100;
-    if (type === BuildingType.STAFF_QUARTERS) return 90;
-    if (isIndustrialPowerConsumer(type)) return 70;
-    return 50;
 }
 
 export function isIndustrialPowerConsumer(type: BuildingType): boolean {
