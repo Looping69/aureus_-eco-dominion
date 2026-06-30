@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { StateManager } from '../engine/state/StateManager.ts';
+import { ChunkStore } from '../engine/space/ChunkStore.ts';
+import { collectAureusWaterGridParticipants } from '../engine/sim/resourceGrid/AureusWaterGridAdapter.ts';
+import { collectAureusPowerGridParticipants } from '../engine/sim/resourceGrid/AureusPowerGridAdapter.ts';
 import { solveResourceGridNetwork } from '../engine/sim/resourceGrid/ResourceGridSolver.ts';
+import { BuildingType } from '../types.ts';
+import type { GameState, GridTile } from '../types.ts';
 import type { ResourceGridParticipant } from '../engine/sim/resourceGrid/ResourceGridSolver.ts';
 
 function node(partial: ResourceGridParticipant): ResourceGridParticipant {
@@ -14,6 +20,56 @@ function source(relativePath: string): string {
     const filePath = path.join(process.cwd(), relativePath);
     assert.equal(existsSync(filePath), true, `${relativePath} should exist`);
     return readFileSync(filePath, 'utf8');
+}
+
+function tile(state: GameState, x: number, z: number): GridTile {
+    const found = ChunkStore.getTile(state.chunks, x, z);
+    assert.ok(found, `expected tile at ${x},${z}`);
+    return found;
+}
+
+function clearWorld(state: GameState): void {
+    for (const chunk of Object.values(state.chunks)) {
+        for (const target of chunk.tiles) {
+            Object.assign(target, {
+                buildingType: BuildingType.EMPTY,
+                level: 1,
+                foliage: 'NONE',
+                isUnderConstruction: false,
+                constructionTimeLeft: 0,
+                structureHeadX: undefined,
+                structureHeadZ: undefined,
+                powerStatus: undefined,
+                waterStatus: undefined,
+                waterShortage: undefined,
+                undergroundPipe: undefined,
+            });
+        }
+    }
+}
+
+function place(state: GameState, x: number, z: number, buildingType: BuildingType): GridTile {
+    const target = tile(state, x, z);
+    Object.assign(target, {
+        buildingType,
+        level: 1,
+        foliage: 'NONE',
+        isUnderConstruction: false,
+        constructionTimeLeft: 0,
+        structureHeadX: undefined,
+        structureHeadZ: undefined,
+        powerStatus: undefined,
+        waterStatus: undefined,
+        waterShortage: undefined,
+        undergroundPipe: undefined,
+    });
+    return target;
+}
+
+function participantAt(participants: ResourceGridParticipant[], x: number, z: number, role: ResourceGridParticipant['roles'][number]): ResourceGridParticipant {
+    const participant = participants.find((entry) => entry.x === x && entry.z === z && entry.roles.includes(role));
+    assert.ok(participant, `expected ${role} participant at ${x},${z}`);
+    return participant;
 }
 
 test('resource grid solver connects producers through carriers and serves radius consumers', () => {
@@ -89,6 +145,64 @@ test('resource grid solver ignores unrelated network types', () => {
     assert.deepEqual(result.consumers, [
         { id: 'power-consumer', status: 'SUPPLIED', requested: 9, allocated: 9 },
     ]);
+});
+
+test('Aureus water adapter collects schema-backed production and demand amounts', () => {
+    const state = new StateManager({ cheatsEnabled: true }).getMutableState();
+    clearWorld(state);
+
+    place(state, 0, 0, BuildingType.WATER_WELL);
+    place(state, 1, 0, BuildingType.PIPE);
+    place(state, 2, 0, BuildingType.STAFF_QUARTERS);
+    place(state, 3, 0, BuildingType.WASH_PLANT);
+
+    const { participants } = collectAureusWaterGridParticipants(state);
+    const well = participantAt(participants, 0, 0, 'PRODUCER');
+    const pipe = participantAt(participants, 1, 0, 'CARRIER');
+    const housing = participantAt(participants, 2, 0, 'CONSUMER');
+    const washPlant = participantAt(participants, 3, 0, 'CONSUMER');
+
+    assert.deepEqual(well.roles, ['CARRIER', 'PRODUCER']);
+    assert.equal(well.production, 10);
+    assert.equal(well.demand, 0);
+    assert.equal(well.serviceRadius, 3);
+    assert.equal(well.serviceMetric, 'CHEBYSHEV');
+    assert.deepEqual(pipe.roles, ['CARRIER']);
+    assert.equal(pipe.production, 0);
+    assert.equal(pipe.demand, 0);
+    assert.equal(housing.demand, 1);
+    assert.equal(housing.priority, 100);
+    assert.equal(washPlant.demand, 5);
+    assert.equal(washPlant.priority, 65);
+});
+
+test('Aureus power adapter collects schema-backed production and demand amounts', () => {
+    const state = new StateManager({ cheatsEnabled: true }).getMutableState();
+    clearWorld(state);
+
+    place(state, 10, 0, BuildingType.GENERATOR);
+    place(state, 11, 0, BuildingType.POWER_LINE);
+    place(state, 12, 0, BuildingType.RESERVOIR);
+    place(state, 13, 0, BuildingType.SPACEPORT);
+
+    const { participants } = collectAureusPowerGridParticipants(state);
+    const generator = participantAt(participants, 10, 0, 'PRODUCER');
+    const powerLine = participantAt(participants, 11, 0, 'CARRIER');
+    const reservoir = participantAt(participants, 12, 0, 'CONSUMER');
+    const spaceport = participantAt(participants, 13, 0, 'CONSUMER');
+
+    assert.deepEqual(generator.roles, ['CARRIER', 'PRODUCER']);
+    assert.equal(generator.production, 10);
+    assert.equal(generator.demand, 0);
+    assert.equal(generator.serviceRadius, 1);
+    assert.equal(generator.serviceMetric, 'MANHATTAN');
+    assert.deepEqual(powerLine.roles, ['CARRIER']);
+    assert.equal(powerLine.production, 0);
+    assert.equal(powerLine.demand, 0);
+    assert.equal(reservoir.demand, 2);
+    assert.equal(reservoir.priority, 100);
+    assert.equal(spaceport.demand, 100);
+    assert.equal(spaceport.priority, 50);
 });
 
 test('water network delegates connectivity and allocation to the resource grid solver', () => {
