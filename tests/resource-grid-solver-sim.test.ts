@@ -99,8 +99,8 @@ test('water network delegates connectivity and allocation to the resource grid s
     assert.match(waterSystem, /collectAureusWaterGridParticipants\(state\)/);
     assert.equal(waterSystem.includes('const openSet'), false);
     assert.equal(waterSystem.includes('markNearbyConsumersConnected'), false);
-    assert.match(adapter, /WATER_PIPE_SERVICE_RADIUS = 3/);
-    assert.match(adapter, /serviceMetric: 'CHEBYSHEV'/);
+    assert.match(adapter, /getResourceGridRoleDef\(tile\.buildingType, WATER_NETWORK_TYPE, 'CARRIER'\)/);
+    assert.match(adapter, /getResourceGridConsumerPriority\(tile\.buildingType, WATER_NETWORK_TYPE\)/);
     assert.match(adapter, /tile\.buildingType === BuildingType\.PIPE \|\| tile\.undergroundPipe === true/);
 });
 
@@ -112,9 +112,8 @@ test('power grid delegates connectivity and allocation to the resource grid solv
     assert.match(powerSystem, /collectAureusPowerGridParticipants\(state\)/);
     assert.equal(powerSystem.includes('const openSet'), false);
     assert.equal(powerSystem.includes('allocatePowerBudget'), false);
-    assert.match(adapter, /POWER_LINE_SERVICE_RADIUS = 1/);
-    assert.match(adapter, /serviceMetric: 'MANHATTAN'/);
-    assert.match(adapter, /tile\.buildingType === BuildingType\.POWER_LINE/);
+    assert.match(adapter, /getResourceGridRoleDef\(tile\.buildingType, POWER_NETWORK_TYPE, 'CARRIER'\)/);
+    assert.match(adapter, /getResourceGridConsumerPriority\(tile\.buildingType, POWER_NETWORK_TYPE\)/);
     assert.match(adapter, /getSolarEfficiency\(timeOfDay\)/);
     assert.match(adapter, /weatherEffects\.windMult/);
 });
@@ -136,4 +135,24 @@ test('Aureus adapters share structure and footprint helper logic', () => {
     assert.match(powerSystem, /setStructureUtilityStatus\(state, headTile, \{ powerStatus: status \}\)/);
     assert.equal(waterSystem.includes('ChunkStore'), false);
     assert.equal(powerSystem.includes('ChunkStore'), false);
+});
+
+test('static resource grid roles live in declarative data', () => {
+    const roleData = source('engine/data/resourceGridRoles.ts');
+    const waterAdapter = source('engine/sim/resourceGrid/AureusWaterGridAdapter.ts');
+    const powerAdapter = source('engine/sim/resourceGrid/AureusPowerGridAdapter.ts');
+
+    assert.match(roleData, /RESOURCE_GRID_BUILDING_ROLES/);
+    assert.match(roleData, /BuildingType\.PIPE/);
+    assert.match(roleData, /networkType: 'water'/);
+    assert.match(roleData, /roles: \['CARRIER'\]/);
+    assert.match(roleData, /serviceRadius: 3/);
+    assert.match(roleData, /serviceMetric: 'CHEBYSHEV'/);
+    assert.match(roleData, /BuildingType\.POWER_LINE/);
+    assert.match(roleData, /networkType: 'power'/);
+    assert.match(roleData, /serviceRadius: 1/);
+    assert.match(roleData, /serviceMetric: 'MANHATTAN'/);
+    assert.match(roleData, /export function getResourceGridConsumerPriority/);
+    assert.equal(waterAdapter.includes('function getAureusWaterPriority'), false);
+    assert.equal(powerAdapter.includes('function getAureusPowerPriority'), false);
 });
