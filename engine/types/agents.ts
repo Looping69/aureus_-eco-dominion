@@ -57,6 +57,22 @@ export interface AgentExperience {
 // Shift system
 export type ShiftType = 'DAY' | 'NIGHT' | 'FLEXIBLE';
 
+export type CombatFaction = 'COLONY' | 'HOSTILE' | 'NEUTRAL';
+
+export interface AgentCombatState {
+    faction: CombatFaction;
+    currentHealth: number;
+    maxHealth: number;
+    attack: number;
+    defense: number;
+    range: number;
+    cooldownSeconds: number;
+    cooldownRemaining: number;
+    targetAgentId?: string | null;
+    defeated?: boolean;
+    defeatReported?: boolean;
+}
+
 // Agent requests - things agents ask for
 export type AgentRequestType =
     | 'NEED_BREAK'           // Agent is tired, needs rest
@@ -122,6 +138,9 @@ export interface Agent {
     personality?: AgentPersonality;
     memory?: AgentMemory;
     experience?: AgentExperience;
+
+    // Combat state (optional for backward compatibility; CombatSystem hydrates missing values)
+    combat?: AgentCombatState;
 
     // Behavior modifiers
     workEfficiency?: number;  // Multiplier based on mood/energy (0.5-1.5)
