@@ -22,6 +22,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/resource-grid-schema-contract.test.ts',
     'tests/agent-role-schema-contract.test.ts',
     'tests/combat-perimeter-schema-contract.test.ts',
+    'tests/combat-world-registration-contract.test.ts',
     'tests/app-helper-extraction-contract.test.ts',
     'tests/combat-system-sim.test.ts',
 ];
