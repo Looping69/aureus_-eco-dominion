@@ -1,8 +1,8 @@
 import { BuildingType, GameState, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
-import { ChunkStore } from '../../space/ChunkStore';
 import { getWeatherGameplayEffects } from '../../weather/weatherModel';
 import type { ResourceGridParticipant } from './ResourceGridSolver';
+import { getResourceParticipantId, isStructureHead, uniqueResourceGridRoles } from './AureusResourceGridAdapterUtils';
 
 export const WATER_NETWORK_TYPE = 'water';
 export const WATER_PIPE_SERVICE_RADIUS = 3;
@@ -53,7 +53,7 @@ export function collectAureusWaterGridParticipants(state: GameState): AureusWate
                 networkType: WATER_NETWORK_TYPE,
                 x: tile.x,
                 z: tile.z,
-                roles: uniqueRoles(roles),
+                roles: uniqueResourceGridRoles(roles),
                 production,
                 demand,
                 priority,
@@ -76,27 +76,8 @@ export function isWaterParticipantTile(tile: GridTile): boolean {
     return isWaterPipeTile(tile) || Boolean(def?.water?.produces || def?.water?.consumes);
 }
 
-export function isStructureHead(tile: GridTile): boolean {
-    return tile.structureHeadX === undefined
-        || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
-}
-
-export function getStructureHeadTile(state: GameState, tile: GridTile): GridTile {
-    if (isStructureHead(tile)) return tile;
-    return ChunkStore.getTile(state.chunks, tile.structureHeadX!, tile.structureHeadZ!) || tile;
-}
-
-export function getStructureKey(tile: GridTile): string {
-    const x = tile.structureHeadX ?? tile.x;
-    const z = tile.structureHeadZ ?? tile.z;
-    return `${tile.buildingType}:${x},${z}`;
-}
-
 export function getWaterParticipantId(tile: GridTile): string {
-    if (isStructureHead(tile) && BUILDINGS[tile.buildingType]?.water?.consumes) {
-        return getStructureKey(tile);
-    }
-    return `${tile.x},${tile.z}`;
+    return getResourceParticipantId(tile, Boolean(BUILDINGS[tile.buildingType]?.water?.consumes));
 }
 
 export function getAureusWaterPriority(type: BuildingType): number {
@@ -132,8 +113,4 @@ function isIndustrialWaterConsumer(type: BuildingType): boolean {
         BuildingType.WORKSHOP,
         BuildingType.GREEN_TECH_LAB,
     ].includes(type);
-}
-
-function uniqueRoles(roles: ResourceGridParticipant['roles']): ResourceGridParticipant['roles'] {
-    return Array.from(new Set(roles));
 }
