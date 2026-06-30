@@ -13,6 +13,8 @@ const STABILIZATION_CONTRACTS = [
     'tests/narrative-panel-contract.test.ts',
     'tests/render-frame-contract.test.ts',
     'tests/command-boundary-contract.test.ts',
+    'tests/deterministic-network-layer-contract.test.ts',
+    'tests/lockstep-command-buffer-contract.test.ts',
     'tests/contracts-lifecycle-sim.test.ts',
     'tests/construction-placement-sim.test.ts',
     'tests/utility-readability-sim.test.ts',
