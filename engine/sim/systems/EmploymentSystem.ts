@@ -1,7 +1,8 @@
 
 import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
-import { GameState, BuildingType, Agent, Chunk } from '../../../types';
+import type { FixedContext } from '../../kernel';
+import { BuildingType } from '../../../types';
+import type { GameState, Agent, Chunk } from '../../../types';
 import { getAgentRoleForWorkplace, getProfessionalWorkplaceTypes } from '../../data/agentRoles';
 
 /**
