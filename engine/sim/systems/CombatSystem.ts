@@ -19,7 +19,7 @@ export interface EffectiveCombatStats {
 }
 
 export function getDefaultCombatProfile(role: AgentRole): CombatProfile {
-    const combat = getAgentRoleDef(role).combat;
+    const combat = getAgentRoleDef(role)?.combat ?? getAgentRoleDef('CITIZEN').combat;
     return {
         faction: combat.faction,
         currentHealth: combat.maxHealth,
@@ -97,7 +97,10 @@ export class CombatSystem extends BaseSimSystem {
     }
 
     private getCombatants(state: GameState): Agent[] {
-        return [...(state.agents ?? []), ...(state.ambientNpcs ?? [])]
+        const agents = Array.isArray(state.agents) ? state.agents : [];
+        const ambientNpcs = Array.isArray(state.ambientNpcs) ? state.ambientNpcs : [];
+
+        return [...agents, ...ambientNpcs]
             .filter((agent) => agent.layer === 0)
             .filter((agent) => ensureAgentCombatState(agent).faction !== 'NEUTRAL');
     }
