@@ -10,7 +10,7 @@ export const DEFAULT_COMBAT_RANGE = 1.6;
 
 type CombatProfile = Omit<AgentCombatState, 'cooldownRemaining' | 'targetAgentId' | 'defeated' | 'defeatReported'>;
 
-interface EffectiveCombatStats {
+export interface EffectiveCombatStats {
     faction: CombatFaction;
     attack: number;
     defense: number;
