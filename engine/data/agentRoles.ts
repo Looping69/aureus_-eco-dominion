@@ -1,4 +1,5 @@
-import { AgentRole, BuildingType, CombatFaction, ColonistStats } from '../../types';
+import { BuildingType } from '../../types';
+import type { AgentRole, CombatFaction, ColonistStats } from '../../types';
 
 export interface AgentRoleCombatDef {
     faction: CombatFaction;
