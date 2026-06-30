@@ -37,11 +37,12 @@ test('starter shop includes infrastructure, shelter, storage, mining, water, and
   }
 });
 
-test('Growth unlock remains tied to the three-building starter base', () => {
+test('Growth unlock remains tied to the three-founder starter base', () => {
   const text = source(erasPath);
 
   for (const snippet of [
     '[Era.GROWTH]: {',
+    'minColonists: 3,',
     'minBuildings: 3,',
     'requiredBuildings: [BuildingType.STAFF_QUARTERS, BuildingType.STORAGE_DEPOT, BuildingType.MINING_HEADFRAME]',
     "{ id: 'starter_base', name: 'A Roof And A Depot', target: 3 }",
