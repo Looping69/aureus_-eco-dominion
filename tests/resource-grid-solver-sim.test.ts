@@ -103,3 +103,18 @@ test('water network delegates connectivity and allocation to the resource grid s
     assert.match(adapter, /serviceMetric: 'CHEBYSHEV'/);
     assert.match(adapter, /tile\.buildingType === BuildingType\.PIPE \|\| tile\.undergroundPipe === true/);
 });
+
+test('power grid delegates connectivity and allocation to the resource grid solver', () => {
+    const powerSystem = source('engine/sim/systems/PowerGridSystem.ts');
+    const adapter = source('engine/sim/resourceGrid/AureusPowerGridAdapter.ts');
+
+    assert.match(powerSystem, /solveResourceGridNetwork\(POWER_NETWORK_TYPE, participants\)/);
+    assert.match(powerSystem, /collectAureusPowerGridParticipants\(state\)/);
+    assert.equal(powerSystem.includes('const openSet'), false);
+    assert.equal(powerSystem.includes('allocatePowerBudget'), false);
+    assert.match(adapter, /POWER_LINE_SERVICE_RADIUS = 1/);
+    assert.match(adapter, /serviceMetric: 'MANHATTAN'/);
+    assert.match(adapter, /tile\.buildingType === BuildingType\.POWER_LINE/);
+    assert.match(adapter, /getSolarEfficiency\(timeOfDay\)/);
+    assert.match(adapter, /weatherEffects\.windMult/);
+});
