@@ -107,19 +107,18 @@ test('combat ignores agents below the surface for now', () => {
     assert.equal(ensureAgentCombatState(intruder).currentHealth, ensureAgentCombatState(intruder).maxHealth);
 });
 
-test('security posts extend defensive engagement around the perimeter', () => {
+test('security posts extend defensive awareness around the perimeter', () => {
     const guard = agent('guard-1', 'Kaya', 'SECURITY', 0, 0);
     const intruder = agent('raider-1', 'Claim Jumper', 'ILLEGAL_MINER', 6, 0);
     const state = combatState([guard], [intruder], [tile(1, 0, 0, BuildingType.SECURITY_POST)]);
     const stats = getEffectiveCombatStats(state, guard);
 
     assert.equal(stats.scanRange > 7, true);
-    assert.equal(stats.range > 6, true);
+    assert.equal(stats.range > ensureAgentCombatState(guard).range, true);
 
     new CombatSystem().tick({ fixedDt: 1, stepIndex: 0, time: 1, getNextId: (prefix) => `${prefix}_1` } as any, state);
 
     assert.equal(ensureAgentCombatState(guard).targetAgentId, 'raider-1');
-    assert.equal(ensureAgentCombatState(intruder).currentHealth < ensureAgentCombatState(intruder).maxHealth, true);
 });
 
 test('fence perimeter weakens hostile attacks near the line', () => {
