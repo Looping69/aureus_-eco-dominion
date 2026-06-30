@@ -1,11 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { solveResourceGridNetwork } from '../engine/sim/resourceGrid/ResourceGridSolver.ts';
 import type { ResourceGridParticipant } from '../engine/sim/resourceGrid/ResourceGridSolver.ts';
 
 function node(partial: ResourceGridParticipant): ResourceGridParticipant {
     return partial;
+}
+
+function source(relativePath: string): string {
+    const filePath = path.join(process.cwd(), relativePath);
+    assert.equal(existsSync(filePath), true, `${relativePath} should exist`);
+    return readFileSync(filePath, 'utf8');
 }
 
 test('resource grid solver connects producers through carriers and serves radius consumers', () => {
@@ -81,4 +89,17 @@ test('resource grid solver ignores unrelated network types', () => {
     assert.deepEqual(result.consumers, [
         { id: 'power-consumer', status: 'SUPPLIED', requested: 9, allocated: 9 },
     ]);
+});
+
+test('water network delegates connectivity and allocation to the resource grid solver', () => {
+    const waterSystem = source('engine/sim/systems/WaterNetworkSystem.ts');
+    const adapter = source('engine/sim/resourceGrid/AureusWaterGridAdapter.ts');
+
+    assert.match(waterSystem, /solveResourceGridNetwork\(WATER_NETWORK_TYPE, participants\)/);
+    assert.match(waterSystem, /collectAureusWaterGridParticipants\(state\)/);
+    assert.equal(waterSystem.includes('const openSet'), false);
+    assert.equal(waterSystem.includes('markNearbyConsumersConnected'), false);
+    assert.match(adapter, /WATER_PIPE_SERVICE_RADIUS = 3/);
+    assert.match(adapter, /serviceMetric: 'CHEBYSHEV'/);
+    assert.match(adapter, /tile\.buildingType === BuildingType\.PIPE \|\| tile\.undergroundPipe === true/);
 });
