@@ -20,6 +20,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/infrastructure-line-sim.test.ts',
     'tests/resource-grid-solver-sim.test.ts',
     'tests/resource-grid-schema-contract.test.ts',
+    'tests/agent-role-schema-contract.test.ts',
     'tests/app-helper-extraction-contract.test.ts',
     'tests/combat-system-sim.test.ts',
 ];
