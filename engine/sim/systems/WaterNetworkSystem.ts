@@ -8,15 +8,13 @@ import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
 import { GameState, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
-import { ChunkStore } from '../../space/ChunkStore';
 import { solveResourceGridNetwork } from '../resourceGrid/ResourceGridSolver';
 import {
     collectAureusWaterGridParticipants,
-    getStructureKey,
-    isStructureHead,
     isWaterParticipantTile,
     WATER_NETWORK_TYPE,
 } from '../resourceGrid/AureusWaterGridAdapter';
+import { getStructureKey, isStructureHead, setStructureUtilityStatus } from '../resourceGrid/AureusResourceGridAdapterUtils';
 
 export class WaterNetworkSystem extends BaseSimSystem {
     readonly id = 'waterNetwork';
@@ -91,19 +89,7 @@ export class WaterNetworkSystem extends BaseSimSystem {
         status: 'CONNECTED' | 'DISCONNECTED',
         waterShortage: boolean = false,
     ): void {
-        const def = BUILDINGS[headTile.buildingType];
-        const width = def?.width || 1;
-        const depth = def?.depth || 1;
-
-        for (let dz = 0; dz < depth; dz++) {
-            for (let dx = 0; dx < width; dx++) {
-                const tile = ChunkStore.getTile(state.chunks, headTile.x + dx, headTile.z + dz);
-                if (!tile || tile.buildingType !== headTile.buildingType || tile.isUnderConstruction) continue;
-
-                tile.waterStatus = status;
-                tile.waterShortage = waterShortage;
-            }
-        }
+        setStructureUtilityStatus(state, headTile, { waterStatus: status, waterShortage });
     }
 
     private getPreviouslyWateredConsumers(state: GameState): Set<string> {
