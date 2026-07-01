@@ -6,6 +6,7 @@ import test from 'node:test';
 const root = process.cwd();
 const servicePath = path.join(root, 'services', 'overseerLocalQwen.ts');
 const panelPath = path.join(root, 'components', 'AIOverseerPanel.tsx');
+const systemPath = path.join(root, 'engine', 'sim', 'systems', 'AIOverseerPlaySystem.ts');
 const packagePath = path.join(root, 'package.json');
 
 function source(filePath: string): string {
@@ -53,19 +54,55 @@ test('local model loader is browser-side and does not require a backend AI key',
     assert.doesNotMatch(text, /process\.env|OPENAI|apiKey|Authorization/i);
 });
 
-test('overseer panel exposes Qwen as on-demand advice instead of sim-loop automation', () => {
-    const text = source(panelPath);
+test('local Qwen is taught pilot rules and a strict action schema', () => {
+    const text = source(servicePath);
 
     for (const snippet of [
-        'generateOverseerLocalInsight',
-        'OVERSEER_LOCAL_QWEN_CONFIG',
-        'Local Qwen',
-        'Ask local Qwen for an overseer recommendation',
-        "qwenStatus === 'loading'",
-        'local browser model',
+        'export const OVERSEER_PILOT_RULES',
+        'Protect survival first: fix power and water deficits before optional growth.',
+        'Deliver accepted contracts immediately when stock is ready.',
+        'Return only JSON. Never claim that an action already happened.',
+        'export const OVERSEER_PILOT_ACTION_SCHEMA',
+        'generateOverseerPilotDirective',
+        'parseOverseerPilotDirective',
+        'normalizePilotAction',
+        'isExecutablePilotAction',
     ]) {
         assertSnippet(text, snippet);
     }
+});
 
-    assert.doesNotMatch(text, /commandQueue\.push\(\{[^}]*Qwen/is);
+test('overseer panel assigns Pilot mode to Local Qwen and queues whitelisted model actions', () => {
+    const text = source(panelPath);
+
+    for (const snippet of [
+        "type OverseerPilotProvider = 'HEURISTIC' | 'LOCAL_QWEN'",
+        'generateOverseerPilotDirective',
+        'queuePilotGameCommand',
+        "pilotProvider: mode === 'AUTOPILOT' ? 'LOCAL_QWEN' : 'HEURISTIC'",
+        'QWEN_PILOT_INTERVAL_MS = 30000',
+        'qwenPilotBusyRef',
+        'isExecutablePilotAction(action)',
+        "id: `qwen_pilot_${Date.now()}_${action.type.toLowerCase()}`",
+        "{overseer.autoAct ? (isQwenPilot ? 'Qwen Pilot Enabled' : 'Auto Act Enabled') : 'Advise Only'}",
+    ]) {
+        assertSnippet(text, snippet);
+    }
+});
+
+test('engine heuristic autopilot yields when Local Qwen owns Pilot mode', () => {
+    const text = source(systemPath);
+
+    for (const snippet of [
+        "type OverseerPilotProvider = 'HEURISTIC' | 'LOCAL_QWEN'",
+        "pilotProvider: 'HEURISTIC'",
+        "pilotProvider: existing?.pilotProvider === 'LOCAL_QWEN' ? 'LOCAL_QWEN' : 'HEURISTIC'",
+        "const localQwenPilot = overseer.mode === 'AUTOPILOT' && overseer.pilotProvider === 'LOCAL_QWEN';",
+        'const insight = localQwenPilot ? this.getLocalQwenPilotInsight(overseer) : this.analyze(state);',
+        'if (overseer.autoAct && !localQwenPilot) this.tryAct(ctx, state, overseer);',
+        "payload.pilotProvider === 'LOCAL_QWEN' || payload.pilotProvider === 'HEURISTIC'",
+        'private getLocalQwenPilotInsight(overseer: OverseerState)',
+    ]) {
+        assertSnippet(text, snippet);
+    }
 });
