@@ -1,21 +1,25 @@
 import React from 'react';
 import { Bot, Briefcase, Cpu, Eye, Maximize2, Minimize2, Play, Shield, TrendingUp, Zap } from 'lucide-react';
-import { GameState, SfxType } from '../types';
+import { GameCommand, GameState, SfxType } from '../types';
 import { NarrativePanel } from './NarrativePanel';
 import {
     generateOverseerLocalInsight,
+    generateOverseerPilotDirective,
     getOverseerLocalModelStatus,
+    isExecutablePilotAction,
     OVERSEER_LOCAL_QWEN_CONFIG,
     type OverseerLocalInsight,
     type OverseerLocalModelStatus,
 } from '../services/overseerLocalQwen';
 
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
+type OverseerPilotProvider = 'HEURISTIC' | 'LOCAL_QWEN';
 
 type OverseerState = {
     enabled?: boolean;
     mode?: OverseerMode;
     autoAct?: boolean;
+    pilotProvider?: OverseerPilotProvider;
     confidence?: number;
     currentFocus?: string;
     recommendation?: string;
@@ -30,19 +34,21 @@ interface AIOverseerPanelProps {
 }
 
 const COLLAPSE_STORAGE_KEY = 'aureus_ai_overseer_collapsed';
+const QWEN_PILOT_INTERVAL_MS = 30000;
 
 const MODES: Array<{ mode: OverseerMode; label: string; icon: React.ElementType; title: string }> = [
     { mode: 'OBSERVE', label: 'Watch', icon: Eye, title: 'Observe and explain without acting' },
     { mode: 'CONTRACTS', label: 'Cash', icon: Briefcase, title: 'Prioritize accepting and delivering safe contracts' },
     { mode: 'STABILITY', label: 'Stable', icon: Shield, title: 'Prioritize power, water, idle workers, and risk' },
     { mode: 'GROWTH', label: 'Grow', icon: TrendingUp, title: 'Push toward the next objective and cash loop' },
-    { mode: 'AUTOPILOT', label: 'Pilot', icon: Bot, title: 'Autonomously support the full game through real game commands' },
+    { mode: 'AUTOPILOT', label: 'Pilot', icon: Bot, title: 'Local Qwen pilots the game through approved commands' },
 ];
 
-const DEFAULT_OVERSEER: Required<Pick<OverseerState, 'enabled' | 'mode' | 'autoAct' | 'confidence' | 'currentFocus' | 'recommendation'>> = {
+const DEFAULT_OVERSEER: Required<Pick<OverseerState, 'enabled' | 'mode' | 'autoAct' | 'pilotProvider' | 'confidence' | 'currentFocus' | 'recommendation'>> = {
     enabled: true,
     mode: 'OBSERVE',
     autoAct: false,
+    pilotProvider: 'HEURISTIC',
     confidence: 0.55,
     currentFocus: 'Reading the colony state',
     recommendation: 'Watching contracts, utilities, workforce, and progression before acting.',
@@ -60,6 +66,19 @@ function queueOverseerCommand(world: any, payload: Partial<OverseerState>): bool
     return true;
 }
 
+function queuePilotGameCommand(world: any, insight: OverseerLocalInsight): boolean {
+    const gameState = world?.getState?.();
+    const action = insight.action;
+    if (!gameState?.commandQueue || !isExecutablePilotAction(action) || action.type === 'NONE') return false;
+    gameState.commandQueue.push({
+        id: `qwen_pilot_${Date.now()}_${action.type.toLowerCase()}`,
+        type: action.type as GameCommand['type'],
+        payload: action.payload || {},
+        issuedAtTick: gameState.tickCount,
+    });
+    return true;
+}
+
 function readInitialCollapsed(): boolean {
     if (typeof window === 'undefined') return true;
     return window.localStorage.getItem(COLLAPSE_STORAGE_KEY) !== 'false';
@@ -71,10 +90,12 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
     const [qwenStatus, setQwenStatus] = React.useState<OverseerLocalModelStatus>(getOverseerLocalModelStatus);
     const [qwenInsight, setQwenInsight] = React.useState<OverseerLocalInsight | null>(null);
     const [qwenError, setQwenError] = React.useState<string | null>(null);
+    const qwenPilotBusyRef = React.useRef(false);
     const liveState = world?.getState?.() || state;
     const overseer = { ...DEFAULT_OVERSEER, ...((liveState as any).aiOverseer || {}) } as OverseerState & typeof DEFAULT_OVERSEER;
     const actionLog = Array.isArray(overseer.actionLog) ? overseer.actionLog.slice(0, 4) : [];
     const confidence = Math.round((overseer.confidence || 0) * 100);
+    const isQwenPilot = overseer.mode === 'AUTOPILOT' && overseer.pilotProvider === 'LOCAL_QWEN';
 
     React.useEffect(() => {
         const timer = window.setInterval(() => forceRefresh(value => value + 1), 1000);
@@ -94,21 +115,46 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
         }
     };
 
-    const askLocalQwen = React.useCallback(async () => {
+    const selectMode = (mode: OverseerMode) => {
+        send({
+            enabled: true,
+            mode,
+            pilotProvider: mode === 'AUTOPILOT' ? 'LOCAL_QWEN' : 'HEURISTIC',
+        });
+    };
+
+    const runLocalQwen = React.useCallback(async (executePilotAction = false) => {
+        if (qwenPilotBusyRef.current) return;
+        qwenPilotBusyRef.current = true;
         setQwenError(null);
         setQwenStatus('loading');
-        playSfx(SfxType.UI_CLICK);
+        if (!executePilotAction) playSfx(SfxType.UI_CLICK);
         try {
-            const insight = await generateOverseerLocalInsight(liveState);
+            const currentState = world?.getState?.() || state;
+            const insight = isQwenPilot
+                ? await generateOverseerPilotDirective(currentState)
+                : await generateOverseerLocalInsight(currentState);
             setQwenInsight(insight);
             setQwenStatus(getOverseerLocalModelStatus());
+            if (executePilotAction && queuePilotGameCommand(world, insight)) {
+                playSfx(SfxType.UI_COIN);
+            }
         } catch (error) {
             setQwenInsight(null);
             setQwenStatus('error');
             setQwenError(error instanceof Error ? error.message : 'Local model failed to load.');
             playSfx(SfxType.ERROR);
+        } finally {
+            qwenPilotBusyRef.current = false;
         }
-    }, [liveState, playSfx]);
+    }, [isQwenPilot, playSfx, state, world]);
+
+    React.useEffect(() => {
+        if (!isQwenPilot || !overseer.autoAct) return;
+        void runLocalQwen(true);
+        const timer = window.setInterval(() => void runLocalQwen(true), QWEN_PILOT_INTERVAL_MS);
+        return () => window.clearInterval(timer);
+    }, [isQwenPilot, overseer.autoAct, runLocalQwen]);
 
     const toggleCollapsed = () => {
         setCollapsed(value => !value);
@@ -138,7 +184,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                         <div className="min-w-0">
                             <div className="text-[10px] font-black uppercase tracking-wider text-white">AI Overseer</div>
                             <div className="text-[9px] font-bold uppercase tracking-wider text-cyan-400/80 truncate">
-                                {overseer.mode} / {overseer.autoAct ? 'Auto acting' : 'Advising'}
+                                {overseer.mode} / {isQwenPilot ? 'Local Qwen' : overseer.autoAct ? 'Auto acting' : 'Advising'}
                             </div>
                         </div>
                     </div>
@@ -160,7 +206,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                         {MODES.map(({ mode, label, icon: Icon, title }) => (
                             <button
                                 key={mode}
-                                onClick={() => send({ enabled: true, mode })}
+                                onClick={() => selectMode(mode)}
                                 title={title}
                                 className={`h-8 rounded-[4px] border text-[8px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-colors ${overseer.mode === mode ? 'bg-cyan-600 border-cyan-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-600'}`}
                             >
@@ -175,7 +221,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                         className={`w-full h-8 rounded-[4px] border text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${overseer.autoAct ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-emerald-700'}`}
                     >
                         {overseer.autoAct ? <Zap size={13} /> : <Play size={13} />}
-                        {overseer.autoAct ? 'Auto Act Enabled' : 'Advise Only'}
+                        {overseer.autoAct ? (isQwenPilot ? 'Qwen Pilot Enabled' : 'Auto Act Enabled') : 'Advise Only'}
                     </button>
 
                     <div className="bg-slate-900/90 border border-slate-800 rounded-[5px] p-2">
@@ -191,24 +237,27 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                                 <div className="text-[8px] font-bold uppercase tracking-wider text-slate-500 truncate">{OVERSEER_LOCAL_QWEN_CONFIG.displayName}</div>
                             </div>
                             <button
-                                onClick={askLocalQwen}
+                                onClick={() => void runLocalQwen(false)}
                                 disabled={qwenStatus === 'loading'}
-                                title="Ask local Qwen for an overseer recommendation"
+                                title={isQwenPilot ? 'Ask Local Qwen for its next pilot move' : 'Ask local Qwen for an overseer recommendation'}
                                 className="h-7 px-2 rounded-[4px] border border-violet-800 bg-violet-950/70 text-violet-200 hover:border-violet-500 hover:text-white disabled:opacity-60 disabled:cursor-wait text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors"
                             >
                                 <Cpu size={11} />
-                                {qwenStatus === 'loading' ? 'Loading' : 'Ask'}
+                                {qwenStatus === 'loading' ? 'Loading' : isQwenPilot ? 'Move' : 'Ask'}
                             </button>
                         </div>
                         {qwenInsight && (
                             <div className="text-[10px] font-semibold text-slate-300 leading-snug">
                                 <span className="text-violet-200 font-black">{qwenInsight.focus}</span>
                                 <span className="block mt-1">{qwenInsight.recommendation}</span>
+                                {qwenInsight.action && qwenInsight.action.type !== 'NONE' && (
+                                    <span className="block mt-1 text-[8px] font-mono uppercase tracking-wider text-emerald-300">Next: {qwenInsight.action.type}</span>
+                                )}
                                 <span className="block mt-1 text-[8px] font-mono uppercase tracking-wider text-slate-500">{qwenInsight.device} / local browser model</span>
                             </div>
                         )}
                         {!qwenInsight && !qwenError && (
-                            <div className="text-[10px] font-semibold text-slate-500 leading-snug">Ready for an on-device recommendation.</div>
+                            <div className="text-[10px] font-semibold text-slate-500 leading-snug">{isQwenPilot ? 'Pilot mode is ready for Local Qwen.' : 'Ready for an on-device recommendation.'}</div>
                         )}
                         {qwenError && <div className="text-[10px] font-bold text-rose-300 leading-snug">{qwenError}</div>}
                     </div>
