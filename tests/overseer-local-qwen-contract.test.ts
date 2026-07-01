@@ -82,6 +82,8 @@ test('overseer panel assigns Pilot mode to Local Qwen and queues whitelisted mod
         "pilotProvider: mode === 'AUTOPILOT' ? 'LOCAL_QWEN' : 'HEURISTIC'",
         'QWEN_PILOT_INTERVAL_MS = 30000',
         'qwenPilotBusyRef',
+        'latestStateRef',
+        'latestWorldRef',
         'isExecutablePilotAction(action)',
         "id: `qwen_pilot_${Date.now()}_${action.type.toLowerCase()}`",
         "{overseer.autoAct ? (isQwenPilot ? 'Qwen Pilot Enabled' : 'Auto Act Enabled') : 'Advise Only'}",
