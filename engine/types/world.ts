@@ -59,6 +59,9 @@ export interface Chunk {
     version: number;
 }
 
+export type UtilityConnectionStatus = 'CONNECTED' | 'DISCONNECTED';
+export type UndergroundPipeConstructionPhase = 'EXCAVATE' | 'INSTALL' | 'COVER';
+
 export interface GridTile {
     id: number; // Global or chunk-unique ID
     x: number; // World X
@@ -66,6 +69,8 @@ export interface GridTile {
     buildingType: BuildingType;
     level: number;
     terrainHeight: number;
+    openPitBaseHeight?: number;
+    openPitDepth?: number;
     revealed?: boolean;
     biome: BiomeType;
     foliage?: FoliageType;
@@ -75,8 +80,14 @@ export interface GridTile {
     constructionTimeLeft?: number;
     structureHeadX?: number;
     structureHeadZ?: number;
-    waterStatus?: 'CONNECTED' | 'DISCONNECTED';
-    powerStatus?: 'CONNECTED' | 'DISCONNECTED';
+    undergroundPipe?: boolean;
+    undergroundPipeUnderConstruction?: boolean;
+    undergroundPipePhase?: UndergroundPipeConstructionPhase;
+    undergroundPipeBlockCleared?: boolean;
+    undergroundPipeInstalled?: boolean;
+    waterStatus?: UtilityConnectionStatus;
+    waterShortage?: boolean;
+    powerStatus?: UtilityConnectionStatus;
     rehabProgress?: number; // 0-100
     markedForHarvest?: boolean;
     explored?: boolean;

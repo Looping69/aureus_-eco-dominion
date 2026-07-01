@@ -1,8 +1,9 @@
 import React from 'react';
-import { Bot, Briefcase, Eye, Play, Shield, TrendingUp, Zap } from 'lucide-react';
+import { Bot, Briefcase, Eye, Maximize2, Minimize2, Play, Shield, TrendingUp, Zap } from 'lucide-react';
 import { GameState, SfxType } from '../types';
+import { NarrativePanel } from './NarrativePanel';
 
-type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH';
+type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
 
 type OverseerState = {
     enabled?: boolean;
@@ -21,11 +22,14 @@ interface AIOverseerPanelProps {
     playSfx: (sfx: any) => void;
 }
 
+const COLLAPSE_STORAGE_KEY = 'aureus_ai_overseer_collapsed';
+
 const MODES: Array<{ mode: OverseerMode; label: string; icon: React.ElementType; title: string }> = [
     { mode: 'OBSERVE', label: 'Watch', icon: Eye, title: 'Observe and explain without acting' },
     { mode: 'CONTRACTS', label: 'Cash', icon: Briefcase, title: 'Prioritize accepting and delivering safe contracts' },
     { mode: 'STABILITY', label: 'Stable', icon: Shield, title: 'Prioritize power, water, idle workers, and risk' },
     { mode: 'GROWTH', label: 'Grow', icon: TrendingUp, title: 'Push toward the next objective and cash loop' },
+    { mode: 'AUTOPILOT', label: 'Pilot', icon: Bot, title: 'Autonomously support the full game through real game commands' },
 ];
 
 const DEFAULT_OVERSEER: Required<Pick<OverseerState, 'enabled' | 'mode' | 'autoAct' | 'confidence' | 'currentFocus' | 'recommendation'>> = {
@@ -49,18 +53,27 @@ function queueOverseerCommand(world: any, payload: Partial<OverseerState>): bool
     return true;
 }
 
+function readInitialCollapsed(): boolean {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem(COLLAPSE_STORAGE_KEY) !== 'false';
+}
+
 export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, playSfx }) => {
     const [, forceRefresh] = React.useState(0);
-    const [collapsed, setCollapsed] = React.useState(false);
+    const [collapsed, setCollapsed] = React.useState(readInitialCollapsed);
     const liveState = world?.getState?.() || state;
     const overseer = { ...DEFAULT_OVERSEER, ...((liveState as any).aiOverseer || {}) } as OverseerState & typeof DEFAULT_OVERSEER;
-    const actionLog = Array.isArray(overseer.actionLog) ? overseer.actionLog.slice(0, 3) : [];
+    const actionLog = Array.isArray(overseer.actionLog) ? overseer.actionLog.slice(0, 4) : [];
     const confidence = Math.round((overseer.confidence || 0) * 100);
 
     React.useEffect(() => {
         const timer = window.setInterval(() => forceRefresh(value => value + 1), 1000);
         return () => window.clearInterval(timer);
     }, []);
+
+    React.useEffect(() => {
+        window.localStorage.setItem(COLLAPSE_STORAGE_KEY, collapsed ? 'true' : 'false');
+    }, [collapsed]);
 
     const send = (payload: Partial<OverseerState>) => {
         if (queueOverseerCommand(world, payload)) {
@@ -71,32 +84,29 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
         }
     };
 
-    if (collapsed) {
-        return (
-            <button
-                onClick={() => {
-                    setCollapsed(false);
-                    playSfx(SfxType.UI_CLICK);
-                }}
-                title={`AI Overseer: ${overseer.currentFocus}`}
-                className={`relative pointer-events-auto w-11 h-11 rounded-[6px] border shadow-[3px_3px_0_rgba(0,0,0,0.35)] backdrop-blur-md flex items-center justify-center transition-colors ${overseer.autoAct ? 'bg-cyan-950/90 border-cyan-600 hover:bg-cyan-900/90' : 'bg-slate-950/88 border-slate-800 hover:bg-slate-900/90'}`}
-            >
-                <Bot size={20} className={overseer.autoAct ? 'text-cyan-300' : 'text-slate-300'} />
-                {overseer.autoAct && <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-cyan-400 border-2 border-slate-950 animate-pulse" />}
-            </button>
-        );
-    }
+    const toggleCollapsed = () => {
+        setCollapsed(value => !value);
+        playSfx(SfxType.UI_CLICK);
+    };
 
-    return (
-        <div className="w-[21rem] max-w-[calc(100vw-1rem)] pointer-events-auto">
+    const overseerPanel = collapsed ? (
+        <button
+            onClick={toggleCollapsed}
+            title={`AI Overseer: ${overseer.currentFocus}`}
+            aria-label="Expand AI Overseer"
+            className={`relative pointer-events-auto w-11 h-11 rounded-[6px] border shadow-[3px_3px_0_rgba(0,0,0,0.35)] backdrop-blur-md flex items-center justify-center transition-colors ${overseer.autoAct ? 'bg-cyan-950/90 border-cyan-600 hover:bg-cyan-900/90' : 'bg-slate-950/88 border-slate-800 hover:bg-slate-900/90'}`}
+        >
+            <Bot size={20} className={overseer.autoAct ? 'text-cyan-300' : 'text-slate-300'} />
+            <Maximize2 size={9} className="absolute top-1 right-1 text-slate-500" />
+            {overseer.autoAct && <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-cyan-400 border-2 border-slate-950 animate-pulse" />}
+            <span className="absolute -bottom-1 left-1 rounded bg-slate-950 px-1 text-[7px] font-black uppercase tracking-wider text-cyan-300 border border-cyan-900/70">
+                {overseer.mode === 'AUTOPILOT' ? 'Pilot' : overseer.mode.slice(0, 4)}
+            </span>
+        </button>
+    ) : (
+        <div className="w-[22rem] max-w-[calc(100vw-1rem)] pointer-events-auto">
             <div className="bg-slate-950/88 backdrop-blur-md border border-cyan-900/70 shadow-[4px_4px_0_rgba(0,0,0,0.35)] rounded-[6px] overflow-hidden">
-                <button
-                    onClick={() => {
-                        setCollapsed(true);
-                        playSfx(SfxType.UI_CLICK);
-                    }}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 border-b border-cyan-950/80 bg-slate-900/80 hover:bg-slate-800/80 transition-colors text-left"
-                >
+                <div className="w-full flex items-center justify-between gap-2 px-3 py-2 border-b border-cyan-950/80 bg-slate-900/80 text-left">
                     <div className="flex items-center gap-2 min-w-0">
                         <Bot size={16} className={overseer.autoAct ? 'text-cyan-300' : 'text-slate-400'} />
                         <div className="min-w-0">
@@ -106,19 +116,29 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                             </div>
                         </div>
                     </div>
-                    <div className="text-[9px] font-mono text-slate-500">{confidence}%</div>
-                </button>
+                    <div className="flex items-center gap-2">
+                        <div className="text-[9px] font-mono text-slate-500">{confidence}%</div>
+                        <button
+                            onClick={toggleCollapsed}
+                            title="Collapse AI Overseer"
+                            aria-label="Collapse AI Overseer"
+                            className="w-7 h-7 rounded-[4px] border border-slate-700 bg-slate-950/80 text-slate-400 hover:text-white hover:border-cyan-700 flex items-center justify-center transition-colors"
+                        >
+                            <Minimize2 size={12} />
+                        </button>
+                    </div>
+                </div>
 
                 <div className="p-2 space-y-2">
-                    <div className="grid grid-cols-4 gap-1">
+                    <div className="grid grid-cols-5 gap-1">
                         {MODES.map(({ mode, label, icon: Icon, title }) => (
                             <button
                                 key={mode}
                                 onClick={() => send({ enabled: true, mode })}
                                 title={title}
-                                className={`h-8 rounded-[4px] border text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-colors ${overseer.mode === mode ? 'bg-cyan-600 border-cyan-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-600'}`}
+                                className={`h-8 rounded-[4px] border text-[8px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-colors ${overseer.mode === mode ? 'bg-cyan-600 border-cyan-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-600'}`}
                             >
-                                <Icon size={12} />
+                                <Icon size={11} />
                                 {label}
                             </button>
                         ))}
@@ -150,5 +170,12 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                 </div>
             </div>
         </div>
+    );
+
+    return (
+        <>
+            <NarrativePanel state={liveState} playSfx={playSfx} />
+            {overseerPanel}
+        </>
     );
 };

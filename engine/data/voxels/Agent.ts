@@ -26,6 +26,10 @@ export {
   BotanistFactory,
   SecurityFactory,
   IllegalMinerFactory,
+  LumberjackFactory,
+  QuarrymanFactory,
+  CitizenFactory,
+  UnemployedFactory,
 
   // Common utilities
   SKIN_COLOR,
@@ -33,6 +37,7 @@ export {
   ACCENT_WHITE,
   HAIR_COLOR,
   PIVOTS,
+  addVoxelBox,
   buildPart,
   createLegs,
   createArms,

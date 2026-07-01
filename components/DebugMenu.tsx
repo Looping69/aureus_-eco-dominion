@@ -5,7 +5,7 @@
 */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, Cpu, Database, Box, Users, Layers, Zap, X, Monitor, ToggleLeft, ToggleRight, Unlock, Eye, Image, FileCode, Hash } from 'lucide-react';
+import { Activity, Cpu, Database, Box, Users, Layers, Zap, X, Monitor, ToggleLeft, ToggleRight, Unlock, Eye, EyeOff, Image, FileCode, Hash } from 'lucide-react';
 import { GameState, Action } from '../types';
 
 interface DebugMenuProps {
@@ -19,6 +19,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
   const [stats, setStats] = useState<any>(null);
   const [fps, setFps] = useState(0);
   const [frameTime, setFrameTime] = useState(0);
+  const fogRemoved = Boolean((state as GameState & { fogOfWarDisabled?: boolean }).fogOfWarDisabled);
 
   const frameCountRef = useRef(0);
   const lastTimeRef = useRef(performance.now());
@@ -33,7 +34,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
       if (delta >= 1000) {
         const currentFps = Math.round((frameCountRef.current * 1000) / delta);
         setFps(currentFps);
-        setFrameTime(1000 / currentFps); // Avg frame time
+        setFrameTime(currentFps > 0 ? 1000 / currentFps : 0);
         frameCountRef.current = 0;
         lastTimeRef.current = now;
 
@@ -77,7 +78,11 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
   );
 
   return (
-    <div className="fixed top-20 right-4 z-[140] w-64 pointer-events-auto animate-in slide-in-from-right-8 duration-300 flex flex-col max-h-[85vh]">
+    <div
+      className="fixed top-20 right-4 z-[140] w-64 pointer-events-auto animate-in slide-in-from-right-8 duration-300 flex flex-col max-h-[85vh]"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
       <div className="bg-slate-900 border-2 border-emerald-600 rounded-[4px] shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="bg-slate-800 p-2 border-b-2 border-slate-700 flex justify-between items-center select-none shrink-0">
@@ -92,8 +97,15 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
               {fps} FPS
             </div>
             <button
-              onClick={onClose}
+              type="button"
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onClose();
+              }}
               className="w-5 h-5 flex items-center justify-center bg-slate-700 hover:bg-rose-500 hover:text-white text-slate-300 rounded-[2px] border border-slate-600 transition-colors"
+              title="Close system monitor"
             >
               <X size={12} />
             </button>
@@ -189,6 +201,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
               <Unlock size={10} /> Developer Tools
             </h3>
             <button
+              type="button"
               onClick={() => dispatch({ type: 'TOGGLE_CHEATS' })}
               className={`w-full py-2 px-2 rounded-[2px] font-bold text-[10px] flex items-center justify-between transition-all border border-slate-700 ${state.cheatsEnabled ? 'bg-amber-900/30 text-amber-400 border-amber-600/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-750'}`}
             >
@@ -200,6 +213,23 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
             </p>
 
             <button
+              type="button"
+              onClick={() => {
+                if (!fogRemoved) dispatch({ type: 'REMOVE_FOG_OF_WAR' });
+              }}
+              disabled={fogRemoved}
+              className={`w-full mt-3 py-2 px-2 rounded-[2px] font-bold text-[10px] flex items-center justify-between transition-all border ${fogRemoved ? 'bg-emerald-950/30 text-emerald-400 border-emerald-600/50 cursor-default' : 'bg-slate-800 text-slate-400 hover:bg-slate-750 border-slate-700'}`}
+              title="Remove fog of war from both map and first-person views"
+            >
+              <span className="font-['Rajdhani'] uppercase tracking-wider">{fogRemoved ? 'Fog Removed' : 'Remove Fog'}</span>
+              {fogRemoved ? <Eye size={16} className="text-emerald-400" /> : <EyeOff size={16} className="text-slate-500" />}
+            </button>
+            <p className="text-[8px] text-slate-500 mt-1 italic leading-tight">
+              Reveals the world by disabling the fog-of-war overlay and first-person mist.
+            </p>
+
+            <button
+              type="button"
               onClick={() => dispatch({ type: 'TOGGLE_VIEW' })}
               className={`w-full mt-3 py-1.5 px-2 rounded-[2px] font-bold text-[9px] flex items-center justify-center gap-2 transition-all border border-emerald-600/50 bg-emerald-950/20 text-emerald-400 hover:bg-emerald-900/30 uppercase tracking-widest font-['Rajdhani']`}
             >

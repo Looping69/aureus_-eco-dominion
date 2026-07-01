@@ -7,6 +7,7 @@ export * from './ColonySystem';
 export * from './LogisticsSystem';
 export * from './EventSystem';
 export * from './MissionSystem';
+export * from './CombatSystem';
 export * from './ProductionSystem';
 export * from './ConstructionSystem';
 export * from './EraSystem';
@@ -15,7 +16,7 @@ export * from './WaterNetworkSystem';
 export * from './AmbientNPCSystem';
 export * from './BureaucracySystem';
 export * from './EmploymentSystem';
-export * from './AIOverseerSystem';
+export * from './AIOverseerPlaySystem';
 
 export * from './TutorialDemoSystem';
 

@@ -140,7 +140,7 @@ export interface GameCommand {
     issuedAtTick?: number;
 }
 
-export type LogisticsOverlayMode = 'OFF' | 'FLOW' | 'CONGESTION' | 'JUNCTIONS';
+export type LogisticsOverlayMode = 'OFF' | 'FLOW' | 'CONGESTION' | 'JUNCTIONS' | 'WATER';
 export type FactoryResourceType =
     | 'ORE'
     | 'CONCENTRATE'
@@ -292,6 +292,18 @@ export interface IndustryState {
     gridLoad: number;
 }
 
+export interface FogRevealCenter {
+    key: string;
+    x: number;
+    z: number;
+    radius: number;
+}
+
+export interface FogExplorationState {
+    centers: FogRevealCenter[];
+    version: number;
+}
+
 export interface GameState {
     resources: GameResources;
     industry?: IndustryState;
@@ -303,7 +315,7 @@ export interface GameState {
     inventory: Partial<Record<BuildingType, number>>;
     selectedBuilding: BuildingType | null;
     selectedAgentId: string | null;
-    interactionMode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT';
+    interactionMode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT' | 'DIG';
     step: GameStep;
     gameOver: boolean;
     tickCount: number;
@@ -311,6 +323,7 @@ export interface GameState {
     seed: number;
     spawnX: number;
     spawnZ: number;
+    fogExploration?: FogExplorationState;
     logistics: LogisticsState;
     factory?: FactoryState;
     activeGoal: Goal | null;

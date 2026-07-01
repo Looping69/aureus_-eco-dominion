@@ -30,28 +30,8 @@ import { MobileBuildingConfirmation } from './components/MobileBuildingConfirmat
 import { DebugMenu } from './components/DebugMenu';
 import { AgentDebugOverlay } from './components/AgentDebugOverlay';
 import { LoadingOverlay } from './components/LoadingOverlay';
-
-const LINE_PLACEMENT_TYPES = new Set<BuildingType>([
-    BuildingType.ROAD,
-    BuildingType.PIPE,
-    BuildingType.POWER_LINE,
-    BuildingType.FENCE,
-]);
-
-type FPSAbility = 'SCAN' | 'HARVEST' | 'RESTORE' | 'DIG' | 'MOVE';
-
-const isLinePlacementType = (type: BuildingType | null | undefined): type is BuildingType => {
-    return Boolean(type && LINE_PLACEMENT_TYPES.has(type));
-};
-
-const canTileOpenModal = (tile: any): boolean => {
-    if (!tile) return false;
-    if (tile.foliage === 'MINE_HOLE') return true;
-    if (tile.isUnderConstruction) return true;
-    return tile.buildingType !== undefined
-        && tile.buildingType !== BuildingType.EMPTY
-        && tile.buildingType !== BuildingType.POND;
-};
+import { FPSAbilityHUD, type FPSAbility } from './components/FPSAbilityHUD';
+import { canTileOpenModal, isLinePlacementType } from './game/ui/tileSelection';
 
 const CommandFailureToast: React.FC<{ result?: any }> = ({ result }) => {
     if (!result || result.ok) return null;
@@ -64,40 +44,6 @@ const CommandFailureToast: React.FC<{ result?: any }> = ({ result }) => {
             <div className="bg-rose-950/92 border border-rose-700 text-rose-100 shadow-[4px_4px_0_rgba(0,0,0,0.45)] rounded-[6px] px-4 py-3 w-[22rem] max-w-full">
                 <div className="text-[9px] font-black uppercase tracking-wider text-rose-300 mb-1">Cannot {commandName}</div>
                 <div className="text-xs font-bold leading-snug">{reason}</div>
-            </div>
-        </div>
-    );
-};
-
-const FPSAbilityHUD: React.FC<{ message: string | null; onAbility: (ability: FPSAbility) => void }> = ({ message, onAbility }) => {
-    const abilities: Array<{ key: string; label: string; ability: FPSAbility }> = [
-        { key: 'Q', label: 'Scan', ability: 'SCAN' },
-        { key: 'E', label: 'Harvest', ability: 'HARVEST' },
-        { key: 'R', label: 'Restore', ability: 'RESTORE' },
-        { key: 'F', label: 'Dig', ability: 'DIG' },
-        { key: 'G', label: 'Move Order', ability: 'MOVE' },
-    ];
-
-    return (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto w-[min(46rem,calc(100vw-1rem))]">
-            <div className="bg-slate-950/86 border-2 border-slate-700 rounded-[6px] shadow-[4px_4px_0_rgba(0,0,0,0.45)] backdrop-blur-md px-3 py-2">
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                    <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-['Rajdhani'] mr-1">Influence</div>
-                    {abilities.map((item) => (
-                        <button
-                            key={item.ability}
-                            onClick={() => onAbility(item.ability)}
-                            className="h-8 px-2.5 rounded-[4px] bg-slate-800 hover:bg-emerald-700 border border-slate-600 hover:border-emerald-400 text-slate-200 hover:text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors font-['Rajdhani']"
-                        >
-                            <span className="min-w-5 h-5 px-1 rounded-[3px] bg-black/45 border border-white/10 text-emerald-300 font-mono text-[10px] flex items-center justify-center">{item.key}</span>
-                            {item.label}
-                        </button>
-                    ))}
-                    <div className="text-[9px] font-mono text-slate-500 ml-1">LMB aim / RMB order</div>
-                </div>
-                {message && (
-                    <div className="mt-2 text-center text-[11px] font-bold text-emerald-200 font-mono truncate">{message}</div>
-                )}
             </div>
         </div>
     );

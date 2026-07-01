@@ -6,18 +6,10 @@
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
 import { Contract, GameState, GameCommand, SfxType } from '../../../types';
+import { designateRubbleDropZone, fillSubsurfaceCellWithRubble, queueSubsurfaceExcavationJob, queueSubsurfaceRubbleClearJob } from '../../subsurface/SubsurfaceModel';
 
 const CONTRACT_COMPLETION_TTL = 75;
 const CONTRACT_WORK_SECONDS = 300;
-const LAYER_CHUNK_SIZE = 16;
-
-function layeredChunkKey(x: number, z: number): string {
-    return `${Math.floor(x / LAYER_CHUNK_SIZE)},${Math.floor(z / LAYER_CHUNK_SIZE)}`;
-}
-
-function layeredCellKey(x: number, y: number, z: number): string {
-    return `${x},${y},${z}`;
-}
 
 export class CommandDispatcher extends BaseSimSystem {
     readonly id = 'command-dispatcher';
@@ -68,6 +60,15 @@ export class CommandDispatcher extends BaseSimSystem {
         } else if (commandType === 'DIG_VOXEL') {
             result = this.digVoxel(cmd, state);
             handledBy = this.id;
+        } else if (commandType === 'CLEAR_RUBBLE') {
+            result = this.clearRubble(cmd, state);
+            handledBy = this.id;
+        } else if (commandType === 'DESIGNATE_RUBBLE_DUMP') {
+            result = this.designateRubbleDump(cmd, state);
+            handledBy = this.id;
+        } else if (commandType === 'FILL_VOXEL') {
+            result = this.fillVoxel(cmd, state);
+            handledBy = this.id;
         }
 
         // Try each registered system in order
@@ -96,47 +97,38 @@ export class CommandDispatcher extends BaseSimSystem {
         this.reportResult(cmd.id, result, state, handledBy, cmd);
     }
 
-    private digVoxel(cmd: GameCommand, state: GameState): CommandResult {
+    private getVoxelTarget(cmd: GameCommand): { x: number; y: number; z: number } | CommandResult {
         const x = Math.round(Number(cmd.payload?.x));
         const y = Math.round(Number(cmd.payload?.y));
         const z = Math.round(Number(cmd.payload?.z));
         if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Dig target must include x, y, and z.' };
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Voxel target must include x, y, and z.' };
         }
+        return { x, y, z };
+    }
 
-        const layeredWorld = state.layeredWorld as any;
-        if (!layeredWorld?.enabled) return { ok: false, code: CommandErrorCode.INVALID_STATE, reason: 'Layered world is disabled.' };
-        if (y >= layeredWorld.surfaceY) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Use surface tools above ground.' };
-        if (y < layeredWorld.minY || y > layeredWorld.maxY) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target layer is outside the generated world.' };
+    private digVoxel(cmd: GameCommand, state: GameState): CommandResult {
+        const target = this.getVoxelTarget(cmd);
+        if ('ok' in target) return target;
+        return queueSubsurfaceExcavationJob(state, target.x, target.y, target.z);
+    }
 
-        const chunk = layeredWorld.chunks?.[layeredChunkKey(x, z)];
-        const layer = chunk?.layers?.[y];
-        const cell = layer?.cells?.[layeredCellKey(x, y, z)];
-        if (!cell) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cell is not generated.' };
-        if (!cell.mineable || !cell.destructible) return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: `${cell.material} cannot be excavated here.` };
+    private clearRubble(cmd: GameCommand, state: GameState): CommandResult {
+        const target = this.getVoxelTarget(cmd);
+        if ('ok' in target) return target;
+        return queueSubsurfaceRubbleClearJob(state, target.x, target.y, target.z);
+    }
 
-        const material = String(cell.material);
-        const resourceAmount = Number(cell.resourceAmount || 1);
-        if (material === 'ORE') state.resources.minerals += Math.max(4, resourceAmount);
-        if (material === 'GEMS') state.resources.gems += Math.max(1, resourceAmount);
-        if (material === 'AUREUS_VEIN') {
-            state.resources.minerals += 25;
-            state.resources.gems += 2;
-        }
-        if (material === 'STONE') state.resources.stone += 2;
+    private designateRubbleDump(cmd: GameCommand, state: GameState): CommandResult {
+        const target = this.getVoxelTarget(cmd);
+        if ('ok' in target) return target;
+        return designateRubbleDropZone(state, target.x, target.y, target.z);
+    }
 
-        cell.material = 'AIR';
-        cell.contents = 'TUNNEL';
-        cell.revealed = true;
-        cell.destructible = false;
-        cell.walkable = true;
-        cell.mineable = false;
-        cell.resourceAmount = undefined;
-        cell.stability = Math.max(5, Number(cell.stability || 100) - 12);
-        layer.dirty = true;
-        chunk.dirty = true;
-        layeredWorld.renderVersion = (layeredWorld.renderVersion || 0) + 1;
-        return { ok: true };
+    private fillVoxel(cmd: GameCommand, state: GameState): CommandResult {
+        const target = this.getVoxelTarget(cmd);
+        if ('ok' in target) return target;
+        return fillSubsurfaceCellWithRubble(state, target.x, target.y, target.z);
     }
 
     private acceptContract(cmd: GameCommand, state: GameState): CommandResult {
@@ -263,7 +255,7 @@ export class CommandDispatcher extends BaseSimSystem {
         const reason = result.ok ? undefined : (result as any).reason;
 
         // 2. Update UI-safe feedback
-        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT', 'DIG_VOXEL'];
+        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT', 'DIG_VOXEL', 'CLEAR_RUBBLE', 'DESIGNATE_RUBBLE_DUMP', 'FILL_VOXEL'];
         if (!ok || (cmd && feedbackTypes.includes(cmd.type as string))) {
             state.ui.lastCommandResult = {
                 commandId,

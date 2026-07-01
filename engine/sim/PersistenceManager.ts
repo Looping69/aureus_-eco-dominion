@@ -4,7 +4,7 @@
  * Manages serialization of complex objects like Maps.
  */
 
-import { GameState, Agent, GridTile, BuildingType } from '../../types';
+import { GameState, Agent, GridTile, BuildingType, FogExplorationState } from '../../types';
 import { DEFAULT_VIEW_RADIUS } from '../utils/GameUtils';
 import { applyDeepLedgerSurvey } from '../underground/UndergroundGenerator';
 import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';
@@ -121,6 +121,28 @@ export class PersistenceManager {
         state.powerGrid.deficit ??= 0;
     }
 
+    private ensureFogExplorationState(state: GameState): void {
+        const existing = state.fogExploration;
+        const centers = Array.isArray(existing?.centers)
+            ? existing.centers.filter((center: any) => (
+                typeof center?.key === 'string'
+                && typeof center.x === 'number'
+                && Number.isFinite(center.x)
+                && typeof center.z === 'number'
+                && Number.isFinite(center.z)
+                && typeof center.radius === 'number'
+                && Number.isFinite(center.radius)
+                && center.radius > 0
+            ))
+            : [];
+
+        const version = typeof existing?.version === 'number' && Number.isFinite(existing.version)
+            ? existing.version
+            : centers.length;
+
+        state.fogExploration = { centers, version } satisfies FogExplorationState;
+    }
+
     private reviveTiles(state: GameState): void {
         if (!state.chunks) return;
 
@@ -167,6 +189,7 @@ export class PersistenceManager {
             if (!state.commandQueue) state.commandQueue = [];
             this.ensureIndustryState(state);
             this.ensurePowerGridState(state);
+            this.ensureFogExplorationState(state);
             this.reviveTiles(state);
             this.ensureLayeredWorldState(state);
 
@@ -207,6 +230,7 @@ export class PersistenceManager {
             if (!state.commandQueue) state.commandQueue = [];
             this.ensureIndustryState(state);
             this.ensurePowerGridState(state);
+            this.ensureFogExplorationState(state);
             this.reviveTiles(state);
             this.ensureLayeredWorldState(state);
 

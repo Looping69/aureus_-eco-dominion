@@ -2,12 +2,15 @@
 export type AgentRole = 'WORKER' | 'MINER' | 'BOTANIST' | 'ENGINEER' | 'SECURITY' | 'ILLEGAL_MINER' | 'LUMBERJACK' | 'QUARRYMAN' | 'UNEMPLOYED' | 'CITIZEN';
 
 export type JobType = 'BUILD' | 'MINE' | 'RESCUE' | 'FARM' | 'REPAIR' | 'RESEARCH' | 'SLEEP' | 'IDLE' | 'MOVE' | 'REHABILITATE' | 'EAT' | 'SOCIALIZE' | 'PATROL' | 'DEPOSIT_RESOURCES';
+export type JobContext = 'SURFACE_CUT' | 'DEEP_MINE';
 
 export interface Job {
     id: string;
     type: JobType;
     targetX: number;
     targetZ: number;
+    targetY?: number;
+    context?: JobContext;
     priority: number; // 1-5
     assignedAgentId: string | null;
     progress?: number;
@@ -54,6 +57,22 @@ export interface AgentExperience {
 // Shift system
 export type ShiftType = 'DAY' | 'NIGHT' | 'FLEXIBLE';
 
+export type CombatFaction = 'COLONY' | 'HOSTILE' | 'NEUTRAL';
+
+export interface AgentCombatState {
+    faction: CombatFaction;
+    currentHealth: number;
+    maxHealth: number;
+    attack: number;
+    defense: number;
+    range: number;
+    cooldownSeconds: number;
+    cooldownRemaining: number;
+    targetAgentId?: string | null;
+    defeated?: boolean;
+    defeatReported?: boolean;
+}
+
 // Agent requests - things agents ask for
 export type AgentRequestType =
     | 'NEED_BREAK'           // Agent is tired, needs rest
@@ -78,7 +97,7 @@ export interface PathStep {
 }
 
 export interface AgentInventory {
-    type: 'minerals' | 'gems' | 'wood' | 'stone' | null;
+    type: 'minerals' | 'gems' | 'wood' | 'stone' | 'rubble' | null;
     amount: number;
     capacity: number;
 }
@@ -119,6 +138,9 @@ export interface Agent {
     personality?: AgentPersonality;
     memory?: AgentMemory;
     experience?: AgentExperience;
+
+    // Combat state (optional for backward compatibility; CombatSystem hydrates missing values)
+    combat?: AgentCombatState;
 
     // Behavior modifiers
     workEfficiency?: number;  // Multiplier based on mood/energy (0.5-1.5)

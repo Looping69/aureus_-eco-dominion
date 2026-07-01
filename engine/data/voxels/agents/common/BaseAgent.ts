@@ -16,6 +16,26 @@ export interface VoxelDef {
     c: string;
 }
 
+export function addVoxelBox(
+    target: VoxelDef[],
+    x1: number,
+    x2: number,
+    y1: number,
+    y2: number,
+    z1: number,
+    z2: number,
+    c: string
+): VoxelDef[] {
+    for (let y = y1; y <= y2; y++) {
+        for (let x = x1; x <= x2; x++) {
+            for (let z = z1; z <= z2; z++) {
+                target.push({ x, y, z, c });
+            }
+        }
+    }
+    return target;
+}
+
 // Pivot points for animation
 // Pivot points for animation (Scaled 2x)
 export const PIVOTS = {

@@ -2,8 +2,8 @@ import { BuildingType } from '../../types';
 import type { Chunk, GridTile } from '../../types';
 import type { LayeredChunkState, LayeredWorldState, WorldLayerState, WorldVoxelCell, WorldVoxelMaterial } from '../types/layeredWorld';
 
-export const LAYERED_WORLD_MIGRATION_VERSION = 1;
-export const DEFAULT_LAYER_MIN_Y = -8;
+export const LAYERED_WORLD_MIGRATION_VERSION = 3;
+export const DEFAULT_LAYER_MIN_Y = -24;
 export const DEFAULT_LAYER_MAX_Y = 4;
 export const DEFAULT_SURFACE_LAYER_Y = 0;
 
@@ -111,14 +111,17 @@ export function createLayeredWorldFromSurfaceChunks(
     chunks: Record<string, Chunk>,
     existing?: Partial<LayeredWorldState>,
 ): LayeredWorldState {
-    const minY = existing?.minY ?? DEFAULT_LAYER_MIN_Y;
-    const maxY = existing?.maxY ?? DEFAULT_LAYER_MAX_Y;
+    const minY = Math.min(existing?.minY ?? DEFAULT_LAYER_MIN_Y, DEFAULT_LAYER_MIN_Y);
+    const maxY = Math.max(existing?.maxY ?? DEFAULT_LAYER_MAX_Y, DEFAULT_LAYER_MAX_Y);
     const layeredChunks: Record<string, LayeredChunkState> = { ...(existing?.chunks || {}) };
 
     for (const [chunkKey, chunk] of Object.entries(chunks || {})) {
         const existingChunk = layeredChunks[chunkKey];
-        const surfaceVersion = chunk.version ?? 0;
-        if (!existingChunk || existingChunk.generatedFromSurfaceVersion !== surfaceVersion) {
+        if (
+            !existingChunk ||
+            existingChunk.minY > minY ||
+            existingChunk.maxY < maxY
+        ) {
             layeredChunks[chunkKey] = createLayeredChunkFromSurfaceChunk(chunkKey, chunk, minY, maxY);
         }
     }
@@ -131,6 +134,8 @@ export function createLayeredWorldFromSurfaceChunks(
         activeY: existing?.activeY ?? DEFAULT_SURFACE_LAYER_Y,
         chunks: layeredChunks,
         accessPoints: existing?.accessPoints ?? {},
+        rubbleStockpile: existing?.rubbleStockpile ?? 0,
+        rubbleDropZones: existing?.rubbleDropZones ?? {},
         renderVersion: existing?.renderVersion ?? 0,
         migrationVersion: LAYERED_WORLD_MIGRATION_VERSION,
     };

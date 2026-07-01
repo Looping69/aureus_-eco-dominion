@@ -9,6 +9,7 @@ import { Gem, AlertTriangle, RefreshCw, Lock, ArrowRight, Radio, XCircle, CheckC
 import { GameStep, Action, GameState, BuildingType, Chunk, Agent, SidebarMode } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import { resolveBuildingDefinition } from '../engine/utils/buildingLevels';
+import { getUtilityReadability } from '../engine/sim/utility/UtilityReadability';
 
 interface TutorialOverlayProps {
     step: GameStep;
@@ -578,48 +579,58 @@ type UtilityAlert = {
 
 function getUtilityAlerts(tile: any, currentDef: any): UtilityAlert[] {
     const alerts: UtilityAlert[] = [];
+    const reasons = getUtilityReadability(tile, currentDef);
     const needsPower = Boolean(currentDef.power?.consumes);
     const producesPower = Boolean(currentDef.power?.produces);
     const needsWater = Boolean(currentDef.water?.consumes);
-    const producesWater = Boolean(currentDef.water?.produces);
 
-    if (needsPower) {
-        if (tile.powerStatus !== 'CONNECTED') {
+    reasons.forEach((reason) => {
+        if (reason === 'Offline: no power') {
             alerts.push({
                 kind: 'danger',
                 title: `${currentDef.name} offline: no power`,
                 detail: 'Connect a live power line or add generation. Brownouts prioritize housing, reservoirs, then industry.'
             });
-        } else {
-            alerts.push({
-                kind: 'ok',
-                title: `${currentDef.name} powered`,
-                detail: 'This building is connected and currently inside the supplied power budget.'
-            });
-        }
-    }
-
-    if (needsWater) {
-        if (tile.waterStatus !== 'CONNECTED') {
+        } else if (reason === 'No pipe connection') {
             alerts.push({
                 kind: 'danger',
-                title: `${currentDef.name} water-starved`,
-                detail: 'Connect pipes to a producing source or increase water output before production can stabilize.'
+                title: `${currentDef.name}: no pipe connection`,
+                detail: 'Connect pipes from a producing water source before this building can run reliably.'
+            });
+        } else if (reason === 'Water shortage: add supply') {
+            alerts.push({
+                kind: 'danger',
+                title: `${currentDef.name}: water shortage`,
+                detail: 'This building is piped, but total water demand is higher than supply. Add wells, reservoirs, or reduce demand.'
+            });
+        } else if (reason === 'Reservoir underpowered: 25% output') {
+            alerts.push({
+                kind: 'warning',
+                title: reason,
+                detail: 'Reservoirs still trickle water without power, but full output requires a supplied power connection.'
             });
         } else {
             alerts.push({
-                kind: 'ok',
-                title: `${currentDef.name} water supplied`,
-                detail: 'This building is piped and currently inside the supplied water budget.'
+                kind: 'warning',
+                title: reason,
+                detail: 'Inspect nearby utility networks for connection and supply priority issues.'
             });
         }
+    });
+
+    if (needsPower && tile.powerStatus === 'CONNECTED') {
+        alerts.push({
+            kind: 'ok',
+            title: `${currentDef.name} powered`,
+            detail: 'This building is connected and currently inside the supplied power budget.'
+        });
     }
 
-    if (producesWater && tile.buildingType === BuildingType.RESERVOIR && tile.powerStatus !== 'CONNECTED') {
+    if (needsWater && tile.waterStatus === 'CONNECTED') {
         alerts.push({
-            kind: 'warning',
-            title: 'Reservoir underpowered: 25% output',
-            detail: 'Reservoirs still trickle water without power, but full output requires a supplied power connection.'
+            kind: 'ok',
+            title: `${currentDef.name} water supplied`,
+            detail: 'This building is piped and currently inside the supplied water budget.'
         });
     }
 

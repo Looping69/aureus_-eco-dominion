@@ -5,6 +5,7 @@ export {
     ACCENT_WHITE,
     HAIR_COLOR,
     PIVOTS,
+    addVoxelBox,
     buildPart,
     createLegs,
     createArms,

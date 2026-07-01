@@ -1,7 +1,7 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { GameState } from '../../types/game';
-import { DungeonState, DungeonMiner } from '../../dungeon/DungeonTypes';
+import { DungeonState, DungeonMiner, DungeonMinerType } from '../../dungeon/DungeonTypes';
 import { DungeonEngine } from '../../dungeon/DungeonEngine';
 import { FixedContext } from '../../kernel/Types';
 
@@ -16,6 +16,60 @@ const ENERGY_DRAIN_WALK = 0.05;
 const ENERGY_DRAIN_MINE = 0.2;
 const ENERGY_GAIN_RECHARGE_DEFAULT = 0.5;
 const ENERGY_GAIN_RECHARGE_PAD = 2.0;
+
+function canMinerMineBlock(minerType: DungeonMinerType, blockId: number): boolean {
+    if (minerType === 'foreman') return true;
+    if (minerType === 'excavator') {
+        return blockId !== DungeonEngine.BLOCK.MANA;
+    }
+    return blockId === DungeonEngine.BLOCK.DIRT || blockId === DungeonEngine.BLOCK.STONE;
+}
+
+function blockLabel(blockId: number): string {
+    if (blockId === DungeonEngine.BLOCK.DIRT) return 'dirt';
+    if (blockId === DungeonEngine.BLOCK.STONE) return 'stone';
+    if (blockId === DungeonEngine.BLOCK.GOLD) return 'gold vein';
+    if (blockId === DungeonEngine.BLOCK.GEMS) return 'gem vein';
+    if (blockId === DungeonEngine.BLOCK.MANA) return 'mana crystal';
+    return 'block';
+}
+
+function pruneInvalidMineOrders(dState: DungeonState, engine: DungeonEngine): void {
+    const orders = dState.mineOrders || [];
+    dState.mineOrders = orders.filter(order => {
+        const blockId = engine.getBlockId(order.position.x, order.position.y, order.position.z);
+        return blockId !== DungeonEngine.BLOCK.AIR && blockId !== DungeonEngine.BLOCK.HEART;
+    });
+}
+
+function clearMineOrder(dState: DungeonState, miner: DungeonMiner, x: number, y: number, z: number): void {
+    dState.mineOrders = (dState.mineOrders || []).filter(order => {
+        if (order.assignedMinerId === miner.id) return false;
+        return order.position.x !== x || order.position.y !== y || order.position.z !== z;
+    });
+}
+
+function claimQueuedMineOrder(dState: DungeonState, engine: DungeonEngine, miner: DungeonMiner): boolean {
+    if (miner.state !== 'idle' || miner.energy <= ENERGY_LOW_THRESHOLD) return false;
+
+    const order = (dState.mineOrders || []).find(candidate => {
+        if (candidate.status !== 'QUEUED') return false;
+        const blockId = engine.getBlockId(candidate.position.x, candidate.position.y, candidate.position.z);
+        return canMinerMineBlock(miner.type, blockId);
+    });
+
+    if (!order) return false;
+
+    const blockId = engine.getBlockId(order.position.x, order.position.y, order.position.z);
+    order.status = 'ASSIGNED';
+    order.assignedMinerId = miner.id;
+    order.blockId = blockId;
+    miner.state = 'walking';
+    miner.targetBlock = { ...order.position };
+    dState.logs.push(`${miner.type} claimed ${blockLabel(blockId)} at ${order.position.x}, ${order.position.z}.`);
+    dState.logs = dState.logs.slice(-10);
+    return true;
+}
 
 export class DungeonMinerSystem extends BaseSimSystem {
     readonly id = 'dungeon_miners';
@@ -33,6 +87,9 @@ export class DungeonMinerSystem extends BaseSimSystem {
         }
 
         const engine = this.engine;
+        dState.mineOrders ??= [];
+        pruneInvalidMineOrders(dState, engine);
+
         const heartPos = { x: dState.gridSize.x / 2, y: 1, z: dState.gridSize.z / 2 };
 
         // Process Miners
@@ -41,6 +98,14 @@ export class DungeonMinerSystem extends BaseSimSystem {
 
             // 1. Check Energy / Needs
             if (m.state !== 'recharging' && m.energy <= ENERGY_LOW_THRESHOLD && m.state !== 'returning_to_base') {
+                if (m.targetBlock) {
+                    const order = dState.mineOrders?.find(candidate => candidate.assignedMinerId === m.id);
+                    if (order) {
+                        order.status = 'QUEUED';
+                        order.assignedMinerId = undefined;
+                    }
+                }
+
                 // Find nearest recharger or heart
                 let target = heartPos;
                 let minDist = Math.sqrt((m.position.x - heartPos.x) ** 2 + (m.position.z - heartPos.z) ** 2);
@@ -59,6 +124,8 @@ export class DungeonMinerSystem extends BaseSimSystem {
                 m.state = 'returning_to_base';
                 m.targetBlock = { x: Math.floor(target.x), y: Math.floor(target.y), z: Math.floor(target.z) };
             }
+
+            claimQueuedMineOrder(dState, engine, m);
 
             // 2. State: Recharging
             if (m.state === 'recharging') {
@@ -80,8 +147,8 @@ export class DungeonMinerSystem extends BaseSimSystem {
 
             // 3. State: Moving (Walking or Returning)
             if ((m.state === 'walking' || m.state === 'returning_to_base') && m.targetBlock) {
-                const tx = m.targetBlock.x + 0.5;
-                const tz = m.targetBlock.z + 0.5;
+                const tx = m.targetBlock.x;
+                const tz = m.targetBlock.z;
 
                 const dx = tx - m.position.x;
                 const dz = tz - m.position.z;
@@ -114,8 +181,19 @@ export class DungeonMinerSystem extends BaseSimSystem {
 
                 if (!blockType || blockType === DungeonEngine.BLOCK.AIR) {
                     // Block is gone
+                    clearMineOrder(dState, m, bx, by, bz);
                     m.state = 'idle';
                     m.targetBlock = undefined;
+                    return;
+                }
+
+                if (!canMinerMineBlock(m.type, blockType)) {
+                    clearMineOrder(dState, m, bx, by, bz);
+                    dState.logs.push(`${m.type} cannot mine ${blockLabel(blockType)} at (${bx}, ${bz}).`);
+                    dState.logs = dState.logs.slice(-10);
+                    m.state = 'idle';
+                    m.targetBlock = undefined;
+                    m.miningProgress = 0;
                     return;
                 }
 
@@ -134,6 +212,7 @@ export class DungeonMinerSystem extends BaseSimSystem {
                         if (!hasPermit) {
                             dState.logs.push(`Illegal extraction detected at (${bx}, ${bz})! Permit 17-B required.`);
                             // Optionally penalize or block? For now, we block the actual resource gain.
+                            clearMineOrder(dState, m, bx, by, bz);
                             m.state = 'idle';
                             m.targetBlock = undefined;
                             m.miningProgress = 0;
@@ -154,6 +233,7 @@ export class DungeonMinerSystem extends BaseSimSystem {
 
                     engine.setBlockId(bx, by, bz, DungeonEngine.BLOCK.AIR);
                     engine.reveal(bx, by, bz);
+                    clearMineOrder(dState, m, bx, by, bz);
 
                     // Reveal neighbors at all heights
                     for (let nx = -1; nx <= 1; nx++) {
@@ -164,6 +244,7 @@ export class DungeonMinerSystem extends BaseSimSystem {
                         }
                     }
 
+                    dState.logs = dState.logs.slice(-10);
                     m.state = 'idle';
                     m.targetBlock = undefined;
                     m.miningProgress = 0;

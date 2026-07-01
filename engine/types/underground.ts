@@ -37,6 +37,25 @@ export interface UndergroundTile {
     connectedToSurface: boolean;
 }
 
+export interface OpenPitTelemetry {
+    activeLayer: number;
+    surfaceLayer: number;
+    maxOpenPitDepth: number;
+    deepestOpenPitDepth: number;
+    openPitTiles: number;
+    surfaceRubbleTiles: number;
+    rubbleStored: number;
+    rubbleCapacity: number;
+    stockpileCapacity: number;
+    undergroundDumpCapacity: number;
+    queuedDigJobs: number;
+    queuedClearJobs: number;
+    assignedExcavationJobs: number;
+    activeWorkers: number;
+    capacityBlocked: boolean;
+    nextAction: string;
+}
+
 export interface UndergroundState {
     unlocked: boolean;
     depthLevel: number;
@@ -46,4 +65,5 @@ export interface UndergroundState {
     activeHazards: UndergroundHazardType[];
     selectedTileId: string | null;
     tiles: Record<string, UndergroundTile>;
+    openPit?: OpenPitTelemetry;
 }

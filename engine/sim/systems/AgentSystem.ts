@@ -14,6 +14,8 @@ import { PathPool } from '../../utils/PathPool';
 import { ChunkStore } from '../../space/ChunkStore';
 import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../utils/GameUtils';
 import { worldToChunk, CHUNK_SIZE } from '../../utils/coords';
+import { excavateSubsurfaceCell, getSubsurfaceCell, isSubsurfaceDigJob } from '../../subsurface/SubsurfaceModel';
+import { clearSubsurfaceRubbleForHaul, depositCarriedRubble } from '../../subsurface/RubbleHaul';
 import { getEventEnvironmentModifiers, getWeatherGameplayEffects } from '../../weather/weatherModel';
 
 // Configuration
@@ -137,10 +139,12 @@ export class AgentSystem extends BaseSimSystem {
         if (!jobId) return 'Planning next task.';
         if (jobId === 'sys_sleep') return 'Sleeping: night cycle or low energy.';
         if (jobId === 'sys_eat') return 'Eating: hunger is low.';
-        if (jobId === 'sys_deposit') return 'Walking to storage.';
+        if (jobId === 'sys_deposit') return 'Depositing carried cargo.';
         if (jobId === 'sys_wait_at_work') return 'Waiting: no valid jobs near workplace.';
         if (jobId === 'sys_wander') return 'Patrolling nearby: no urgent job.';
         if (jobId.startsWith('build_')) return 'Building assigned structure.';
+        if (jobId.startsWith('dig_sub_clear_')) return 'Clearing rubble pile.';
+        if (jobId.startsWith('dig_sub_')) return 'Excavating subsurface block.';
         if (jobId.includes('mine')) return 'Harvesting assigned resource.';
         if (jobId.includes('rehab')) return 'Restoring damaged land.';
         if (jobId.startsWith('manual_')) return 'Following player order.';
@@ -150,10 +154,12 @@ export class AgentSystem extends BaseSimSystem {
     private getTravelReason(jobId: string): string {
         if (jobId === 'sys_sleep') return 'Walking to Staff Quarters.';
         if (jobId === 'sys_eat') return 'Walking to Canteen.';
-        if (jobId === 'sys_deposit') return 'Walking to storage.';
+        if (jobId === 'sys_deposit') return 'Hauling cargo to storage.';
         if (jobId === 'sys_wait_at_work') return 'Walking to workplace.';
         if (jobId === 'sys_wander') return 'Patrolling nearby: no urgent job.';
         if (jobId.startsWith('build_')) return 'Walking to build site.';
+        if (jobId.startsWith('dig_sub_clear_')) return 'Walking to rubble pile.';
+        if (jobId.startsWith('dig_sub_')) return 'Walking to excavation marker.';
         if (jobId.includes('mine')) return 'Walking to resource target.';
         if (jobId.includes('rehab')) return 'Walking to restoration site.';
         if (jobId.startsWith('manual_')) return 'Following player order.';
@@ -198,7 +204,8 @@ export class AgentSystem extends BaseSimSystem {
             agent.currentJobId = jobId;
             if (jobId === 'sys_sleep') agent.state = 'SLEEPING';
             else if (jobId === 'sys_eat') agent.state = 'EATING';
-            else if (jobId.startsWith('build_') || jobId.includes('mine')) agent.state = 'WORKING';
+            else if (jobId === 'sys_deposit') agent.state = 'DEPOSITING';
+            else if (jobId.startsWith('build_') || jobId.startsWith('dig_sub_') || jobId.includes('mine')) agent.state = 'WORKING';
             else agent.state = 'IDLE';
             this.explain(agent, this.getJobReason(jobId));
             return;
@@ -277,8 +284,8 @@ export class AgentSystem extends BaseSimSystem {
         const az = Math.floor(agent.z);
 
         // Valid storage buildings
-        // Valid storage buildings
         const storageTypes = [
+            BuildingType.STOCKPILE,
             BuildingType.STORAGE_DEPOT,
             BuildingType.MINING_HEADFRAME,
             BuildingType.STAFF_QUARTERS,
@@ -356,7 +363,7 @@ export class AgentSystem extends BaseSimSystem {
                     this.goTo(agent, storage.x, storage.z, 'sys_deposit', state);
                     return;
                 }
-                this.explain(agent, 'Waiting: carrying resources but no storage is available.', 'warning');
+                this.explain(agent, `Waiting: carrying ${agent.inventory.type || 'cargo'} but no storage is available.`, 'warning');
             }
         }
 
@@ -499,7 +506,7 @@ export class AgentSystem extends BaseSimSystem {
                 break;
 
             case 'DEPOSITING':
-                this.explain(agent, 'Depositing carried resources.');
+                this.explain(agent, agent.inventory?.type === 'rubble' ? 'Dropping rubble at stockpile.' : 'Depositing carried resources.');
                 this.performDeposit(ctx, agent, state);
                 break;
         }
@@ -516,7 +523,7 @@ export class AgentSystem extends BaseSimSystem {
             if (agent.currentJobId === 'sys_sleep') agent.state = 'SLEEPING';
             else if (agent.currentJobId === 'sys_eat') agent.state = 'EATING';
             else if (agent.currentJobId === 'sys_deposit') agent.state = 'DEPOSITING';
-            else if (agent.currentJobId?.includes('build_') || agent.currentJobId?.includes('mine') || agent.currentJobId?.includes('rehab')) {
+            else if (agent.currentJobId?.includes('build_') || agent.currentJobId?.startsWith('dig_sub_') || agent.currentJobId?.includes('mine') || agent.currentJobId?.includes('rehab')) {
                 agent.state = 'WORKING';
             }
             else {
@@ -559,11 +566,20 @@ export class AgentSystem extends BaseSimSystem {
             const type = agent.inventory.type;
             const amount = Math.floor(agent.inventory.amount);
 
-            // Add to global resources
-            if (type === 'minerals') state.resources.minerals += amount;
-            else if (type === 'gems') state.resources.gems += amount;
-            else if (type === 'wood') state.resources.wood += amount;
-            else if (type === 'stone') state.resources.stone += amount;
+            if (type === 'rubble') {
+                const result = depositCarriedRubble(state, amount);
+                if (!result.ok) {
+                    this.explain(agent, (result as any).reason || 'No rubble storage capacity is available.', 'blocked');
+                    agent.state = 'IDLE';
+                    return;
+                }
+            } else {
+                // Add to global resources
+                if (type === 'minerals') state.resources.minerals += amount;
+                else if (type === 'gems') state.resources.gems += amount;
+                else if (type === 'wood') state.resources.wood += amount;
+                else if (type === 'stone') state.resources.stone += amount;
+            }
 
             // Clear inventory
             agent.inventory.amount = 0;
@@ -573,7 +589,9 @@ export class AgentSystem extends BaseSimSystem {
             state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.UI_COIN });
             state.newsFeed.unshift({
                 id: ctx.getNextId?.('dep') || `dep_${Date.now()}_${agent.id}`,
-                headline: `${agent.name} deposited ${amount} ${type}.`,
+                headline: type === 'rubble'
+                    ? `${agent.name} hauled rubble to storage.`
+                    : `${agent.name} deposited ${amount} ${type}.`,
                 type: 'NEUTRAL',
                 timestamp: state.tickCount
             });
@@ -596,6 +614,11 @@ export class AgentSystem extends BaseSimSystem {
         if (!tile) {
             this.explain(agent, 'Cannot work: target tile is missing.', 'blocked');
             this.finishActivity(ctx, agent, state);
+            return;
+        }
+
+        if (job.type === 'MINE' && isSubsurfaceDigJob(job)) {
+            this.performSubsurfaceExcavation(ctx, agent, state, jobIdx);
             return;
         }
 
@@ -660,6 +683,97 @@ export class AgentSystem extends BaseSimSystem {
             state.jobs.splice(jobIdx, 1);
             this.finishActivity(ctx, agent, state);
         }
+    }
+
+    private performSubsurfaceExcavation(ctx: FixedContext, agent: Agent, state: GameState, jobIdx: number): void {
+        const job = state.jobs[jobIdx];
+        const y = Math.round(Number(job.targetY));
+        if (!Number.isFinite(y)) {
+            state.jobs.splice(jobIdx, 1);
+            this.explain(agent, 'Cannot excavate: missing subsurface layer.', 'blocked');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+
+        const cell = getSubsurfaceCell(state.layeredWorld, job.targetX, y, job.targetZ);
+        if (!cell?.mineable || !cell.destructible) {
+            state.jobs.splice(jobIdx, 1);
+            this.explain(agent, 'Waiting: subsurface block is already cleared.', 'warning');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+
+        const isRubbleClearJob = job.id.startsWith('dig_sub_clear_');
+        if (cell.material === 'RUBBLE' && !isRubbleClearJob) {
+            state.jobs.splice(jobIdx, 1);
+            this.explain(agent, 'Waiting: rubble remains; use clear rubble before digging deeper.', 'warning');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+        if (isRubbleClearJob && cell.material !== 'RUBBLE') {
+            state.jobs.splice(jobIdx, 1);
+            this.explain(agent, 'Waiting: rubble target is already cleared.', 'warning');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+
+        const isClearingRubble = isRubbleClearJob;
+        if (isClearingRubble && agent.inventory.amount > 0 && agent.inventory.type !== 'rubble') {
+            job.assignedAgentId = null;
+            this.explain(agent, 'Waiting: carrying another resource; needs storage before rubble work.', 'warning');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+
+        if (!job.progress) job.progress = 0;
+        job.progress += 24 * (1 + agent.skills.mining / 5);
+        this.explain(agent, isClearingRubble ? `Clearing rubble on layer ${y}.` : `Excavating ${String(cell.material).toLowerCase()} on layer ${y}.`);
+        state.pendingEffects.push({ type: 'FX', fxType: 'MINING', x: job.targetX, z: job.targetZ });
+
+        if (job.progress < 100) return;
+
+        const result = isClearingRubble
+            ? clearSubsurfaceRubbleForHaul(state, job.targetX, y, job.targetZ)
+            : excavateSubsurfaceCell(state, job.targetX, y, job.targetZ, { deformSurface: job.context === 'SURFACE_CUT' });
+        if (!result.ok) {
+            state.jobs.splice(jobIdx, 1);
+            this.explain(agent, (result as any).reason || 'Cannot excavate this block.', 'blocked');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+
+        agent.skills.mining += isClearingRubble ? 0.25 : 0.4;
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.MINING_HIT });
+
+        if (isClearingRubble) {
+            agent.inventory.type = 'rubble';
+            agent.inventory.amount = Math.min(agent.inventory.capacity, agent.inventory.amount + 1);
+            state.newsFeed.unshift({
+                id: ctx.getNextId?.('rubble') || `rubble_${Date.now()}_${agent.id}`,
+                headline: `${agent.name} cleared rubble and is hauling it to storage.`,
+                type: 'NEUTRAL',
+                timestamp: state.tickCount,
+            });
+            state.jobs.splice(jobIdx, 1);
+            const storage = this.findNearestStorage(agent, state.chunks);
+            if (storage) {
+                this.goTo(agent, storage.x, storage.z, 'sys_deposit', state);
+                this.explain(agent, 'Hauling rubble to stockpile.');
+                return;
+            }
+            this.explain(agent, 'Waiting: carrying rubble but no reachable stockpile exists.', 'warning');
+            this.finishActivity(ctx, agent, state);
+            return;
+        }
+
+        state.newsFeed.unshift({
+            id: ctx.getNextId?.('dig') || `dig_${Date.now()}_${agent.id}`,
+            headline: `${agent.name} opened a subsurface block on layer ${y}.`,
+            type: 'NEUTRAL',
+            timestamp: state.tickCount,
+        });
+        state.jobs.splice(jobIdx, 1);
+        this.finishActivity(ctx, agent, state);
     }
 
     private getRandomNearby(ctx: FixedContext, agent: Agent): { x: number, z: number } {

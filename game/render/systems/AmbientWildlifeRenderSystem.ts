@@ -59,12 +59,32 @@ type BirdSeed = {
     height: number;
     scale: number;
     color: number;
+    roostX?: number;
+    roostZ?: number;
+};
+
+type BirdNightState = {
+    isNight: boolean;
+    descent: number;
+    hidden: boolean;
+    takeoff: number;
 };
 
 const ANIMAL_COUNT = 10;
 const GROUND_BIRD_COUNT = 5;
 const BIRD_COUNT = 14;
 const DEFAULT_SETTLEMENT_ANCHOR = { x: 8, z: 8 };
+const FACING_SAMPLE_DT = 0.12;
+const MIN_FACING_DELTA = 0.0001;
+const DAY_TICKS = 24000;
+const SUNRISE_TICK = 5000;
+const SUNSET_TICK = 21000;
+const NIGHT_TICKS = (DAY_TICKS - SUNSET_TICK) + SUNRISE_TICK;
+const ROOST_DESCENT_FRACTION = 0.24;
+const ROOST_HIDE_FRACTION = 0.3;
+const MORNING_TAKEOFF_TICKS = 2600;
+const MIN_ROOST_SCALE = 0.12;
+const ROOST_SCAN_INTERVAL = 2;
 
 export class AmbientWildlifeRenderSystem {
     private readonly root = new THREE.Group();
@@ -86,10 +106,15 @@ export class AmbientWildlifeRenderSystem {
     private readonly groundBirdSeeds: GroundBirdSeed[];
     private readonly birdSeeds: BirdSeed[];
     private readonly matrix = new THREE.Matrix4();
+    private readonly roostMatrix = new THREE.Matrix4();
     private readonly position = new THREE.Vector3();
+    private readonly roostPosition = new THREE.Vector3();
     private readonly scale = new THREE.Vector3();
     private readonly quaternion = new THREE.Quaternion();
     private readonly euler = new THREE.Euler();
+    private treeRoosts: WildlifeFocus[] = [];
+    private lastRoostScanAt = -Infinity;
+    private birdsHaveNightRoosts = false;
     private visible = true;
 
     constructor(scene: THREE.Scene, anchor: WildlifeFocus = DEFAULT_SETTLEMENT_ANCHOR) {
@@ -147,7 +172,8 @@ export class AmbientWildlifeRenderSystem {
         focus: WildlifeFocus,
         getHeightAt: (x: number, z: number) => number,
         zoomLevel: number = 18,
-        firstPerson: boolean = false
+        firstPerson: boolean = false,
+        timeOfDay: number = 12000
     ): void {
         if (!this.visible) return;
 
@@ -161,7 +187,7 @@ export class AmbientWildlifeRenderSystem {
             this.updateAnimals(time, focus, getHeightAt, firstPerson);
             this.updateGroundBirds(time, focus, getHeightAt, firstPerson);
         }
-        this.updateBirds(time, focus, firstPerson);
+        this.updateBirds(time, focus, getHeightAt, firstPerson, timeOfDay);
     }
 
     setVisible(visible: boolean): void {
@@ -196,23 +222,17 @@ export class AmbientWildlifeRenderSystem {
     ): void {
         for (let i = 0; i < this.animalSeeds.length; i += 1) {
             const seed = this.animalSeeds[i];
-            const t = time * seed.speed + seed.phase;
-            const wanderX = Math.cos(t) * seed.radius + Math.sin(t * 0.37 + seed.phase) * 2.4;
-            const wanderZ = Math.sin(t * 0.82) * seed.radius + Math.cos(t * 0.29 + seed.phase) * 2.2;
-            const x = seed.anchorX + wanderX;
-            const z = seed.anchorZ + wanderZ;
-            const nextX = seed.anchorX + Math.cos(t + 0.05) * seed.radius;
-            const nextZ = seed.anchorZ + Math.sin((t + 0.05) * 0.82) * seed.radius;
-            const yaw = Math.atan2(nextX - x, nextZ - z);
+            const current = this.getAnimalPosition(seed, time);
+            const next = this.getAnimalPosition(seed, time + FACING_SAMPLE_DT);
+            const x = current.x;
+            const z = current.z;
+            const yaw = this.getFacingYaw(current, next, seed.phase);
             const groundY = getHeightAt(x, z);
             const bob = Math.sin(time * 7 + seed.phase) * 0.018;
             const y = groundY + 0.32 * seed.scale + bob;
             const nearFocus = this.isNearFocus(x, z, focus, firstPerson ? 42 : 70);
             const hiddenY = -1000;
             const visibleY = nearFocus ? y : hiddenY;
-
-            this.euler.set(0, yaw, 0);
-            this.quaternion.setFromEuler(this.euler);
 
             this.composeAnimalPart(x, visibleY, z, yaw, 0, 0, 0, seed.scale, seed.scale, seed.scale);
             this.animalBodyMesh.setMatrixAt(i, this.matrix);
@@ -296,14 +316,11 @@ export class AmbientWildlifeRenderSystem {
     ): void {
         for (let i = 0; i < this.groundBirdSeeds.length; i += 1) {
             const seed = this.groundBirdSeeds[i];
-            const t = time * seed.speed + seed.phase;
-            const wanderX = Math.cos(t * 0.9) * seed.radius + Math.sin(t * 0.43 + seed.phase) * 1.2;
-            const wanderZ = Math.sin(t) * seed.radius + Math.cos(t * 0.31 + seed.phase) * 1.1;
-            const x = seed.anchorX + wanderX;
-            const z = seed.anchorZ + wanderZ;
-            const nextX = seed.anchorX + Math.cos((t + 0.05) * 0.9) * seed.radius;
-            const nextZ = seed.anchorZ + Math.sin(t + 0.05) * seed.radius;
-            const yaw = Math.atan2(nextX - x, nextZ - z);
+            const current = this.getGroundBirdPosition(seed, time);
+            const next = this.getGroundBirdPosition(seed, time + FACING_SAMPLE_DT);
+            const x = current.x;
+            const z = current.z;
+            const yaw = this.getFacingYaw(current, next, seed.phase);
             const groundY = getHeightAt(x, z);
             const stride = Math.sin(time * 7.4 + seed.phase) * 0.06 * seed.scale;
             const peck = Math.max(0, Math.sin(time * 2.2 + seed.phase)) * 0.12 * seed.scale;
@@ -371,25 +388,186 @@ export class AmbientWildlifeRenderSystem {
         }
     }
 
-    private updateBirds(time: number, focus: WildlifeFocus, firstPerson: boolean): void {
+    private updateBirds(
+        time: number,
+        focus: WildlifeFocus,
+        getHeightAt: (x: number, z: number) => number,
+        firstPerson: boolean,
+        timeOfDay: number
+    ): void {
+        this.refreshTreeRoosts(time);
+        const nightState = this.getBirdNightState(timeOfDay);
+        if (nightState.isNight && !this.birdsHaveNightRoosts) {
+            this.assignBirdRoosts();
+            this.birdsHaveNightRoosts = true;
+        } else if (!nightState.isNight && nightState.takeoff >= 1) {
+            this.birdsHaveNightRoosts = false;
+        }
+
         for (let i = 0; i < this.birdSeeds.length; i += 1) {
             const seed = this.birdSeeds[i];
-            const t = time * seed.speed + seed.phase;
-            const x = seed.anchorX + Math.cos(t) * seed.radius;
-            const z = seed.anchorZ + Math.sin(t * 0.93) * seed.radius;
+            const flight = this.getSkyBirdPosition(seed, time);
+            const nextFlight = this.getSkyBirdPosition(seed, time + FACING_SAMPLE_DT);
+            const flightY = seed.height + Math.sin(time * 1.9 + seed.phase) * 0.85;
+            let x = flight.x;
+            let z = flight.z;
+            let y = flightY;
+            let yaw = this.getFacingYaw(flight, nextFlight, seed.phase);
+            let scaleFactor = 1;
+            let hiddenForNight = false;
+
+            if (nightState.isNight) {
+                const roost = this.ensureBirdRoost(seed, i);
+                const p = this.smoothstep(nightState.descent);
+                const roostY = getHeightAt(roost.x, roost.z) + 1.45 + ((i % 3) * 0.18);
+                x = this.lerp(flight.x, roost.x, p);
+                z = this.lerp(flight.z, roost.z, p);
+                y = this.lerp(flightY, roostY, p);
+                yaw = this.getFacingYaw({ x, z }, roost, seed.phase);
+                scaleFactor = this.lerp(1, MIN_ROOST_SCALE, p);
+                hiddenForNight = nightState.hidden;
+            } else if (nightState.takeoff < 1 && seed.roostX !== undefined && seed.roostZ !== undefined) {
+                const p = this.smoothstep(nightState.takeoff);
+                const roost = { x: seed.roostX, z: seed.roostZ };
+                const roostY = getHeightAt(roost.x, roost.z) + 1.45 + ((i % 3) * 0.18);
+                x = this.lerp(roost.x, flight.x, p);
+                z = this.lerp(roost.z, flight.z, p);
+                y = this.lerp(roostY, flightY, p);
+                yaw = this.getFacingYaw(roost, flight, seed.phase);
+                scaleFactor = this.lerp(MIN_ROOST_SCALE, 1, p);
+            }
+
             const nearFocus = this.isNearFocus(x, z, focus, firstPerson ? 80 : 120);
-            const y = nearFocus ? seed.height + Math.sin(time * 1.9 + seed.phase) * 0.85 : -1000;
-            const yaw = Math.atan2(-Math.sin(t), Math.cos(t * 0.93));
-            const flap = 1 + Math.sin(time * 9.5 + seed.phase) * 0.18;
+            const visibleY = nearFocus && !hiddenForNight ? y : -1000;
+            const flap = 1 + Math.sin(time * 9.5 + seed.phase) * 0.18 * Math.max(0.1, scaleFactor);
 
             this.euler.set(Math.sin(time + seed.phase) * 0.08, yaw, 0);
             this.quaternion.setFromEuler(this.euler);
-            this.position.set(x, y, z);
-            this.scale.set(seed.scale, seed.scale * flap, seed.scale);
+            this.position.set(x, visibleY, z);
+            this.scale.set(seed.scale * scaleFactor, seed.scale * scaleFactor * flap, seed.scale * scaleFactor);
             this.matrix.compose(this.position, this.quaternion, this.scale);
             this.birdMesh.setMatrixAt(i, this.matrix);
         }
         this.birdMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    private getAnimalPosition(seed: AnimalSeed, time: number): WildlifeFocus {
+        const t = time * seed.speed + seed.phase;
+        return {
+            x: seed.anchorX + Math.cos(t) * seed.radius + Math.sin(t * 0.37 + seed.phase) * 2.4,
+            z: seed.anchorZ + Math.sin(t * 0.82) * seed.radius + Math.cos(t * 0.29 + seed.phase) * 2.2,
+        };
+    }
+
+    private getGroundBirdPosition(seed: GroundBirdSeed, time: number): WildlifeFocus {
+        const t = time * seed.speed + seed.phase;
+        return {
+            x: seed.anchorX + Math.cos(t * 0.9) * seed.radius + Math.sin(t * 0.43 + seed.phase) * 1.2,
+            z: seed.anchorZ + Math.sin(t) * seed.radius + Math.cos(t * 0.31 + seed.phase) * 1.1,
+        };
+    }
+
+    private getSkyBirdPosition(seed: BirdSeed, time: number): WildlifeFocus {
+        const t = time * seed.speed + seed.phase;
+        return {
+            x: seed.anchorX + Math.cos(t) * seed.radius,
+            z: seed.anchorZ + Math.sin(t * 0.93) * seed.radius,
+        };
+    }
+
+    private getFacingYaw(current: WildlifeFocus, next: WildlifeFocus, fallbackPhase: number): number {
+        const dx = next.x - current.x;
+        const dz = next.z - current.z;
+        if (dx * dx + dz * dz < MIN_FACING_DELTA) {
+            return fallbackPhase;
+        }
+        return Math.atan2(dx, dz);
+    }
+
+    private getBirdNightState(timeOfDay: number): BirdNightState {
+        const normalized = this.normalizeTimeOfDay(timeOfDay);
+        if (normalized >= SUNSET_TICK || normalized < SUNRISE_TICK) {
+            const nightElapsed = normalized >= SUNSET_TICK
+                ? normalized - SUNSET_TICK
+                : (DAY_TICKS - SUNSET_TICK) + normalized;
+            return {
+                isNight: true,
+                descent: this.clamp01(nightElapsed / (NIGHT_TICKS * ROOST_DESCENT_FRACTION)),
+                hidden: nightElapsed >= NIGHT_TICKS * ROOST_HIDE_FRACTION,
+                takeoff: 0,
+            };
+        }
+
+        return {
+            isNight: false,
+            descent: 0,
+            hidden: false,
+            takeoff: this.clamp01((normalized - SUNRISE_TICK) / MORNING_TAKEOFF_TICKS),
+        };
+    }
+
+    private normalizeTimeOfDay(timeOfDay: number): number {
+        return ((timeOfDay % DAY_TICKS) + DAY_TICKS) % DAY_TICKS;
+    }
+
+    private refreshTreeRoosts(time: number): void {
+        if (time - this.lastRoostScanAt < ROOST_SCAN_INTERVAL) return;
+        this.lastRoostScanAt = time;
+        const scene = this.root.parent;
+        if (!scene) return;
+
+        const roosts: WildlifeFocus[] = [];
+        scene.traverse((object) => {
+            const mesh = object as THREE.InstancedMesh;
+            const foliageType = String(mesh.userData?.foliageType || '');
+            if (!mesh.isInstancedMesh || !foliageType.startsWith('TREE_')) return;
+            const count = Math.min(mesh.count || 0, mesh.instanceMatrix.count || mesh.count || 0);
+            for (let i = 0; i < count; i += 1) {
+                mesh.getMatrixAt(i, this.roostMatrix);
+                this.roostPosition.setFromMatrixPosition(this.roostMatrix);
+                roosts.push({ x: this.roostPosition.x, z: this.roostPosition.z });
+            }
+        });
+
+        if (roosts.length > 0) {
+            this.treeRoosts = roosts;
+        }
+    }
+
+    private assignBirdRoosts(): void {
+        for (let i = 0; i < this.birdSeeds.length; i += 1) {
+            const seed = this.birdSeeds[i];
+            const roost = this.pickRoostForBird(seed, i);
+            seed.roostX = roost.x;
+            seed.roostZ = roost.z;
+        }
+    }
+
+    private ensureBirdRoost(seed: BirdSeed, index: number): WildlifeFocus {
+        if (seed.roostX !== undefined && seed.roostZ !== undefined) {
+            return { x: seed.roostX, z: seed.roostZ };
+        }
+        const roost = this.pickRoostForBird(seed, index);
+        seed.roostX = roost.x;
+        seed.roostZ = roost.z;
+        return roost;
+    }
+
+    private pickRoostForBird(seed: BirdSeed, index: number): WildlifeFocus {
+        if (this.treeRoosts.length === 0) {
+            return {
+                x: seed.anchorX + Math.cos(seed.phase) * 4,
+                z: seed.anchorZ + Math.sin(seed.phase) * 4,
+            };
+        }
+
+        const roostIndex = Math.abs(Math.floor(seed.phase * 1000) + index * 7) % this.treeRoosts.length;
+        const base = this.treeRoosts[roostIndex];
+        const offset = (index % 5) * 0.08;
+        return {
+            x: base.x + Math.sin(seed.phase) * (0.18 + offset),
+            z: base.z + Math.cos(seed.phase) * (0.18 + offset),
+        };
     }
 
     private createAnimalSeeds(anchor: WildlifeFocus): AnimalSeed[] {
@@ -511,5 +689,18 @@ export class AmbientWildlifeRenderSystem {
         const dx = x - focus.x;
         const dz = z - focus.z;
         return dx * dx + dz * dz <= radius * radius;
+    }
+
+    private clamp01(value: number): number {
+        return Math.max(0, Math.min(1, value));
+    }
+
+    private lerp(a: number, b: number, t: number): number {
+        return a + (b - a) * this.clamp01(t);
+    }
+
+    private smoothstep(value: number): number {
+        const t = this.clamp01(value);
+        return t * t * (3 - 2 * t);
     }
 }

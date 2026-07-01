@@ -11,7 +11,7 @@
     "vite": "vite",
     "build": "node scripts/build.js",
     "typecheck": "tsc --noEmit",
-    "test:contracts": "node --test tests/*.test.ts",
+    "test:contracts": "node scripts/run-contract-tests.js",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -39,6 +39,7 @@
     "autoprefixer": "^10.4.23",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
+    "tsx": "^4.20.6",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

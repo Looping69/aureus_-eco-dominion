@@ -18,11 +18,12 @@ import {
     PowerGridSystem, WaterNetworkSystem,
     TutorialDemoSystem, CommandDispatcher, UndergroundSurveySystem,
     ResearchSystem, EmploymentSystem, BureaucracySystem, AmbientNPCSystem,
-    AIOverseerSystem
+    AIOverseerSystem, CombatSystem
 } from '../engine/sim/systems';
 import { DungeonMinerSystem } from '../engine/sim/systems/DungeonMinerSystem';
 import { DungeonStabilitySystem } from '../engine/sim/systems/DungeonStabilitySystem';
 import { PersistenceManager } from '../engine/sim/PersistenceManager';
+import { getOpenPitEntryLayer, setActiveSubsurfaceLayer } from '../engine/subsurface/SubsurfaceModel';
 import { GameState, GameStep, BuildingType, SfxType, Action } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import { getBiomeAt } from '../engine/worldgen/Core';
@@ -47,6 +48,9 @@ import { drawWorldFrame } from './world/renderFrame';
 import { handleSurfaceInteraction as handleWorldSurfaceInteraction, SurfaceInteractionType } from './world/interaction';
 import { initializeWorldRuntime, teardownWorldRuntime } from './world/lifecycle';
 import { hasStoredSave, loadGameState, loadRawState, saveGameQuietly, saveGameWithFeedback } from './world/persistenceBridge';
+import { acceptWorldContract, abandonWorldContract, deliverWorldContract } from './world/contractBridge';
+import { dispatchWorldAction } from './world/dispatchBridge';
+import { getInfrastructureLinePlan, isInfrastructureLineType } from './world/infrastructureLine';
 
 export interface AureusWorldConfig {
     container: HTMLElement;
@@ -56,13 +60,6 @@ export interface AureusWorldConfig {
     onTileHover?: (x: number | null, z: number | null) => void;
     onSfx?: (type: SfxType) => void;
 }
-
-const INFRASTRUCTURE_LINE_TYPES = new Set<BuildingType>([
-    BuildingType.ROAD,
-    BuildingType.PIPE,
-    BuildingType.POWER_LINE,
-    BuildingType.FENCE,
-]);
 
 export class AureusWorld extends BaseWorld {
     readonly id = 'aureus-main';
@@ -174,7 +171,6 @@ export class AureusWorld extends BaseWorld {
         this.economyManager = new EconomyManager(this.stateManager);
         this.buildingManager = new BuildingManager(this.stateManager, this.buildingRenderSystem);
         this.researchManager = new ResearchManager(this.stateManager);
-        this.researchManager = new ResearchManager(this.stateManager);
         this.agentManager = new AgentManager(this.stateManager, this.cameraSystem);
     }
 
@@ -223,6 +219,7 @@ export class AureusWorld extends BaseWorld {
         this.agentSystem = new AgentSystem(this.jobs, this.constructionSystem);
         this.sim.addSystem(this.agentSystem);
         this.sim.addSystem(new AmbientNPCSystem());
+        this.sim.addSystem(new CombatSystem());
 
         const researchSystem = new ResearchSystem();
         this.sim.addSystem(researchSystem);
@@ -260,19 +257,18 @@ export class AureusWorld extends BaseWorld {
     previewInfrastructureLine(startX: number, startZ: number, endX: number, endZ: number, type?: string): void {
         const state = this.stateManager.getState();
         const buildingType = (type || state.selectedBuilding) as BuildingType;
-        if (!INFRASTRUCTURE_LINE_TYPES.has(buildingType)) {
+        if (!isInfrastructureLineType(buildingType)) {
             this.clearInfrastructureLinePreview();
             return;
         }
 
-        const deltaX = endX - startX;
-        const deltaZ = endZ - startZ;
-        const horizontal = Math.abs(deltaX) >= Math.abs(deltaZ);
-        const finalX = horizontal ? endX : startX;
-        const finalZ = horizontal ? startZ : endZ;
-        const requestedLength = Math.max(Math.abs(finalX - startX), Math.abs(finalZ - startZ)) + 1;
-        const available = state.cheatsEnabled ? requestedLength : (state.inventory?.[buildingType] || 0);
-        this.linePlacementPreview.setLine(startX, startZ, endX, endZ, buildingType, available);
+        const plan = getInfrastructureLinePlan(startX, startZ, endX, endZ, buildingType, state);
+        if (!plan) {
+            this.clearInfrastructureLinePreview();
+            return;
+        }
+
+        this.linePlacementPreview.setLine(startX, startZ, endX, endZ, plan.buildingType, plan.available);
     }
 
     clearInfrastructureLinePreview(): void {
@@ -282,43 +278,39 @@ export class AureusWorld extends BaseWorld {
     placeInfrastructureLine(startX: number, startZ: number, endX: number, endZ: number, type?: string): void {
         const state = this.stateManager.getState();
         const buildingType = (type || state.selectedBuilding) as BuildingType;
-        if (!INFRASTRUCTURE_LINE_TYPES.has(buildingType)) {
+        if (!isInfrastructureLineType(buildingType)) {
+            this.placeBuilding(endX, endZ, buildingType);
+            return;
+        }
+
+        const plan = getInfrastructureLinePlan(startX, startZ, endX, endZ, buildingType, state);
+        if (!plan) {
             this.placeBuilding(endX, endZ, buildingType);
             return;
         }
 
         this.clearInfrastructureLinePreview();
-        const deltaX = endX - startX;
-        const deltaZ = endZ - startZ;
-        const horizontal = Math.abs(deltaX) >= Math.abs(deltaZ);
-        const finalX = horizontal ? endX : startX;
-        const finalZ = horizontal ? startZ : endZ;
-        const stepX = Math.sign(finalX - startX);
-        const stepZ = Math.sign(finalZ - startZ);
-        const requestedLength = Math.max(Math.abs(finalX - startX), Math.abs(finalZ - startZ)) + 1;
-        const available = state.cheatsEnabled ? requestedLength : (state.inventory?.[buildingType] || 0);
-        const placeCount = Math.min(requestedLength, available);
 
-        if (placeCount <= 0) {
+        if (plan.placeCount <= 0) {
             this.stateManager.pushEffect({ type: 'AUDIO', sfx: SfxType.ERROR });
             return;
         }
 
-        for (let i = 0; i < placeCount; i++) {
+        for (let i = 0; i < plan.placeCount; i++) {
             this.stateManager.pushCommand('PLACE_BUILDING', {
-                x: startX + stepX * i,
-                z: startZ + stepZ * i,
-                buildingType,
+                x: startX + plan.stepX * i,
+                z: startZ + plan.stepZ * i,
+                buildingType: plan.buildingType,
             });
         }
 
         this.stateManager.pushEffect({ type: 'AUDIO', sfx: SfxType.BUILD });
 
-        if (placeCount < requestedLength) {
-            const def = BUILDINGS[buildingType];
+        if (plan.placeCount < plan.requestedLength) {
+            const def = BUILDINGS[plan.buildingType];
             state.newsFeed.unshift({
                 id: `line_short_${Date.now()}`,
-                headline: `Only ${placeCount}/${requestedLength} ${def?.name || 'infrastructure'} pieces available for that line.`,
+                headline: `Only ${plan.placeCount}/${plan.requestedLength} ${def?.name || 'infrastructure'} pieces available for that line.`,
                 type: 'NEGATIVE',
                 timestamp: state.tickCount,
             });
@@ -365,10 +357,10 @@ export class AureusWorld extends BaseWorld {
         this.stateManager.pushCommand('COMMAND_AGENT', { agentId, x, z });
     }
 
-    setInteractionMode(mode: 'BUILD' | 'BULLDOZE' | 'INSPECT'): void {
+    setInteractionMode(mode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'DIG'): void {
         if (mode !== 'BUILD') this.clearInfrastructureLinePreview();
         this.stateManager.update({ interactionMode: mode });
-        this.buildingRenderSystem.setCursorMode(mode);
+        this.buildingRenderSystem.setCursorMode(mode as any);
     }
 
     sellResource(resource: 'minerals' | 'gems' | 'wood' | 'stone'): void { this.economyManager.sellResource(resource); }
@@ -395,6 +387,13 @@ export class AureusWorld extends BaseWorld {
     }
 
     speedUpConstruction(x: number, z: number): void { this.buildingManager.speedUpConstruction(x, z); }
+
+    setLayeredActiveY(y: number): void {
+        const state = this.stateManager.getState();
+        if (!state.layeredWorld?.enabled) return;
+        this.stateManager.mutate('activeView', 'SURFACE');
+        this.stateManager.mutate('layeredWorld', setActiveSubsurfaceLayer(state.layeredWorld, y));
+    }
 
     zoomToAgent(agentId: string): void {
         const agent = this.stateManager.getState().agents.find(a => a.id === agentId);
@@ -426,26 +425,14 @@ export class AureusWorld extends BaseWorld {
         this.stateManager.notifyIfDirty();
     }
 
-    acceptContract(contractId: string): void { console.log(`[AureusWorld] Accept contract: ${contractId}`); }
+    acceptContract(contractId: string): void { acceptWorldContract(this.stateManager, contractId); }
+    deliverContract(contractId: string): void { deliverWorldContract(this.stateManager, contractId); }
+    abandonContract(contractId: string): void { abandonWorldContract(this.stateManager, contractId); }
     advanceTutorial(): void { this.stateManager.pushCommand('ADVANCE_TUTORIAL', {}); }
 
     startDemo(): void {
         this.stateManager.pushCommand('START_DEMO', {});
         this.setGamePaused(false);
-    }
-
-    deliverContract(contractId: string): void {
-        const state = this.stateManager.getState();
-        const contract = state.contracts.find(c => c.id === contractId);
-        if (contract && contract.amount > 0) {
-            const resource = contract.resource === 'MINERALS' ? 'minerals' : 'gems';
-            if (state.resources[resource] >= contract.amount) {
-                state.resources[resource] -= contract.amount;
-                state.resources.agt += contract.reward;
-                state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.COMPLETE });
-                this.stateManager.markDirty('contracts', 'resources', 'pendingEffects');
-            }
-        }
     }
 
     rehabilitateTile(x: number, z: number): void { this.stateManager.pushCommand('REHABILITATE', { x, z }); }
@@ -638,15 +625,19 @@ export class AureusWorld extends BaseWorld {
 
     toggleViewMode(): void {
         const state = this.stateManager.getState();
-        const accessUnlocked = state.cheatsEnabled || state.underground.unlocked || state.dungeon.unlocked;
-        if (state.activeView === 'SURFACE') {
+        const layeredWorld = state.layeredWorld;
+        if (!layeredWorld?.enabled) return;
+
+        const isBelowSurface = layeredWorld.activeY < layeredWorld.surfaceY;
+        if (!isBelowSurface) {
+            const accessUnlocked = state.cheatsEnabled || state.underground.unlocked || state.dungeon.unlocked;
             if (!accessUnlocked) {
                 state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ERROR });
                 state.newsFeed.push({
-                    id: `dungeon_locked_${Date.now()}`,
+                    id: `subsurface_locked_${Date.now()}`,
                     headline: state.resources.trust < 50
-                        ? 'Below Sector locked. Reach Trust 50 to authorize subsurface operations.'
-                        : 'Below Sector locked. Build a Survey Drill to authorize subsurface operations.',
+                        ? 'Subsurface cut locked. Reach Trust 50 to authorize excavation.'
+                        : 'Subsurface cut locked. Build a Survey Drill to authorize excavation.',
                     type: 'NEGATIVE',
                     timestamp: Date.now(),
                 });
@@ -658,54 +649,56 @@ export class AureusWorld extends BaseWorld {
                 state.dungeon.unlocked = true;
                 this.stateManager.markDirty('underground', 'dungeon');
             }
-            this.stateManager.mutate('activeView', 'DUNGEON');
+
+            this.stateManager.mutate('activeView', 'SURFACE');
+            this.stateManager.mutate('layeredWorld', setActiveSubsurfaceLayer(layeredWorld, getOpenPitEntryLayer(layeredWorld)));
+            this.setInteractionMode('DIG');
             return;
         }
+
         this.stateManager.mutate('activeView', 'SURFACE');
+        this.stateManager.mutate('layeredWorld', setActiveSubsurfaceLayer(layeredWorld, layeredWorld.surfaceY));
+        if (state.interactionMode === 'DIG') this.setInteractionMode('INSPECT');
     }
 
     toggleView(): void { this.toggleViewMode(); }
 
     dispatch(action: Action): void {
-        console.log(`[AureusWorld] Dispatching: ${action.type}`, (action as any).payload);
-        switch (action.type) {
-            case 'PLACE_BUILDING': this.placeBuilding(action.payload.x, action.payload.z); break;
-            case 'BULLDOZE_TILE': this.bulldozeTile(action.payload.x, action.payload.z); break;
-            case 'ACTIVATE_BULLDOZER': this.setInteractionMode('BULLDOZE'); break;
-            case 'UPGRADE_BUILDING': this.upgradeBuilding(action.payload.x, action.payload.z); break;
-            case 'SPEED_UP_BUILDING': this.speedUpConstruction(action.payload.x, action.payload.z); break;
-            case 'REHABILITATE_TILE': this.rehabilitateTile(action.payload.x, action.payload.z); break;
-            case 'SELECT_BUILDING_TO_PLACE': this.selectBuilding(action.payload); break;
-            case 'SELECT_AGENT': this.selectAgent(action.payload); break;
-            case 'COMMAND_AGENT': this.commandAgent(action.payload.agentId, action.payload.x, action.payload.z); break;
-            case 'SET_INTERACTION_MODE': this.setInteractionMode(action.payload as any); break;
-            case 'SELL_MINERALS': this.sellMinerals(); break;
-            case 'SELL_GEMS': this.sellGems(action.payload.address); break;
-            case 'SELL_WOOD': this.sellWood(); break;
-            case 'SELL_STONE': this.sellStone(); break;
-            case 'BUY_RESOURCE': this.buyResource(action.payload.resource, action.payload.amount); break;
-            case 'BUY_BUILDING':
-                this.buyBuilding(action.payload.type, action.payload.cost);
-                this.selectBuilding(action.payload.type);
-                break;
-            case 'UPDATE_LOGISTICS': this.updateLogistics(action.payload); break;
-            case 'UNLOCK_TECH': this.researchTech(action.payload); break;
-            case 'TOGGLE_DEBUG': this.toggleDebug(); break;
-            case 'TOGGLE_CHEATS': this.toggleCheats(); break;
-            case 'TOGGLE_VIEW': this.toggleViewMode(); break;
-            case 'SAVE_GAME': this.saveGame(); break;
-            case 'LOAD_GAME': this.loadState(action.payload); break;
-            case 'ADVANCE_TUTORIAL': this.advanceTutorial(); break;
-            case 'START_DEMO': this.startDemo(); break;
-            case 'ENTER_FPS': this.enterFPS(action.payload || this.stateManager.getState().selectedAgentId || ''); break;
-            case 'EXIT_FPS': this.exitFPS(); break;
-            case 'DISMISS_NEWS': break;
-            case 'SUBMIT_PERMIT': this.stateManager.pushCommand('SUBMIT_PERMIT', { permitId: action.payload }); break;
-            case 'TALK_TO_NPC': this.stateManager.pushCommand('TALK_TO_NPC', { npcId: action.payload }); break;
-            case 'CHOOSE_DIALOGUE': this.stateManager.pushCommand('CHOOSE_DIALOGUE', { optionIndex: action.payload }); break;
-            case 'CLOSE_DIALOGUE': this.stateManager.pushCommand('CLOSE_DIALOGUE', {}); break;
-            default: console.warn(`[AureusWorld] Unhandled action type: ${(action as any).type}`);
-        }
+        dispatchWorldAction(action, {
+            placeBuilding: (x, z) => this.placeBuilding(x, z),
+            bulldozeTile: (x, z) => this.bulldozeTile(x, z),
+            setInteractionMode: (mode) => this.setInteractionMode(mode),
+            upgradeBuilding: (x, z) => this.upgradeBuilding(x, z),
+            speedUpConstruction: (x, z) => this.speedUpConstruction(x, z),
+            rehabilitateTile: (x, z) => this.rehabilitateTile(x, z),
+            selectBuilding: (type) => this.selectBuilding(type),
+            selectAgent: (agentId) => this.selectAgent(agentId),
+            commandAgent: (agentId, x, z) => this.commandAgent(agentId, x, z),
+            setLayeredActiveY: (y) => this.setLayeredActiveY(y),
+            sellMinerals: () => this.sellMinerals(),
+            sellGems: (address) => this.sellGems(address),
+            sellWood: () => this.sellWood(),
+            sellStone: () => this.sellStone(),
+            buyResource: (resource, amount) => this.buyResource(resource, amount),
+            buyBuilding: (buildingType, cost) => this.buyBuilding(buildingType, cost),
+            updateLogistics: (payload) => this.updateLogistics(payload),
+            researchTech: (techId) => this.researchTech(techId),
+            toggleDebug: () => this.toggleDebug(),
+            toggleCheats: () => this.toggleCheats(),
+            toggleViewMode: () => this.toggleViewMode(),
+            saveGame: () => this.saveGame(),
+            loadState: (saved) => this.loadState(saved),
+            advanceTutorial: () => this.advanceTutorial(),
+            startDemo: () => this.startDemo(),
+            acceptContract: (contractId) => this.acceptContract(contractId),
+            deliverContract: (contractId) => this.deliverContract(contractId),
+            abandonContract: (contractId) => this.abandonContract(contractId),
+            enterFPS: (agentId) => this.enterFPS(agentId),
+            exitFPS: () => this.exitFPS(),
+            getSelectedAgentId: () => this.stateManager.getState().selectedAgentId,
+            pushCommand: (type, payload) => this.stateManager.pushCommand(type, payload),
+            warnUnhandled: (type) => console.warn(`[AureusWorld] Unhandled action type: ${type}`),
+        });
     }
 
     private updateLogistics(payload: any): void {

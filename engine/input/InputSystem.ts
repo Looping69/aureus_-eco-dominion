@@ -136,6 +136,9 @@ export class InputSystem {
      * Get the current world position of the cursor (on the logical ground plane)
      */
     public getCurrentCursor(): THREE.Vector3 | null {
+        // Underground has its own block raycast; surface cursor projection is intentionally disabled there.
+        if (this.isDungeonPointerMode()) return null;
+
         // If mouse hasn't moved yet, return null
         if (this.lastClientX === 0 && this.lastClientY === 0) return null;
 
@@ -175,6 +178,10 @@ export class InputSystem {
 
     public setRayPlaneHeight(height: number) {
         this.rayPlane.constant = -height;
+    }
+
+    private isDungeonPointerMode(): boolean {
+        return this.renderAdapter.getCamera().layers.isEnabled(1);
     }
 
     private getIntersection(clientX: number, clientY: number): { x: number, z: number, point: THREE.Vector3 } | null {
@@ -229,6 +236,15 @@ export class InputSystem {
     }
 
     private handleClick(x: number, y: number, isRight: boolean, isTouch: boolean) {
+        if (this.isDungeonPointerMode()) {
+            if (isRight) {
+                this.onTileRightClick?.(0, 0, isTouch, x, y);
+            } else {
+                this.onTileClick?.(0, 0, isTouch, x, y);
+            }
+            return;
+        }
+
         const hit = this.getIntersection(x, y);
         if (hit) {
             if (isRight) {
@@ -240,6 +256,11 @@ export class InputSystem {
     }
 
     private checkHover(x: number, y: number) {
+        if (this.isDungeonPointerMode()) {
+            this.onTileHover?.(null, null, x, y);
+            return;
+        }
+
         const hit = this.getIntersection(x, y);
         if (hit) {
             this.onTileHover?.(hit.x, hit.z, x, y);

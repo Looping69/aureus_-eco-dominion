@@ -10,11 +10,14 @@ export class DungeonRenderSystem {
     private root: THREE.Group;
     private meshes: Map<number, THREE.InstancedMesh> = new Map();
     private minerGroup: THREE.Group;
+    private mineOrderGroup: THREE.Group;
+    private mineOrderMeshes: Map<string, THREE.Mesh> = new Map();
     private minerMeshes: Map<string, { group: THREE.Group, bar: THREE.Mesh, parts: any }> = new Map();
     private heartMesh: THREE.Group | null = null;
 
     // Geometry and Materials
     private boxGeometry: THREE.BoxGeometry;
+    private mineOrderGeometry: THREE.BoxGeometry;
     private materials: Map<number, THREE.Material>;
     private dungeonTexture: THREE.CanvasTexture | null = null;
     private wallNormalMap: THREE.CanvasTexture | null = null;
@@ -37,10 +40,15 @@ export class DungeonRenderSystem {
         this.root.visible = false; // Hidden by default, toggled by World
         this.scene.add(this.root);
 
+        this.mineOrderGroup = new THREE.Group();
+        this.mineOrderGroup.name = 'dungeon-mine-orders';
+        this.root.add(this.mineOrderGroup);
+
         this.minerGroup = new THREE.Group();
         this.root.add(this.minerGroup);
 
         this.boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+        this.mineOrderGeometry = new THREE.BoxGeometry(1.08, 1.08, 1.08);
 
         // Generate textures for the dungeon
         this.generateDungeonTextures();
@@ -174,11 +182,56 @@ export class DungeonRenderSystem {
             this.lastVoxelDataVersion = voxelRenderVersion;
         }
 
-        // 2. Update Miners
+        // 2. Update Miners and Orders
+        this.updateMineOrders(state);
         this.updateMiners(state);
 
         // 3. Update Heart
         this.updateHeart(state);
+    }
+
+    private updateMineOrders(state: DungeonState) {
+        const orders = state.mineOrders || [];
+        const currentIds = new Set(orders.map(order => order.id));
+
+        for (const [id, mesh] of this.mineOrderMeshes) {
+            if (!currentIds.has(id)) {
+                this.mineOrderGroup.remove(mesh);
+                const material = mesh.material as THREE.Material;
+                material.dispose();
+                this.mineOrderMeshes.delete(id);
+            }
+        }
+
+        orders.forEach(order => {
+            let mesh = this.mineOrderMeshes.get(order.id);
+            const assigned = order.status === 'ASSIGNED';
+            const color = assigned ? 0x38e8ff : 0xffd166;
+
+            if (!mesh) {
+                const material = new THREE.MeshBasicMaterial({
+                    color,
+                    wireframe: true,
+                    transparent: true,
+                    opacity: 0.9,
+                    depthTest: false,
+                });
+                mesh = new THREE.Mesh(this.mineOrderGeometry, material);
+                mesh.name = `mine-order-${order.id}`;
+                mesh.renderOrder = 80;
+                this.setLayerRecursive(mesh, 1);
+                this.mineOrderGroup.add(mesh);
+                this.mineOrderMeshes.set(order.id, mesh);
+            }
+
+            const material = mesh.material as THREE.MeshBasicMaterial;
+            material.color.setHex(color);
+            material.opacity = assigned ? 1 : 0.76;
+            const pulse = assigned ? 1.03 : 1 + Math.sin(Date.now() * 0.006 + order.position.x + order.position.z) * 0.035;
+            mesh.scale.setScalar(pulse);
+            mesh.position.set(order.position.x, order.position.y, order.position.z);
+            mesh.visible = true;
+        });
     }
 
     private updateHeart(state: DungeonState) {
@@ -238,6 +291,7 @@ export class DungeonRenderSystem {
                 const material = this.materials.get(type)!;
                 mesh = new THREE.InstancedMesh(geometry, material, count);
                 mesh.layers.set(1); // Dungeon Layer
+                mesh.userData.isDungeonBlock = true;
                 mesh.receiveShadow = true;
                 mesh.castShadow = true;
                 this.meshes.set(type, mesh);
@@ -388,6 +442,13 @@ export class DungeonRenderSystem {
             if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
             else m.material.dispose();
         });
+        this.mineOrderMeshes.forEach(mesh => {
+            this.mineOrderGroup.remove(mesh);
+            const material = mesh.material as THREE.Material;
+            material.dispose();
+        });
+        this.mineOrderMeshes.clear();
+        this.mineOrderGeometry.dispose();
         // Dispose textures/materials if we owned them
     }
 }
