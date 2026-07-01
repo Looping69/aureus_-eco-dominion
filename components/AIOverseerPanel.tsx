@@ -91,6 +91,10 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
     const [qwenInsight, setQwenInsight] = React.useState<OverseerLocalInsight | null>(null);
     const [qwenError, setQwenError] = React.useState<string | null>(null);
     const qwenPilotBusyRef = React.useRef(false);
+    const latestStateRef = React.useRef(state);
+    const latestWorldRef = React.useRef(world);
+    latestStateRef.current = state;
+    latestWorldRef.current = world;
     const liveState = world?.getState?.() || state;
     const overseer = { ...DEFAULT_OVERSEER, ...((liveState as any).aiOverseer || {}) } as OverseerState & typeof DEFAULT_OVERSEER;
     const actionLog = Array.isArray(overseer.actionLog) ? overseer.actionLog.slice(0, 4) : [];
@@ -107,7 +111,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
     }, [collapsed]);
 
     const send = (payload: Partial<OverseerState>) => {
-        if (queueOverseerCommand(world, payload)) {
+        if (queueOverseerCommand(latestWorldRef.current, payload)) {
             playSfx(SfxType.UI_CLICK);
             window.setTimeout(() => forceRefresh(value => value + 1), 80);
         } else {
@@ -130,13 +134,14 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
         setQwenStatus('loading');
         if (!executePilotAction) playSfx(SfxType.UI_CLICK);
         try {
-            const currentState = world?.getState?.() || state;
+            const currentWorld = latestWorldRef.current;
+            const currentState = currentWorld?.getState?.() || latestStateRef.current;
             const insight = isQwenPilot
                 ? await generateOverseerPilotDirective(currentState)
                 : await generateOverseerLocalInsight(currentState);
             setQwenInsight(insight);
             setQwenStatus(getOverseerLocalModelStatus());
-            if (executePilotAction && queuePilotGameCommand(world, insight)) {
+            if (executePilotAction && queuePilotGameCommand(currentWorld, insight)) {
                 playSfx(SfxType.UI_COIN);
             }
         } catch (error) {
@@ -147,7 +152,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
         } finally {
             qwenPilotBusyRef.current = false;
         }
-    }, [isQwenPilot, playSfx, state, world]);
+    }, [isQwenPilot, playSfx]);
 
     React.useEffect(() => {
         if (!isQwenPilot || !overseer.autoAct) return;
