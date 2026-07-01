@@ -6,6 +6,7 @@ import { ChunkStore } from '../../space/ChunkStore';
 import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../utils/GameUtils';
 
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
+type OverseerPilotProvider = 'HEURISTIC' | 'LOCAL_QWEN';
 type ResourceKey = 'minerals' | 'gems' | 'wood' | 'stone';
 type Point = { x: number; z: number };
 type PlacementZone = 'CORE' | 'RESIDENTIAL' | 'PRODUCTION' | 'UTILITY' | 'ECO' | 'LOGISTICS';
@@ -14,6 +15,7 @@ type OverseerState = {
     enabled: boolean;
     mode: OverseerMode;
     autoAct: boolean;
+    pilotProvider: OverseerPilotProvider;
     confidence: number;
     currentFocus: string;
     recommendation: string;
@@ -33,6 +35,7 @@ const DEFAULT_OVERSEER: OverseerState = {
     enabled: true,
     mode: 'OBSERVE',
     autoAct: false,
+    pilotProvider: 'HEURISTIC',
     confidence: 0.55,
     currentFocus: 'Reading the colony state',
     recommendation: 'Watching contracts, utilities, workforce, and progression before acting.',
@@ -177,6 +180,7 @@ function getOverseer(state: GameState): OverseerState {
         mode: ['OBSERVE', 'CONTRACTS', 'STABILITY', 'GROWTH', 'AUTOPILOT'].includes(existing?.mode as string)
             ? existing!.mode as OverseerMode
             : DEFAULT_OVERSEER.mode,
+        pilotProvider: existing?.pilotProvider === 'LOCAL_QWEN' ? 'LOCAL_QWEN' : 'HEURISTIC',
         actionLog: Array.isArray(existing?.actionLog) ? existing!.actionLog!.slice(0, 8) : [],
     };
     (state as any).aiOverseer = normalized;
@@ -192,13 +196,14 @@ export class AIOverseerSystem extends BaseSimSystem {
         if (!overseer.enabled) return;
         if (ctx.time < overseer.nextReviewAt) return;
 
+        const localQwenPilot = overseer.mode === 'AUTOPILOT' && overseer.pilotProvider === 'LOCAL_QWEN';
         overseer.nextReviewAt = ctx.time + (overseer.mode === 'AUTOPILOT' && overseer.autoAct ? 1.25 : 4);
-        const insight = this.analyze(state);
+        const insight = localQwenPilot ? this.getLocalQwenPilotInsight(overseer) : this.analyze(state);
         overseer.currentFocus = insight.focus;
         overseer.recommendation = insight.recommendation;
         overseer.confidence = insight.confidence;
 
-        if (overseer.autoAct) this.tryAct(ctx, state, overseer);
+        if (overseer.autoAct && !localQwenPilot) this.tryAct(ctx, state, overseer);
     }
 
     handleCommand(cmd: GameCommand, _ctx: CommandContext, state: GameState): CommandResult | null {
@@ -208,9 +213,20 @@ export class AIOverseerSystem extends BaseSimSystem {
         if (typeof payload.enabled === 'boolean') overseer.enabled = payload.enabled;
         if (typeof payload.autoAct === 'boolean') overseer.autoAct = payload.autoAct;
         if (['OBSERVE', 'CONTRACTS', 'STABILITY', 'GROWTH', 'AUTOPILOT'].includes(payload.mode)) overseer.mode = payload.mode;
+        if (payload.pilotProvider === 'LOCAL_QWEN' || payload.pilotProvider === 'HEURISTIC') overseer.pilotProvider = payload.pilotProvider;
         overseer.nextReviewAt = 0;
-        this.log(state, overseer, `AI mode: ${overseer.mode}${overseer.autoAct ? ' with auto act' : ''}`);
+        this.log(state, overseer, `AI mode: ${overseer.mode}${overseer.mode === 'AUTOPILOT' && overseer.pilotProvider === 'LOCAL_QWEN' ? ' via Local Qwen' : overseer.autoAct ? ' with auto act' : ''}`);
         return { ok: true };
+    }
+
+    private getLocalQwenPilotInsight(overseer: OverseerState): { focus: string; recommendation: string; confidence: number } {
+        return {
+            focus: 'Local Qwen pilot',
+            recommendation: overseer.autoAct
+                ? 'Browser-local Qwen owns Pilot mode and is issuing whitelisted game commands from the UI loop.'
+                : 'Pilot mode is assigned to Local Qwen. Enable auto act to let it issue whitelisted commands.',
+            confidence: 0.72,
+        };
     }
 
     private analyze(state: GameState): { focus: string; recommendation: string; confidence: number } {
