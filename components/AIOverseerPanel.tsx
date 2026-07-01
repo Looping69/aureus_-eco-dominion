@@ -84,10 +84,27 @@ function readInitialCollapsed(): boolean {
     return window.localStorage.getItem(COLLAPSE_STORAGE_KEY) !== 'false';
 }
 
+function getQwenIndicator(status: OverseerLocalModelStatus, working: boolean, isPilot: boolean, autoAct: boolean, hasError: boolean) {
+    if (hasError || status === 'error') {
+        return { label: 'Qwen Error', detail: 'Local model needs attention.', dot: 'bg-rose-400', pill: 'border-rose-700 bg-rose-950/70 text-rose-200' };
+    }
+    if (working || status === 'loading') {
+        return { label: 'Qwen Thinking', detail: 'Local model is loading or choosing a move.', dot: 'bg-amber-300 animate-pulse', pill: 'border-amber-700 bg-amber-950/70 text-amber-200' };
+    }
+    if (isPilot && autoAct) {
+        return { label: 'Qwen Piloting', detail: 'Local model is active and will choose the next move.', dot: 'bg-emerald-300 animate-pulse', pill: 'border-emerald-700 bg-emerald-950/70 text-emerald-200' };
+    }
+    if (status === 'ready') {
+        return { label: 'Qwen Ready', detail: 'Local model is loaded and ready.', dot: 'bg-cyan-300', pill: 'border-cyan-800 bg-cyan-950/70 text-cyan-200' };
+    }
+    return { label: 'Qwen Idle', detail: 'Local model has not started yet.', dot: 'bg-slate-500', pill: 'border-slate-700 bg-slate-950/70 text-slate-300' };
+}
+
 export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, playSfx }) => {
     const [, forceRefresh] = React.useState(0);
     const [collapsed, setCollapsed] = React.useState(readInitialCollapsed);
     const [qwenStatus, setQwenStatus] = React.useState<OverseerLocalModelStatus>(getOverseerLocalModelStatus);
+    const [qwenWorking, setQwenWorking] = React.useState(false);
     const [qwenInsight, setQwenInsight] = React.useState<OverseerLocalInsight | null>(null);
     const [qwenError, setQwenError] = React.useState<string | null>(null);
     const qwenPilotBusyRef = React.useRef(false);
@@ -100,6 +117,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
     const actionLog = Array.isArray(overseer.actionLog) ? overseer.actionLog.slice(0, 4) : [];
     const confidence = Math.round((overseer.confidence || 0) * 100);
     const isQwenPilot = overseer.mode === 'AUTOPILOT' && overseer.pilotProvider === 'LOCAL_QWEN';
+    const qwenIndicator = getQwenIndicator(qwenStatus, qwenWorking, isQwenPilot, overseer.autoAct, Boolean(qwenError));
 
     React.useEffect(() => {
         const timer = window.setInterval(() => forceRefresh(value => value + 1), 1000);
@@ -130,6 +148,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
     const runLocalQwen = React.useCallback(async (executePilotAction = false) => {
         if (qwenPilotBusyRef.current) return;
         qwenPilotBusyRef.current = true;
+        setQwenWorking(true);
         setQwenError(null);
         setQwenStatus('loading');
         if (!executePilotAction) playSfx(SfxType.UI_CLICK);
@@ -151,6 +170,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
             playSfx(SfxType.ERROR);
         } finally {
             qwenPilotBusyRef.current = false;
+            setQwenWorking(false);
         }
     }, [isQwenPilot, playSfx]);
 
@@ -169,13 +189,13 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
     const overseerPanel = collapsed ? (
         <button
             onClick={toggleCollapsed}
-            title={`AI Overseer: ${overseer.currentFocus}`}
+            title={`AI Overseer: ${overseer.currentFocus}. ${qwenIndicator.label}`}
             aria-label="Expand AI Overseer"
             className={`relative pointer-events-auto w-11 h-11 rounded-[6px] border shadow-[3px_3px_0_rgba(0,0,0,0.35)] backdrop-blur-md flex items-center justify-center transition-colors ${overseer.autoAct ? 'bg-cyan-950/90 border-cyan-600 hover:bg-cyan-900/90' : 'bg-slate-950/88 border-slate-800 hover:bg-slate-900/90'}`}
         >
             <Bot size={20} className={overseer.autoAct ? 'text-cyan-300' : 'text-slate-300'} />
             <Maximize2 size={9} className="absolute top-1 right-1 text-slate-500" />
-            {overseer.autoAct && <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-cyan-400 border-2 border-slate-950 animate-pulse" />}
+            <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-950 ${qwenIndicator.dot}`} />
             <span className="absolute -bottom-1 left-1 rounded bg-slate-950 px-1 text-[7px] font-black uppercase tracking-wider text-cyan-300 border border-cyan-900/70">
                 {overseer.mode === 'AUTOPILOT' ? 'Pilot' : overseer.mode.slice(0, 4)}
             </span>
@@ -194,6 +214,10 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <div className={`h-6 px-2 rounded-[4px] border text-[8px] font-black uppercase tracking-wider flex items-center gap-1.5 ${qwenIndicator.pill}`} title={qwenIndicator.detail}>
+                            <span className={`w-2 h-2 rounded-full ${qwenIndicator.dot}`} />
+                            {qwenIndicator.label}
+                        </div>
                         <div className="text-[9px] font-mono text-slate-500">{confidence}%</div>
                         <button
                             onClick={toggleCollapsed}
@@ -243,13 +267,18 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                             </div>
                             <button
                                 onClick={() => void runLocalQwen(false)}
-                                disabled={qwenStatus === 'loading'}
+                                disabled={qwenStatus === 'loading' || qwenWorking}
                                 title={isQwenPilot ? 'Ask Local Qwen for its next pilot move' : 'Ask local Qwen for an overseer recommendation'}
                                 className="h-7 px-2 rounded-[4px] border border-violet-800 bg-violet-950/70 text-violet-200 hover:border-violet-500 hover:text-white disabled:opacity-60 disabled:cursor-wait text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors"
                             >
                                 <Cpu size={11} />
-                                {qwenStatus === 'loading' ? 'Loading' : isQwenPilot ? 'Move' : 'Ask'}
+                                {qwenStatus === 'loading' || qwenWorking ? 'Working' : isQwenPilot ? 'Move' : 'Ask'}
                             </button>
+                        </div>
+                        <div className={`rounded-[4px] border px-2 py-1 text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 ${qwenIndicator.pill}`}>
+                            <span className={`w-2 h-2 rounded-full ${qwenIndicator.dot}`} />
+                            <span>{qwenIndicator.label}</span>
+                            <span className="normal-case tracking-normal font-semibold opacity-80 truncate">{qwenIndicator.detail}</span>
                         </div>
                         {qwenInsight && (
                             <div className="text-[10px] font-semibold text-slate-300 leading-snug">
