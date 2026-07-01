@@ -86,10 +86,28 @@ test('overseer panel assigns Pilot mode to Local Qwen and queues whitelisted mod
         'latestWorldRef',
         'isExecutablePilotAction(action)',
         "id: `qwen_pilot_${Date.now()}_${action.type.toLowerCase()}`",
-        "{overseer.autoAct ? (isQwenPilot ? 'Qwen Pilot Enabled' : 'Auto Act Enabled') : 'Advise Only'}",
+        "{overseer.autoAct ? 'Qwen Pilot Enabled' : 'Enable Qwen Auto Act'}",
     ]) {
         assertSnippet(text, snippet);
     }
+});
+
+test('Auto Act control always promotes Local Qwen to the decision-maker', () => {
+    const text = source(panelPath);
+
+    for (const snippet of [
+        'const toggleAutoAct = () => {',
+        "send({ enabled: true, autoAct: false });",
+        "mode: 'AUTOPILOT'",
+        'autoAct: true',
+        "pilotProvider: 'LOCAL_QWEN'",
+        "autoAct: mode === 'AUTOPILOT' ? overseer.autoAct : false",
+        "{overseer.mode} / {isQwenPilot ? 'Local Qwen' : 'Advising'}",
+    ]) {
+        assertSnippet(text, snippet);
+    }
+
+    assert.doesNotMatch(text, /Auto Act Enabled/);
 });
 
 test('overseer panel shows a clear Local Qwen working indicator', () => {
