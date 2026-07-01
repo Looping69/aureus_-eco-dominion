@@ -92,6 +92,29 @@ test('overseer panel assigns Pilot mode to Local Qwen and queues whitelisted mod
     }
 });
 
+test('overseer panel shows a clear Local Qwen working indicator', () => {
+    const text = source(panelPath);
+
+    for (const snippet of [
+        'function getQwenIndicator',
+        'Qwen Thinking',
+        'Qwen Piloting',
+        'Qwen Ready',
+        'Qwen Idle',
+        'Qwen Error',
+        'qwenWorking',
+        'setQwenWorking(true)',
+        'setQwenWorking(false)',
+        'qwenIndicator.label',
+        'qwenIndicator.detail',
+        'qwenIndicator.dot',
+        'qwenIndicator.pill',
+        "{qwenStatus === 'loading' || qwenWorking ? 'Working' : isQwenPilot ? 'Move' : 'Ask'}",
+    ]) {
+        assertSnippet(text, snippet);
+    }
+});
+
 test('engine heuristic autopilot yields when Local Qwen owns Pilot mode', () => {
     const text = source(systemPath);
 
