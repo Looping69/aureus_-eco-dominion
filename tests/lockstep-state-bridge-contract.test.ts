@@ -57,3 +57,22 @@ test('lockstep bridge preserves explicit issuedAtTick when replaying imported co
     flushLockstepCommandsToQueue(buffer, state);
     assert.equal(state.commandQueue[0].issuedAtTick, 7);
 });
+
+test('lockstep bridge keeps stable ordering for equal target tick commands', () => {
+    const buffer = new LockstepCommandBuffer();
+
+    scheduleLockstepCommand(buffer, {
+        playerId: 'player-b',
+        targetTick: 8,
+        sequence: 2,
+        command: command('cmd-b2', 'BULLDOZE', { x: 2, z: 2 }),
+    }, 8);
+    scheduleLockstepCommand(buffer, {
+        playerId: 'player-a',
+        targetTick: 8,
+        sequence: 1,
+        command: command('cmd-a1', 'PLACE_BUILDING', { x: 1, z: 1, buildingType: 'ROAD' }),
+    }, 8);
+
+    assert.deepEqual(buffer.drainReady(8).map((envelope) => envelope.command.id), ['cmd-a1', 'cmd-b2']);
+});

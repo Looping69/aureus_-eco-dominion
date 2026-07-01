@@ -573,6 +573,7 @@ export class AureusWorld extends BaseWorld {
             }
         }
 
+        this.stateManager.flushReadyLockstepCommands();
         this.sim.tick(ctx, state);
         this.stateManager.setMutableContext('none');
     }

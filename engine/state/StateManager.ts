@@ -3,6 +3,9 @@ import { INITIAL_PERMITS, INITIAL_NPCS } from '../data/bureaucracy';
 import { INITIAL_RESOURCES } from '../data/resources';
 import { DAY_NIGHT } from '../sim/dayNightCycle';
 import { ChunkStore } from '../space/ChunkStore';
+import type { DeterministicCommandInput } from '../net/DeterministicCommand';
+import { LockstepCommandBuffer } from '../net/LockstepCommandBuffer';
+import { flushLockstepCommandsToQueue } from '../net/LockstepStateBridge';
 import { normalizeUndergroundState } from '../underground/UndergroundGenerator';
 import { createWeatherState } from '../weather/weatherModel';
 import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';
@@ -146,10 +149,12 @@ export class StateManager {
     private dirtyKeys = new Set<keyof GameState>();
     private mutableContext: MutableContext = 'none';
     private rng: SeededRandom;
+    private lockstepCommandBuffer: LockstepCommandBuffer | null = null;
 
-    constructor(overrides?: Partial<GameState>) {
+    constructor(overrides?: Partial<GameState>, options?: { lockstepCommandBuffer?: LockstepCommandBuffer | null }) {
         this.state = this.createInitialState(overrides);
         this.rng = createSeededRandom(this.state.seed);
+        this.lockstepCommandBuffer = options?.lockstepCommandBuffer ?? null;
     }
 
     private createInitialChunks(seed: number, chunks?: GameState['chunks']): GameState['chunks'] {
@@ -462,6 +467,23 @@ export class StateManager {
             payload,
             issuedAtTick: this.state.tickCount,
         });
+        this.markDirty('commandQueue');
+    }
+
+    setLockstepCommandBuffer(buffer: LockstepCommandBuffer | null): void {
+        this.lockstepCommandBuffer = buffer;
+    }
+
+    scheduleDeterministicCommand(input: DeterministicCommandInput) {
+        if (!this.lockstepCommandBuffer) {
+            throw new Error('Lockstep command buffer is not enabled for this StateManager');
+        }
+        return this.lockstepCommandBuffer.accept(input, this.state.tickCount);
+    }
+
+    flushReadyLockstepCommands(): void {
+        if (!this.lockstepCommandBuffer) return;
+        flushLockstepCommandsToQueue(this.lockstepCommandBuffer, this.state);
         this.markDirty('commandQueue');
     }
 

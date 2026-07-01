@@ -115,6 +115,22 @@ test('AureusWorld dispatch delegates to the extracted dispatch bridge', () => {
   }
 });
 
+test('AureusWorld simulation flushes lockstep commands before the simulation tick', () => {
+  const worldText = source(aureusWorldPath);
+
+  for (const snippet of [
+    'this.stateManager.flushReadyLockstepCommands();',
+    'this.sim.tick(ctx, state);',
+  ]) {
+    assertSnippet(worldText, snippet);
+  }
+
+  assert.ok(
+    worldText.indexOf('this.stateManager.flushReadyLockstepCommands();') < worldText.indexOf('this.sim.tick(ctx, state);'),
+    'lockstep commands should flush before the simulation tick',
+  );
+});
+
 test('engine hook forwards contract delivery through the command queue bridge', () => {
   const hookText = source(useEnginePath);
 
