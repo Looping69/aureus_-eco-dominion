@@ -1,7 +1,14 @@
 import React from 'react';
-import { Bot, Briefcase, Eye, Maximize2, Minimize2, Play, Shield, TrendingUp, Zap } from 'lucide-react';
+import { Bot, Briefcase, Cpu, Eye, Maximize2, Minimize2, Play, Shield, TrendingUp, Zap } from 'lucide-react';
 import { GameState, SfxType } from '../types';
 import { NarrativePanel } from './NarrativePanel';
+import {
+    generateOverseerLocalInsight,
+    getOverseerLocalModelStatus,
+    OVERSEER_LOCAL_QWEN_CONFIG,
+    type OverseerLocalInsight,
+    type OverseerLocalModelStatus,
+} from '../services/overseerLocalQwen';
 
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
 
@@ -61,6 +68,9 @@ function readInitialCollapsed(): boolean {
 export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, playSfx }) => {
     const [, forceRefresh] = React.useState(0);
     const [collapsed, setCollapsed] = React.useState(readInitialCollapsed);
+    const [qwenStatus, setQwenStatus] = React.useState<OverseerLocalModelStatus>(getOverseerLocalModelStatus);
+    const [qwenInsight, setQwenInsight] = React.useState<OverseerLocalInsight | null>(null);
+    const [qwenError, setQwenError] = React.useState<string | null>(null);
     const liveState = world?.getState?.() || state;
     const overseer = { ...DEFAULT_OVERSEER, ...((liveState as any).aiOverseer || {}) } as OverseerState & typeof DEFAULT_OVERSEER;
     const actionLog = Array.isArray(overseer.actionLog) ? overseer.actionLog.slice(0, 4) : [];
@@ -83,6 +93,22 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
             playSfx(SfxType.ERROR);
         }
     };
+
+    const askLocalQwen = React.useCallback(async () => {
+        setQwenError(null);
+        setQwenStatus('loading');
+        playSfx(SfxType.UI_CLICK);
+        try {
+            const insight = await generateOverseerLocalInsight(liveState);
+            setQwenInsight(insight);
+            setQwenStatus(getOverseerLocalModelStatus());
+        } catch (error) {
+            setQwenInsight(null);
+            setQwenStatus('error');
+            setQwenError(error instanceof Error ? error.message : 'Local model failed to load.');
+            playSfx(SfxType.ERROR);
+        }
+    }, [liveState, playSfx]);
 
     const toggleCollapsed = () => {
         setCollapsed(value => !value);
@@ -156,6 +182,35 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                         <div className="text-[9px] font-black uppercase tracking-wider text-cyan-300 mb-1">Focus</div>
                         <div className="text-[11px] font-bold text-white leading-snug">{overseer.currentFocus}</div>
                         <div className="mt-1.5 text-[10px] font-semibold text-slate-300 leading-snug">{overseer.recommendation}</div>
+                    </div>
+
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-[5px] p-2 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <div className="text-[9px] font-black uppercase tracking-wider text-violet-300 truncate">Local Qwen</div>
+                                <div className="text-[8px] font-bold uppercase tracking-wider text-slate-500 truncate">{OVERSEER_LOCAL_QWEN_CONFIG.displayName}</div>
+                            </div>
+                            <button
+                                onClick={askLocalQwen}
+                                disabled={qwenStatus === 'loading'}
+                                title="Ask local Qwen for an overseer recommendation"
+                                className="h-7 px-2 rounded-[4px] border border-violet-800 bg-violet-950/70 text-violet-200 hover:border-violet-500 hover:text-white disabled:opacity-60 disabled:cursor-wait text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors"
+                            >
+                                <Cpu size={11} />
+                                {qwenStatus === 'loading' ? 'Loading' : 'Ask'}
+                            </button>
+                        </div>
+                        {qwenInsight && (
+                            <div className="text-[10px] font-semibold text-slate-300 leading-snug">
+                                <span className="text-violet-200 font-black">{qwenInsight.focus}</span>
+                                <span className="block mt-1">{qwenInsight.recommendation}</span>
+                                <span className="block mt-1 text-[8px] font-mono uppercase tracking-wider text-slate-500">{qwenInsight.device} / local browser model</span>
+                            </div>
+                        )}
+                        {!qwenInsight && !qwenError && (
+                            <div className="text-[10px] font-semibold text-slate-500 leading-snug">Ready for an on-device recommendation.</div>
+                        )}
+                        {qwenError && <div className="text-[10px] font-bold text-rose-300 leading-snug">{qwenError}</div>}
                     </div>
 
                     {actionLog.length > 0 && (
