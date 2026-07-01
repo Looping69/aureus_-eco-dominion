@@ -141,7 +141,21 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
         send({
             enabled: true,
             mode,
+            autoAct: mode === 'AUTOPILOT' ? overseer.autoAct : false,
             pilotProvider: mode === 'AUTOPILOT' ? 'LOCAL_QWEN' : 'HEURISTIC',
+        });
+    };
+
+    const toggleAutoAct = () => {
+        if (overseer.autoAct) {
+            send({ enabled: true, autoAct: false });
+            return;
+        }
+        send({
+            enabled: true,
+            mode: 'AUTOPILOT',
+            autoAct: true,
+            pilotProvider: 'LOCAL_QWEN',
         });
     };
 
@@ -209,7 +223,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                         <div className="min-w-0">
                             <div className="text-[10px] font-black uppercase tracking-wider text-white">AI Overseer</div>
                             <div className="text-[9px] font-bold uppercase tracking-wider text-cyan-400/80 truncate">
-                                {overseer.mode} / {isQwenPilot ? 'Local Qwen' : overseer.autoAct ? 'Auto acting' : 'Advising'}
+                                {overseer.mode} / {isQwenPilot ? 'Local Qwen' : 'Advising'}
                             </div>
                         </div>
                     </div>
@@ -246,11 +260,11 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                     </div>
 
                     <button
-                        onClick={() => send({ enabled: true, autoAct: !overseer.autoAct })}
+                        onClick={toggleAutoAct}
                         className={`w-full h-8 rounded-[4px] border text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${overseer.autoAct ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-emerald-700'}`}
                     >
                         {overseer.autoAct ? <Zap size={13} /> : <Play size={13} />}
-                        {overseer.autoAct ? (isQwenPilot ? 'Qwen Pilot Enabled' : 'Auto Act Enabled') : 'Advise Only'}
+                        {overseer.autoAct ? 'Qwen Pilot Enabled' : 'Enable Qwen Auto Act'}
                     </button>
 
                     <div className="bg-slate-900/90 border border-slate-800 rounded-[5px] p-2">
