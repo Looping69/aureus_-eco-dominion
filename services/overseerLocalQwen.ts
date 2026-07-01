@@ -1,7 +1,14 @@
-import type { GameState } from '../types';
+import type { GameCommand, GameState } from '../types';
 
 export type OverseerLocalDevice = 'webgpu' | 'wasm';
 export type OverseerLocalModelStatus = 'idle' | 'loading' | 'ready' | 'error';
+export type OverseerPilotActionType = Extract<GameCommand['type'], 'ACCEPT_CONTRACT' | 'DELIVER_CONTRACT' | 'BUY_BUILDING' | 'SELL_RESOURCE' | 'BUY_RESOURCE' | 'MARK_HARVEST'> | 'NONE';
+
+export type OverseerPilotAction = {
+    type: OverseerPilotActionType;
+    payload?: Record<string, unknown>;
+    reason?: string;
+};
 
 export type OverseerLocalInsight = {
     focus: string;
@@ -9,6 +16,7 @@ export type OverseerLocalInsight = {
     rawText: string;
     device: OverseerLocalDevice;
     modelId: string;
+    action?: OverseerPilotAction;
 };
 
 type TextGenerationPipeline = (input: string, options?: Record<string, unknown>) => Promise<unknown>;
@@ -25,10 +33,44 @@ export const OVERSEER_LOCAL_QWEN_CONFIG = {
     preferredDevice: 'webgpu' as OverseerLocalDevice,
     fallbackDevice: 'wasm' as OverseerLocalDevice,
     transformersModuleUrl: 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2',
-    maxNewTokens: 96,
-    temperature: 0.35,
-    topP: 0.9,
+    maxNewTokens: 160,
+    temperature: 0.25,
+    topP: 0.85,
 };
+
+export const OVERSEER_PILOT_RULES = [
+    'Protect survival first: fix power and water deficits before optional growth.',
+    'Deliver accepted contracts immediately when stock is ready.',
+    'Accept a new contract only when stock is already strong or the colony has a clear production path.',
+    'Grow from the starter spine before luxury: quarters, storage, stockpile, solar, well, wash plant, headframe, canteen.',
+    'Keep at least 700 minerals, 700 wood, 700 stone, and 20 gems unless selling is needed to buy a critical building.',
+    'Prefer buying one useful building over spending all AGT on resources.',
+    'Use MARK_HARVEST only when no better contract, utility, or building action is available.',
+    'Return only JSON. Never claim that an action already happened.',
+] as const;
+
+export const OVERSEER_PILOT_ACTION_SCHEMA = {
+    output: '{ "focus": string, "recommendation": string, "action": { "type": "NONE" | "ACCEPT_CONTRACT" | "DELIVER_CONTRACT" | "BUY_BUILDING" | "SELL_RESOURCE" | "BUY_RESOURCE" | "MARK_HARVEST", "payload": object, "reason": string } }',
+    payloads: {
+        ACCEPT_CONTRACT: '{ "contractId": string }',
+        DELIVER_CONTRACT: '{ "contractId": string }',
+        BUY_BUILDING: '{ "buildingType": "STAFF_QUARTERS" | "STORAGE_DEPOT" | "STOCKPILE" | "SOLAR_ARRAY" | "WATER_WELL" | "WASH_PLANT" | "MINING_HEADFRAME" | "CANTEEN" | "SAWMILL" | "STONE_QUARRY" }',
+        SELL_RESOURCE: '{ "resource": "minerals" | "wood" | "stone" | "gems" }',
+        BUY_RESOURCE: '{ "resource": "minerals" | "wood" | "stone", "amount": number }',
+        MARK_HARVEST: '{ "x": number, "z": number }',
+        NONE: '{}',
+    },
+} as const;
+
+const EXECUTABLE_ACTIONS = new Set<OverseerPilotActionType>([
+    'NONE',
+    'ACCEPT_CONTRACT',
+    'DELIVER_CONTRACT',
+    'BUY_BUILDING',
+    'SELL_RESOURCE',
+    'BUY_RESOURCE',
+    'MARK_HARVEST',
+]);
 
 let generatorPromise: Promise<{ generator: TextGenerationPipeline; device: OverseerLocalDevice }> | null = null;
 let modelStatus: OverseerLocalModelStatus = 'idle';
@@ -43,16 +85,67 @@ export function getPreferredOverseerLocalDevice(): OverseerLocalDevice {
 }
 
 export function buildOverseerLocalPrompt(state: Pick<GameState, 'resources' | 'contracts' | 'agents' | 'jobs' | 'currentEra' | 'activeGoal' | 'powerGrid' | 'waterNetwork' | 'tickCount'>): string {
+    return buildOverseerPrompt(state, 'advice');
+}
+
+export function buildOverseerPilotPrompt(state: Pick<GameState, 'resources' | 'contracts' | 'agents' | 'jobs' | 'currentEra' | 'activeGoal' | 'powerGrid' | 'waterNetwork' | 'tickCount'>): string {
+    return buildOverseerPrompt(state, 'pilot');
+}
+
+export async function generateOverseerLocalInsight(state: Parameters<typeof buildOverseerLocalPrompt>[0]): Promise<OverseerLocalInsight> {
+    const rawText = await runOverseerGeneration(buildOverseerLocalPrompt(state));
+    const parsed = parseOverseerInsight(rawText);
+    const { device } = await getOverseerGenerator();
+    return {
+        ...parsed,
+        rawText,
+        device,
+        modelId: OVERSEER_LOCAL_QWEN_CONFIG.modelId,
+    };
+}
+
+export async function generateOverseerPilotDirective(state: Parameters<typeof buildOverseerPilotPrompt>[0]): Promise<OverseerLocalInsight> {
+    const rawText = await runOverseerGeneration(buildOverseerPilotPrompt(state));
+    const parsed = parseOverseerPilotDirective(rawText);
+    const { device } = await getOverseerGenerator();
+    return {
+        ...parsed,
+        rawText,
+        device,
+        modelId: OVERSEER_LOCAL_QWEN_CONFIG.modelId,
+    };
+}
+
+export function isExecutablePilotAction(action: OverseerPilotAction | undefined): action is OverseerPilotAction {
+    return Boolean(action && EXECUTABLE_ACTIONS.has(action.type));
+}
+
+async function runOverseerGeneration(prompt: string): Promise<string> {
+    const { generator } = await getOverseerGenerator();
+    const result = await generator(prompt, {
+        max_new_tokens: OVERSEER_LOCAL_QWEN_CONFIG.maxNewTokens,
+        temperature: OVERSEER_LOCAL_QWEN_CONFIG.temperature,
+        top_p: OVERSEER_LOCAL_QWEN_CONFIG.topP,
+        do_sample: true,
+        return_full_text: false,
+    });
+    return normalizeGenerationText(result);
+}
+
+function buildOverseerPrompt(state: Pick<GameState, 'resources' | 'contracts' | 'agents' | 'jobs' | 'currentEra' | 'activeGoal' | 'powerGrid' | 'waterNetwork' | 'tickCount'>, mode: 'advice' | 'pilot'): string {
     const resources = state.resources;
     const readyContracts = state.contracts.filter(contract => ['ACCEPTED', 'READY_TO_DELIVER'].includes(contract.status || '')).slice(0, 3);
     const availableContracts = state.contracts.filter(contract => (contract.status || 'AVAILABLE') === 'AVAILABLE').slice(0, 3);
     const idleWorkers = state.agents.filter(agent => agent.state === 'IDLE' && agent.type !== 'ILLEGAL_MINER').length;
     const blockedWorkers = state.agents.filter(agent => agent.statusTone === 'blocked').length;
     const activeGoal = state.activeGoal && !state.activeGoal.completed ? `${state.activeGoal.title}: ${state.activeGoal.description}` : 'No active unfinished goal.';
+    const instruction = mode === 'pilot'
+        ? `You are now the Pilot. Use these rules:\n${OVERSEER_PILOT_RULES.map((rule, index) => `${index + 1}. ${rule}`).join('\n')}\nAction schema: ${JSON.stringify(OVERSEER_PILOT_ACTION_SCHEMA)}.`
+        : 'You are the local AI overseer for Aureus Eco Dominion. Give one short tactical game recommendation. Be concrete, avoid roleplay, and never claim you executed commands.';
 
     return [
         '<|im_start|>system',
-        'You are the local AI overseer for Aureus Eco Dominion. Give one short tactical game recommendation. Be concrete, avoid roleplay, and never claim you executed commands.',
+        instruction,
         '<|im_end|>',
         '<|im_start|>user',
         `Tick: ${state.tickCount}. Era: ${state.currentEra}.`,
@@ -62,30 +155,12 @@ export function buildOverseerLocalPrompt(state: Pick<GameState, 'resources' | 'c
         `Goal: ${activeGoal}`,
         `Accepted contracts: ${summarizeContracts(readyContracts)}.`,
         `Available contracts: ${summarizeContracts(availableContracts)}.`,
-        'Return exactly two short lines: Focus: ... and Recommendation: ...',
+        mode === 'pilot'
+            ? 'Choose one valid next action. Return JSON only.'
+            : 'Return exactly two short lines: Focus: ... and Recommendation: ...',
         '<|im_end|>',
         '<|im_start|>assistant',
     ].join('\n');
-}
-
-export async function generateOverseerLocalInsight(state: Parameters<typeof buildOverseerLocalPrompt>[0]): Promise<OverseerLocalInsight> {
-    const prompt = buildOverseerLocalPrompt(state);
-    const { generator, device } = await getOverseerGenerator();
-    const result = await generator(prompt, {
-        max_new_tokens: OVERSEER_LOCAL_QWEN_CONFIG.maxNewTokens,
-        temperature: OVERSEER_LOCAL_QWEN_CONFIG.temperature,
-        top_p: OVERSEER_LOCAL_QWEN_CONFIG.topP,
-        do_sample: true,
-        return_full_text: false,
-    });
-    const rawText = normalizeGenerationText(result);
-    const parsed = parseOverseerInsight(rawText);
-    return {
-        ...parsed,
-        rawText,
-        device,
-        modelId: OVERSEER_LOCAL_QWEN_CONFIG.modelId,
-    };
 }
 
 async function getOverseerGenerator(): Promise<{ generator: TextGenerationPipeline; device: OverseerLocalDevice }> {
@@ -137,7 +212,7 @@ function configureTransformers(transformers: TransformersModule): void {
 
 function summarizeContracts(contracts: GameState['contracts']): string {
     if (!contracts.length) return 'none';
-    return contracts.map(contract => `${contract.resource} ${contract.amount} for ${contract.reward} AGT`).join('; ');
+    return contracts.map(contract => `${contract.id}:${contract.resource} ${contract.amount} for ${contract.reward} AGT`).join('; ');
 }
 
 function normalizeGenerationText(result: unknown): string {
@@ -163,4 +238,66 @@ function parseOverseerInsight(rawText: string): Pick<OverseerLocalInsight, 'focu
         focus: (focusMatch?.[1] || sentences[0] || 'Local model review').slice(0, 120),
         recommendation: (recommendationMatch?.[1] || sentences.slice(1).join(' ') || clean || 'No local recommendation returned.').slice(0, 240),
     };
+}
+
+function parseOverseerPilotDirective(rawText: string): Pick<OverseerLocalInsight, 'focus' | 'recommendation' | 'action'> {
+    const clean = rawText.replace(/<\|im_end\|>/g, '').trim();
+    const json = extractFirstJsonObject(clean);
+    if (!json) {
+        return { ...parseOverseerInsight(clean), action: { type: 'NONE', reason: 'Model did not return valid JSON.' } };
+    }
+
+    try {
+        const parsed = JSON.parse(json) as any;
+        return {
+            focus: String(parsed.focus || 'Local Qwen pilot').slice(0, 120),
+            recommendation: String(parsed.recommendation || parsed.action?.reason || 'Pilot is waiting for a valid move.').slice(0, 240),
+            action: normalizePilotAction(parsed.action),
+        };
+    } catch {
+        return { ...parseOverseerInsight(clean), action: { type: 'NONE', reason: 'Model JSON could not be parsed.' } };
+    }
+}
+
+function extractFirstJsonObject(text: string): string | null {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end <= start) return null;
+    return text.slice(start, end + 1);
+}
+
+function normalizePilotAction(value: unknown): OverseerPilotAction {
+    if (!value || typeof value !== 'object') return { type: 'NONE' };
+    const type = String((value as any).type || 'NONE').toUpperCase() as OverseerPilotActionType;
+    if (!EXECUTABLE_ACTIONS.has(type)) return { type: 'NONE', reason: `Unsupported action: ${type}` };
+    if (type === 'NONE') return { type, reason: String((value as any).reason || '') };
+    const payload = normalizePilotPayload(type, (value as any).payload || {});
+    if (!payload) return { type: 'NONE', reason: `Invalid payload for ${type}` };
+    return { type, payload, reason: String((value as any).reason || '') };
+}
+
+function normalizePilotPayload(type: OverseerPilotActionType, payload: Record<string, unknown>): Record<string, unknown> | null {
+    if (type === 'ACCEPT_CONTRACT' || type === 'DELIVER_CONTRACT') {
+        const contractId = String(payload.contractId || '');
+        return contractId ? { contractId } : null;
+    }
+    if (type === 'BUY_BUILDING') {
+        const buildingType = String(payload.buildingType || '').toUpperCase();
+        return buildingType ? { buildingType } : null;
+    }
+    if (type === 'SELL_RESOURCE') {
+        const resource = String(payload.resource || '').toLowerCase();
+        return ['minerals', 'wood', 'stone', 'gems'].includes(resource) ? { resource } : null;
+    }
+    if (type === 'BUY_RESOURCE') {
+        const resource = String(payload.resource || '').toLowerCase();
+        const amount = Math.max(25, Math.min(400, Math.round(Number(payload.amount || 0))));
+        return ['minerals', 'wood', 'stone'].includes(resource) && Number.isFinite(amount) ? { resource, amount } : null;
+    }
+    if (type === 'MARK_HARVEST') {
+        const x = Math.round(Number(payload.x));
+        const z = Math.round(Number(payload.z));
+        return Number.isFinite(x) && Number.isFinite(z) ? { x, z } : null;
+    }
+    return {};
 }
