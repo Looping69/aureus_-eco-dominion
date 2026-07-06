@@ -35,58 +35,85 @@ export interface RuntimeRenderQualityProfile extends RenderQualityProfile {
     smoothDetail: SmoothDetailLevel;
 }
 
-export function getRecommendedRenderQuality(): RenderQualityProfile {
+export function getRenderDeviceProfile(): { constrained: boolean; veryConstrained: boolean; severelyConstrained: boolean; touchDevice: boolean; dpr: number } {
     const nav = navigator as Navigator & { deviceMemory?: number };
     const cores = nav.hardwareConcurrency ?? 4;
     const memory = nav.deviceMemory ?? 4;
     const dpr = window.devicePixelRatio || 1;
     const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches ?? false;
     const touchDevice = coarsePointer || 'ontouchstart' in window;
-    const constrainedDevice = touchDevice || cores <= 4 || memory <= 4;
-    const veryConstrainedDevice = cores <= 2 || memory <= 2;
+    const constrained = touchDevice || cores <= 4 || memory <= 4;
+    const veryConstrained = cores <= 2 || memory <= 2 || (touchDevice && (cores <= 4 || memory <= 3));
+    const severelyConstrained = cores <= 2 || memory <= 1 || (touchDevice && memory <= 2);
+
+    return { constrained, veryConstrained, severelyConstrained, touchDevice, dpr };
+}
+
+export function getRecommendedRenderQuality(): RenderQualityProfile {
+    const device = getRenderDeviceProfile();
 
     return {
-        antialias: !constrainedDevice,
-        shadowMap: !touchDevice && !veryConstrainedDevice,
-        pixelRatio: Math.min(dpr, touchDevice ? 1 : constrainedDevice ? 1.25 : 1.5),
-        shadowMapSize: veryConstrainedDevice ? 512 : constrainedDevice ? 1024 : 1536,
+        antialias: !device.constrained,
+        shadowMap: !device.touchDevice && !device.veryConstrained,
+        pixelRatio: Math.min(
+            device.dpr,
+            device.severelyConstrained ? 0.75 : device.veryConstrained ? 0.9 : device.constrained ? 1 : 1.35
+        ),
+        shadowMapSize: device.veryConstrained ? 512 : device.constrained ? 768 : 1536,
     };
 }
 
+export function getInitialRuntimeQualityLevel(ladder: RuntimeRenderQualityProfile[]): number {
+    const device = getRenderDeviceProfile();
+    if (device.severelyConstrained) return 0;
+    if (device.veryConstrained) return Math.min(1, ladder.length - 1);
+    if (device.constrained) return Math.min(2, ladder.length - 1);
+    return ladder.length - 1;
+}
+
 export function buildRuntimeRenderQualityLadder(baseQuality: RenderQualityProfile = getRecommendedRenderQuality()): RuntimeRenderQualityProfile[] {
-    const basePixelRatio = THREE.MathUtils.clamp(baseQuality.pixelRatio, 0.85, 1.5);
+    const basePixelRatio = THREE.MathUtils.clamp(baseQuality.pixelRatio, 0.6, 1.5);
     const baseShadowSize = Math.max(512, Math.round(baseQuality.shadowMapSize / 256) * 256);
 
     const ladder: RuntimeRenderQualityProfile[] = [
         {
             level: 0,
-            label: 'LOW',
-            antialias: baseQuality.antialias,
+            label: 'SURVIVAL',
+            antialias: false,
             shadowMap: false,
-            pixelRatio: Math.max(0.8, Math.min(basePixelRatio, 0.9)),
+            pixelRatio: Math.max(0.55, Math.min(basePixelRatio, 0.65)),
             shadowMapSize: 512,
             smoothDetail: 'LOW',
         },
         {
             level: 1,
+            label: 'LOW',
+            antialias: false,
+            shadowMap: false,
+            pixelRatio: Math.max(0.65, Math.min(basePixelRatio, 0.8)),
+            shadowMapSize: 512,
+            smoothDetail: 'LOW',
+        },
+        {
+            level: 2,
             label: 'MEDIUM',
             antialias: baseQuality.antialias,
             shadowMap: baseQuality.shadowMap,
-            pixelRatio: Math.max(0.95, Math.min(basePixelRatio, 1.0)),
+            pixelRatio: Math.max(0.85, Math.min(basePixelRatio, 1.0)),
             shadowMapSize: Math.min(baseShadowSize, 1024),
             smoothDetail: 'MEDIUM',
         },
         {
-            level: 2,
+            level: 3,
             label: 'HIGH',
             antialias: baseQuality.antialias,
             shadowMap: baseQuality.shadowMap,
-            pixelRatio: Math.max(1.0, Math.min(basePixelRatio, 1.25)),
+            pixelRatio: Math.max(1.0, Math.min(basePixelRatio, 1.2)),
             shadowMapSize: Math.min(baseShadowSize, 1536),
             smoothDetail: 'HIGH',
         },
         {
-            level: 3,
+            level: 4,
             label: 'ULTRA',
             antialias: baseQuality.antialias,
             shadowMap: baseQuality.shadowMap,
@@ -104,7 +131,8 @@ export function buildRuntimeRenderQualityLadder(baseQuality: RenderQualityProfil
                 || prev.pixelRatio !== profile.pixelRatio
                 || prev.shadowMap !== profile.shadowMap
                 || prev.shadowMapSize !== profile.shadowMapSize
-                || prev.smoothDetail !== profile.smoothDetail;
+                || prev.smoothDetail !== profile.smoothDetail
+                || prev.label !== profile.label;
         })
         .map((profile, index) => ({ ...profile, level: index }));
 }
@@ -151,7 +179,7 @@ export class ThreeRenderAdapter implements RenderAdapter {
             pixelRatio: this.config.pixelRatio,
             shadowMapSize: this.config.shadowMapSize,
         });
-        this.runtimeQuality = this.runtimeQualityLadder[this.runtimeQualityLadder.length - 1];
+        this.runtimeQuality = this.runtimeQualityLadder[getInitialRuntimeQualityLevel(this.runtimeQualityLadder)];
         this.scene = new THREE.Scene();
 
         // Orthographic to match legacy engine
@@ -175,19 +203,19 @@ export class ThreeRenderAdapter implements RenderAdapter {
 
         // Create renderer
         this.renderer = new THREE.WebGLRenderer({
-            antialias: this.config.antialias,
+            antialias: this.runtimeQuality.antialias,
             powerPreference: 'high-performance',
             alpha: true, // Enable transparency
         });
 
-        this.renderer.setPixelRatio(this.config.pixelRatio);
+        this.renderer.setPixelRatio(this.runtimeQuality.pixelRatio);
         this.renderer.setClearColor(this.config.clearColor, 0); // Transparent clear
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.04;
         this.renderer.localClippingEnabled = true; // Required for material clippingPlanes
 
-        if (this.config.shadowMap) {
+        if (this.runtimeQuality.shadowMap) {
             this.renderer.shadowMap.enabled = true;
             this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         }
@@ -245,9 +273,9 @@ export class ThreeRenderAdapter implements RenderAdapter {
 
         this.directionalLight = new THREE.DirectionalLight(0xffe0ac, 1.42);
         this.directionalLight.position.set(58, 92, 36);
-        this.directionalLight.castShadow = this.config.shadowMap;
-        if (this.config.shadowMap) {
-            this.directionalLight.shadow.mapSize.set(this.config.shadowMapSize, this.config.shadowMapSize);
+        this.directionalLight.castShadow = this.runtimeQuality.shadowMap;
+        if (this.runtimeQuality.shadowMap) {
+            this.directionalLight.shadow.mapSize.set(this.runtimeQuality.shadowMapSize, this.runtimeQuality.shadowMapSize);
             this.directionalLight.shadow.camera.near = 1;
             this.directionalLight.shadow.camera.far = 260;
             this.directionalLight.shadow.camera.left = -90;
