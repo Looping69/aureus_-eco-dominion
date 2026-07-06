@@ -8,6 +8,9 @@ interface RuntimeQualityGovernorConfig {
     downgradeSamples: number;
     upgradeSamples: number;
     changeCooldownMs: number;
+    criticalFpsThreshold: number;
+    criticalRenderMs: number;
+    emergencyDowngradeLevels: number;
 }
 
 export interface RuntimeQualityGovernorSnapshot {
@@ -18,12 +21,15 @@ export interface RuntimeQualityGovernorSnapshot {
 }
 
 const DEFAULT_CONFIG: RuntimeQualityGovernorConfig = {
-    sampleIntervalMs: 1500,
-    downgradeFpsThreshold: 48,
-    upgradeFpsThreshold: 57,
-    downgradeSamples: 2,
-    upgradeSamples: 5,
-    changeCooldownMs: 6000,
+    sampleIntervalMs: 1000,
+    downgradeFpsThreshold: 52,
+    upgradeFpsThreshold: 58,
+    downgradeSamples: 1,
+    upgradeSamples: 8,
+    changeCooldownMs: 3500,
+    criticalFpsThreshold: 30,
+    criticalRenderMs: 28,
+    emergencyDowngradeLevels: 2,
 };
 
 export class RuntimeQualityGovernor {
@@ -75,9 +81,22 @@ export class RuntimeQualityGovernor {
         const currentLevel = this.render.getRuntimeQuality().level;
         const canDowngrade = currentLevel > 0;
         const canUpgrade = currentLevel < ladder.length - 1;
+        const criticallySlow = canDowngrade && (
+            (fps > 0 && fps < this.config.criticalFpsThreshold) ||
+            totalRenderMs > this.config.criticalRenderMs
+        );
 
-        const shouldDowngrade = canDowngrade && (fps < this.config.downgradeFpsThreshold || totalRenderMs > 18);
-        const shouldUpgrade = canUpgrade && fps > this.config.upgradeFpsThreshold && totalRenderMs < 11;
+        if (criticallySlow) {
+            const nextLevel = Math.max(0, currentLevel - this.config.emergencyDowngradeLevels);
+            this.render.setRuntimeQualityLevel(nextLevel);
+            this.lastChangeAt = now;
+            this.downgradePressure = 0;
+            this.upgradePressure = 0;
+            return;
+        }
+
+        const shouldDowngrade = canDowngrade && (fps < this.config.downgradeFpsThreshold || totalRenderMs > 16);
+        const shouldUpgrade = canUpgrade && fps > this.config.upgradeFpsThreshold && totalRenderMs < 10;
 
         if (shouldDowngrade) {
             this.downgradePressure += 1;
