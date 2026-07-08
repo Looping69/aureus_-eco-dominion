@@ -28,12 +28,13 @@ export interface BuildingSourceMeshOverride {
 
 export interface BuildingBlueprint {
     buildingType: BuildingType;
+    level: number;
     parts: BuildingVoxelPart[];
     sourceMeshOverrides?: BuildingSourceMeshOverride[];
     updatedAt: number;
 }
 
-export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v3';
+export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v4';
 export const BUILDING_DETAIL_GRID_STEP = 0.25;
 export const BUILDING_DETAIL_PART_SIZE = 0.18;
 export const BUILDING_VOXEL_SHAPES: BuildingVoxelShape[] = ['block', 'beam', 'wedge', 'cylinder', 'spire'];
@@ -53,14 +54,32 @@ export const DESIGNABLE_BUILDINGS: BuildingType[] = [
     BuildingType.TRAINING_CENTER,
 ];
 
-export function getBlueprintStorageKey(buildingType: BuildingType): string {
-    return `${BUILDING_BLUEPRINT_STORAGE_KEY}.${buildingType}`;
+export function getDesignableBuildingLevels(buildingType: BuildingType): number[] {
+    const levels = [1, ...(BUILDINGS[buildingType]?.upgrades || []).map((upgrade) => upgrade.level)];
+    return Array.from(new Set(levels.filter((level) => Number.isFinite(level) && level >= 1))).sort((a, b) => a - b);
 }
 
-export function loadBuildingBlueprint(buildingType: BuildingType): BuildingBlueprint {
+export function getBuildingLevelLabel(buildingType: BuildingType, level: number): string {
+    if (level <= 1) return 'Level 1 / Base';
+    const upgrade = BUILDINGS[buildingType]?.upgrades?.find((candidate) => candidate.level === level);
+    return upgrade ? `Level ${level} / ${upgrade.name}` : `Level ${level}`;
+}
+
+export function normalizeBuildingLevel(buildingType: BuildingType, level: number): number {
+    const available = getDesignableBuildingLevels(buildingType);
+    return available.includes(level) ? level : available[0] || 1;
+}
+
+export function getBlueprintStorageKey(buildingType: BuildingType, level = 1): string {
+    const normalizedLevel = normalizeBuildingLevel(buildingType, level);
+    return `${BUILDING_BLUEPRINT_STORAGE_KEY}.${buildingType}.level${normalizedLevel}`;
+}
+
+export function loadBuildingBlueprint(buildingType: BuildingType, level = 1): BuildingBlueprint {
+    const normalizedLevel = normalizeBuildingLevel(buildingType, level);
     if (typeof window !== 'undefined') {
         try {
-            const raw = window.localStorage.getItem(getBlueprintStorageKey(buildingType));
+            const raw = window.localStorage.getItem(getBlueprintStorageKey(buildingType, normalizedLevel));
             if (raw) {
                 const parsed = JSON.parse(raw) as Partial<BuildingBlueprint>;
                 const parts = Array.isArray(parsed.parts)
@@ -69,22 +88,24 @@ export function loadBuildingBlueprint(buildingType: BuildingType): BuildingBluep
                 const sourceMeshOverrides = Array.isArray(parsed.sourceMeshOverrides)
                     ? parsed.sourceMeshOverrides.filter(isValidSourceMeshOverride).map(normalizeSourceMeshOverride)
                     : [];
-                return { buildingType, parts, sourceMeshOverrides, updatedAt: Number(parsed.updatedAt) || Date.now() };
+                return { buildingType, level: normalizedLevel, parts, sourceMeshOverrides, updatedAt: Number(parsed.updatedAt) || Date.now() };
             }
         } catch {
             // Fall through to an empty edit layer over the real game model.
         }
     }
 
-    return createDefaultBuildingBlueprint(buildingType);
+    return createDefaultBuildingBlueprint(buildingType, normalizedLevel);
 }
 
 export function saveBuildingBlueprint(blueprint: BuildingBlueprint): void {
     if (typeof window === 'undefined') return;
+    const level = normalizeBuildingLevel(blueprint.buildingType, blueprint.level || 1);
     window.localStorage.setItem(
-        getBlueprintStorageKey(blueprint.buildingType),
+        getBlueprintStorageKey(blueprint.buildingType, level),
         JSON.stringify({
             ...blueprint,
+            level,
             parts: dedupeParts(blueprint.parts),
             sourceMeshOverrides: normalizeSourceMeshOverrides(blueprint.sourceMeshOverrides || []),
             updatedAt: Date.now(),
@@ -92,8 +113,8 @@ export function saveBuildingBlueprint(blueprint: BuildingBlueprint): void {
     );
 }
 
-export function createDefaultBuildingBlueprint(buildingType: BuildingType): BuildingBlueprint {
-    return { buildingType, parts: [], sourceMeshOverrides: [], updatedAt: Date.now() };
+export function createDefaultBuildingBlueprint(buildingType: BuildingType, level = 1): BuildingBlueprint {
+    return { buildingType, level: normalizeBuildingLevel(buildingType, level), parts: [], sourceMeshOverrides: [], updatedAt: Date.now() };
 }
 
 export function getVoxelRoleColor(role: BuildingVoxelRole, settings: BuildingStyleSettings): string {
