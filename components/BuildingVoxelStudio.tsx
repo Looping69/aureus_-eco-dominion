@@ -27,6 +27,7 @@ import {
 } from '../game/design/buildingBlueprint';
 
 type StudioTool = 'add' | 'remove' | 'paint' | 'select';
+type PositionAxis = 'x' | 'y' | 'z';
 
 type StudioSceneState = {
     scene: THREE.Scene;
@@ -74,6 +75,7 @@ const TOOL_LABELS: Record<StudioTool, string> = {
     paint: 'Paint',
 };
 
+const POSITION_AXES: PositionAxis[] = ['x', 'y', 'z'];
 const PART_GEOMETRY_CACHE = new Map<BuildingVoxelShape, THREE.BufferGeometry>();
 
 interface BuildingVoxelStudioProps {
@@ -104,6 +106,12 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         () => (blueprint.sourceMeshOverrides || []).find((override) => override.id === selectedSourceMeshId) || null,
         [blueprint.sourceMeshOverrides, selectedSourceMeshId],
     );
+
+    const selectionLabel = selectedPart
+        ? `${SHAPE_LABELS[selectedPart.shape || 'block']} / ${ROLE_LABELS[selectedPart.role]}`
+        : selectedSourceMeshId
+            ? `Source ${selectedSourceMeshId}`
+            : 'Nothing selected';
 
     useEffect(() => {
         const next = loadBuildingBlueprint(buildingType);
@@ -481,6 +489,16 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         setSaved(false);
     };
 
+    const updatePartPosition = (id: string | null, axis: PositionAxis, value: number) => {
+        const nextValue = normalizePositionAxis(axis, value);
+        updatePartTransform(id, { [axis]: nextValue } as Partial<BuildingVoxelPart>);
+    };
+
+    const nudgeSelectedPart = (axis: PositionAxis, delta: number) => {
+        if (!selectedPart) return;
+        updatePartPosition(selectedPart.id, axis, selectedPart[axis] + delta);
+    };
+
     const duplicateSelectedPart = () => {
         if (!selectedPart) return;
         const next = createPart(
@@ -590,6 +608,20 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                 </div>
 
                 <div className="space-y-4 bg-slate-900 p-4">
+                    <div className="rounded-[4px] border border-slate-800 bg-slate-950 p-3">
+                        <div className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-500">Selection</div>
+                        <div className="truncate text-xs font-black text-cyan-200">{selectionLabel}</div>
+                        {selectedPart && (
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] font-mono text-slate-300">
+                                {POSITION_AXES.map((axis) => (
+                                    <span key={axis} className="rounded-[3px] bg-slate-900 px-2 py-1 text-center uppercase">
+                                        {axis}: {formatCoord(selectedPart[axis])}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     <div>
                         <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Tool</div>
                         <div className="grid grid-cols-2 gap-2">
@@ -674,6 +706,42 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                         <div className="rounded-[4px] border border-slate-800 bg-slate-950 p-3">
                             <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Detail Transform</div>
                             <div className="mb-3 text-xs font-black text-cyan-200">{SHAPE_LABELS[selectedPart.shape || 'block']}</div>
+
+                            <div className="mb-3 rounded-[4px] border border-slate-800 bg-slate-900 p-2">
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Selected Part Position</span>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-cyan-300">Nudge Step {BUILDING_DETAIL_GRID_STEP}m</span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {POSITION_AXES.map((axis) => (
+                                        <label key={axis} className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                            {axis.toUpperCase()}
+                                            <input
+                                                type="number"
+                                                min={axis === 'y' ? 0 : -8}
+                                                max={axis === 'y' ? 12 : 8}
+                                                step={BUILDING_DETAIL_GRID_STEP}
+                                                value={selectedPart[axis]}
+                                                onChange={(event) => updatePartPosition(selectedPart.id, axis, Number(event.target.value))}
+                                                className="mt-1 h-9 w-full rounded-[4px] border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                                            />
+                                        </label>
+                                    ))}
+                                </div>
+                                <div className="mt-2 grid grid-cols-3 gap-2">
+                                    {POSITION_AXES.map((axis) => (
+                                        <div key={axis} className="grid grid-cols-2 gap-1">
+                                            <button type="button" aria-label={`Nudge ${axis} backward`} onClick={() => nudgeSelectedPart(axis, -BUILDING_DETAIL_GRID_STEP)} className="h-8 rounded-[3px] border border-slate-700 bg-slate-950 text-[10px] font-black uppercase text-slate-200 hover:bg-slate-800">
+                                                {axis}-
+                                            </button>
+                                            <button type="button" aria-label={`Nudge ${axis} forward`} onClick={() => nudgeSelectedPart(axis, BUILDING_DETAIL_GRID_STEP)} className="h-8 rounded-[3px] border border-slate-700 bg-slate-950 text-[10px] font-black uppercase text-slate-200 hover:bg-slate-800">
+                                                {axis}+
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-3 gap-2">
                                 {(['scaleX', 'scaleY', 'scaleZ'] as const).map((key) => (
                                     <label key={key} className="text-[10px] font-black uppercase tracking-widest text-slate-500">
@@ -726,6 +794,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                         <div className="flex items-center gap-2 font-black uppercase tracking-wider text-slate-300"><MousePointer2 size={14} /> Shape Data</div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
                             <span>Base</span><strong className="text-right text-white">Mesh Parts</strong>
+                            <span>Selection</span><strong className="text-right text-white">{selectedPart ? 'Detail Part' : selectedSourceMeshId ? 'Source Mesh' : 'None'}</strong>
                             <span>Hidden/painted</span><strong className="text-right text-white">{blueprint.sourceMeshOverrides?.length || 0}</strong>
                             <span>Fine edits</span><strong className="text-right text-white">{blueprint.parts.length}</strong>
                             <span>Part</span><strong className="text-right text-white">{SHAPE_LABELS[shape]}</strong>
@@ -870,6 +939,12 @@ function disposeEditMeshes(meshes: THREE.Mesh[]): void {
         if (Array.isArray(material)) material.forEach((item) => item.dispose());
         else material.dispose();
     }
+}
+
+function normalizePositionAxis(axis: PositionAxis, value: number): number {
+    const min = axis === 'y' ? 0 : -8;
+    const max = axis === 'y' ? 12 : 8;
+    return clampGrid(snapToDetailGrid(Number.isFinite(value) ? value : 0), min, max);
 }
 
 function clampGrid(value: number, min: number, max: number): number {
