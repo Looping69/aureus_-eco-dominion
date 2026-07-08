@@ -19,8 +19,11 @@ import {
     dedupeParts,
     DESIGNABLE_BUILDINGS,
     getBuildingDisplayName,
+    getBuildingLevelLabel,
+    getDesignableBuildingLevels,
     getVoxelRoleColor,
     loadBuildingBlueprint,
+    normalizeBuildingLevel,
     normalizeSourceMeshOverrides,
     saveBuildingBlueprint,
     snapToDetailGrid,
@@ -84,7 +87,8 @@ interface BuildingVoxelStudioProps {
 
 export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settings }) => {
     const [buildingType, setBuildingType] = useState<BuildingType>(BuildingType.STAFF_QUARTERS);
-    const [blueprint, setBlueprint] = useState<BuildingBlueprint>(() => loadBuildingBlueprint(BuildingType.STAFF_QUARTERS));
+    const [buildingLevel, setBuildingLevel] = useState(1);
+    const [blueprint, setBlueprint] = useState<BuildingBlueprint>(() => loadBuildingBlueprint(BuildingType.STAFF_QUARTERS, 1));
     const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
     const [selectedSourceMeshId, setSelectedSourceMeshId] = useState<string | null>(null);
     const [selectedNormal, setSelectedNormal] = useState<THREE.Vector3Tuple>([0, 1, 0]);
@@ -96,6 +100,9 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     const [saved, setSaved] = useState(false);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const sceneStateRef = useRef<StudioSceneState | null>(null);
+
+    const levelOptions = useMemo(() => getDesignableBuildingLevels(buildingType), [buildingType]);
+    const activeLevelLabel = useMemo(() => getBuildingLevelLabel(buildingType, buildingLevel), [buildingLevel, buildingType]);
 
     const selectedPart = useMemo(
         () => blueprint.parts.find((part) => part.id === selectedPartId) || null,
@@ -114,13 +121,20 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             : 'Nothing selected';
 
     useEffect(() => {
-        const next = loadBuildingBlueprint(buildingType);
+        const normalized = normalizeBuildingLevel(buildingType, buildingLevel);
+        if (normalized !== buildingLevel) {
+            setBuildingLevel(normalized);
+        }
+    }, [buildingLevel, buildingType]);
+
+    useEffect(() => {
+        const next = loadBuildingBlueprint(buildingType, buildingLevel);
         setBlueprint(next);
         setSelectedPartId(null);
         setSelectedSourceMeshId(null);
         setLastHit(null);
         setSaved(false);
-    }, [buildingType]);
+    }, [buildingLevel, buildingType]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -263,8 +277,8 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     }, []);
 
     useEffect(() => {
-        rebuildBasePreview(buildingType, settings, blueprint.sourceMeshOverrides || []);
-    }, [buildingType, settings, blueprint.sourceMeshOverrides]);
+        rebuildBasePreview(buildingType, buildingLevel, settings, blueprint.sourceMeshOverrides || []);
+    }, [buildingLevel, buildingType, settings, blueprint.sourceMeshOverrides]);
 
     useEffect(() => {
         rebuildDetailPreview(blueprint.parts, settings);
@@ -308,6 +322,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
 
     const rebuildBasePreview = (
         type: BuildingType,
+        level: number,
         nextSettings: BuildingStyleSettings,
         sourceOverrides: BuildingSourceMeshOverride[],
     ): void => {
@@ -318,7 +333,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         clearGroup(state.baseGroup);
         state.baseHitMeshes = [];
 
-        const actual = createActualGameBuilding(type, nextSettings);
+        const actual = createActualGameBuilding(type, level, nextSettings);
         const overrideMap = new Map(sourceOverrides.map((override) => [override.id, override]));
         state.baseGroup.add(actual);
         let sourceIndex = 0;
@@ -453,7 +468,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
 
     const addPart = (part: BuildingVoxelPart) => {
         const additions = symmetryEnabled ? [part, createMirroredPart(part)].filter(Boolean) as BuildingVoxelPart[] : [part];
-        setBlueprint((current) => ({ ...current, parts: dedupeParts([...current.parts, ...additions]), updatedAt: Date.now() }));
+        setBlueprint((current) => ({ ...current, level: buildingLevel, parts: dedupeParts([...current.parts, ...additions]), updatedAt: Date.now() }));
         setSelectedPartId(part.id);
         setSelectedSourceMeshId(null);
         setSaved(false);
@@ -464,7 +479,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         setBlueprint((current) => {
             const parts = current.parts.filter((part) => part.id !== id);
             setSelectedPartId(parts[0]?.id || null);
-            return { ...current, parts, updatedAt: Date.now() };
+            return { ...current, level: buildingLevel, parts, updatedAt: Date.now() };
         });
         setSaved(false);
     };
@@ -473,6 +488,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         if (!id) return;
         setBlueprint((current) => ({
             ...current,
+            level: buildingLevel,
             parts: current.parts.map((part) => part.id === id ? { ...part, role: nextRole } : part),
             updatedAt: Date.now(),
         }));
@@ -483,6 +499,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         if (!id) return;
         setBlueprint((current) => ({
             ...current,
+            level: buildingLevel,
             parts: dedupeParts(current.parts.map((part) => part.id === id ? { ...part, ...changes } : part)),
             updatedAt: Date.now(),
         }));
@@ -524,6 +541,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
             const rest = (current.sourceMeshOverrides || []).filter((override) => override.id !== id);
             return {
                 ...current,
+                level: buildingLevel,
                 sourceMeshOverrides: normalizeSourceMeshOverrides([...rest, { ...existing, ...changes, id }]),
                 updatedAt: Date.now(),
             };
@@ -536,6 +554,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
         if (!selectedSourceMeshId) return;
         setBlueprint((current) => ({
             ...current,
+            level: buildingLevel,
             sourceMeshOverrides: (current.sourceMeshOverrides || []).filter((override) => override.id !== selectedSourceMeshId),
             updatedAt: Date.now(),
         }));
@@ -548,17 +567,22 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     };
 
     const handleSave = () => {
-        saveBuildingBlueprint(blueprint);
+        saveBuildingBlueprint({ ...blueprint, buildingType, level: buildingLevel });
         setSaved(true);
     };
 
     const handleReset = () => {
-        const next = createDefaultBuildingBlueprint(buildingType);
+        const next = createDefaultBuildingBlueprint(buildingType, buildingLevel);
         setBlueprint(next);
         setSelectedPartId(null);
         setSelectedSourceMeshId(null);
         setLastHit(null);
         setSaved(false);
+    };
+
+    const handleBuildingChange = (nextType: BuildingType) => {
+        setBuildingType(nextType);
+        setBuildingLevel(normalizeBuildingLevel(nextType, 1));
     };
 
     return (
@@ -569,17 +593,30 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                         <Box size={14} /> Assembly Studio
                     </div>
                     <h2 className="mt-1 text-2xl font-black font-['Rajdhani'] text-white">{getBuildingDisplayName(buildingType)}</h2>
+                    <div className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-500">{activeLevelLabel}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <select
                         value={buildingType}
-                        onChange={(event) => setBuildingType(event.target.value as BuildingType)}
+                        onChange={(event) => handleBuildingChange(event.target.value as BuildingType)}
                         className="h-10 min-w-56 rounded-[4px] border border-slate-700 bg-slate-950 px-3 text-xs font-black uppercase tracking-wider text-slate-100 outline-none focus:border-cyan-400"
                     >
                         {DESIGNABLE_BUILDINGS.map((type) => (
                             <option key={type} value={type}>{getBuildingDisplayName(type)}</option>
                         ))}
                     </select>
+                    {levelOptions.length > 1 && (
+                        <select
+                            value={buildingLevel}
+                            onChange={(event) => setBuildingLevel(Number(event.target.value))}
+                            className="h-10 min-w-48 rounded-[4px] border border-cyan-700 bg-slate-950 px-3 text-xs font-black uppercase tracking-wider text-cyan-100 outline-none focus:border-cyan-400"
+                            title="Building upgrade level"
+                        >
+                            {levelOptions.map((level) => (
+                                <option key={level} value={level}>{getBuildingLevelLabel(buildingType, level)}</option>
+                            ))}
+                        </select>
+                    )}
                     <button type="button" onClick={() => setSymmetryEnabled((value) => !value)} className={`h-10 px-3 rounded-[4px] border text-xs font-black uppercase tracking-wider flex items-center gap-2 ${symmetryEnabled ? 'border-cyan-500 bg-cyan-950 text-cyan-100' : 'border-slate-700 bg-slate-950 hover:bg-slate-800 text-slate-300'}`}>
                         Symmetry {symmetryEnabled ? 'On' : 'Off'}
                     </button>
@@ -596,7 +633,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                 <div className="relative h-[34rem] min-h-[24rem] border-b border-slate-800 xl:border-b-0 xl:border-r" onClick={handleCanvasClick}>
                     <div ref={containerRef} className="absolute inset-0" />
                     <div className="pointer-events-none absolute left-4 top-4 rounded-[4px] border border-slate-700 bg-slate-950/80 px-3 py-2 text-[11px] font-bold text-slate-300 backdrop-blur">
-                        Pick a part shape, click the building, and grow the design on a {BUILDING_DETAIL_GRID_STEP}m grid.
+                        Pick a part shape, choose a building level, and grow the design on a {BUILDING_DETAIL_GRID_STEP}m grid.
                     </div>
                     {(selectedPart || selectedSourceMeshId) && (
                         <div className="pointer-events-none absolute bottom-4 left-4 rounded-[4px] border border-cyan-800 bg-slate-950/85 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-cyan-200 backdrop-blur">
@@ -794,6 +831,7 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
                         <div className="flex items-center gap-2 font-black uppercase tracking-wider text-slate-300"><MousePointer2 size={14} /> Shape Data</div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
                             <span>Base</span><strong className="text-right text-white">Mesh Parts</strong>
+                            <span>Level</span><strong className="text-right text-white">{activeLevelLabel}</strong>
                             <span>Selection</span><strong className="text-right text-white">{selectedPart ? 'Detail Part' : selectedSourceMeshId ? 'Source Mesh' : 'None'}</strong>
                             <span>Hidden/painted</span><strong className="text-right text-white">{blueprint.sourceMeshOverrides?.length || 0}</strong>
                             <span>Fine edits</span><strong className="text-right text-white">{blueprint.parts.length}</strong>
@@ -808,10 +846,10 @@ export const BuildingVoxelStudio: React.FC<BuildingVoxelStudioProps> = ({ settin
     );
 };
 
-function createActualGameBuilding(type: BuildingType, settings: BuildingStyleSettings): THREE.Group {
+function createActualGameBuilding(type: BuildingType, level: number, settings: BuildingStyleSettings): THREE.Group {
     const create = (BuildingsFactory as Record<string, (opts?: Record<string, unknown>) => THREE.Group>)[type];
     const group = create
-        ? create({ detailLevel: 'HIGH', integrity: 1, isUnderConstruction: false, level: 1, progress: 1, seed: 7 })
+        ? create({ detailLevel: 'HIGH', integrity: 1, isUnderConstruction: false, level, progress: 1, seed: 7 })
         : new THREE.Group();
 
     applyBuildingStyleToGroup(type, group, settings);
