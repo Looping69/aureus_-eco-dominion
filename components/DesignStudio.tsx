@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Palette, RotateCcw, Save } from 'lucide-react';
+import { ArrowLeft, Check, Clipboard, Palette, RotateCcw, Save } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BuildingVoxelStudio } from './BuildingVoxelStudio';
 import {
@@ -50,17 +50,27 @@ function saveStyle(settings: BuildingStyleSettings): void {
     window.localStorage.setItem(BUILDING_STYLE_STORAGE_KEY, JSON.stringify(normalizeBuildingStyleSettings(settings)));
 }
 
+function settingsSignature(settings: BuildingStyleSettings): string {
+    return JSON.stringify(normalizeBuildingStyleSettings(settings));
+}
+
 export const DesignStudio: React.FC = () => {
     const [settings, setSettings] = useState<BuildingStyleSettings>(() => loadSavedStyle());
+    const [lastSavedSettings, setLastSavedSettings] = useState<BuildingStyleSettings>(() => loadSavedStyle());
     const [saved, setSaved] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     const activePreset = useMemo(
         () => BUILDING_STYLE_PRESETS.find((preset) => preset.presetId === settings.presetId) || DEFAULT_BUILDING_STYLE,
         [settings.presetId],
     );
 
+    const themePayload = useMemo(() => JSON.stringify(normalizeBuildingStyleSettings(settings), null, 2), [settings]);
+    const dirty = settingsSignature(settings) !== settingsSignature(lastSavedSettings);
+
     useEffect(() => {
         setSaved(false);
+        setCopied(false);
     }, [settings]);
 
     const update = <K extends keyof BuildingStyleSettings>(key: K, value: BuildingStyleSettings[K]) => {
@@ -72,12 +82,21 @@ export const DesignStudio: React.FC = () => {
     };
 
     const handleSave = () => {
-        saveStyle(settings);
+        const normalized = normalizeBuildingStyleSettings(settings);
+        saveStyle(normalized);
+        setSettings(normalized);
+        setLastSavedSettings(normalized);
         setSaved(true);
     };
 
     const handleReset = () => {
         setSettings(styleSettingsFromPreset(DEFAULT_BUILDING_STYLE.presetId));
+    };
+
+    const handleCopyPayload = async () => {
+        if (typeof navigator === 'undefined' || !navigator.clipboard) return;
+        await navigator.clipboard.writeText(themePayload);
+        setCopied(true);
     };
 
     return (
@@ -89,6 +108,14 @@ export const DesignStudio: React.FC = () => {
                             <Palette size={15} /> Aureus Design Studio
                         </div>
                         <h1 className="mt-2 text-3xl sm:text-4xl font-black tracking-tight font-['Rajdhani']">Settlement Identity</h1>
+                        <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-widest">
+                            <span className={`rounded-[3px] border px-2 py-1 ${dirty ? 'border-amber-500/50 bg-amber-950/35 text-amber-200' : 'border-emerald-500/40 bg-emerald-950/35 text-emerald-200'}`}>
+                                {dirty ? 'Unsaved Changes' : 'Saved Locally'}
+                            </span>
+                            <span className="rounded-[3px] border border-cyan-500/30 bg-cyan-950/25 px-2 py-1 text-cyan-200">
+                                Live Preview
+                            </span>
+                        </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <Link
@@ -106,6 +133,13 @@ export const DesignStudio: React.FC = () => {
                         </button>
                         <button
                             type="button"
+                            onClick={handleCopyPayload}
+                            className="h-11 px-4 rounded-[4px] border-2 border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-100 font-black uppercase tracking-wider text-xs flex items-center gap-2"
+                        >
+                            {copied ? <Check size={16} /> : <Clipboard size={16} />} {copied ? 'Copied' : 'Copy JSON'}
+                        </button>
+                        <button
+                            type="button"
                             onClick={handleSave}
                             className="h-11 px-4 rounded-[4px] border-2 border-emerald-900 bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-wider text-xs flex items-center gap-2"
                         >
@@ -113,6 +147,13 @@ export const DesignStudio: React.FC = () => {
                         </button>
                     </div>
                 </header>
+
+                <section className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <SummaryTile label="Preset" value={activePreset.name} />
+                    <SummaryTile label="Material" value={`${MATERIAL_LABELS[settings.primaryMaterial]} / ${ROOF_LABELS[settings.roofProfile]}`} />
+                    <SummaryTile label="Windows" value={WINDOW_LABELS[settings.windowProfile]} />
+                    <SummaryTile label="Mood" value={`${Math.round(settings.nightGlow * 100)} glow / ${Math.round(settings.greenery * 100)} green`} />
+                </section>
 
                 <div className="mt-5">
                     <BuildingVoxelStudio settings={settings} />
@@ -196,9 +237,18 @@ export const DesignStudio: React.FC = () => {
                             </p>
                         </div>
                         <div className="rounded-[6px] border border-slate-800 bg-slate-900 p-5">
-                            <h2 className="text-sm font-black uppercase tracking-widest text-slate-400">Saved Theme Payload</h2>
+                            <div className="flex items-center justify-between gap-3">
+                                <h2 className="text-sm font-black uppercase tracking-widest text-slate-400">Saved Theme Payload</h2>
+                                <button
+                                    type="button"
+                                    onClick={handleCopyPayload}
+                                    className="h-8 rounded-[4px] border border-slate-700 bg-slate-950 px-3 text-[10px] font-black uppercase tracking-wider text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                                >
+                                    {copied ? <Check size={13} /> : <Clipboard size={13} />} {copied ? 'Copied' : 'Copy'}
+                                </button>
+                            </div>
                             <div className="mt-4 rounded-[4px] bg-slate-950 border border-slate-800 p-3 font-mono text-[11px] text-slate-400 overflow-x-auto">
-                                <pre>{JSON.stringify(settings, null, 2)}</pre>
+                                <pre>{themePayload}</pre>
                             </div>
                         </div>
                     </aside>
@@ -207,6 +257,18 @@ export const DesignStudio: React.FC = () => {
         </main>
     );
 };
+
+interface SummaryTileProps {
+    label: string;
+    value: string;
+}
+
+const SummaryTile: React.FC<SummaryTileProps> = ({ label, value }) => (
+    <div className="rounded-[6px] border border-slate-800 bg-slate-900 px-4 py-3">
+        <div className="text-[9px] font-black uppercase tracking-widest text-slate-500">{label}</div>
+        <div className="mt-1 truncate text-sm font-black text-slate-100">{value}</div>
+    </div>
+);
 
 interface SelectControlProps {
     label: string;
