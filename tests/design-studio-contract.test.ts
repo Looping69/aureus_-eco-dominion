@@ -191,6 +191,28 @@ test('design studio edits actual source meshes and supports assembly-style part 
   }
 });
 
+test('assembly studio exposes selected-part position and nudge controls', () => {
+  const voxelStudioText = source(voxelStudioPath);
+
+  for (const snippet of [
+    "type PositionAxis = 'x' | 'y' | 'z';",
+    "const POSITION_AXES: PositionAxis[] = ['x', 'y', 'z'];",
+    'const selectionLabel = selectedPart',
+    'const updatePartPosition = (id: string | null, axis: PositionAxis, value: number) => {',
+    'const nudgeSelectedPart = (axis: PositionAxis, delta: number) => {',
+    'function normalizePositionAxis(axis: PositionAxis, value: number): number',
+    'Selected Part Position',
+    'Nudge Step {BUILDING_DETAIL_GRID_STEP}m',
+    'aria-label={`Nudge ${axis} backward`}',
+    'aria-label={`Nudge ${axis} forward`}',
+    'onClick={() => nudgeSelectedPart(axis, -BUILDING_DETAIL_GRID_STEP)}',
+    'onClick={() => nudgeSelectedPart(axis, BUILDING_DETAIL_GRID_STEP)}',
+    "{selectedPart ? 'Detail Part' : selectedSourceMeshId ? 'Source Mesh' : 'None'}",
+  ]) {
+    assertSnippet(voxelStudioText, snippet);
+  }
+});
+
 test('assembly studio separates base/detail rebuilds and instances repeated detail parts', () => {
   const voxelStudioText = source(voxelStudioPath);
 
