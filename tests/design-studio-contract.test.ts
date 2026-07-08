@@ -74,7 +74,12 @@ test('design studio stores reusable building style settings', () => {
     'window.localStorage.setItem(BUILDING_STYLE_STORAGE_KEY',
     'BUILDING_STYLE_PRESETS.map',
     'Overseer Doctrine',
-    'JSON.stringify(settings, null, 2)',
+    'const themePayload = useMemo(() => JSON.stringify(normalizeBuildingStyleSettings(settings), null, 2), [settings]);',
+    'navigator.clipboard.writeText(themePayload)',
+    'Unsaved Changes',
+    'Saved Locally',
+    'Copy JSON',
+    'SummaryTile',
   ]) {
     assertSnippet(studioText, snippet);
   }
