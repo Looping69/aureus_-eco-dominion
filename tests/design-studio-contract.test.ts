@@ -153,7 +153,7 @@ test('design studio includes saved fine-detail, source-mesh, and shaped part edi
     'rotationY?: number;',
     'export interface BuildingSourceMeshOverride',
     'sourceMeshOverrides?: BuildingSourceMeshOverride[];',
-    "export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v3';",
+    "export const BUILDING_BLUEPRINT_STORAGE_KEY = 'aureus.buildingBlueprints.v4';",
     'export const BUILDING_DETAIL_GRID_STEP = 0.25;',
     'export const BUILDING_DETAIL_PART_SIZE = 0.18;',
     'export const BUILDING_VOXEL_SHAPES',
@@ -161,6 +161,42 @@ test('design studio includes saved fine-detail, source-mesh, and shaped part edi
     'export function snapToDetailGrid',
   ]) {
     assertSnippet(blueprintText, snippet);
+  }
+});
+
+test('design studio blueprints are saved per building upgrade level', () => {
+  const blueprintText = source(blueprintPath);
+  const voxelStudioText = source(voxelStudioPath);
+
+  for (const snippet of [
+    'level: number;',
+    'export function getDesignableBuildingLevels(buildingType: BuildingType): number[]',
+    'export function getBuildingLevelLabel(buildingType: BuildingType, level: number): string',
+    'export function normalizeBuildingLevel(buildingType: BuildingType, level: number): number',
+    'export function getBlueprintStorageKey(buildingType: BuildingType, level = 1): string',
+    'return `${BUILDING_BLUEPRINT_STORAGE_KEY}.${buildingType}.level${normalizedLevel}`;',
+    'export function loadBuildingBlueprint(buildingType: BuildingType, level = 1): BuildingBlueprint',
+    'export function createDefaultBuildingBlueprint(buildingType: BuildingType, level = 1): BuildingBlueprint',
+    'level: normalizeBuildingLevel(buildingType, level)',
+  ]) {
+    assertSnippet(blueprintText, snippet);
+  }
+
+  for (const snippet of [
+    'const [buildingLevel, setBuildingLevel] = useState(1);',
+    'const levelOptions = useMemo(() => getDesignableBuildingLevels(buildingType), [buildingType]);',
+    'const activeLevelLabel = useMemo(() => getBuildingLevelLabel(buildingType, buildingLevel), [buildingLevel, buildingType]);',
+    'loadBuildingBlueprint(buildingType, buildingLevel)',
+    'createDefaultBuildingBlueprint(buildingType, buildingLevel)',
+    'title="Building upgrade level"',
+    'levelOptions.map((level) => (',
+    'getBuildingLevelLabel(buildingType, level)',
+    'Pick a part shape, choose a building level',
+    'createActualGameBuilding(type, level, nextSettings)',
+    'create({ detailLevel: \'HIGH\', integrity: 1, isUnderConstruction: false, level, progress: 1, seed: 7 })',
+    'saveBuildingBlueprint({ ...blueprint, buildingType, level: buildingLevel });',
+  ]) {
+    assertSnippet(voxelStudioText, snippet);
   }
 });
 
@@ -185,7 +221,7 @@ test('design studio edits actual source meshes and supports assembly-style part 
     'function createMirroredPart',
     'BUILDING_VOXEL_SHAPES.map',
     'Save Design',
-    'saveBuildingBlueprint(blueprint)',
+    'saveBuildingBlueprint',
   ]) {
     assertSnippet(voxelStudioText, snippet);
   }
@@ -220,8 +256,8 @@ test('assembly studio separates base/detail rebuilds and instances repeated deta
     'baseHitMeshes: THREE.Object3D[];',
     'editHitMeshes: THREE.Object3D[];',
     'const refreshHitMeshes =',
-    'rebuildBasePreview(buildingType, settings, blueprint.sourceMeshOverrides || []);',
-    '}, [buildingType, settings, blueprint.sourceMeshOverrides]);',
+    'rebuildBasePreview(buildingType, buildingLevel, settings, blueprint.sourceMeshOverrides || []);',
+    '}, [buildingLevel, buildingType, settings, blueprint.sourceMeshOverrides]);',
     'rebuildDetailPreview(blueprint.parts, settings);',
     '}, [blueprint.parts, settings]);',
     'const PART_GEOMETRY_CACHE = new Map',
