@@ -99,6 +99,13 @@ function cloneNpcs() {
     );
 }
 
+function normalizeSelectedAgentIds(selectedAgentId?: string | null, selectedAgentIds?: unknown): string[] {
+    if (Array.isArray(selectedAgentIds)) {
+        return Array.from(new Set(selectedAgentIds.filter((id): id is string => typeof id === 'string' && id.length > 0)));
+    }
+    return selectedAgentId ? [selectedAgentId] : [];
+}
+
 function normalizeLastCommandResult(
     result: any,
 ): GameState['ui']['lastCommandResult'] {
@@ -206,6 +213,7 @@ export class StateManager {
             inventory: {},
             selectedBuilding: null,
             selectedAgentId: null,
+            selectedAgentIds: [],
             interactionMode: 'INSPECT',
             step: GameStep.INTRO,
             gameOver: false,
@@ -309,6 +317,7 @@ export class StateManager {
             ? overrides.eraUnlockedPopup
             : null;
         const chunks = this.createInitialChunks(seed, overrides?.chunks);
+        const selectedAgentIds = normalizeSelectedAgentIds(overrides?.selectedAgentId, overrides?.selectedAgentIds);
 
         return {
             ...baseState,
@@ -327,6 +336,8 @@ export class StateManager {
             ambientNpcs: overrides?.ambientNpcs ?? baseState.ambientNpcs,
             jobs: overrides?.jobs ?? baseState.jobs,
             inventory: overrides?.inventory ?? baseState.inventory,
+            selectedAgentId: selectedAgentIds[0] ?? overrides?.selectedAgentId ?? null,
+            selectedAgentIds,
             fogExploration: normalizeFogExplorationState(overrides?.fogExploration ?? baseState.fogExploration),
             logistics: {
                 ...baseState.logistics,
