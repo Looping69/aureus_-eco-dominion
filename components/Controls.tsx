@@ -78,7 +78,6 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     const isBelowSurface = activeLayer < SURFACE_LAYER;
     const lowerLayer = Math.max(minLayer, activeLayer - 1);
     const upperLayer = Math.min(maxLayer, activeLayer + 1);
-    const selectedAgentIds = selectedAgentId ? [selectedAgentId] : [];
     const setLayerTool = (mode: LayerToolMode) => {
         dispatch({ type: 'SET_INTERACTION_MODE', payload: interactionMode === mode ? 'INSPECT' : mode });
         playSfx('UI_CLICK');
@@ -308,7 +307,22 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                                 onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
-                                    dispatch({ type: 'COMBAT_HOLD_POSITION', payload: { agentIds: selectedAgentIds } });
+                                    dispatch({ type: 'COMBAT_ATTACK_NEAREST' });
+                                    playSfx('UI_CLICK');
+                                }}
+                                className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-rose-300"
+                                title="Attack nearest hostile"
+                                aria-label="Attack nearest hostile"
+                            >
+                                <Hammer size={14} /> Atk
+                            </button>
+                            <button
+                                type="button"
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    dispatch({ type: 'COMBAT_HOLD_POSITION' });
                                     playSfx('UI_CLICK');
                                 }}
                                 className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-amber-300"
@@ -323,7 +337,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                                 onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
-                                    dispatch({ type: 'COMBAT_CLEAR_ORDERS', payload: { agentIds: selectedAgentIds } });
+                                    dispatch({ type: 'COMBAT_CLEAR_ORDERS' });
                                     playSfx('UI_CLICK');
                                 }}
                                 className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-cyan-300"
