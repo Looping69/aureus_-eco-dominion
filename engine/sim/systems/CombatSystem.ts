@@ -78,9 +78,6 @@ export class CombatSystem extends BaseSimSystem {
         if (cmd.type === 'COMBAT_ATTACK_TARGET') {
             return this.handleAttackTarget(cmd, state);
         }
-        if (cmd.type === 'COMBAT_ATTACK_NEAREST') {
-            return this.handleAttackNearest(cmd, state);
-        }
         if (cmd.type === 'COMBAT_HOLD_POSITION') {
             return this.handleHoldPosition(cmd, state);
         }
@@ -120,8 +117,11 @@ export class CombatSystem extends BaseSimSystem {
     private handleAttackTarget(cmd: GameCommand, state: GameState): CommandResult {
         const targetId = cmd.payload?.targetAgentId;
         const agentIds = this.normalizeAgentIds(cmd.payload?.agentIds);
-        if (!targetId || agentIds.length === 0) {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Attack command needs selected agents and a target.' };
+        if (agentIds.length === 0) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Attack command needs selected agents.' };
+        }
+        if (!targetId) {
+            return this.handleAttackNearestAgentIds(agentIds, state);
         }
 
         const target = this.findAgentById(state, targetId);
@@ -150,12 +150,7 @@ export class CombatSystem extends BaseSimSystem {
         return { ok: true };
     }
 
-    private handleAttackNearest(cmd: GameCommand, state: GameState): CommandResult {
-        const agentIds = this.normalizeAgentIds(cmd.payload?.agentIds);
-        if (agentIds.length === 0) {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Attack command needs selected agents.' };
-        }
-
+    private handleAttackNearestAgentIds(agentIds: string[], state: GameState): CommandResult {
         const possibleTargets = this.getCombatants(state).filter(agent => ensureAgentCombatState(agent).faction === 'HOSTILE');
         if (possibleTargets.length === 0) {
             return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'No hostile target is available.' };
