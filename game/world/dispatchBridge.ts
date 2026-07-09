@@ -34,6 +34,7 @@ export interface WorldDispatchBridgeDeps {
     enterFPS: (agentId: string) => void;
     exitFPS: () => void;
     getSelectedAgentId: () => string | null;
+    getSelectedAgentIds: () => string[];
     pushCommand: (type: string, payload?: any) => void;
     warnUnhandled: (type: string) => void;
 }
@@ -42,10 +43,11 @@ function contractIdFromPayload(payload: any): string {
     return payload?.contractId ?? payload;
 }
 
-function normalizeAgentIdPayload(payload: any, fallbackAgentId: string | null): string[] {
+function normalizeAgentIdPayload(payload: any, deps: WorldDispatchBridgeDeps): string[] {
     const ids = payload?.agentIds;
     if (Array.isArray(ids)) return ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
-    return fallbackAgentId ? [fallbackAgentId] : [];
+    const selectedAgentIds = deps.getSelectedAgentIds();
+    return selectedAgentIds.length > 0 ? selectedAgentIds : deps.getSelectedAgentId() ? [deps.getSelectedAgentId() as string] : [];
 }
 
 export function dispatchWorldAction(action: Action, deps: WorldDispatchBridgeDeps): void {
@@ -66,17 +68,23 @@ export function dispatchWorldAction(action: Action, deps: WorldDispatchBridgeDep
         case 'COMBAT_ATTACK_TARGET':
             deps.pushCommand('COMBAT_ATTACK_TARGET', {
                 ...action.payload,
-                agentIds: normalizeAgentIdPayload(action.payload, deps.getSelectedAgentId()),
+                agentIds: normalizeAgentIdPayload(action.payload, deps),
+            });
+            break;
+        case 'COMBAT_ATTACK_NEAREST':
+            deps.pushCommand('COMBAT_ATTACK_NEAREST', {
+                ...action.payload,
+                agentIds: normalizeAgentIdPayload(action.payload, deps),
             });
             break;
         case 'COMBAT_HOLD_POSITION':
             deps.pushCommand('COMBAT_HOLD_POSITION', {
-                agentIds: normalizeAgentIdPayload(action.payload, deps.getSelectedAgentId()),
+                agentIds: normalizeAgentIdPayload(action.payload, deps),
             });
             break;
         case 'COMBAT_CLEAR_ORDERS':
             deps.pushCommand('COMBAT_CLEAR_ORDERS', {
-                agentIds: normalizeAgentIdPayload(action.payload, deps.getSelectedAgentId()),
+                agentIds: normalizeAgentIdPayload(action.payload, deps),
             });
             break;
         case 'SET_INTERACTION_MODE': deps.setInteractionMode(action.payload); break;
