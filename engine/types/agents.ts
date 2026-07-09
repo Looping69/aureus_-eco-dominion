@@ -58,6 +58,7 @@ export interface AgentExperience {
 export type ShiftType = 'DAY' | 'NIGHT' | 'FLEXIBLE';
 
 export type CombatFaction = 'COLONY' | 'HOSTILE' | 'NEUTRAL';
+export type CombatOrderStance = 'AUTO' | 'ATTACK' | 'HOLD';
 
 export interface AgentCombatState {
     faction: CombatFaction;
@@ -69,6 +70,8 @@ export interface AgentCombatState {
     cooldownSeconds: number;
     cooldownRemaining: number;
     targetAgentId?: string | null;
+    commandTargetAgentId?: string | null;
+    stance?: CombatOrderStance;
     defeated?: boolean;
     defeatReported?: boolean;
 }
