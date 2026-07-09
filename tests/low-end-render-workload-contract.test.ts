@@ -10,7 +10,7 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-test('low-end terrain workload is capped by render device profile', () => {
+test('terrain workload scales down for low-end and expands for max visual devices', () => {
   assert.equal(existsSync(terrainPath), true, 'TerrainRenderSystem.ts is missing');
   const source = readFileSync(terrainPath, 'utf8');
 
@@ -20,6 +20,7 @@ test('low-end terrain workload is capped by render device profile', () => {
     'const device = getRenderDeviceProfile();',
     'if (device.severelyConstrained || device.veryConstrained) return 2;',
     'if (device.constrained) return 3;',
+    'if (device.maxVisuals) return 6;',
     "return ('ontouchstart' in window) ? 3 : 5;",
     'private viewRadius = getTerrainViewRadius();',
   ]) {
@@ -29,7 +30,7 @@ test('low-end terrain workload is capped by render device profile', () => {
   assert.doesNotMatch(source, /private viewRadius = \('ontouchstart' in window\) \? 3 : 5;/);
 });
 
-test('low-end foliage workload avoids hidden grass detail generation', () => {
+test('foliage workload avoids hidden grass on weak devices and enriches max visual devices', () => {
   assert.equal(existsSync(foliagePath), true, 'FoliageRenderSystem.ts is missing');
   const source = readFileSync(foliagePath, 'utf8');
 
@@ -40,6 +41,8 @@ test('low-end foliage workload avoids hidden grass detail generation', () => {
     'const device = getRenderDeviceProfile();',
     'return { enabled: false, densityModulo: 12, maxBladesPerChunk: 0 };',
     'return { enabled: true, densityModulo: 6, maxBladesPerChunk: 24 };',
+    'if (device.maxVisuals) {',
+    'return { enabled: true, densityModulo: 2, maxBladesPerChunk: 160 };',
     'return { enabled: true, densityModulo: 3, maxBladesPerChunk: 96 };',
     'private readonly groundDetailBudget = getGroundDetailBudget();',
     'if (!this.groundDetailBudget.enabled) {',
