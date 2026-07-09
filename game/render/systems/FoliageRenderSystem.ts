@@ -55,6 +55,9 @@ function getGroundDetailBudget(): GroundDetailBudget {
     if (device.constrained) {
         return { enabled: true, densityModulo: 6, maxBladesPerChunk: 24 };
     }
+    if (device.maxVisuals) {
+        return { enabled: true, densityModulo: 2, maxBladesPerChunk: 160 };
+    }
     return { enabled: true, densityModulo: 3, maxBladesPerChunk: 96 };
 }
 
