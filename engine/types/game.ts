@@ -135,7 +135,7 @@ export type SimulationEffect =
 
 export interface GameCommand {
     id: string;
-    type: 'PLACE_BUILDING' | 'BULLDOZE' | 'SPEED_UP' | 'REHABILITATE' | 'UPGRADE_BUILDING' | 'EXPLODE_TILE' | 'DIG_VOXEL' | 'COMMAND_AGENT' | 'MANUAL_MOVE_AGENT' | 'BUY_BUILDING' | 'SELL_RESOURCE' | 'BUY_RESOURCE' | 'SET_AUTO_SELL' | 'MARK_HARVEST' | 'RESEARCH_TECH' | 'ACCEPT_CONTRACT' | 'DELIVER_CONTRACT' | 'ABANDON_CONTRACT' | 'ADVANCE_TUTORIAL' | 'START_DEMO' | 'DISMISS_POPUP' | 'SUBMIT_PERMIT' | 'TALK_TO_NPC' | 'CHOOSE_DIALOGUE' | 'CLOSE_DIALOGUE';
+    type: 'PLACE_BUILDING' | 'BULLDOZE' | 'SPEED_UP' | 'REHABILITATE' | 'UPGRADE_BUILDING' | 'EXPLODE_TILE' | 'DIG_VOXEL' | 'COMMAND_AGENT' | 'COMMAND_AGENTS' | 'MANUAL_MOVE_AGENT' | 'COMBAT_ATTACK_TARGET' | 'COMBAT_HOLD_POSITION' | 'COMBAT_CLEAR_ORDERS' | 'BUY_BUILDING' | 'SELL_RESOURCE' | 'BUY_RESOURCE' | 'SET_AUTO_SELL' | 'MARK_HARVEST' | 'RESEARCH_TECH' | 'ACCEPT_CONTRACT' | 'DELIVER_CONTRACT' | 'ABANDON_CONTRACT' | 'ADVANCE_TUTORIAL' | 'START_DEMO' | 'DISMISS_POPUP' | 'SUBMIT_PERMIT' | 'TALK_TO_NPC' | 'CHOOSE_DIALOGUE' | 'CLOSE_DIALOGUE';
     payload: any;
     issuedAtTick?: number;
 }
@@ -315,6 +315,7 @@ export interface GameState {
     inventory: Partial<Record<BuildingType, number>>;
     selectedBuilding: BuildingType | null;
     selectedAgentId: string | null;
+    selectedAgentIds: string[];
     interactionMode: 'BUILD' | 'BULLDOZE' | 'INSPECT' | 'TEST_DESTRUCT' | 'DIG';
     step: GameStep;
     gameOver: boolean;
@@ -323,7 +324,7 @@ export interface GameState {
     seed: number;
     spawnX: number;
     spawnZ: number;
-    fogExploration?: FogExplorationState;
+    fogExploration?: FogRevealCenter[] extends never ? never : FogExplorationState;
     logistics: LogisticsState;
     factory?: FactoryState;
     activeGoal: Goal | null;
