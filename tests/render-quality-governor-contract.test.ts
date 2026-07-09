@@ -37,6 +37,26 @@ test('low-end render quality starts below high detail and includes a survival ru
   }
 });
 
+test('capable devices can start at true max visual quality', () => {
+  const text = source(adapterPath);
+
+  for (const snippet of [
+    'export interface RenderDeviceProfile {',
+    'maxVisuals: boolean;',
+    'const maxVisuals = !constrained && cores >= 8 && memory >= 8;',
+    'return { constrained, veryConstrained, severelyConstrained, maxVisuals, touchDevice, dpr };',
+    'device.maxVisuals ? 2 : 1.35',
+    'shadowMapSize: device.veryConstrained ? 512 : device.constrained ? 768 : device.maxVisuals ? 2048 : 1536,',
+    'const basePixelRatio = THREE.MathUtils.clamp(baseQuality.pixelRatio, 0.6, 2);',
+    'pixelRatio: Math.max(1.0, Math.min(basePixelRatio, 1.35))',
+    "label: 'ULTRA'",
+    'pixelRatio: basePixelRatio,',
+    'shadowMapSize: baseShadowSize,',
+  ]) {
+    assertSnippet(text, snippet);
+  }
+});
+
 test('quality governor emergency-downgrades catastrophic frame drops', () => {
   const text = source(governorPath);
 
