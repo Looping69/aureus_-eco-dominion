@@ -71,12 +71,6 @@ export function dispatchWorldAction(action: Action, deps: WorldDispatchBridgeDep
                 agentIds: normalizeAgentIdPayload(action.payload, deps),
             });
             break;
-        case 'COMBAT_ATTACK_NEAREST':
-            deps.pushCommand('COMBAT_ATTACK_NEAREST', {
-                ...action.payload,
-                agentIds: normalizeAgentIdPayload(action.payload, deps),
-            });
-            break;
         case 'COMBAT_HOLD_POSITION':
             deps.pushCommand('COMBAT_HOLD_POSITION', {
                 agentIds: normalizeAgentIdPayload(action.payload, deps),
