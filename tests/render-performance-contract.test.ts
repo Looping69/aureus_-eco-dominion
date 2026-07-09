@@ -27,7 +27,12 @@ test('TerrainRenderSystem tracks chunk ownership revisions, border-aware dirty r
     'private waterMeshPool: THREE.Mesh[] = [];',
     'private ghostMeshPool: THREE.Mesh[] = [];',
     'private readonly maxPoolSizePerType = 12;',
-    "private viewRadius = ('ontouchstart' in window) ? 3 : 5;",
+    "import { getRenderDeviceProfile } from '../../../engine/render/ThreeRenderAdapter';",
+    'function getTerrainViewRadius(): number {',
+    'if (device.severelyConstrained || device.veryConstrained) return 2;',
+    'if (device.constrained) return 3;',
+    "return ('ontouchstart' in window) ? 3 : 5;",
+    'private viewRadius = getTerrainViewRadius();',
     'import { CHUNK_SIZE, worldToChunk, worldToLocal, toChunkKey }',
     'public updateTiles(updates: GridTile[]): Set<string> {',
     'public updateChunk(cx: number, cz: number, updates: GridTile[]): Set<string> {',
@@ -50,9 +55,10 @@ test('TerrainRenderSystem tracks chunk ownership revisions, border-aware dirty r
   }
 
   assert.doesNotMatch(source, /private viewRadius = \('ontouchstart' in window\) \? 4 : 6;/);
+  assert.doesNotMatch(source, /private viewRadius = \('ontouchstart' in window\) \? 3 : 5;/);
 });
 
-test('FoliageRenderSystem reuses instanced chunk meshes through per-type pools', () => {
+test('FoliageRenderSystem reuses instanced chunk meshes and throttles grass detail on constrained devices', () => {
   assert.equal(existsSync(foliagePath), true, 'FoliageRenderSystem.ts is missing');
 
   const source = readFileSync(foliagePath, 'utf8');
@@ -69,9 +75,23 @@ test('FoliageRenderSystem reuses instanced chunk meshes through per-type pools',
     'private releaseChunkMeshes(key: string, meshes: Map<string, THREE.InstancedMesh>) {',
     'private getCapacity(count: number): number {',
     'while (capacity < count) {',
+    "import { getRenderDeviceProfile } from '../../../engine/render/ThreeRenderAdapter';",
+    'type GroundDetailBudget = {',
+    'function getGroundDetailBudget(): GroundDetailBudget {',
+    'return { enabled: false, densityModulo: 12, maxBladesPerChunk: 0 };',
+    'return { enabled: true, densityModulo: 6, maxBladesPerChunk: 24 };',
+    'return { enabled: true, densityModulo: 3, maxBladesPerChunk: 96 };',
+    'private readonly groundDetailBudget = getGroundDetailBudget();',
+    'if (!this.groundDetailBudget.enabled) {',
+    'if (blades.length >= this.groundDetailBudget.maxBladesPerChunk) break;',
+    'blades.length < this.groundDetailBudget.maxBladesPerChunk',
+    'this.groundDetailBudget.densityModulo',
+    'if (this.groundDetailBudget.maxBladesPerChunk <= 24) return 1;',
   ]) {
     assert.match(source, new RegExp(escapeRegExp(snippet)));
   }
+
+  assert.doesNotMatch(source, /return this\.seed\(x, z, 3\) % 3 === 0;/);
 });
 
 test('PacketInstancedLayer now supports pooled bucketed instancing with render-order, rotation, and non-uniform scale control', () => {
