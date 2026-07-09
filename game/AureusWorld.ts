@@ -76,6 +76,7 @@ export class AureusWorld extends BaseWorld {
     private constructionSystem: ConstructionSystem;
     private commandDispatcher: CommandDispatcher;
     private aiOverseerSystem: AIOverseerSystem;
+    private combatSystem: CombatSystem;
 
     private agentRenderSystem: AgentRenderSystem;
     private terrainRenderSystem: TerrainRenderSystem;
@@ -125,6 +126,7 @@ export class AureusWorld extends BaseWorld {
             econ,
             this.constructionSystem,
             this.agentSystem,
+            this.combatSystem,
             researchSystem,
             this.aiOverseerSystem,
             this.simSystems.tutorialDemo,
@@ -219,7 +221,8 @@ export class AureusWorld extends BaseWorld {
         this.agentSystem = new AgentSystem(this.jobs, this.constructionSystem);
         this.sim.addSystem(this.agentSystem);
         this.sim.addSystem(new AmbientNPCSystem());
-        this.sim.addSystem(new CombatSystem());
+        this.combatSystem = new CombatSystem();
+        this.sim.addSystem(this.combatSystem);
 
         const researchSystem = new ResearchSystem();
         this.sim.addSystem(researchSystem);
@@ -331,7 +334,7 @@ export class AureusWorld extends BaseWorld {
             this.stateManager.update({ selectedBuilding: type as BuildingType, interactionMode: 'BUILD' });
         } else {
             this.clearInfrastructureLinePreview();
-            this.stateManager.update({ selectedBuilding: null, selectedAgentId: null, interactionMode: 'INSPECT' });
+            this.stateManager.update({ selectedBuilding: null, selectedAgentId: null, selectedAgentIds: [], interactionMode: 'INSPECT' });
         }
     }
 
@@ -350,7 +353,20 @@ export class AureusWorld extends BaseWorld {
     }
 
     selectAgent(id: string | null): void {
-        this.stateManager.update({ selectedAgentId: id });
+        this.selectAgents(id ? [id] : []);
+    }
+
+    selectAgents(ids: string[]): void {
+        const valid = new Set(this.stateManager.getState().agents.map(agent => agent.id));
+        const selectedAgentIds = Array.from(new Set(ids.filter(id => valid.has(id))));
+        this.stateManager.update({ selectedAgentId: selectedAgentIds[0] ?? null, selectedAgentIds });
+    }
+
+    selectAllColonyAgents(): void {
+        const ids = this.stateManager.getState().agents
+            .filter(agent => agent.layer === 0 && agent.type !== 'ILLEGAL_MINER')
+            .map(agent => agent.id);
+        this.selectAgents(ids);
     }
 
     commandAgent(agentId: string, x: number, z: number): void {
@@ -674,6 +690,8 @@ export class AureusWorld extends BaseWorld {
             rehabilitateTile: (x, z) => this.rehabilitateTile(x, z),
             selectBuilding: (type) => this.selectBuilding(type),
             selectAgent: (agentId) => this.selectAgent(agentId),
+            selectAgents: (agentIds) => this.selectAgents(agentIds),
+            selectAllColonyAgents: () => this.selectAllColonyAgents(),
             commandAgent: (agentId, x, z) => this.commandAgent(agentId, x, z),
             setLayeredActiveY: (y) => this.setLayeredActiveY(y),
             sellMinerals: () => this.sellMinerals(),
