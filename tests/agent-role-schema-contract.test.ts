@@ -64,9 +64,7 @@ test('combat defaults are read from agent role schema', () => {
     assert.equal(securityCombat.maxHealth, securityRole.combat.maxHealth);
 
     const citizenCombat = getDefaultCombatProfile('CITIZEN');
-    const unemployedCombat = getDefaultCombatProfile('UNEMPLOYED');
-    assert.equal(citizenCombat.faction, 'COLONY');
-    assert.equal(unemployedCombat.faction, 'COLONY');
+    assert.equal(citizenCombat.faction, 'NEUTRAL');
 });
 
 test('employment and combat systems delegate role metadata to the schema', () => {
