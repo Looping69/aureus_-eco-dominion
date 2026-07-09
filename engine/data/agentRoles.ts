@@ -94,7 +94,7 @@ export const RAW_AGENT_ROLE_SCHEMA: Record<AgentRole, RawAgentRoleDef> = {
         description: 'Civilian without a persistent workplace assignment.',
         workplaces: [],
         baseSkills: { mining: 0, construction: 0, plants: 0, intelligence: 1 },
-        combat: { faction: 'COLONY', maxHealth: 90, attack: 2, defense: 1, range: 1, cooldownSeconds: 2 },
+        combat: { faction: 'NEUTRAL', maxHealth: 90, attack: 2, defense: 1, range: 1, cooldownSeconds: 2 },
     },
     CITIZEN: {
         id: 'CITIZEN',
@@ -102,7 +102,7 @@ export const RAW_AGENT_ROLE_SCHEMA: Record<AgentRole, RawAgentRoleDef> = {
         description: 'Non-worker civilian actor used for ambient settlement life.',
         workplaces: [],
         baseSkills: { mining: 0, construction: 0, plants: 0, intelligence: 1 },
-        combat: { faction: 'COLONY', maxHealth: 90, attack: 2, defense: 1, range: 1, cooldownSeconds: 2 },
+        combat: { faction: 'NEUTRAL', maxHealth: 90, attack: 2, defense: 1, range: 1, cooldownSeconds: 2 },
     },
 };
 
