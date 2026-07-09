@@ -45,6 +45,17 @@ function getActiveSubsurfaceLayer(state: any): number {
         : layeredWorld.surfaceY - 1;
 }
 
+function getSelectedAgentIds(state: any): string[] {
+    if (Array.isArray(state.selectedAgentIds) && state.selectedAgentIds.length > 0) {
+        return state.selectedAgentIds.filter((id: any): id is string => typeof id === 'string' && id.length > 0);
+    }
+    return state.selectedAgentId ? [state.selectedAgentId] : [];
+}
+
+function isAttackableHostile(agent: any): boolean {
+    return agent?.combat?.faction === 'HOSTILE' && !agent.combat.defeated;
+}
+
 export function handleSurfaceInteraction(
     x: number,
     z: number,
@@ -113,8 +124,22 @@ export function handleSurfaceInteraction(
     }
 
     if (type === 'right-click') {
-        if (state.selectedAgentId) {
-            deps.stateManager.pushCommand('COMMAND_AGENT', { agentId: state.selectedAgentId, x, z });
+        const selectedAgentIds = getSelectedAgentIds(state);
+        if (selectedAgentIds.length > 0) {
+            const surfaceAgents = Array.isArray(state.agents) ? state.agents : [];
+            const ambientNpcs = Array.isArray(state.ambientNpcs) ? state.ambientNpcs : [];
+            const clickedAgent = findAgentNearTile([...surfaceAgents, ...ambientNpcs], x, z);
+
+            if (isAttackableHostile(clickedAgent)) {
+                deps.stateManager.pushCommand('COMBAT_ATTACK_TARGET', {
+                    agentIds: selectedAgentIds,
+                    targetAgentId: clickedAgent.id,
+                });
+            } else {
+                for (const agentId of selectedAgentIds) {
+                    deps.stateManager.pushCommand('COMMAND_AGENT', { agentId, x, z });
+                }
+            }
         }
         deps.config.onTileRightClick?.(x, z, isTouch);
         return;
