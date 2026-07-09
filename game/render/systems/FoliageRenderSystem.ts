@@ -13,6 +13,7 @@ import { InstancedUniformsMesh as RuntimeInstancedUniformsMesh } from 'three-ins
 import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
 import { foliageInstancedMaterial } from '../../../engine/render/materials/VoxelMaterials';
 import { mergeGroupGeometry } from '../../../engine/render/utils/VoxelUtils';
+import { getRenderDeviceProfile } from '../../../engine/render/ThreeRenderAdapter';
 import { BuildingType, GridTile } from '../../../types';
 import { getDaylightFactor } from '../../../engine/sim/dayNightCycle';
 
@@ -40,6 +41,23 @@ type GrassMesh = THREE.InstancedMesh & {
     setUniformAt: (name: string, index: number, value: number | THREE.Color) => void;
 };
 
+type GroundDetailBudget = {
+    enabled: boolean;
+    densityModulo: number;
+    maxBladesPerChunk: number;
+};
+
+function getGroundDetailBudget(): GroundDetailBudget {
+    const device = getRenderDeviceProfile();
+    if (device.severelyConstrained || device.veryConstrained) {
+        return { enabled: false, densityModulo: 12, maxBladesPerChunk: 0 };
+    }
+    if (device.constrained) {
+        return { enabled: true, densityModulo: 6, maxBladesPerChunk: 24 };
+    }
+    return { enabled: true, densityModulo: 3, maxBladesPerChunk: 96 };
+}
+
 const InstancedUniformsMeshCtor = RuntimeInstancedUniformsMesh as unknown as new (
     geometry: THREE.BufferGeometry,
     material: THREE.ShaderMaterial,
@@ -55,6 +73,7 @@ export class FoliageRenderSystem {
     private grassMeshPool: GrassMesh[] = [];
     private readonly maxPoolSizePerType = 6;
     private readonly maxGrassPoolSize = 16;
+    private readonly groundDetailBudget = getGroundDetailBudget();
     private readonly dummy = new THREE.Object3D();
     private readonly markedColor = new THREE.Color(1, 0.3, 0.3);
     private readonly defaultColor = new THREE.Color(1, 1, 1);
@@ -115,6 +134,11 @@ export class FoliageRenderSystem {
     }
 
     public updateGroundDetailChunk(key: string, tiles: GridTile[]): void {
+        if (!this.groundDetailBudget.enabled) {
+            this.removeGroundDetailChunk(key);
+            return;
+        }
+
         const blades = this.collectGrassBlades(tiles);
         if (blades.length === 0) {
             this.removeGroundDetailChunk(key);
@@ -205,13 +229,14 @@ export class FoliageRenderSystem {
     private collectGrassBlades(tiles: GridTile[]): GrassBlade[] {
         const blades: GrassBlade[] = [];
         for (const tile of tiles) {
+            if (blades.length >= this.groundDetailBudget.maxBladesPerChunk) break;
             if (tile.biome !== 'GRASS') continue;
             if (tile.locked || tile.buildingType !== BuildingType.EMPTY) continue;
             if (tile.foliage && tile.foliage !== 'NONE') continue;
             if (!this.shouldGrowGrass(tile.x, tile.z)) continue;
 
             const bladeCount = this.grassBladeCount(tile.x, tile.z);
-            for (let i = 0; i < bladeCount; i += 1) {
+            for (let i = 0; i < bladeCount && blades.length < this.groundDetailBudget.maxBladesPerChunk; i += 1) {
                 const seed = this.seed(tile.x, tile.z, i + 17);
                 const offsetX = ((seed % 100) / 100 - 0.5) * 0.46;
                 const offsetZ = (((seed / 101) % 100) / 100 - 0.5) * 0.46;
@@ -234,10 +259,11 @@ export class FoliageRenderSystem {
     }
 
     private shouldGrowGrass(x: number, z: number): boolean {
-        return this.seed(x, z, 3) % 3 === 0;
+        return this.seed(x, z, 3) % this.groundDetailBudget.densityModulo === 0;
     }
 
     private grassBladeCount(x: number, z: number): number {
+        if (this.groundDetailBudget.maxBladesPerChunk <= 24) return 1;
         const seed = this.seed(x, z, 9);
         return seed % 4 === 0 ? 2 : 1;
     }
