@@ -178,16 +178,66 @@ export interface FactorySectorState {
     droneLoad?: number;
     exportPremium?: number;
     contractResource?: FactoryResourceType;
+    contractTarget?: number;
+    contractProgress?: number;
+    contractReward?: number;
+    satisfaction?: number;
+    bonusChain?: number;
+    missedQuotaTicks?: number;
+}
+
+export interface FactoryPressurePoint {
+    key: string;
+    buildingType: BuildingType;
+    reason: FactoryPressureReason;
+    severity: number;
+    detail: string;
+    resource?: FactoryResourceType;
+    sectorName?: string;
+}
+
+export interface FactoryPlannerRecommendation {
+    id: string;
+    title: string;
+    label?: string;
+    detail: string;
+    reason: FactoryPressureReason;
+    severity: number;
+    targetKey?: string;
+    sectorName?: string;
+    resource?: FactoryResourceType;
+    suggestedBuilding?: BuildingType;
+}
+
+export interface FactoryCorridorState {
+    id: string;
+    sectorName: string;
+    anchorKey: string;
+    throughput: number;
+    baselineThroughput: number;
+    history: number[];
+    trend: FactoryCorridorTrend;
+    improvement: number;
+    routeDebtShare: number;
+    underfedProcessors: number;
+    hotspots: number;
+    congestionLevel: number;
+    satisfaction: number;
+    bonusChain: number;
+    recommendedBuilding: BuildingType;
+    followThrough: string;
 }
 
 export interface FactoryPressureState {
-    active: boolean;
-    reason: FactoryPressureReason;
-    affectedResource: FactoryResourceType;
-    sourceSector: string;
-    destinationSector: string;
-    severity: number;
-    remainingTicks: number;
+    routeDebt: number;
+    underfedProcessors: number;
+    hotspots: number;
+    bottlenecks: FactoryPressurePoint[];
+    pinnedKeys: string[];
+    emergencyReliefSectors: string[];
+    recommendations: FactoryPlannerRecommendation[];
+    efficiencyPenalty: number;
+    corridors?: FactoryCorridorState[];
 }
 
 export interface FactoryNodeState {
@@ -195,10 +245,9 @@ export interface FactoryNodeState {
     x: number;
     z: number;
     buildingType: BuildingType;
-    accepts: FactoryResourceType[];
-    produces: FactoryResourceType[];
+    mode: 'SOURCE' | 'PROCESSOR' | 'TRANSPORT' | 'SINK';
+    buffer: Partial<Record<FactoryResourceType, number>>;
     inputBuffer: Partial<Record<FactoryResourceType, number>>;
-    outputBuffer: Partial<Record<FactoryResourceType, number>>;
     stalledTicks: number;
     lastActiveTick: number;
     sectorName?: string;
