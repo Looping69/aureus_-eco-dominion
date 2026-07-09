@@ -35,7 +35,16 @@ export interface RuntimeRenderQualityProfile extends RenderQualityProfile {
     smoothDetail: SmoothDetailLevel;
 }
 
-export function getRenderDeviceProfile(): { constrained: boolean; veryConstrained: boolean; severelyConstrained: boolean; touchDevice: boolean; dpr: number } {
+export interface RenderDeviceProfile {
+    constrained: boolean;
+    veryConstrained: boolean;
+    severelyConstrained: boolean;
+    maxVisuals: boolean;
+    touchDevice: boolean;
+    dpr: number;
+}
+
+export function getRenderDeviceProfile(): RenderDeviceProfile {
     const nav = navigator as Navigator & { deviceMemory?: number };
     const cores = nav.hardwareConcurrency ?? 4;
     const memory = nav.deviceMemory ?? 4;
@@ -45,8 +54,9 @@ export function getRenderDeviceProfile(): { constrained: boolean; veryConstraine
     const constrained = touchDevice || cores <= 4 || memory <= 4;
     const veryConstrained = cores <= 2 || memory <= 2 || (touchDevice && (cores <= 4 || memory <= 3));
     const severelyConstrained = cores <= 2 || memory <= 1 || (touchDevice && memory <= 2);
+    const maxVisuals = !constrained && cores >= 8 && memory >= 8;
 
-    return { constrained, veryConstrained, severelyConstrained, touchDevice, dpr };
+    return { constrained, veryConstrained, severelyConstrained, maxVisuals, touchDevice, dpr };
 }
 
 export function getRecommendedRenderQuality(): RenderQualityProfile {
@@ -57,9 +67,9 @@ export function getRecommendedRenderQuality(): RenderQualityProfile {
         shadowMap: !device.touchDevice && !device.veryConstrained,
         pixelRatio: Math.min(
             device.dpr,
-            device.severelyConstrained ? 0.75 : device.veryConstrained ? 0.9 : device.constrained ? 1 : 1.35
+            device.severelyConstrained ? 0.75 : device.veryConstrained ? 0.9 : device.constrained ? 1 : device.maxVisuals ? 2 : 1.35
         ),
-        shadowMapSize: device.veryConstrained ? 512 : device.constrained ? 768 : 1536,
+        shadowMapSize: device.veryConstrained ? 512 : device.constrained ? 768 : device.maxVisuals ? 2048 : 1536,
     };
 }
 
@@ -72,7 +82,7 @@ export function getInitialRuntimeQualityLevel(ladder: RuntimeRenderQualityProfil
 }
 
 export function buildRuntimeRenderQualityLadder(baseQuality: RenderQualityProfile = getRecommendedRenderQuality()): RuntimeRenderQualityProfile[] {
-    const basePixelRatio = THREE.MathUtils.clamp(baseQuality.pixelRatio, 0.6, 1.5);
+    const basePixelRatio = THREE.MathUtils.clamp(baseQuality.pixelRatio, 0.6, 2);
     const baseShadowSize = Math.max(512, Math.round(baseQuality.shadowMapSize / 256) * 256);
 
     const ladder: RuntimeRenderQualityProfile[] = [
@@ -108,7 +118,7 @@ export function buildRuntimeRenderQualityLadder(baseQuality: RenderQualityProfil
             label: 'HIGH',
             antialias: baseQuality.antialias,
             shadowMap: baseQuality.shadowMap,
-            pixelRatio: Math.max(1.0, Math.min(basePixelRatio, 1.2)),
+            pixelRatio: Math.max(1.0, Math.min(basePixelRatio, 1.35)),
             shadowMapSize: Math.min(baseShadowSize, 1536),
             smoothDetail: 'HIGH',
         },
