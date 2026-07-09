@@ -11,10 +11,16 @@ function source(relativePath: string): string {
     return readFileSync(filePath, 'utf8');
 }
 
-test('AureusWorld registers the combat simulation system', () => {
+test('AureusWorld registers the combat simulation system for live ticks and command routing', () => {
     const world = source('game/AureusWorld.ts');
 
     assert.match(world, /CombatSystem/);
-    assert.match(world, /this\.sim\.addSystem\(new CombatSystem\(\)\)/);
+    assert.match(world, /private combatSystem: CombatSystem;/);
+    assert.match(world, /this\.combatSystem = new CombatSystem\(\);/);
+    assert.match(world, /this\.sim\.addSystem\(this\.combatSystem\);/);
+    assert.ok(
+        world.indexOf('this.agentSystem,') < world.indexOf('this.combatSystem,'),
+        'combat commands should be routed after agent commands are offered to the agent system',
+    );
     assert.equal(world.includes("from '../engine/sim/systems/CombatSystem'"), false);
 });
