@@ -34,7 +34,7 @@ export interface WorldDispatchBridgeDeps {
     enterFPS: (agentId: string) => void;
     exitFPS: () => void;
     getSelectedAgentId: () => string | null;
-    getSelectedAgentIds: () => string[];
+    getSelectedAgentIds?: () => string[];
     pushCommand: (type: string, payload?: any) => void;
     warnUnhandled: (type: string) => void;
 }
@@ -46,7 +46,7 @@ function contractIdFromPayload(payload: any): string {
 function normalizeAgentIdPayload(payload: any, deps: WorldDispatchBridgeDeps): string[] {
     const ids = payload?.agentIds;
     if (Array.isArray(ids)) return ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
-    const selectedAgentIds = deps.getSelectedAgentIds();
+    const selectedAgentIds = deps.getSelectedAgentIds?.() ?? [];
     return selectedAgentIds.length > 0 ? selectedAgentIds : deps.getSelectedAgentId() ? [deps.getSelectedAgentId() as string] : [];
 }
 
