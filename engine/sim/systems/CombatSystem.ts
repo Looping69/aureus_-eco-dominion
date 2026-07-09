@@ -78,6 +78,9 @@ export class CombatSystem extends BaseSimSystem {
         if (cmd.type === 'COMBAT_ATTACK_TARGET') {
             return this.handleAttackTarget(cmd, state);
         }
+        if (cmd.type === 'COMBAT_ATTACK_NEAREST') {
+            return this.handleAttackNearest(cmd, state);
+        }
         if (cmd.type === 'COMBAT_HOLD_POSITION') {
             return this.handleHoldPosition(cmd, state);
         }
@@ -134,19 +137,45 @@ export class CombatSystem extends BaseSimSystem {
         for (const agentId of agentIds) {
             const agent = state.agents.find(candidate => candidate.id === agentId);
             if (!agent) continue;
-            const combat = ensureAgentCombatState(agent);
+            const combat = this.prepareAgentForCombatOrder(agent);
             if (combat.defeated || !areHostile(combat.faction, targetCombat.faction)) continue;
-            combat.stance = 'ATTACK';
-            combat.commandTargetAgentId = target.id;
-            combat.targetAgentId = target.id;
-            agent.currentJobId = null;
-            agent.statusReason = `Attack order: ${target.name}.`;
-            agent.statusTone = 'warning';
+            this.assignAttackTarget(agent, combat, target);
             ordered += 1;
         }
 
         if (ordered === 0) {
-            return { ok: false, code: CommandErrorCode.FORBIDDEN, reason: 'No selected combat-capable agents can attack that target.' };
+            return { ok: false, code: CommandErrorCode.FORBIDDEN, reason: 'No selected agents can attack that target.' };
+        }
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ALARM });
+        return { ok: true };
+    }
+
+    private handleAttackNearest(cmd: GameCommand, state: GameState): CommandResult {
+        const agentIds = this.normalizeAgentIds(cmd.payload?.agentIds);
+        if (agentIds.length === 0) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Attack command needs selected agents.' };
+        }
+
+        const possibleTargets = this.getCombatants(state).filter(agent => ensureAgentCombatState(agent).faction === 'HOSTILE');
+        if (possibleTargets.length === 0) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'No hostile target is available.' };
+        }
+
+        let ordered = 0;
+        for (const agentId of agentIds) {
+            const agent = state.agents.find(candidate => candidate.id === agentId);
+            if (!agent) continue;
+            const combat = this.prepareAgentForCombatOrder(agent);
+            if (combat.defeated) continue;
+            const effectiveStats = getEffectiveCombatStats(state, agent);
+            const target = this.findNearestHostile(state, agent, possibleTargets, effectiveStats);
+            if (!target) continue;
+            this.assignAttackTarget(agent, combat, target);
+            ordered += 1;
+        }
+
+        if (ordered === 0) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'No selected agents have a hostile in combat scan range.' };
         }
         state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ALARM });
         return { ok: true };
@@ -162,8 +191,8 @@ export class CombatSystem extends BaseSimSystem {
         for (const agentId of agentIds) {
             const agent = state.agents.find(candidate => candidate.id === agentId);
             if (!agent) continue;
-            const combat = ensureAgentCombatState(agent);
-            if (combat.defeated || combat.faction === 'NEUTRAL') continue;
+            const combat = this.prepareAgentForCombatOrder(agent);
+            if (combat.defeated) continue;
             combat.stance = 'HOLD';
             combat.commandTargetAgentId = null;
             combat.targetAgentId = null;
@@ -178,7 +207,7 @@ export class CombatSystem extends BaseSimSystem {
         }
 
         if (ordered === 0) {
-            return { ok: false, code: CommandErrorCode.FORBIDDEN, reason: 'No selected combat-capable agents can hold position.' };
+            return { ok: false, code: CommandErrorCode.FORBIDDEN, reason: 'No selected agents can hold position.' };
         }
         return { ok: true };
     }
@@ -259,6 +288,21 @@ export class CombatSystem extends BaseSimSystem {
         }
 
         return best;
+    }
+
+    private assignAttackTarget(agent: Agent, combat: AgentCombatState, target: Agent): void {
+        combat.stance = 'ATTACK';
+        combat.commandTargetAgentId = target.id;
+        combat.targetAgentId = target.id;
+        agent.currentJobId = null;
+        agent.statusReason = `Attack order: ${target.name}.`;
+        agent.statusTone = 'warning';
+    }
+
+    private prepareAgentForCombatOrder(agent: Agent): AgentCombatState {
+        const combat = ensureAgentCombatState(agent);
+        if (combat.faction === 'NEUTRAL') combat.faction = 'COLONY';
+        return combat;
     }
 
     private resolveAttack(
