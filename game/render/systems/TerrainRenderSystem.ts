@@ -24,6 +24,7 @@ function getTerrainViewRadius(): number {
     const device = getRenderDeviceProfile();
     if (device.severelyConstrained || device.veryConstrained) return 2;
     if (device.constrained) return 3;
+    if (device.maxVisuals) return 6;
     return ('ontouchstart' in window) ? 3 : 5;
 }
 
