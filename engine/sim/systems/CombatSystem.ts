@@ -1,7 +1,8 @@
 import { BaseSimSystem } from '../Simulation';
-import type { FixedContext } from '../../kernel';
+import type { CommandResult, FixedContext } from '../../kernel';
+import { CommandErrorCode } from '../../kernel';
 import { SfxType } from '../../../types';
-import type { Agent, AgentCombatState, AgentRole, CombatFaction, GameState } from '../../../types';
+import type { Agent, AgentCombatState, AgentRole, CombatFaction, GameCommand, GameState } from '../../../types';
 import { getAgentRoleDef } from '../../data/agentRoles';
 import { getPerimeterCombatModifier } from '../../data/combatPerimeters';
 
@@ -47,6 +48,8 @@ export function ensureAgentCombatState(agent: Agent): AgentCombatState {
         cooldownSeconds: sanePositive(existing?.cooldownSeconds, profile.cooldownSeconds),
         cooldownRemaining: Math.max(0, saneNumber(existing?.cooldownRemaining, 0)),
         targetAgentId: existing?.targetAgentId ?? null,
+        commandTargetAgentId: existing?.commandTargetAgentId ?? null,
+        stance: existing?.stance ?? 'AUTO',
         defeated: existing?.defeated ?? currentHealth <= 0,
         defeatReported: existing?.defeatReported ?? false,
     };
@@ -71,6 +74,19 @@ export class CombatSystem extends BaseSimSystem {
     readonly id = 'combat';
     readonly priority = 96;
 
+    handleCommand(cmd: GameCommand, _ctx: FixedContext, state: GameState): CommandResult | null {
+        if (cmd.type === 'COMBAT_ATTACK_TARGET') {
+            return this.handleAttackTarget(cmd, state);
+        }
+        if (cmd.type === 'COMBAT_HOLD_POSITION') {
+            return this.handleHoldPosition(cmd, state);
+        }
+        if (cmd.type === 'COMBAT_CLEAR_ORDERS') {
+            return this.handleClearOrders(cmd, state);
+        }
+        return null;
+    }
+
     tick(ctx: FixedContext, state: GameState): void {
         const combatants = this.getCombatants(state);
         if (combatants.length < 2) return;
@@ -84,7 +100,9 @@ export class CombatSystem extends BaseSimSystem {
             }
 
             const effectiveStats = getEffectiveCombatStats(state, agent);
-            const target = this.findNearestHostile(state, agent, combatants, effectiveStats);
+            const target = combat.stance === 'HOLD'
+                ? null
+                : this.findCommandTarget(state, agent, combatants, effectiveStats) || this.findNearestHostile(state, agent, combatants, effectiveStats);
             combat.targetAgentId = target?.id ?? null;
             if (!target) continue;
 
@@ -96,6 +114,101 @@ export class CombatSystem extends BaseSimSystem {
         }
     }
 
+    private handleAttackTarget(cmd: GameCommand, state: GameState): CommandResult {
+        const targetId = cmd.payload?.targetAgentId;
+        const agentIds = this.normalizeAgentIds(cmd.payload?.agentIds);
+        if (!targetId || agentIds.length === 0) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Attack command needs selected agents and a target.' };
+        }
+
+        const target = this.findAgentById(state, targetId);
+        if (!target) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Combat target not found.' };
+        }
+        const targetCombat = ensureAgentCombatState(target);
+        if (targetCombat.defeated || targetCombat.faction === 'NEUTRAL') {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Target cannot be attacked.' };
+        }
+
+        let ordered = 0;
+        for (const agentId of agentIds) {
+            const agent = state.agents.find(candidate => candidate.id === agentId);
+            if (!agent) continue;
+            const combat = ensureAgentCombatState(agent);
+            if (combat.defeated || !areHostile(combat.faction, targetCombat.faction)) continue;
+            combat.stance = 'ATTACK';
+            combat.commandTargetAgentId = target.id;
+            combat.targetAgentId = target.id;
+            agent.currentJobId = null;
+            agent.statusReason = `Attack order: ${target.name}.`;
+            agent.statusTone = 'warning';
+            ordered += 1;
+        }
+
+        if (ordered === 0) {
+            return { ok: false, code: CommandErrorCode.FORBIDDEN, reason: 'No selected combat-capable agents can attack that target.' };
+        }
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ALARM });
+        return { ok: true };
+    }
+
+    private handleHoldPosition(cmd: GameCommand, state: GameState): CommandResult {
+        const agentIds = this.normalizeAgentIds(cmd.payload?.agentIds);
+        if (agentIds.length === 0) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Hold command needs selected agents.' };
+        }
+
+        let ordered = 0;
+        for (const agentId of agentIds) {
+            const agent = state.agents.find(candidate => candidate.id === agentId);
+            if (!agent) continue;
+            const combat = ensureAgentCombatState(agent);
+            if (combat.defeated || combat.faction === 'NEUTRAL') continue;
+            combat.stance = 'HOLD';
+            combat.commandTargetAgentId = null;
+            combat.targetAgentId = null;
+            agent.targetX = null;
+            agent.targetZ = null;
+            agent.path = null;
+            agent.currentJobId = null;
+            agent.state = 'PATROLLING';
+            agent.statusReason = 'Holding position by combat order.';
+            agent.statusTone = 'warning';
+            ordered += 1;
+        }
+
+        if (ordered === 0) {
+            return { ok: false, code: CommandErrorCode.FORBIDDEN, reason: 'No selected combat-capable agents can hold position.' };
+        }
+        return { ok: true };
+    }
+
+    private handleClearOrders(cmd: GameCommand, state: GameState): CommandResult {
+        const agentIds = this.normalizeAgentIds(cmd.payload?.agentIds);
+        if (agentIds.length === 0) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Clear command needs selected agents.' };
+        }
+
+        let ordered = 0;
+        for (const agentId of agentIds) {
+            const agent = state.agents.find(candidate => candidate.id === agentId);
+            if (!agent) continue;
+            const combat = ensureAgentCombatState(agent);
+            combat.stance = 'AUTO';
+            combat.commandTargetAgentId = null;
+            combat.targetAgentId = null;
+            if (agent.state === 'PATROLLING') agent.state = 'IDLE';
+            agent.statusReason = 'Combat orders cleared.';
+            agent.statusTone = 'normal';
+            ordered += 1;
+        }
+
+        if (ordered === 0) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'No selected agents found.' };
+        }
+        return { ok: true };
+    }
+
     private getCombatants(state: GameState): Agent[] {
         const agents = Array.isArray(state.agents) ? state.agents : [];
         const ambientNpcs = Array.isArray(state.ambientNpcs) ? state.ambientNpcs : [];
@@ -103,6 +216,27 @@ export class CombatSystem extends BaseSimSystem {
         return [...agents, ...ambientNpcs]
             .filter((agent) => agent.layer === 0)
             .filter((agent) => ensureAgentCombatState(agent).faction !== 'NEUTRAL');
+    }
+
+    private findCommandTarget(
+        state: GameState,
+        agent: Agent,
+        combatants: Agent[],
+        effectiveStats: EffectiveCombatStats,
+    ): Agent | null {
+        const combat = ensureAgentCombatState(agent);
+        if (!combat.commandTargetAgentId) return null;
+        const target = combatants.find(candidate => candidate.id === combat.commandTargetAgentId) || this.findAgentById(state, combat.commandTargetAgentId);
+        if (!target) {
+            combat.commandTargetAgentId = null;
+            return null;
+        }
+        const targetStats = getEffectiveCombatStats(state, target);
+        if (ensureAgentCombatState(target).defeated || !areHostile(effectiveStats.faction, targetStats.faction)) {
+            combat.commandTargetAgentId = null;
+            return null;
+        }
+        return target;
     }
 
     private findNearestHostile(
@@ -175,6 +309,19 @@ export class CombatSystem extends BaseSimSystem {
             timestamp: state.tickCount,
         });
         state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ALARM });
+    }
+
+    private findAgentById(state: GameState, agentId: string): Agent | null {
+        return state.agents.find(agent => agent.id === agentId)
+            || state.ambientNpcs.find(agent => agent.id === agentId)
+            || null;
+    }
+
+    private normalizeAgentIds(value: unknown): string[] {
+        if (Array.isArray(value)) {
+            return Array.from(new Set(value.filter((id): id is string => typeof id === 'string' && id.length > 0)));
+        }
+        return typeof value === 'string' && value.length > 0 ? [value] : [];
     }
 }
 
