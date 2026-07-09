@@ -324,7 +324,7 @@ export interface GameState {
     seed: number;
     spawnX: number;
     spawnZ: number;
-    fogExploration?: FogRevealCenter[] extends never ? never : FogExplorationState;
+    fogExploration?: FogExplorationState;
     logistics: LogisticsState;
     factory?: FactoryState;
     activeGoal: Goal | null;
