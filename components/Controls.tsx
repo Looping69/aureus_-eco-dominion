@@ -4,7 +4,7 @@
 */
 
 import React from 'react';
-import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX } from 'lucide-react';
+import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX, Users, Shield, RotateCcw } from 'lucide-react';
 import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode, SfxType } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import { useAureusAudio } from '../game/audio/useAureusAudio';
@@ -78,6 +78,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     const isBelowSurface = activeLayer < SURFACE_LAYER;
     const lowerLayer = Math.max(minLayer, activeLayer - 1);
     const upperLayer = Math.min(maxLayer, activeLayer + 1);
+    const selectedAgentIds = selectedAgentId ? [selectedAgentId] : [];
     const setLayerTool = (mode: LayerToolMode) => {
         dispatch({ type: 'SET_INTERACTION_MODE', payload: interactionMode === mode ? 'INSPECT' : mode });
         playSfx('UI_CLICK');
@@ -282,6 +283,58 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                 >
                     <TrendingUp size={20} className="text-blue-400" />
                 </button>
+
+                <div className="flex items-center gap-1 bg-slate-950/80 border-2 border-b-[4px] border-slate-950 rounded-[4px] p-1 shadow-[4px_4px_0_rgba(0,0,0,0.25)]">
+                    <button
+                        type="button"
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            dispatch({ type: 'SELECT_ALL_COLONY_AGENTS' });
+                            playSfx('UI_CLICK');
+                        }}
+                        className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-emerald-300"
+                        title="Select all colony agents"
+                        aria-label="Select all colony agents"
+                    >
+                        <Users size={16} />
+                    </button>
+                    {selectedAgentId && (
+                        <>
+                            <button
+                                type="button"
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    dispatch({ type: 'COMBAT_HOLD_POSITION', payload: { agentIds: selectedAgentIds } });
+                                    playSfx('UI_CLICK');
+                                }}
+                                className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-amber-300"
+                                title="Hold combat position"
+                                aria-label="Hold combat position"
+                            >
+                                <Shield size={16} />
+                            </button>
+                            <button
+                                type="button"
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    dispatch({ type: 'COMBAT_CLEAR_ORDERS', payload: { agentIds: selectedAgentIds } });
+                                    playSfx('UI_CLICK');
+                                }}
+                                className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-cyan-300"
+                                title="Return selected agent to automatic combat"
+                                aria-label="Return selected agent to automatic combat"
+                            >
+                                <RotateCcw size={16} />
+                            </button>
+                        </>
+                    )}
+                </div>
 
                 {selectedAgentId && (
                     <button
