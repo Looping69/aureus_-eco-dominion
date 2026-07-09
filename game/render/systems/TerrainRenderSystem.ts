@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { JobSystem, MeshChunkResult, MeshChunkJob, ENGINE_SCHEMA_VERSION, createJob } from '../../../engine/jobs';
 import { GridTile } from '../../../types';
 import { terrainSurfaceMaterial, mats } from '../../../engine/render/materials/VoxelMaterials';
+import { getRenderDeviceProfile } from '../../../engine/render/ThreeRenderAdapter';
 import { getTerrainChunkLod } from '../../../engine/render/utils/TerrainLod';
 import { CHUNK_SIZE, worldToChunk, worldToLocal, toChunkKey } from '../../../engine/utils/coords';
 import {
@@ -18,6 +19,13 @@ import {
     pickClosestTerrainHit,
     TerrainPickHandler,
 } from './TerrainPickAccelerator';
+
+function getTerrainViewRadius(): number {
+    const device = getRenderDeviceProfile();
+    if (device.severelyConstrained || device.veryConstrained) return 2;
+    if (device.constrained) return 3;
+    return ('ontouchstart' in window) ? 3 : 5;
+}
 
 interface ChunkRenderData {
     mesh: THREE.Mesh | null;
@@ -43,8 +51,8 @@ export class TerrainRenderSystem {
     private readonly terrainPickHandler: TerrainPickHandler = (raycaster) => this.intersectTerrain(raycaster);
 
     // Voxel terrain emits more faces than the smoothed shell, so keep the active
-    // chunk ring tighter while LOD preserves the blocky silhouette in the distance.
-    private viewRadius = ('ontouchstart' in window) ? 3 : 5;
+    // chunk ring tighter on weak devices while LOD preserves distant silhouette.
+    private viewRadius = getTerrainViewRadius();
 
     // Track last camera chunk to avoid redundant updates
     private lastCameraCx = -999;
