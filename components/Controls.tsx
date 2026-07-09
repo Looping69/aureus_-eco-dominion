@@ -307,7 +307,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                                 onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
-                                    dispatch({ type: 'COMBAT_ATTACK_NEAREST' });
+                                    dispatch({ type: 'COMBAT_ATTACK_TARGET' });
                                     playSfx('UI_CLICK');
                                 }}
                                 className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-rose-300"
