@@ -4,7 +4,7 @@
 */
 
 import React from 'react';
-import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX, Users, Shield, RotateCcw } from 'lucide-react';
+import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX } from 'lucide-react';
 import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode, SfxType } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import { useAureusAudio } from '../game/audio/useAureusAudio';
@@ -294,11 +294,11 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                             dispatch({ type: 'SELECT_ALL_COLONY_AGENTS' });
                             playSfx('UI_CLICK');
                         }}
-                        className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-emerald-300"
+                        className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-emerald-300"
                         title="Select all colony agents"
                         aria-label="Select all colony agents"
                     >
-                        <Users size={16} />
+                        <Menu size={14} /> All
                     </button>
                     {selectedAgentId && (
                         <>
@@ -311,11 +311,11 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                                     dispatch({ type: 'COMBAT_HOLD_POSITION', payload: { agentIds: selectedAgentIds } });
                                     playSfx('UI_CLICK');
                                 }}
-                                className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-amber-300"
+                                className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-amber-300"
                                 title="Hold combat position"
                                 aria-label="Hold combat position"
                             >
-                                <Shield size={16} />
+                                <Activity size={14} /> Hold
                             </button>
                             <button
                                 type="button"
@@ -326,11 +326,11 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                                     dispatch({ type: 'COMBAT_CLEAR_ORDERS', payload: { agentIds: selectedAgentIds } });
                                     playSfx('UI_CLICK');
                                 }}
-                                className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-cyan-300"
+                                className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-cyan-300"
                                 title="Return selected agent to automatic combat"
                                 aria-label="Return selected agent to automatic combat"
                             >
-                                <RotateCcw size={16} />
+                                <X size={14} /> Auto
                             </button>
                         </>
                     )}
