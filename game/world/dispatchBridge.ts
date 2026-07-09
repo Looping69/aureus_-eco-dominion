@@ -9,6 +9,8 @@ export interface WorldDispatchBridgeDeps {
     rehabilitateTile: (x: number, z: number) => void;
     selectBuilding: (type: string | null) => void;
     selectAgent: (agentId: string | null) => void;
+    selectAgents: (agentIds: string[]) => void;
+    selectAllColonyAgents: () => void;
     commandAgent: (agentId: string, x: number, z: number) => void;
     setLayeredActiveY: (y: number) => void;
     sellMinerals: () => void;
@@ -40,6 +42,12 @@ function contractIdFromPayload(payload: any): string {
     return payload?.contractId ?? payload;
 }
 
+function normalizeAgentIdPayload(payload: any, fallbackAgentId: string | null): string[] {
+    const ids = payload?.agentIds;
+    if (Array.isArray(ids)) return ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
+    return fallbackAgentId ? [fallbackAgentId] : [];
+}
+
 export function dispatchWorldAction(action: Action, deps: WorldDispatchBridgeDeps): void {
     console.log(`[AureusWorld] Dispatching: ${action.type}`, (action as any).payload);
 
@@ -52,7 +60,25 @@ export function dispatchWorldAction(action: Action, deps: WorldDispatchBridgeDep
         case 'REHABILITATE_TILE': deps.rehabilitateTile(action.payload.x, action.payload.z); break;
         case 'SELECT_BUILDING_TO_PLACE': deps.selectBuilding(action.payload); break;
         case 'SELECT_AGENT': deps.selectAgent(action.payload); break;
+        case 'SELECT_AGENT_GROUP': deps.selectAgents(Array.isArray(action.payload) ? action.payload : []); break;
+        case 'SELECT_ALL_COLONY_AGENTS': deps.selectAllColonyAgents(); break;
         case 'COMMAND_AGENT': deps.commandAgent(action.payload.agentId, action.payload.x, action.payload.z); break;
+        case 'COMBAT_ATTACK_TARGET':
+            deps.pushCommand('COMBAT_ATTACK_TARGET', {
+                ...action.payload,
+                agentIds: normalizeAgentIdPayload(action.payload, deps.getSelectedAgentId()),
+            });
+            break;
+        case 'COMBAT_HOLD_POSITION':
+            deps.pushCommand('COMBAT_HOLD_POSITION', {
+                agentIds: normalizeAgentIdPayload(action.payload, deps.getSelectedAgentId()),
+            });
+            break;
+        case 'COMBAT_CLEAR_ORDERS':
+            deps.pushCommand('COMBAT_CLEAR_ORDERS', {
+                agentIds: normalizeAgentIdPayload(action.payload, deps.getSelectedAgentId()),
+            });
+            break;
         case 'SET_INTERACTION_MODE': deps.setInteractionMode(action.payload); break;
         case 'SET_LAYERED_ACTIVE_Y': deps.setLayeredActiveY(action.payload); break;
         case 'SELL_MINERALS': deps.sellMinerals(); break;
