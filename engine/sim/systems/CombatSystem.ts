@@ -100,9 +100,7 @@ export class CombatSystem extends BaseSimSystem {
             }
 
             const effectiveStats = getEffectiveCombatStats(state, agent);
-            const target = combat.stance === 'HOLD'
-                ? null
-                : this.findCommandTarget(state, agent, combatants, effectiveStats) || this.findNearestHostile(state, agent, combatants, effectiveStats);
+            const target = this.findCombatTarget(state, agent, combat, combatants, effectiveStats);
             combat.targetAgentId = target?.id ?? null;
             if (!target) continue;
 
@@ -121,7 +119,7 @@ export class CombatSystem extends BaseSimSystem {
             return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Attack command needs selected agents.' };
         }
         if (!targetId) {
-            return this.handleAttackNearestAgentIds(agentIds, state);
+            return this.handleToggleAggression(agentIds, state);
         }
 
         const target = this.findAgentById(state, targetId);
@@ -150,29 +148,38 @@ export class CombatSystem extends BaseSimSystem {
         return { ok: true };
     }
 
-    private handleAttackNearestAgentIds(agentIds: string[], state: GameState): CommandResult {
-        const possibleTargets = this.getCombatants(state).filter(agent => ensureAgentCombatState(agent).faction === 'HOSTILE');
-        if (possibleTargets.length === 0) {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'No hostile target is available.' };
+    private handleToggleAggression(agentIds: string[], state: GameState): CommandResult {
+        const selectedAgents = agentIds
+            .map(agentId => state.agents.find(candidate => candidate.id === agentId))
+            .filter((agent): agent is Agent => Boolean(agent));
+        if (selectedAgents.length === 0) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'No selected agents found.' };
         }
 
+        const shouldEnable = selectedAgents.some(agent => {
+            const combat = ensureAgentCombatState(agent);
+            return !combat.defeated && combat.stance !== 'AGGRESSIVE';
+        });
+
         let ordered = 0;
-        for (const agentId of agentIds) {
-            const agent = state.agents.find(candidate => candidate.id === agentId);
-            if (!agent) continue;
-            const combat = this.prepareAgentForCombatOrder(agent);
+        for (const agent of selectedAgents) {
+            const combat = shouldEnable ? this.prepareAgentForCombatOrder(agent) : ensureAgentCombatState(agent);
             if (combat.defeated) continue;
-            const effectiveStats = getEffectiveCombatStats(state, agent);
-            const target = this.findNearestHostile(state, agent, possibleTargets, effectiveStats);
-            if (!target) continue;
-            this.assignAttackTarget(agent, combat, target);
+            combat.stance = shouldEnable ? 'AGGRESSIVE' : 'AUTO';
+            combat.commandTargetAgentId = null;
+            combat.targetAgentId = null;
+            agent.currentJobId = shouldEnable ? null : agent.currentJobId;
+            agent.statusReason = shouldEnable
+                ? 'Aggression stance active: engaging nearby hostiles.'
+                : 'Aggression stance cleared.';
+            agent.statusTone = shouldEnable ? 'warning' : 'normal';
             ordered += 1;
         }
 
         if (ordered === 0) {
-            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'No selected agents have a hostile in combat scan range.' };
+            return { ok: false, code: CommandErrorCode.FORBIDDEN, reason: 'No selected agents can change aggression stance.' };
         }
-        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ALARM });
+        state.pendingEffects.push({ type: 'AUDIO', sfx: shouldEnable ? SfxType.ALARM : SfxType.UI_CLICK });
         return { ok: true };
     }
 
@@ -240,6 +247,22 @@ export class CombatSystem extends BaseSimSystem {
         return [...agents, ...ambientNpcs]
             .filter((agent) => agent.layer === 0)
             .filter((agent) => ensureAgentCombatState(agent).faction !== 'NEUTRAL');
+    }
+
+    private findCombatTarget(
+        state: GameState,
+        agent: Agent,
+        combat: AgentCombatState,
+        combatants: Agent[],
+        effectiveStats: EffectiveCombatStats,
+    ): Agent | null {
+        if (combat.stance === 'HOLD') return null;
+
+        const commandTarget = this.findCommandTarget(state, agent, combatants, effectiveStats);
+        if (commandTarget) return commandTarget;
+
+        if (combat.stance !== 'AGGRESSIVE' && agent.type !== 'SECURITY') return null;
+        return this.findNearestHostile(state, agent, combatants, effectiveStats);
     }
 
     private findCommandTarget(
