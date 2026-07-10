@@ -31,6 +31,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/agent-role-schema-contract.test.ts',
     'tests/combat-perimeter-schema-contract.test.ts',
     'tests/combat-world-registration-contract.test.ts',
+    'tests/combat-aggression-stance-contract.test.ts',
     'tests/overseer-local-qwen-contract.test.ts',
     'tests/app-helper-extraction-contract.test.ts',
 ];
