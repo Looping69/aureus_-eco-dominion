@@ -310,11 +310,11 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                                     dispatch({ type: 'COMBAT_ATTACK_TARGET' });
                                     playSfx('UI_CLICK');
                                 }}
-                                className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-rose-300"
-                                title="Attack nearest hostile"
-                                aria-label="Attack nearest hostile"
+                                className="h-9 min-w-14 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-rose-300"
+                                title="Toggle aggression stance"
+                                aria-label="Toggle aggression stance"
                             >
-                                <Hammer size={14} /> Atk
+                                <Hammer size={14} /> Aggro
                             </button>
                             <button
                                 type="button"
@@ -341,8 +341,8 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                                     playSfx('UI_CLICK');
                                 }}
                                 className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-cyan-300"
-                                title="Return selected agent to automatic combat"
-                                aria-label="Return selected agent to automatic combat"
+                                title="Clear combat stance"
+                                aria-label="Clear combat stance"
                             >
                                 <X size={14} /> Auto
                             </button>
