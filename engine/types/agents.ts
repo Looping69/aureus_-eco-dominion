@@ -58,7 +58,7 @@ export interface AgentExperience {
 export type ShiftType = 'DAY' | 'NIGHT' | 'FLEXIBLE';
 
 export type CombatFaction = 'COLONY' | 'HOSTILE' | 'NEUTRAL';
-export type CombatOrderStance = 'AUTO' | 'ATTACK' | 'HOLD';
+export type CombatOrderStance = 'AUTO' | 'ATTACK' | 'HOLD' | 'AGGRESSIVE';
 
 export interface AgentCombatState {
     faction: CombatFaction;
