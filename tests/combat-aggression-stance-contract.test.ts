@@ -30,3 +30,12 @@ test('combat HUD labels the targetless attack action as aggression', () => {
     assert.match(controls, /> Aggro/);
     assert.equal(controls.includes('Attack nearest hostile'), false);
 });
+
+test('toolbar combat commands use full selected agent groups when available', () => {
+    const bridge = source('game/world/dispatchBridge.ts');
+    const world = source('game/AureusWorld.ts');
+
+    assert.match(bridge, /getSelectedAgentIds\?: \(\) => string\[\]/);
+    assert.match(bridge, /deps\.getSelectedAgentIds\?\.\(\) \?\? \[\]/);
+    assert.match(world, /getSelectedAgentIds: \(\) => this\.stateManager\.getState\(\)\.selectedAgentIds \?\? \[\]/);
+});
