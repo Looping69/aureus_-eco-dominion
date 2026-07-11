@@ -69,6 +69,8 @@ export interface AgentCombatState {
     range: number;
     cooldownSeconds: number;
     cooldownRemaining: number;
+    weaponId?: string;
+    weaponName?: string;
     targetAgentId?: string | null;
     commandTargetAgentId?: string | null;
     stance?: CombatOrderStance;
@@ -79,7 +81,7 @@ export interface AgentCombatState {
 // Agent requests - things agents ask for
 export type AgentRequestType =
     | 'NEED_BREAK'           // Agent is tired, needs rest
-    | 'WANT_FRIEND'          // Agent is lonely, wants social interaction
+    | 'WANT_FRIEND'          // Agent is lonely, needs social interaction
     | 'WANT_BETTER_FOOD'     // Agent wants a canteen nearby
     | 'WANT_BETTER_BED'      // Agent wants quarters nearby
     | 'LOW_MORALE'           // Agent is unhappy
