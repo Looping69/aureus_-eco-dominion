@@ -18,7 +18,7 @@ test('combat exposes aggression as a persistent stance', () => {
     assert.match(agentTypes, /CombatOrderStance = 'AUTO' \| 'ATTACK' \| 'HOLD' \| 'AGGRESSIVE'/);
     assert.match(combatSystem, /handleToggleAggression/);
     assert.match(combatSystem, /combat\.stance = shouldEnable \? 'AGGRESSIVE' : 'AUTO'/);
-    assert.match(combatSystem, /combat\.stance !== 'AGGRESSIVE' && agent\.type !== 'SECURITY'/);
+    assert.match(combatSystem, /combat\.stance === 'AGGRESSIVE'/);
     assert.match(combatSystem, /prepareAgentForCombatOrder\(agent\)/);
     assert.equal(combatSystem.includes('handleAttackNearestAgentIds'), false);
 });
@@ -38,4 +38,33 @@ test('toolbar combat commands use full selected agent groups when available', ()
     assert.match(bridge, /getSelectedAgentIds\?: \(\) => string\[\]/);
     assert.match(bridge, /deps\.getSelectedAgentIds\?\.\(\) \?\? \[\]/);
     assert.match(world, /getSelectedAgentIds: \(\) => this\.stateManager\.getState\(\)\.selectedAgentIds \?\? \[\]/);
+});
+
+test('combat weapon loadouts are data-driven and applied by the combat system', () => {
+    const agentTypes = source('engine/types/agents.ts');
+    const weapons = source('engine/data/combatWeapons.ts');
+    const combatSystem = source('engine/sim/systems/CombatSystem.ts');
+
+    assert.match(agentTypes, /weaponId\?: string/);
+    assert.match(agentTypes, /weaponName\?: string/);
+    assert.match(weapons, /COMBAT_WEAPONS/);
+    assert.match(weapons, /SHOCK_BATON/);
+    assert.match(weapons, /BOLT_PISTOL/);
+    assert.match(weapons, /ROLE_WEAPON_LOADOUTS/);
+    assert.match(weapons, /SECURITY: 'SHOCK_BATON'/);
+    assert.match(combatSystem, /getCombatWeaponForRole/);
+    assert.match(combatSystem, /weapon\.attackBonus/);
+    assert.match(combatSystem, /weapon\.rangeBonus/);
+    assert.match(combatSystem, /weapon\.cooldownMultiplier/);
+});
+
+test('aggressive colony agents target outsiders while preserving base agents', () => {
+    const combatSystem = source('engine/sim/systems/CombatSystem.ts');
+
+    assert.match(combatSystem, /findNearestAggressionTarget/);
+    assert.match(combatSystem, /getBaseAgentIds/);
+    assert.match(combatSystem, /agent\.type !== 'ILLEGAL_MINER'/);
+    assert.match(combatSystem, /effectiveStats\.faction === 'COLONY' && !this\.getBaseAgentIds\(state\)\.has\(candidate\.id\)/);
+    assert.match(combatSystem, /Array\.isArray\(state\.ambientNpcs\)/);
+    assert.equal(combatSystem.includes('ensureAgentCombatState(agent).faction !== \'NEUTRAL\''), false);
 });
