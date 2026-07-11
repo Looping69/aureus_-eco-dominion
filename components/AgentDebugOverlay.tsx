@@ -47,6 +47,12 @@ const getReasonClass = (agent: Agent): string => {
     return 'border-cyan-500/25 bg-slate-950/55 text-slate-200';
 };
 
+const getWeaponLabel = (agent: Agent): string => agent.combat?.weaponName ?? 'Unarmed';
+const getCombatHealthLabel = (agent: Agent): string => {
+    if (!agent.combat) return 'n/a';
+    return `${Math.ceil(agent.combat.currentHealth)}/${Math.ceil(agent.combat.maxHealth)}`;
+};
+
 export const AgentDebugOverlay: React.FC<AgentDebugOverlayProps> = ({ agents, jobs, tickCount }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -141,17 +147,23 @@ export const AgentDebugOverlay: React.FC<AgentDebugOverlayProps> = ({ agents, jo
                                         }`}
                                 >
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1.5 min-w-0">
                                             <div className="text-slate-500">{ROLE_ICONS[agent.type]}</div>
                                             <span className="text-[9px] font-bold text-white truncate max-w-[80px]">
                                                 {agent.name}
                                             </span>
                                         </div>
-                                        <div className="flex items-center gap-1">
+                                        <div className="flex items-center gap-1 shrink-0">
                                             <span className={`text-[8px] font-mono font-bold ${STATE_COLORS[agent.state] || 'text-slate-400'}`}>
                                                 {agent.state}
                                             </span>
                                         </div>
+                                    </div>
+
+                                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[8px] font-mono uppercase tracking-tight">
+                                        <span className="text-rose-300">Weapon {getWeaponLabel(agent)}</span>
+                                        <span className="text-amber-300">{agent.combat?.stance ?? 'AUTO'}</span>
+                                        <span className="text-emerald-300">HP {getCombatHealthLabel(agent)}</span>
                                     </div>
 
                                     {agent.statusReason && (
@@ -171,6 +183,16 @@ export const AgentDebugOverlay: React.FC<AgentDebugOverlayProps> = ({ agents, jo
                                                 <span className="font-mono text-cyan-400">
                                                     ({agent.x.toFixed(1)}, {agent.z.toFixed(1)})
                                                 </span>
+                                            </div>
+
+                                            <div className="flex items-center gap-1 text-[8px]">
+                                                <Target size={10} className="text-rose-400" />
+                                                <span className="text-slate-400">Weapon:</span>
+                                                <span className="font-mono text-rose-300 truncate max-w-[120px]">
+                                                    {getWeaponLabel(agent)}
+                                                </span>
+                                                <span className="text-slate-500">/</span>
+                                                <span className="font-mono text-amber-300">{agent.combat?.stance ?? 'AUTO'}</span>
                                             </div>
 
                                             {/* Target */}
