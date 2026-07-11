@@ -5,6 +5,7 @@ import { SfxType } from '../../../types';
 import type { Agent, AgentCombatState, AgentRole, CombatFaction, GameCommand, GameState } from '../../../types';
 import { getAgentRoleDef } from '../../data/agentRoles';
 import { getPerimeterCombatModifier } from '../../data/combatPerimeters';
+import { getCombatWeaponForRole } from '../../data/combatWeapons';
 
 export const COMBAT_SCAN_RANGE = 7;
 export const DEFAULT_COMBAT_RANGE = 1.6;
@@ -17,10 +18,12 @@ export interface EffectiveCombatStats {
     defense: number;
     range: number;
     scanRange: number;
+    cooldownSeconds: number;
 }
 
 export function getDefaultCombatProfile(role: AgentRole): CombatProfile {
     const combat = getAgentRoleDef(role)?.combat ?? getAgentRoleDef('CITIZEN').combat;
+    const weapon = getCombatWeaponForRole(role);
     return {
         faction: combat.faction,
         currentHealth: combat.maxHealth,
@@ -29,6 +32,8 @@ export function getDefaultCombatProfile(role: AgentRole): CombatProfile {
         defense: combat.defense,
         range: combat.range,
         cooldownSeconds: combat.cooldownSeconds,
+        weaponId: weapon.id,
+        weaponName: weapon.label,
     };
 }
 
@@ -47,6 +52,8 @@ export function ensureAgentCombatState(agent: Agent): AgentCombatState {
         range: sanePositive(existing?.range, profile.range),
         cooldownSeconds: sanePositive(existing?.cooldownSeconds, profile.cooldownSeconds),
         cooldownRemaining: Math.max(0, saneNumber(existing?.cooldownRemaining, 0)),
+        weaponId: existing?.weaponId ?? profile.weaponId,
+        weaponName: existing?.weaponName ?? profile.weaponName,
         targetAgentId: existing?.targetAgentId ?? null,
         commandTargetAgentId: existing?.commandTargetAgentId ?? null,
         stance: existing?.stance ?? 'AUTO',
@@ -59,14 +66,16 @@ export function ensureAgentCombatState(agent: Agent): AgentCombatState {
 
 export function getEffectiveCombatStats(state: GameState, agent: Agent): EffectiveCombatStats {
     const combat = ensureAgentCombatState(agent);
+    const weapon = getCombatWeaponForRole(agent.type);
     const perimeter = getPerimeterCombatModifier(state, agent, combat.faction);
 
     return {
         faction: combat.faction,
-        attack: Math.max(1, combat.attack + perimeter.attackBonus - perimeter.attackPenalty),
+        attack: Math.max(1, combat.attack + weapon.attackBonus + perimeter.attackBonus - perimeter.attackPenalty),
         defense: Math.max(0, combat.defense + perimeter.defenseBonus),
-        range: Math.max(0.5, combat.range + perimeter.rangeBonus),
-        scanRange: Math.max(1, COMBAT_SCAN_RANGE + perimeter.scanRangeBonus),
+        range: Math.max(0.5, combat.range + weapon.rangeBonus + perimeter.rangeBonus),
+        scanRange: Math.max(1, COMBAT_SCAN_RANGE + weapon.scanRangeBonus + perimeter.scanRangeBonus),
+        cooldownSeconds: Math.max(0.25, combat.cooldownSeconds * weapon.cooldownMultiplier),
     };
 }
 
@@ -170,7 +179,7 @@ export class CombatSystem extends BaseSimSystem {
             combat.targetAgentId = null;
             agent.currentJobId = shouldEnable ? null : agent.currentJobId;
             agent.statusReason = shouldEnable
-                ? 'Aggression stance active: engaging nearby hostiles.'
+                ? `Aggression stance active: ${combat.weaponName ?? 'weapon'} ready.`
                 : 'Aggression stance cleared.';
             agent.statusTone = shouldEnable ? 'warning' : 'normal';
             ordered += 1;
@@ -203,7 +212,7 @@ export class CombatSystem extends BaseSimSystem {
             agent.path = null;
             agent.currentJobId = null;
             agent.state = 'PATROLLING';
-            agent.statusReason = 'Holding position by combat order.';
+            agent.statusReason = `Holding position with ${combat.weaponName ?? 'weapon'} ready.`;
             agent.statusTone = 'warning';
             ordered += 1;
         }
@@ -246,7 +255,7 @@ export class CombatSystem extends BaseSimSystem {
 
         return [...agents, ...ambientNpcs]
             .filter((agent) => agent.layer === 0)
-            .filter((agent) => ensureAgentCombatState(agent).faction !== 'NEUTRAL');
+            .filter((agent) => !ensureAgentCombatState(agent).defeated);
     }
 
     private findCombatTarget(
@@ -261,7 +270,10 @@ export class CombatSystem extends BaseSimSystem {
         const commandTarget = this.findCommandTarget(state, agent, combatants, effectiveStats);
         if (commandTarget) return commandTarget;
 
-        if (combat.stance !== 'AGGRESSIVE' && agent.type !== 'SECURITY') return null;
+        if (combat.stance === 'AGGRESSIVE') {
+            return this.findNearestAggressionTarget(state, agent, combatants, effectiveStats);
+        }
+        if (agent.type !== 'SECURITY') return null;
         return this.findNearestHostile(state, agent, combatants, effectiveStats);
     }
 
@@ -286,19 +298,44 @@ export class CombatSystem extends BaseSimSystem {
         return target;
     }
 
+    private findNearestAggressionTarget(
+        state: GameState,
+        agent: Agent,
+        combatants: Agent[],
+        effectiveStats: EffectiveCombatStats,
+    ): Agent | null {
+        return this.findNearestMatchingTarget(state, agent, combatants, effectiveStats, (candidate) => {
+            const candidateStats = getEffectiveCombatStats(state, candidate);
+            if (areHostile(effectiveStats.faction, candidateStats.faction)) return true;
+            return effectiveStats.faction === 'COLONY' && !this.getBaseAgentIds(state).has(candidate.id);
+        });
+    }
+
     private findNearestHostile(
         state: GameState,
         agent: Agent,
         combatants: Agent[],
         effectiveStats: EffectiveCombatStats,
     ): Agent | null {
+        return this.findNearestMatchingTarget(state, agent, combatants, effectiveStats, (candidate) => {
+            const candidateStats = getEffectiveCombatStats(state, candidate);
+            return areHostile(effectiveStats.faction, candidateStats.faction);
+        });
+    }
+
+    private findNearestMatchingTarget(
+        state: GameState,
+        agent: Agent,
+        combatants: Agent[],
+        effectiveStats: EffectiveCombatStats,
+        isValidTarget: (candidate: Agent) => boolean,
+    ): Agent | null {
         let best: Agent | null = null;
         let bestDistance = Infinity;
 
         for (const candidate of combatants) {
             if (candidate.id === agent.id) continue;
-            const candidateStats = getEffectiveCombatStats(state, candidate);
-            if (ensureAgentCombatState(candidate).defeated || !areHostile(effectiveStats.faction, candidateStats.faction)) continue;
+            if (ensureAgentCombatState(candidate).defeated || !isValidTarget(candidate)) continue;
             const distance = chebyshevDistance(agent, candidate);
             if (distance > effectiveStats.scanRange || distance >= bestDistance) continue;
             best = candidate;
@@ -308,12 +345,19 @@ export class CombatSystem extends BaseSimSystem {
         return best;
     }
 
+    private getBaseAgentIds(state: GameState): Set<string> {
+        return new Set(state.agents
+            .filter(agent => agent.type !== 'ILLEGAL_MINER')
+            .filter(agent => ensureAgentCombatState(agent).faction !== 'HOSTILE')
+            .map(agent => agent.id));
+    }
+
     private assignAttackTarget(agent: Agent, combat: AgentCombatState, target: Agent): void {
         combat.stance = 'ATTACK';
         combat.commandTargetAgentId = target.id;
         combat.targetAgentId = target.id;
         agent.currentJobId = null;
-        agent.statusReason = `Attack order: ${target.name}.`;
+        agent.statusReason = `Attack order: ${target.name} with ${combat.weaponName ?? 'weapon'}.`;
         agent.statusTone = 'warning';
     }
 
@@ -335,8 +379,8 @@ export class CombatSystem extends BaseSimSystem {
         const targetStats = getEffectiveCombatStats(state, target);
         const damage = Math.max(1, attackerStats.attack - targetStats.defense);
         targetCombat.currentHealth = Math.max(0, targetCombat.currentHealth - damage);
-        attackerCombat.cooldownRemaining = attackerCombat.cooldownSeconds;
-        attacker.statusReason = `Engaging ${target.name}.`;
+        attackerCombat.cooldownRemaining = attackerStats.cooldownSeconds;
+        attacker.statusReason = `Engaging ${target.name} with ${attackerCombat.weaponName ?? 'weapon'}.`;
         attacker.statusTone = 'warning';
         target.statusReason = `Under attack by ${attacker.name}.`;
         target.statusTone = 'warning';
@@ -355,7 +399,7 @@ export class CombatSystem extends BaseSimSystem {
         agent.targetX = null;
         agent.targetZ = null;
         agent.path = null;
-        agent.statusReason = combat.faction === 'HOSTILE'
+        agent.statusReason = combat.faction === 'HOSTILE' || !this.getBaseAgentIds(state).has(agent.id)
             ? 'Neutralized by colony security.'
             : 'Downed and waiting for rescue.';
         agent.statusTone = 'blocked';
@@ -367,7 +411,7 @@ export class CombatSystem extends BaseSimSystem {
             headline: victor
                 ? `RADIO: ${victor.name} neutralized ${agent.name} near X${Math.round(agent.x)}, Z${Math.round(agent.z)}.`
                 : `RADIO: ${agent.name} is out of action near X${Math.round(agent.x)}, Z${Math.round(agent.z)}.`,
-            type: combat.faction === 'HOSTILE' ? 'POSITIVE' : 'CRITICAL',
+            type: combat.faction === 'HOSTILE' || !this.getBaseAgentIds(state).has(agent.id) ? 'POSITIVE' : 'CRITICAL',
             timestamp: state.tickCount,
         });
         state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.ALARM });
