@@ -58,6 +58,15 @@ const getJobReason = (agent: Agent): string => {
     return 'Waiting for assignment';
 };
 
+const getCombatHealthLabel = (agent: Agent): string => {
+    const combat = agent.combat;
+    if (!combat) return 'n/a';
+    return `${Math.ceil(combat.currentHealth)}/${Math.ceil(combat.maxHealth)}`;
+};
+
+const getCombatStanceLabel = (agent: Agent): string => agent.combat?.stance ?? 'AUTO';
+const getWeaponLabel = (agent: Agent): string => agent.combat?.weaponName ?? 'Unarmed';
+
 const ColonistRow: React.FC<{ agent: Agent }> = ({ agent }) => (
     <div className="bg-slate-900 border-2 border-slate-700 p-2 rounded-[4px] shadow-[2px_2px_0_0_rgba(0,0,0,0.3)] space-y-2">
         <div className="flex justify-between items-center border-b border-slate-800 pb-1">
@@ -74,6 +83,13 @@ const ColonistRow: React.FC<{ agent: Agent }> = ({ agent }) => (
                     </span>
                     <div className="text-[9px] font-bold text-cyan-300 truncate mt-0.5" title={getJobReason(agent)}>
                         {getJobReason(agent)}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[8px] font-mono uppercase tracking-tight text-slate-400" title={`Weapon: ${getWeaponLabel(agent)} | Stance: ${getCombatStanceLabel(agent)} | Health: ${getCombatHealthLabel(agent)}`}>
+                        <span className="inline-flex items-center gap-1 text-rose-300">
+                            <Shield size={9} /> {getWeaponLabel(agent)}
+                        </span>
+                        <span className="text-amber-300">{getCombatStanceLabel(agent)}</span>
+                        <span className="text-emerald-300">HP {getCombatHealthLabel(agent)}</span>
                     </div>
                 </div>
             </div>
