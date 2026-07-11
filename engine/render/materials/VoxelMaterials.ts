@@ -95,15 +95,7 @@ function paintSoftSpeckles(
 ) {
   for (let i = 0; i < count; i++) {
     const colorHex = colors[i % colors.length];
-    paintSoftBlob(
-      ctx,
-      width,
-      height,
-      colorHex,
-      alphaMin + Math.random() * Math.max(0.001, alphaMax - alphaMin),
-      minRadius,
-      maxRadius
-    );
+    paintSoftBlob(ctx, width, height, colorHex, alphaMin + Math.random() * Math.max(0.001, alphaMax - alphaMin), minRadius, maxRadius);
   }
 }
 
@@ -298,6 +290,16 @@ function createFoliageInstancedMaterial(): THREE.MeshStandardMaterial {
   });
 }
 
+function createBakedBuildingMaterial(): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    vertexColors: true,
+    roughness: 0.82,
+    metalness: 0.18,
+    clipShadows: true,
+  });
+}
+
 // Universal terrain texture for chunk solids: neutral, layered, and mip-smoothed.
 const texMaster = createLayeredTerrainTexture(128, 128, 0xa8aaa0, [0xd4d2c2, 0x777d70, 0xb8b7a8], 12);
 const texConcrete = createLayeredTerrainTexture(96, 96, 0x939aa2, [0xc4c9cf, 0x747c83, 0xa5adb4], 12);
@@ -455,6 +457,7 @@ export const reservoirWaterMaterial = createWaterMaterial(0x2d7888, 0x7fc2cc);
 // and stone no longer read like the same grey texture with different tinting.
 export const terrainSurfaceMaterial = createTerrainSurfaceMaterial();
 export const foliageInstancedMaterial = createFoliageInstancedMaterial();
+export const bakedBuildingMaterial = createBakedBuildingMaterial();
 export const matMaster = terrainSurfaceMaterial;
 
 // Base Materials (Still used for specific Buildings/UI/Particles)
