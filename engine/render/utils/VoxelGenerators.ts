@@ -63,8 +63,9 @@ function hasDynamicOrRichMaterial(group: THREE.Group): boolean {
 }
 
 function shouldBakeStaticFactoryGroup(key: string, opts: FactoryOptions | undefined, group: THREE.Group): boolean {
+    const isUnderConstruction = Boolean((opts as { isUnderConstruction?: boolean } | undefined)?.isUnderConstruction);
     if (opts?.detailLevel === undefined || opts.detailLevel === 'HIGH') return false;
-    if (opts?.isUnderConstruction) return false;
+    if (isUnderConstruction) return false;
     if (STATIC_BAKE_EXCLUDED_KEYS.has(key)) return false;
     return !hasDynamicOrRichMaterial(group);
 }
