@@ -715,6 +715,7 @@ export class AureusWorld extends BaseWorld {
             enterFPS: (agentId) => this.enterFPS(agentId),
             exitFPS: () => this.exitFPS(),
             getSelectedAgentId: () => this.stateManager.getState().selectedAgentId,
+            getSelectedAgentIds: () => this.stateManager.getState().selectedAgentIds ?? [],
             pushCommand: (type, payload) => this.stateManager.pushCommand(type, payload),
             warnUnhandled: (type) => console.warn(`[AureusWorld] Unhandled action type: ${type}`),
         });
