@@ -68,3 +68,18 @@ test('aggressive colony agents target outsiders while preserving base agents', (
     assert.match(combatSystem, /Array\.isArray\(state\.ambientNpcs\)/);
     assert.equal(combatSystem.includes('ensureAgentCombatState(agent).faction !== \'NEUTRAL\''), false);
 });
+
+test('agent UI exposes weapon, stance, and combat health readouts', () => {
+    const opsDrawer = source('components/OpsDrawer.tsx');
+    const debugOverlay = source('components/AgentDebugOverlay.tsx');
+
+    assert.match(opsDrawer, /getWeaponLabel/);
+    assert.match(opsDrawer, /getCombatStanceLabel/);
+    assert.match(opsDrawer, /getCombatHealthLabel/);
+    assert.match(opsDrawer, /Weapon: \$\{getWeaponLabel\(agent\)\}/);
+    assert.match(opsDrawer, /HP \{getCombatHealthLabel\(agent\)\}/);
+
+    assert.match(debugOverlay, /getWeaponLabel/);
+    assert.match(debugOverlay, /Weapon \{getWeaponLabel\(agent\)\}/);
+    assert.match(debugOverlay, /HP \{getCombatHealthLabel\(agent\)\}/);
+});
