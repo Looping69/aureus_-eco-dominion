@@ -15,6 +15,7 @@ export type {
 
 export {
     findActionForCommandType,
+    findMissingPayloadFields,
     validateGameCommandForActiveDefinition,
     validateGameCommandType,
 } from './GameCommandValidator';
