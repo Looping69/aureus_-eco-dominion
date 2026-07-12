@@ -13,6 +13,7 @@ import { NewsTicker } from './components/NewsTicker';
 import { GoalWidget } from './components/GoalWidget';
 import { ContractTracker } from './components/ContractTracker';
 import { AIOverseerPanel } from './components/AIOverseerPanel';
+import { WorldHoverTooltip } from './components/WorldHoverTooltip';
 import {
     TutorialOverlay,
     ConstructionModal,
@@ -55,6 +56,8 @@ const App: React.FC = () => {
     const [selectedTilePos, setSelectedTilePos] = useState<{ x: number, z: number } | null>(null);
     const [pinnedTilePos, setPinnedTilePos] = useState<{ x: number, z: number } | null>(null);
     const [linePlacementStart, setLinePlacementStart] = useState<{ x: number, z: number, type: BuildingType } | null>(null);
+    const [hoverTilePos, setHoverTilePos] = useState<{ x: number, z: number } | null>(null);
+    const [hoverCursor, setHoverCursor] = useState<{ x: number, y: number } | null>(null);
 
     const [worldInstance, setWorldInstance] = useState<any>(null);
     const [sidebarOpen, setSidebarOpen] = useState<SidebarMode>('NONE');
@@ -140,6 +143,7 @@ const App: React.FC = () => {
     }, [clearLinePlacement, linePlacementStart, worldInstance]);
 
     const handleTileHover = useCallback((x: number | null, z: number | null) => {
+        setHoverTilePos(x === null || z === null ? null : { x, z });
         if (!linePlacementStart || x === null || z === null) {
             if (!linePlacementStart) worldInstance?.clearInfrastructureLinePreview?.();
             return;
@@ -166,6 +170,22 @@ const App: React.FC = () => {
     useEffect(() => {
         stateRef.current = state;
     }, [state]);
+
+    useEffect(() => {
+        const handlePointerMove = (event: PointerEvent) => {
+            setHoverCursor({ x: event.clientX, y: event.clientY });
+        };
+        const handlePointerLeave = () => {
+            setHoverCursor(null);
+            setHoverTilePos(null);
+        };
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerleave', handlePointerLeave);
+        return () => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerleave', handlePointerLeave);
+        };
+    }, []);
 
     useEffect(() => {
         if (!state?.eraUnlockedPopup) {
@@ -226,6 +246,7 @@ const App: React.FC = () => {
     const floatingHudVisible = !blockingModalOpen && !state?.isFPS;
     const sidebarsVisible = !blockingModalOpen && !state?.isFPS;
     const debugVisible = Boolean(state?.debugMode && !eraModalOpen && !showWorldMap && !placementModalOpen && !tileModalOpen);
+    const hoverTooltipHidden = Boolean(showHomePage || isIntroAnim || blockingModalOpen || state?.isFPS || linePlacementStart || sidebarOpen !== 'NONE');
 
     const findTileAt = useCallback((x: number, z: number) => {
         const currentState = stateRef.current;
@@ -521,6 +542,7 @@ const App: React.FC = () => {
                                 <div className="absolute inset-0">
                                     <WeatherOverlay weather={state.weather} />
                                     {state.activeView === 'DUNGEON' && <UndergroundHUD underground={state.underground} />}
+                                    <WorldHoverTooltip state={state} tilePos={hoverTilePos} cursor={hoverCursor} hidden={hoverTooltipHidden} />
                                     {!state.isFPS ? (
                                         <>
                                             {floatingHudVisible && (
