@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { StateManager } from '../engine/state/StateManager.ts';
 import { LockstepCommandBuffer } from '../engine/net/index.ts';
+import { GAME_DEFINITION_REGISTRY } from '../game-definitions/activeGameDefinition.ts';
 import type { GameCommand } from '../types.ts';
 
 function command(id: string, type: GameCommand['type'], payload: GameCommand['payload']): GameCommand {
@@ -18,6 +19,19 @@ test('state manager pushCommand still queues immediately by default', () => {
     assert.equal(stateManager.getMutableState().commandQueue.length, 1);
     assert.equal(queued.id.startsWith('cmd_'), true);
     assert.equal(queued.issuedAtTick, 0);
+});
+
+test('state manager can validate queued commands against the active game definition', () => {
+    const stateManager = new StateManager(undefined, { activeGameDefinitionProvider: GAME_DEFINITION_REGISTRY });
+
+    stateManager.pushCommand('PLACE_BUILDING', { x: 1, z: 1, buildingType: 'ROAD' });
+    stateManager.pushCommand('NOT_A_PACK_ACTION', { debug: true });
+
+    assert.equal(stateManager.getMutableState().commandQueue.length, 1);
+    assert.equal(stateManager.getMutableState().commandQueue[0].type, 'PLACE_BUILDING');
+    assert.equal(stateManager.getMutableState().ui.lastCommandResult?.ok, false);
+    assert.equal(stateManager.getMutableState().ui.lastCommandResult?.code, 'COMMAND_NOT_DECLARED');
+    assert.match(stateManager.getMutableState().ui.lastCommandResult?.reason ?? '', /not declared by active game definition/);
 });
 
 test('state manager lockstep commands stay out of the queue until targetTick', () => {
