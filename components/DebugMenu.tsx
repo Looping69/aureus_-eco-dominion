@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Cpu, Database, Box, Users, Layers, Zap, X, Monitor, ToggleLeft, ToggleRight, Unlock, Eye, EyeOff, Image, FileCode, Hash } from 'lucide-react';
 import { GameState, Action } from '../types';
+import { getActiveGameDefinitionSummary } from '../game-definitions/activeGameDefinition';
 
 interface DebugMenuProps {
   getDebugStats: () => any;
@@ -20,6 +21,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
   const [fps, setFps] = useState(0);
   const [frameTime, setFrameTime] = useState(0);
   const fogRemoved = Boolean((state as GameState & { fogOfWarDisabled?: boolean }).fogOfWarDisabled);
+  const activeGameDefinitionSummary = getActiveGameDefinitionSummary();
 
   const frameCountRef = useRef(0);
   const lastTimeRef = useRef(performance.now());
@@ -69,11 +71,11 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
 
   const StatRow = ({ label, value, icon: Icon, color = "text-emerald-400" }: any) => (
     <div className="flex items-center justify-between py-1 border-b border-slate-800 last:border-0 group hover:bg-slate-800/50 px-1 transition-colors">
-      <div className="flex items-center gap-2">
-        <Icon size={12} className="text-slate-500 group-hover:text-emerald-400 transition-colors" />
-        <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider font-mono">{label}</span>
+      <div className="flex items-center gap-2 min-w-0">
+        <Icon size={12} className="text-slate-500 group-hover:text-emerald-400 transition-colors shrink-0" />
+        <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider font-mono truncate">{label}</span>
       </div>
-      <span className={`text-[10px] font-mono font-bold ${color}`}>{value}</span>
+      <span className={`text-[10px] font-mono font-bold ${color} max-w-[8.5rem] truncate text-right`} title={String(value)}>{value}</span>
     </div>
   );
 
@@ -137,6 +139,25 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
               </div>
             </div>
           </div>
+
+          {activeGameDefinitionSummary && (
+            <div>
+              <h3 className="text-[9px] text-slate-500 font-black uppercase mb-1.5 flex items-center gap-1.5 font-['Rajdhani'] tracking-widest border-b border-slate-800 pb-0.5">
+                <FileCode size={10} /> Active Game Pack
+              </h3>
+              <div className="space-y-0.5">
+                <StatRow label="Pack" value={activeGameDefinitionSummary.title} icon={FileCode} color="text-cyan-400" />
+                <StatRow label="Version" value={activeGameDefinitionSummary.version} icon={Hash} color="text-slate-300" />
+                <StatRow label="Resources" value={activeGameDefinitionSummary.resourceCount} icon={Database} />
+                <StatRow label="Entities" value={activeGameDefinitionSummary.entityCount} icon={Box} />
+                <StatRow label="Actions" value={activeGameDefinitionSummary.actionCount} icon={Activity} />
+                <StatRow label="Systems" value={activeGameDefinitionSummary.systemCount} icon={Layers} />
+              </div>
+              <div className="mt-1 px-1 text-[8px] text-slate-500 truncate" title={activeGameDefinitionSummary.genreTags.join(' / ')}>
+                {activeGameDefinitionSummary.genreTags.join(' / ')}
+              </div>
+            </div>
+          )}
 
           {/* JS Heap */}
           <div>
