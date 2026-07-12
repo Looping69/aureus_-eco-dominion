@@ -7,7 +7,7 @@ import { BuildingType } from '../types.ts';
 import { AUREUS_GAME_DEFINITION } from '../game-definitions/aureus.ts';
 import { ACTIVE_GAME_DEFINITION, ACTIVE_GAME_DEFINITION_SUMMARY, GAME_DEFINITION_REGISTRY } from '../game-definitions/activeGameDefinition.ts';
 import { createGameDefinitionRegistry } from '../engine/game-definition/GameDefinitionRegistry.ts';
-import { collectGameDefinitionIssues, findActionForCommandType, summarizeGameDefinition, validateGameCommandType, validateGameDefinition } from '../engine/game-definition/index.ts';
+import { collectGameDefinitionIssues, findActionForCommandType, findMissingPayloadFields, summarizeGameDefinition, validateGameCommandType, validateGameDefinition } from '../engine/game-definition/index.ts';
 import { INITIAL_RESOURCES } from '../engine/data/VoxelConstants.ts';
 import { RAW_AGENT_ROLE_SCHEMA } from '../engine/data/agentRoles.ts';
 import { COMBAT_WEAPONS } from '../engine/data/combatWeapons.ts';
@@ -33,6 +33,7 @@ test('game definition schema exposes a generic engine contract', () => {
     assert.match(validator, /function requireUniqueIds/);
     assert.match(validator, /export function defineGameDefinition/);
     assert.match(commandValidator, /export function validateGameCommandType/);
+    assert.match(commandValidator, /findMissingPayloadFields/);
     assert.match(commandValidator, /findActionForCommandType/);
     assert.match(registry, /export class GameDefinitionRegistry/);
     assert.match(registry, /getActiveSummary/);
@@ -110,6 +111,19 @@ test('game definition command validator maps command types to active pack action
     ]) {
         assert.equal(commandTypes.has(commandType), true, `${commandType} should be declared as a game-pack action`);
     }
+});
+
+test('game definition command validator checks required payload fields when payload is supplied', () => {
+    const placeBuilding = findActionForCommandType(AUREUS_GAME_DEFINITION, 'PLACE_BUILDING');
+    assert.ok(placeBuilding);
+
+    assert.deepEqual(findMissingPayloadFields(placeBuilding, { x: 1, buildingType: 'ROAD' }), ['z']);
+    assert.equal(validateGameCommandType(AUREUS_GAME_DEFINITION, 'PLACE_BUILDING', { x: 1, z: 2, buildingType: 'ROAD' }).ok, true);
+    assert.equal(validateGameCommandType(AUREUS_GAME_DEFINITION, 'PLACE_BUILDING', { x: 1, z: Number.NaN, buildingType: 'ROAD' }).ok, false);
+    assert.equal(validateGameCommandType(AUREUS_GAME_DEFINITION, 'SELL_RESOURCE', { resource: 'wood' }).ok, true);
+    assert.equal(validateGameCommandType(AUREUS_GAME_DEFINITION, 'ACCEPT_CONTRACT', 'contract-1').ok, true);
+    assert.equal(validateGameCommandType(AUREUS_GAME_DEFINITION, 'COMBAT_ATTACK_TARGET', { agentIds: ['agent-1'] }).ok, true);
+    assert.equal(validateGameCommandType(AUREUS_GAME_DEFINITION, 'MANUAL_MOVE_AGENT', { agentId: 'agent-1', dx: 0.2, dz: -0.1 }).ok, true);
 });
 
 test('Aureus is registered as the default active game definition', () => {
