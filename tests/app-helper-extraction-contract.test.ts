@@ -22,6 +22,41 @@ test('App delegates tile selection and FPS HUD helpers to small modules', () => 
     assert.equal(app.includes('const canTileOpenModal'), false);
 });
 
+test('App wires the world hover tooltip to tile hover and cursor position', () => {
+    const app = source('App.tsx');
+
+    assert.match(app, /from '\.\/components\/WorldHoverTooltip'/);
+    assert.match(app, /const \[hoverTilePos, setHoverTilePos\]/);
+    assert.match(app, /const \[hoverCursor, setHoverCursor\]/);
+    assert.match(app, /setHoverTilePos\(x === null \|\| z === null \? null : \{ x, z \}\)/);
+    assert.match(app, /window\.addEventListener\('pointermove', handlePointerMove\)/);
+    assert.match(app, /<WorldHoverTooltip state=\{state\} tilePos=\{hoverTilePos\} cursor=\{hoverCursor\} hidden=\{hoverTooltipHidden\} \/>/);
+    assert.match(app, /state\?\.isFPS \|\| linePlacementStart \|\| sidebarOpen !== 'NONE'/);
+});
+
+test('WorldHoverTooltip covers inspectable world entities and skips bare grass', () => {
+    const tooltip = source('components/WorldHoverTooltip.tsx');
+
+    for (const snippet of [
+        "import { BuildingType, GameState, GridTile, Agent } from '../types';",
+        "import { BUILDINGS } from '../engine/data/VoxelConstants';",
+        'function findAgentsAt(state: GameState, pos: HoverTile): Agent[] {',
+        'const allAgents = [...(state.agents || []), ...(state.ambientNpcs || [])];',
+        'return getAgentDetail(agent, Boolean((state.ambientNpcs || []).some((npc) => npc.id === agent.id)));',
+        'if (tile.biome === \'GRASS\') return null;',
+        "kind: tile.foliage?.startsWith('TREE') ? 'Tree'",
+        "tile.foliage?.startsWith('ROCK') ? 'Rock'",
+        "tile.foliage?.includes('CACTUS') ? 'Cactus'",
+        "rows.push(['Weapon', combat.weaponName || 'Unarmed']);",
+        "rows.push(['Combat', `${label(combat.stance || 'AUTO')} / ${Math.ceil(combat.currentHealth)}/${combat.maxHealth} HP`]);",
+        'const def = BUILDINGS[tile.buildingType];',
+        "['Power', label(tile.powerStatus)]",
+        "['Water', label(tile.waterStatus)]",
+    ]) {
+        assert.match(tooltip, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    }
+});
+
 test('BuildingInspectorModal delegates utility failure labels to UtilityReadability', () => {
     const modals = source('components/Modals.tsx');
 
