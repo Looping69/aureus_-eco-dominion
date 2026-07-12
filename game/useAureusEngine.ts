@@ -13,6 +13,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { WorldHost, Runtime } from '../engine';
 import { RuntimeQualityGovernor, ThreeRenderAdapter, getRecommendedRenderQuality } from '../engine/render';
 import { DebugHud } from '../engine/tools';
+import { GAME_DEFINITION_REGISTRY } from '../game-definitions/activeGameDefinition';
 import { AureusWorld, AureusWorldConfig } from './AureusWorld';
 import { GameState, SfxType } from '../types';
 import { ChunkStore } from '../engine/space/ChunkStore';
@@ -146,6 +147,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 console.log('[useAureusEngine] Creating AureusWorld...');
 
                 const worldInstance = new AureusWorld(render);
+                (worldInstance as any).stateManager?.setActiveGameDefinitionProvider?.(GAME_DEFINITION_REGISTRY);
 
                 if (cancelled) return;
                 await stageDelay();
