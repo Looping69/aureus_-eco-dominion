@@ -1,11 +1,11 @@
 import type {
+  EntityArchetypeDefinition,
   GameActionDefinition,
   GameDefinition,
   GameDefinitionId,
   GameDefinitionSummary,
-  GameEntityArchetypeDefinition,
   GameResourceDefinition,
-  GameSystemDefinition,
+  GameSystemBindingDefinition,
 } from './types';
 import { summarizeGameDefinition, validateGameDefinition } from './validateGameDefinition';
 
@@ -63,7 +63,7 @@ export class GameDefinitionRegistry {
     return this.getActive()?.resources.find((resource) => resource.id === id) ?? null;
   }
 
-  getEntityArchetype(id: string): GameEntityArchetypeDefinition | null {
+  getEntityArchetype(id: string): EntityArchetypeDefinition | null {
     return this.getActive()?.entityArchetypes.find((archetype) => archetype.id === id) ?? null;
   }
 
@@ -71,7 +71,7 @@ export class GameDefinitionRegistry {
     return this.getActive()?.actions.find((action) => action.id === id) ?? null;
   }
 
-  getSystem(id: string): GameSystemDefinition | null {
+  getSystem(id: string): GameSystemBindingDefinition | null {
     return this.getActive()?.systems.find((system) => system.id === id) ?? null;
   }
 
