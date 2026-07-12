@@ -15,6 +15,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/render-quality-governor-contract.test.ts',
     'tests/low-end-render-workload-contract.test.ts',
     'tests/design-studio-contract.test.ts',
+    'tests/game-definition-contract.test.ts',
     'tests/command-boundary-contract.test.ts',
     'tests/deterministic-network-layer-contract.test.ts',
     'tests/lockstep-command-buffer-contract.test.ts',
