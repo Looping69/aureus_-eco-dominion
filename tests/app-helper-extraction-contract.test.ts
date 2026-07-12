@@ -22,6 +22,14 @@ test('App delegates tile selection and FPS HUD helpers to small modules', () => 
     assert.equal(app.includes('const canTileOpenModal'), false);
 });
 
+test('useAureusEngine activates command validation from the active game definition registry', () => {
+    const hook = source('game/useAureusEngine.ts');
+
+    assert.match(hook, /from '\.\.\/game-definitions\/activeGameDefinition'/);
+    assert.match(hook, /GAME_DEFINITION_REGISTRY/);
+    assert.match(hook, /setActiveGameDefinitionProvider\?\.\(GAME_DEFINITION_REGISTRY\)/);
+});
+
 test('App wires the world hover tooltip to tile hover and cursor position', () => {
     const app = source('App.tsx');
 
