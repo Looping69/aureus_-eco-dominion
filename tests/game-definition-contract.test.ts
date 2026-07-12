@@ -5,6 +5,8 @@ import test from 'node:test';
 
 import { BuildingType } from '../types.ts';
 import { AUREUS_GAME_DEFINITION } from '../game-definitions/aureus.ts';
+import { ACTIVE_GAME_DEFINITION, ACTIVE_GAME_DEFINITION_SUMMARY, GAME_DEFINITION_REGISTRY } from '../game-definitions/activeGameDefinition.ts';
+import { createGameDefinitionRegistry } from '../engine/game-definition/GameDefinitionRegistry.ts';
 import { collectGameDefinitionIssues, summarizeGameDefinition, validateGameDefinition } from '../engine/game-definition/index.ts';
 import { INITIAL_RESOURCES } from '../engine/data/VoxelConstants.ts';
 import { RAW_AGENT_ROLE_SCHEMA } from '../engine/data/agentRoles.ts';
@@ -19,6 +21,7 @@ function source(relativePath: string): string {
 test('game definition schema exposes a generic engine contract', () => {
     const types = source('engine/game-definition/types.ts');
     const validator = source('engine/game-definition/validateGameDefinition.ts');
+    const registry = source('engine/game-definition/GameDefinitionRegistry.ts');
     const index = source('engine/game-definition/index.ts');
 
     assert.match(types, /export interface GameDefinition/);
@@ -28,6 +31,9 @@ test('game definition schema exposes a generic engine contract', () => {
     assert.match(types, /systems: GameSystemBindingDefinition\[\]/);
     assert.match(validator, /function requireUniqueIds/);
     assert.match(validator, /export function defineGameDefinition/);
+    assert.match(registry, /export class GameDefinitionRegistry/);
+    assert.match(registry, /getActiveSummary/);
+    assert.match(registry, /getEntityArchetype/);
     assert.match(index, /export \{[\s\S]*validateGameDefinition/);
 });
 
@@ -43,6 +49,37 @@ test('Aureus definition validates and summarizes as a game pack', () => {
     assert.equal(summary.actionCount >= 8, true);
     assert.equal(summary.systemCount >= 5, true);
     assert.equal(summary.genreTags.includes('colony-sim'), true);
+});
+
+test('game definition registry validates active packs and exposes lookups', () => {
+    const registry = createGameDefinitionRegistry([AUREUS_GAME_DEFINITION]);
+
+    assert.equal(registry.has('aureus.eco-dominion'), true);
+    assert.equal(registry.getActive()?.id, 'aureus.eco-dominion');
+    assert.equal(registry.getActiveSummary()?.resourceCount, AUREUS_GAME_DEFINITION.resources.length);
+    assert.equal(registry.getResource('agt')?.label, 'AGT');
+    assert.equal(registry.getEntityArchetype(`building.${BuildingType.SECURITY_POST}`)?.category, 'building');
+    assert.equal(registry.getAction('action.attackTarget')?.commandType, 'COMBAT_ATTACK_TARGET');
+    assert.equal(registry.getSystem('system.combat')?.module, 'engine/sim/systems/CombatSystem');
+    assert.throws(() => registry.setActive('missing.definition'), /Unknown game definition/);
+});
+
+test('Aureus is registered as the default active game definition', () => {
+    assert.equal(ACTIVE_GAME_DEFINITION.id, 'aureus.eco-dominion');
+    assert.equal(ACTIVE_GAME_DEFINITION_SUMMARY?.id, 'aureus.eco-dominion');
+    assert.equal(GAME_DEFINITION_REGISTRY.getActive()?.id, 'aureus.eco-dominion');
+    assert.equal(GAME_DEFINITION_REGISTRY.getActiveSummary()?.title, 'Aureus: Eco Dominion');
+});
+
+test('debug menu surfaces the active game pack summary', () => {
+    const debugMenu = source('components/DebugMenu.tsx');
+
+    assert.match(debugMenu, /getActiveGameDefinitionSummary/);
+    assert.match(debugMenu, /Active Game Pack/);
+    assert.match(debugMenu, /activeGameDefinitionSummary\.resourceCount/);
+    assert.match(debugMenu, /activeGameDefinitionSummary\.entityCount/);
+    assert.match(debugMenu, /activeGameDefinitionSummary\.actionCount/);
+    assert.match(debugMenu, /activeGameDefinitionSummary\.systemCount/);
 });
 
 test('Aureus definition maps current resources, buildings, roles, weapons, and actions', () => {
