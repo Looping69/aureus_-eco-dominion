@@ -1,6 +1,8 @@
 import { Agent, BuildingType, Era, FogExplorationState, GameState, GameStep } from '../../types';
 import { INITIAL_PERMITS, INITIAL_NPCS } from '../data/bureaucracy';
 import { INITIAL_RESOURCES } from '../data/resources';
+import type { ActiveGameDefinitionProvider } from '../game-definition';
+import { validateGameCommandForActiveDefinition } from '../game-definition';
 import { DAY_NIGHT } from '../sim/dayNightCycle';
 import { ChunkStore } from '../space/ChunkStore';
 import type { DeterministicCommandInput } from '../net/DeterministicCommand';
@@ -11,6 +13,11 @@ import { createWeatherState } from '../weather/weatherModel';
 import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';
 
 export type StateListener = (newState: GameState) => void;
+
+export interface StateManagerOptions {
+    lockstepCommandBuffer?: LockstepCommandBuffer | null;
+    activeGameDefinitionProvider?: ActiveGameDefinitionProvider | null;
+}
 
 type MutableContext = 'none' | 'command' | 'simTick';
 type LegacyCommandResultStatus = string | boolean;
@@ -157,11 +164,13 @@ export class StateManager {
     private mutableContext: MutableContext = 'none';
     private rng: SeededRandom;
     private lockstepCommandBuffer: LockstepCommandBuffer | null = null;
+    private activeGameDefinitionProvider: ActiveGameDefinitionProvider | null = null;
 
-    constructor(overrides?: Partial<GameState>, options?: { lockstepCommandBuffer?: LockstepCommandBuffer | null }) {
+    constructor(overrides?: Partial<GameState>, options?: StateManagerOptions) {
         this.state = this.createInitialState(overrides);
         this.rng = createSeededRandom(this.state.seed);
         this.lockstepCommandBuffer = options?.lockstepCommandBuffer ?? null;
+        this.activeGameDefinitionProvider = options?.activeGameDefinitionProvider ?? null;
     }
 
     private createInitialChunks(seed: number, chunks?: GameState['chunks']): GameState['chunks'] {
@@ -471,7 +480,35 @@ export class StateManager {
         return JSON.stringify(this.state);
     }
 
+    setActiveGameDefinitionProvider(provider: ActiveGameDefinitionProvider | null): void {
+        this.activeGameDefinitionProvider = provider;
+    }
+
+    private rejectCommandOutsideActiveDefinition(type: string): boolean {
+        if (!this.activeGameDefinitionProvider) return false;
+
+        const validation = validateGameCommandForActiveDefinition(this.activeGameDefinitionProvider, type);
+        if (validation.ok) return false;
+
+        const commandId = this.getNextId('cmd_reject');
+        const reason = validation.reason ?? `Command type ${type} is not declared by the active game definition.`;
+        console.warn(`[StateManager] Rejected command '${type}': ${reason}`);
+        this.state.ui.lastCommandResult = {
+            commandId,
+            type,
+            ok: false,
+            code: 'COMMAND_NOT_DECLARED',
+            reason,
+        };
+        this.markDirty('ui');
+        return true;
+    }
+
     pushCommand(type: string, payload?: any): void {
+        if (this.rejectCommandOutsideActiveDefinition(type)) {
+            return;
+        }
+
         this.state.commandQueue.push({
             id: this.getNextId('cmd'),
             type: type as any,
