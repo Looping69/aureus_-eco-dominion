@@ -14,6 +14,13 @@ export type {
 } from './types';
 
 export {
+    findActionForCommandType,
+    validateGameCommandForActiveDefinition,
+    validateGameCommandType,
+} from './GameCommandValidator';
+export type { ActiveGameDefinitionProvider, GameCommandValidationResult } from './GameCommandValidator';
+
+export {
     GameDefinitionValidationError,
     collectGameDefinitionIssues,
     defineGameDefinition,
