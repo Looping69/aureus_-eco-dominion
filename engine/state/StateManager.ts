@@ -484,10 +484,10 @@ export class StateManager {
         this.activeGameDefinitionProvider = provider;
     }
 
-    private rejectCommandOutsideActiveDefinition(type: string): boolean {
+    private rejectCommandOutsideActiveDefinition(type: string, payload?: any): boolean {
         if (!this.activeGameDefinitionProvider) return false;
 
-        const validation = validateGameCommandForActiveDefinition(this.activeGameDefinitionProvider, type);
+        const validation = validateGameCommandForActiveDefinition(this.activeGameDefinitionProvider, type, payload);
         if (validation.ok) return false;
 
         const commandId = this.getNextId('cmd_reject');
@@ -497,7 +497,7 @@ export class StateManager {
             commandId,
             type,
             ok: false,
-            code: 'COMMAND_NOT_DECLARED',
+            code: validation.action ? 'COMMAND_PAYLOAD_INVALID' : 'COMMAND_NOT_DECLARED',
             reason,
         };
         this.markDirty('ui');
@@ -505,7 +505,7 @@ export class StateManager {
     }
 
     pushCommand(type: string, payload?: any): void {
-        if (this.rejectCommandOutsideActiveDefinition(type)) {
+        if (this.rejectCommandOutsideActiveDefinition(type, payload)) {
             return;
         }
 
