@@ -34,6 +34,17 @@ test('state manager can validate queued commands against the active game definit
     assert.match(stateManager.getMutableState().ui.lastCommandResult?.reason ?? '', /not declared by active game definition/);
 });
 
+test('state manager rejects active game definition commands with missing payload fields', () => {
+    const stateManager = new StateManager(undefined, { activeGameDefinitionProvider: GAME_DEFINITION_REGISTRY });
+
+    stateManager.pushCommand('PLACE_BUILDING', { x: 1, buildingType: 'ROAD' });
+
+    assert.equal(stateManager.getMutableState().commandQueue.length, 0);
+    assert.equal(stateManager.getMutableState().ui.lastCommandResult?.ok, false);
+    assert.equal(stateManager.getMutableState().ui.lastCommandResult?.code, 'COMMAND_PAYLOAD_INVALID');
+    assert.match(stateManager.getMutableState().ui.lastCommandResult?.reason ?? '', /missing required payload field\(s\): z/);
+});
+
 test('state manager lockstep commands stay out of the queue until targetTick', () => {
     const stateManager = new StateManager();
     const buffer = new LockstepCommandBuffer();
