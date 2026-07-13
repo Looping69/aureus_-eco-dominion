@@ -22,6 +22,27 @@ test('App delegates tile selection and FPS HUD helpers to small modules', () => 
     assert.equal(app.includes('const canTileOpenModal'), false);
 });
 
+test('HomePage presents an animated live command scene', () => {
+    const home = source('components/HomePage.tsx');
+
+    for (const snippet of [
+        'aureus-scan',
+        'aureus-drift',
+        'aureus-runner',
+        'colonyNodes.map',
+        'systemReadouts.map',
+        'missionPillars.map',
+        'Build the colony. Arm the perimeter. Bend the wild planet without breaking it.',
+        'Engine online',
+        'Qwen pilot ready',
+        "event.code === 'Space'",
+    ]) {
+        assert.match(home, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    }
+
+    assert.equal(home.includes('tracking-tighter'), false);
+});
+
 test('useAureusEngine activates command validation from the active game definition registry', () => {
     const hook = source('game/useAureusEngine.ts');
 
