@@ -96,6 +96,28 @@ const weaponArchetypes: EntityArchetypeDefinition[] = Object.values(COMBAT_WEAPO
     },
 }));
 
+const tilePayloadSchema: NonNullable<GameActionDefinition['payloadSchema']> = {
+    x: {
+        type: 'number',
+        required: true,
+        description: 'Surface tile X coordinate.',
+    },
+    z: {
+        type: 'number',
+        required: true,
+        description: 'Surface tile Z coordinate.',
+    },
+};
+
+const placeBuildingPayloadSchema: GameActionDefinition['payloadSchema'] = {
+    ...tilePayloadSchema,
+    buildingType: {
+        type: 'string',
+        required: true,
+        description: 'Building type identifier to place.',
+    },
+};
+
 const contractIdPayloadSchema: GameActionDefinition['payloadSchema'] = {
     contractId: {
         type: 'string',
@@ -157,12 +179,12 @@ const npcIdPayloadSchema = singleStringPayloadSchema('npcId', 'NPC identifier ac
 const resourcePayloadSchema = singleStringPayloadSchema('resource', 'Market resource identifier accepted either as { resource } or as a legacy primitive string payload.');
 
 const actionDefinitions: GameActionDefinition[] = [
-    { id: 'action.placeBuilding', label: 'Place Building', category: 'build', commandType: 'PLACE_BUILDING', target: 'tile', payloadFields: ['x', 'z', 'buildingType'], description: 'Places a building archetype on a surface tile.' },
+    { id: 'action.placeBuilding', label: 'Place Building', category: 'build', commandType: 'PLACE_BUILDING', target: 'tile', payloadFields: ['x', 'z', 'buildingType'], payloadSchema: placeBuildingPayloadSchema, description: 'Places a building archetype on a surface tile.' },
     { id: 'action.buyBuilding', label: 'Buy Building', category: 'economy', commandType: 'BUY_BUILDING', target: 'screen', payloadFields: ['buildingType', 'cost'], description: 'Adds a building archetype to player inventory.' },
-    { id: 'action.bulldoze', label: 'Bulldoze', category: 'build', commandType: 'BULLDOZE', target: 'tile', payloadFields: ['x', 'z'], description: 'Removes or damages a tile structure.' },
-    { id: 'action.speedUp', label: 'Speed Up Construction', category: 'build', commandType: 'SPEED_UP', target: 'tile', payloadFields: ['x', 'z'], description: 'Rushes an active construction job.' },
-    { id: 'action.rehabilitate', label: 'Rehabilitate Tile', category: 'world', commandType: 'REHABILITATE', target: 'tile', payloadFields: ['x', 'z'], description: 'Repairs ecological damage on a tile.' },
-    { id: 'action.upgradeBuilding', label: 'Upgrade Building', category: 'build', commandType: 'UPGRADE_BUILDING', target: 'tile', payloadFields: ['x', 'z'], description: 'Upgrades a placed building to the next level.' },
+    { id: 'action.bulldoze', label: 'Bulldoze', category: 'build', commandType: 'BULLDOZE', target: 'tile', payloadFields: ['x', 'z'], payloadSchema: tilePayloadSchema, description: 'Removes or damages a tile structure.' },
+    { id: 'action.speedUp', label: 'Speed Up Construction', category: 'build', commandType: 'SPEED_UP', target: 'tile', payloadFields: ['x', 'z'], payloadSchema: tilePayloadSchema, description: 'Rushes an active construction job.' },
+    { id: 'action.rehabilitate', label: 'Rehabilitate Tile', category: 'world', commandType: 'REHABILITATE', target: 'tile', payloadFields: ['x', 'z'], payloadSchema: tilePayloadSchema, description: 'Repairs ecological damage on a tile.' },
+    { id: 'action.upgradeBuilding', label: 'Upgrade Building', category: 'build', commandType: 'UPGRADE_BUILDING', target: 'tile', payloadFields: ['x', 'z'], payloadSchema: tilePayloadSchema, description: 'Upgrades a placed building to the next level.' },
     { id: 'action.explodeTile', label: 'Explode Tile', category: 'debug', commandType: 'EXPLODE_TILE', target: 'tile', payloadFields: ['x', 'z', 'radius', 'damage'], description: 'Debug/destruction command for testing damaged tiles.' },
     { id: 'action.digVoxel', label: 'Dig Voxel', category: 'world', commandType: 'DIG_VOXEL', target: 'tile', payloadFields: ['x', 'y', 'z'], description: 'Queues subsurface excavation at a voxel.' },
     { id: 'action.clearRubble', label: 'Clear Rubble', category: 'world', commandType: 'CLEAR_RUBBLE', target: 'tile', payloadFields: ['x', 'y', 'z'], description: 'Queues rubble clearing at a subsurface voxel.' },
