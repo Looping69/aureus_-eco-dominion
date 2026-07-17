@@ -54,6 +54,24 @@ test('contract commands declare payload schemas in the Aureus game pack', () => 
     }
 });
 
+test('market commands declare payload schemas in the Aureus game pack', () => {
+    const aureus = source('game-definitions/aureus.ts');
+
+    for (const snippet of [
+        'const buyResourcePayloadSchema: GameActionDefinition',
+        'const autoSellPayloadSchema: GameActionDefinition',
+        'const resourcePayloadSchema = singleStringPayloadSchema',
+        "commandType: 'SELL_RESOURCE'",
+        'payloadSchema: resourcePayloadSchema',
+        "commandType: 'BUY_RESOURCE'",
+        'payloadSchema: buyResourcePayloadSchema',
+        "commandType: 'SET_AUTO_SELL'",
+        'payloadSchema: autoSellPayloadSchema',
+    ]) {
+        assertContains(aureus, snippet);
+    }
+});
+
 test('screen and dialogue commands declare payload schemas in the Aureus game pack', () => {
     const aureus = source('game-definitions/aureus.ts');
 
