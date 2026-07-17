@@ -125,9 +125,36 @@ const optionIndexPayloadSchema: GameActionDefinition['payloadSchema'] = {
     },
 };
 
+const buyResourcePayloadSchema: GameActionDefinition['payloadSchema'] = {
+    resource: {
+        type: 'string',
+        required: true,
+        description: 'Market resource identifier to buy.',
+    },
+    amount: {
+        type: 'number',
+        required: true,
+        description: 'Resource amount to buy.',
+    },
+};
+
+const autoSellPayloadSchema: GameActionDefinition['payloadSchema'] = {
+    enabled: {
+        type: 'boolean',
+        required: true,
+        description: 'Whether automatic market selling is enabled.',
+    },
+    threshold: {
+        type: 'number',
+        required: true,
+        description: 'Resource threshold above which automatic selling can occur.',
+    },
+};
+
 const popupIdPayloadSchema = singleStringPayloadSchema('popupId', 'Popup identifier accepted either as { popupId } or as a legacy primitive string payload.');
 const permitIdPayloadSchema = singleStringPayloadSchema('permitId', 'Permit identifier accepted either as { permitId } or as a legacy primitive string payload.');
 const npcIdPayloadSchema = singleStringPayloadSchema('npcId', 'NPC identifier accepted either as { npcId } or as a legacy primitive string payload.');
+const resourcePayloadSchema = singleStringPayloadSchema('resource', 'Market resource identifier accepted either as { resource } or as a legacy primitive string payload.');
 
 const actionDefinitions: GameActionDefinition[] = [
     { id: 'action.placeBuilding', label: 'Place Building', category: 'build', commandType: 'PLACE_BUILDING', target: 'tile', payloadFields: ['x', 'z', 'buildingType'], description: 'Places a building archetype on a surface tile.' },
@@ -147,9 +174,9 @@ const actionDefinitions: GameActionDefinition[] = [
     { id: 'action.attackTarget', label: 'Attack Target', category: 'combat', commandType: 'COMBAT_ATTACK_TARGET', target: 'agent', payloadFields: ['agentIds'], description: 'Sets aggression or direct combat targeting.' },
     { id: 'action.holdPosition', label: 'Hold Position', category: 'combat', commandType: 'COMBAT_HOLD_POSITION', target: 'agent', payloadFields: ['agentIds'], description: 'Tells agents to hold combat position.' },
     { id: 'action.clearCombatOrders', label: 'Clear Combat Orders', category: 'combat', commandType: 'COMBAT_CLEAR_ORDERS', target: 'agent', payloadFields: ['agentIds'], description: 'Returns agents to automatic combat behavior.' },
-    { id: 'action.sellResource', label: 'Sell Resource', category: 'economy', commandType: 'SELL_RESOURCE', target: 'resource', payloadFields: ['resource'], description: 'Sells a material into the market.' },
-    { id: 'action.buyResource', label: 'Buy Resource', category: 'economy', commandType: 'BUY_RESOURCE', target: 'resource', payloadFields: ['resource', 'amount'], description: 'Buys a material from the market.' },
-    { id: 'action.setAutoSell', label: 'Set Auto Sell', category: 'economy', commandType: 'SET_AUTO_SELL', target: 'screen', payloadFields: ['enabled', 'threshold'], description: 'Updates automatic market sale rules.' },
+    { id: 'action.sellResource', label: 'Sell Resource', category: 'economy', commandType: 'SELL_RESOURCE', target: 'resource', payloadFields: ['resource'], payloadSchema: resourcePayloadSchema, description: 'Sells a material into the market.' },
+    { id: 'action.buyResource', label: 'Buy Resource', category: 'economy', commandType: 'BUY_RESOURCE', target: 'resource', payloadFields: ['resource', 'amount'], payloadSchema: buyResourcePayloadSchema, description: 'Buys a material from the market.' },
+    { id: 'action.setAutoSell', label: 'Set Auto Sell', category: 'economy', commandType: 'SET_AUTO_SELL', target: 'screen', payloadFields: ['enabled', 'threshold'], payloadSchema: autoSellPayloadSchema, description: 'Updates automatic market sale rules.' },
     { id: 'action.markHarvest', label: 'Mark Harvest', category: 'world', commandType: 'MARK_HARVEST', target: 'tile', payloadFields: ['x', 'z'], description: 'Marks a tree, resource, or foliage tile for harvesting.' },
     { id: 'action.researchTech', label: 'Research Tech', category: 'research', commandType: 'RESEARCH_TECH', target: 'screen', payloadFields: ['techId'], description: 'Researches an unlocked technology.' },
     { id: 'action.acceptContract', label: 'Accept Contract', category: 'economy', commandType: 'ACCEPT_CONTRACT', target: 'screen', payloadFields: ['contractId'], payloadSchema: contractIdPayloadSchema, description: 'Accepts an available delivery contract.' },
