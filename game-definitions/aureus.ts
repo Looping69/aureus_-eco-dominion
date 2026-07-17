@@ -96,6 +96,15 @@ const weaponArchetypes: EntityArchetypeDefinition[] = Object.values(COMBAT_WEAPO
     },
 }));
 
+const contractIdPayloadSchema: GameActionDefinition['payloadSchema'] = {
+    contractId: {
+        type: 'string',
+        required: true,
+        allowPrimitive: true,
+        description: 'Contract identifier accepted either as { contractId } or as a legacy primitive string payload.',
+    },
+};
+
 const actionDefinitions: GameActionDefinition[] = [
     { id: 'action.placeBuilding', label: 'Place Building', category: 'build', commandType: 'PLACE_BUILDING', target: 'tile', payloadFields: ['x', 'z', 'buildingType'], description: 'Places a building archetype on a surface tile.' },
     { id: 'action.buyBuilding', label: 'Buy Building', category: 'economy', commandType: 'BUY_BUILDING', target: 'screen', payloadFields: ['buildingType', 'cost'], description: 'Adds a building archetype to player inventory.' },
@@ -119,9 +128,9 @@ const actionDefinitions: GameActionDefinition[] = [
     { id: 'action.setAutoSell', label: 'Set Auto Sell', category: 'economy', commandType: 'SET_AUTO_SELL', target: 'screen', payloadFields: ['enabled', 'threshold'], description: 'Updates automatic market sale rules.' },
     { id: 'action.markHarvest', label: 'Mark Harvest', category: 'world', commandType: 'MARK_HARVEST', target: 'tile', payloadFields: ['x', 'z'], description: 'Marks a tree, resource, or foliage tile for harvesting.' },
     { id: 'action.researchTech', label: 'Research Tech', category: 'research', commandType: 'RESEARCH_TECH', target: 'screen', payloadFields: ['techId'], description: 'Researches an unlocked technology.' },
-    { id: 'action.acceptContract', label: 'Accept Contract', category: 'economy', commandType: 'ACCEPT_CONTRACT', target: 'screen', payloadFields: ['contractId'], description: 'Accepts an available delivery contract.' },
-    { id: 'action.deliverContract', label: 'Deliver Contract', category: 'economy', commandType: 'DELIVER_CONTRACT', target: 'screen', payloadFields: ['contractId'], description: 'Delivers resources for an accepted contract.' },
-    { id: 'action.abandonContract', label: 'Abandon Contract', category: 'economy', commandType: 'ABANDON_CONTRACT', target: 'screen', payloadFields: ['contractId'], description: 'Abandons an accepted contract.' },
+    { id: 'action.acceptContract', label: 'Accept Contract', category: 'economy', commandType: 'ACCEPT_CONTRACT', target: 'screen', payloadFields: ['contractId'], payloadSchema: contractIdPayloadSchema, description: 'Accepts an available delivery contract.' },
+    { id: 'action.deliverContract', label: 'Deliver Contract', category: 'economy', commandType: 'DELIVER_CONTRACT', target: 'screen', payloadFields: ['contractId'], payloadSchema: contractIdPayloadSchema, description: 'Delivers resources for an accepted contract.' },
+    { id: 'action.abandonContract', label: 'Abandon Contract', category: 'economy', commandType: 'ABANDON_CONTRACT', target: 'screen', payloadFields: ['contractId'], payloadSchema: contractIdPayloadSchema, description: 'Abandons an accepted contract.' },
     { id: 'action.advanceTutorial', label: 'Advance Tutorial', category: 'world', commandType: 'ADVANCE_TUTORIAL', target: 'screen', payloadFields: [], description: 'Advances the tutorial state machine.' },
     { id: 'action.startDemo', label: 'Start Demo', category: 'world', commandType: 'START_DEMO', target: 'screen', payloadFields: [], description: 'Starts the playable demo flow.' },
     { id: 'action.dismissPopup', label: 'Dismiss Popup', category: 'debug', commandType: 'DISMISS_POPUP', target: 'screen', payloadFields: ['popupId'], description: 'Dismisses a blocking UI popup through the command boundary.' },
