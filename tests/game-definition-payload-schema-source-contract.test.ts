@@ -38,6 +38,25 @@ test('game-definition action payload schemas are part of the generic engine cont
     }
 });
 
+test('build commands declare payload schemas in the Aureus game pack', () => {
+    const aureus = source('game-definitions/aureus.ts');
+
+    for (const snippet of [
+        'const tilePayloadSchema: NonNullable<GameActionDefinition',
+        'const placeBuildingPayloadSchema: GameActionDefinition',
+        "buildingType: {",
+        "commandType: 'PLACE_BUILDING'",
+        'payloadSchema: placeBuildingPayloadSchema',
+        "commandType: 'BULLDOZE'",
+        "commandType: 'SPEED_UP'",
+        "commandType: 'REHABILITATE'",
+        "commandType: 'UPGRADE_BUILDING'",
+        'payloadSchema: tilePayloadSchema',
+    ]) {
+        assertContains(aureus, snippet);
+    }
+});
+
 test('contract commands declare payload schemas in the Aureus game pack', () => {
     const aureus = source('game-definitions/aureus.ts');
 
