@@ -126,9 +126,6 @@ export function collectGameDefinitionIssues(definition: GameDefinition): GameDef
                     if (schema.allowPrimitive !== undefined && typeof schema.allowPrimitive !== 'boolean') {
                         issues.push({ path: `${fieldPath}.allowPrimitive`, message: 'must be a boolean when provided' });
                     }
-                    if (schema.values !== undefined) {
-                        requireStringArray(schema.values, `${fieldPath}.values`, issues);
-                    }
                 });
             }
         }
