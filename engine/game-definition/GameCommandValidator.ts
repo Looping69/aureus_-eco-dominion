@@ -55,10 +55,6 @@ function hasRequiredPayloadField(action: GameActionDefinition, payload: unknown,
 function matchesPayloadFieldSchema(schema: GameActionPayloadFieldDefinition, value: unknown): boolean {
   if (value === null || value === undefined) return schema.required === false;
 
-  if (schema.values && schema.values.length > 0) {
-    if (typeof value !== 'string' || !schema.values.includes(value)) return false;
-  }
-
   switch (schema.type) {
     case 'string':
       return typeof value === 'string' && value.length > 0;
