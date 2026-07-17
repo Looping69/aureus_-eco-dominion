@@ -38,11 +38,37 @@ test('game-definition action payload schemas are part of the generic engine cont
     }
 });
 
-test('payload schema groundwork does not change runtime command validation yet', () => {
+test('contract commands declare payload schemas in the Aureus game pack', () => {
+    const aureus = source('game-definitions/aureus.ts');
+
+    for (const snippet of [
+        'const contractIdPayloadSchema: GameActionDefinition',
+        "type: 'string',",
+        'allowPrimitive: true,',
+        "commandType: 'ACCEPT_CONTRACT'",
+        "commandType: 'DELIVER_CONTRACT'",
+        "commandType: 'ABANDON_CONTRACT'",
+        'payloadSchema: contractIdPayloadSchema',
+    ]) {
+        assertContains(aureus, snippet);
+    }
+});
+
+test('payload schema validation is opt-in and keeps the legacy path for undeclared actions', () => {
     const validator = source('engine/game-definition/GameCommandValidator.ts');
     const runner = source('scripts/run-contract-tests.js');
 
-    assertContains(validator, 'function hasRequiredPayloadField(payload: unknown, field: string, fields: string[]): boolean');
-    assertContains(validator, "['x', 'y', 'z', 'dx', 'dz', 'amount', 'cost', 'optionIndex', 'threshold', 'radius', 'damage']");
+    for (const snippet of [
+        'function actionHasPayloadSchema(action: GameActionDefinition): boolean',
+        'function hasLegacyRequiredPayloadField(payload: unknown, field: string, fields: string[]): boolean',
+        'function hasSchemaRequiredPayloadField(action: GameActionDefinition, payload: unknown, field: string): boolean',
+        'function matchesPayloadFieldSchema(schema: GameActionPayloadFieldDefinition, value: unknown): boolean',
+        'if (actionHasPayloadSchema(action))',
+        "['x', 'y', 'z', 'dx', 'dz', 'amount', 'cost', 'optionIndex', 'threshold', 'radius', 'damage']",
+        'Command type ${commandType} has invalid payload field(s): ${invalidFields.join(\', \')}.',
+    ]) {
+        assertContains(validator, snippet);
+    }
+
     assertContains(runner, 'tests/game-definition-payload-schema-source-contract.test.ts');
 });
