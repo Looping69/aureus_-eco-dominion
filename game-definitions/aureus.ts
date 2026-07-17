@@ -105,6 +105,30 @@ const contractIdPayloadSchema: GameActionDefinition['payloadSchema'] = {
     },
 };
 
+function singleStringPayloadSchema(field: string, description: string): GameActionDefinition['payloadSchema'] {
+    return {
+        [field]: {
+            type: 'string',
+            required: true,
+            allowPrimitive: true,
+            description,
+        },
+    };
+}
+
+const optionIndexPayloadSchema: GameActionDefinition['payloadSchema'] = {
+    optionIndex: {
+        type: 'number',
+        required: true,
+        allowPrimitive: true,
+        description: 'Dialogue option index accepted either as { optionIndex } or as a legacy primitive number payload.',
+    },
+};
+
+const popupIdPayloadSchema = singleStringPayloadSchema('popupId', 'Popup identifier accepted either as { popupId } or as a legacy primitive string payload.');
+const permitIdPayloadSchema = singleStringPayloadSchema('permitId', 'Permit identifier accepted either as { permitId } or as a legacy primitive string payload.');
+const npcIdPayloadSchema = singleStringPayloadSchema('npcId', 'NPC identifier accepted either as { npcId } or as a legacy primitive string payload.');
+
 const actionDefinitions: GameActionDefinition[] = [
     { id: 'action.placeBuilding', label: 'Place Building', category: 'build', commandType: 'PLACE_BUILDING', target: 'tile', payloadFields: ['x', 'z', 'buildingType'], description: 'Places a building archetype on a surface tile.' },
     { id: 'action.buyBuilding', label: 'Buy Building', category: 'economy', commandType: 'BUY_BUILDING', target: 'screen', payloadFields: ['buildingType', 'cost'], description: 'Adds a building archetype to player inventory.' },
@@ -133,10 +157,10 @@ const actionDefinitions: GameActionDefinition[] = [
     { id: 'action.abandonContract', label: 'Abandon Contract', category: 'economy', commandType: 'ABANDON_CONTRACT', target: 'screen', payloadFields: ['contractId'], payloadSchema: contractIdPayloadSchema, description: 'Abandons an accepted contract.' },
     { id: 'action.advanceTutorial', label: 'Advance Tutorial', category: 'world', commandType: 'ADVANCE_TUTORIAL', target: 'screen', payloadFields: [], description: 'Advances the tutorial state machine.' },
     { id: 'action.startDemo', label: 'Start Demo', category: 'world', commandType: 'START_DEMO', target: 'screen', payloadFields: [], description: 'Starts the playable demo flow.' },
-    { id: 'action.dismissPopup', label: 'Dismiss Popup', category: 'debug', commandType: 'DISMISS_POPUP', target: 'screen', payloadFields: ['popupId'], description: 'Dismisses a blocking UI popup through the command boundary.' },
-    { id: 'action.submitPermit', label: 'Submit Permit', category: 'dialogue', commandType: 'SUBMIT_PERMIT', target: 'screen', payloadFields: ['permitId'], description: 'Submits a bureaucracy permit action.' },
-    { id: 'action.talkToNpc', label: 'Talk To NPC', category: 'dialogue', commandType: 'TALK_TO_NPC', target: 'agent', payloadFields: ['npcId'], description: 'Starts dialogue with a bureaucracy NPC.' },
-    { id: 'action.chooseDialogue', label: 'Choose Dialogue', category: 'dialogue', commandType: 'CHOOSE_DIALOGUE', target: 'screen', payloadFields: ['optionIndex'], description: 'Chooses a dialogue option.' },
+    { id: 'action.dismissPopup', label: 'Dismiss Popup', category: 'debug', commandType: 'DISMISS_POPUP', target: 'screen', payloadFields: ['popupId'], payloadSchema: popupIdPayloadSchema, description: 'Dismisses a blocking UI popup through the command boundary.' },
+    { id: 'action.submitPermit', label: 'Submit Permit', category: 'dialogue', commandType: 'SUBMIT_PERMIT', target: 'screen', payloadFields: ['permitId'], payloadSchema: permitIdPayloadSchema, description: 'Submits a bureaucracy permit action.' },
+    { id: 'action.talkToNpc', label: 'Talk To NPC', category: 'dialogue', commandType: 'TALK_TO_NPC', target: 'agent', payloadFields: ['npcId'], payloadSchema: npcIdPayloadSchema, description: 'Starts dialogue with a bureaucracy NPC.' },
+    { id: 'action.chooseDialogue', label: 'Choose Dialogue', category: 'dialogue', commandType: 'CHOOSE_DIALOGUE', target: 'screen', payloadFields: ['optionIndex'], payloadSchema: optionIndexPayloadSchema, description: 'Chooses a dialogue option.' },
     { id: 'action.closeDialogue', label: 'Close Dialogue', category: 'dialogue', commandType: 'CLOSE_DIALOGUE', target: 'screen', payloadFields: [], description: 'Closes the active dialogue.' },
 ];
 
