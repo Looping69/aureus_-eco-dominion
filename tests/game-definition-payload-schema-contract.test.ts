@@ -77,12 +77,12 @@ test('game definition validation catches malformed payload schemas before regist
                 ...AUREUS_GAME_DEFINITION.actions[0],
                 payloadSchema: {
                     x: { type: 'number' },
-                    z: { type: 'wat' },
+                    z: { type: 'wat' as any },
                 },
             },
             ...AUREUS_GAME_DEFINITION.actions.slice(1),
         ],
-    } as GameDefinition;
+    } as unknown as GameDefinition;
 
     const issues = collectGameDefinitionIssues(malformed);
     assert.equal(issues.some((issue) => issue.path.includes('payloadSchema.buildingType')), true);
