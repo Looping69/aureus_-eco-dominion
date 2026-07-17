@@ -112,16 +112,6 @@ const AUREUS_PAYLOAD_FIELD_TYPES: Record<string, GameActionPayloadFieldType> = {
     agentIds: 'string[]',
 };
 
-const tradeableResourceIds = resourceDefinitions
-    .filter((resource) => resource.tradeable)
-    .map((resource) => resource.id);
-
-function getAureusPayloadFieldValues(field: string): string[] | undefined {
-    if (field === 'buildingType') return Object.values(BuildingType);
-    if (field === 'resource') return tradeableResourceIds;
-    return undefined;
-}
-
 function withAureusPayloadSchema(action: GameActionDefinition): GameActionDefinition {
     const payloadSchema = Object.fromEntries(action.payloadFields.map((field) => [
         field,
@@ -129,7 +119,6 @@ function withAureusPayloadSchema(action: GameActionDefinition): GameActionDefini
             type: AUREUS_PAYLOAD_FIELD_TYPES[field] ?? 'string',
             required: true,
             allowPrimitive: action.payloadFields.length === 1,
-            values: getAureusPayloadFieldValues(field),
         },
     ])) as GameActionDefinition['payloadSchema'];
 
