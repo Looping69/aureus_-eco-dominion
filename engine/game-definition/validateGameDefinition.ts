@@ -1,4 +1,4 @@
-import type { GameActionPayloadFieldType, GameDefinition, GameDefinitionSummary } from './types';
+import type { GameDefinition, GameDefinitionSummary } from './types';
 
 export interface GameDefinitionValidationIssue {
     path: string;
@@ -14,8 +14,6 @@ export class GameDefinitionValidationError extends Error {
         this.issues = issues;
     }
 }
-
-const PAYLOAD_FIELD_TYPES = new Set<GameActionPayloadFieldType>(['string', 'number', 'boolean', 'string[]', 'number[]', 'object', 'any']);
 
 function requireNonEmptyString(value: unknown, path: string, issues: GameDefinitionValidationIssue[]): void {
     if (typeof value !== 'string' || value.trim().length === 0) {
@@ -100,35 +98,6 @@ export function collectGameDefinitionIssues(definition: GameDefinition): GameDef
         requireNonEmptyString(action.commandType, `actions[${index}].commandType`, issues);
         requireNonEmptyString(action.target, `actions[${index}].target`, issues);
         requireStringArray(action.payloadFields, `actions[${index}].payloadFields`, issues);
-
-        if (action.payloadSchema !== undefined) {
-            if (!action.payloadSchema || typeof action.payloadSchema !== 'object' || Array.isArray(action.payloadSchema)) {
-                issues.push({ path: `actions[${index}].payloadSchema`, message: 'must be an object when provided' });
-            } else {
-                for (const field of action.payloadFields) {
-                    if (!(field in action.payloadSchema)) {
-                        issues.push({ path: `actions[${index}].payloadSchema.${field}`, message: 'must declare every payloadFields entry' });
-                    }
-                }
-
-                Object.entries(action.payloadSchema).forEach(([field, schema]) => {
-                    const fieldPath = `actions[${index}].payloadSchema.${field}`;
-                    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
-                        issues.push({ path: fieldPath, message: 'must be an object' });
-                        return;
-                    }
-                    if (!PAYLOAD_FIELD_TYPES.has(schema.type)) {
-                        issues.push({ path: `${fieldPath}.type`, message: 'must be a supported payload field type' });
-                    }
-                    if (schema.required !== undefined && typeof schema.required !== 'boolean') {
-                        issues.push({ path: `${fieldPath}.required`, message: 'must be a boolean when provided' });
-                    }
-                    if (schema.allowPrimitive !== undefined && typeof schema.allowPrimitive !== 'boolean') {
-                        issues.push({ path: `${fieldPath}.allowPrimitive`, message: 'must be a boolean when provided' });
-                    }
-                });
-            }
-        }
     });
 
     definition.systems.forEach((system, index) => {
