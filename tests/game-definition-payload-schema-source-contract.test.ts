@@ -54,6 +54,28 @@ test('contract commands declare payload schemas in the Aureus game pack', () => 
     }
 });
 
+test('screen and dialogue commands declare payload schemas in the Aureus game pack', () => {
+    const aureus = source('game-definitions/aureus.ts');
+
+    for (const snippet of [
+        'function singleStringPayloadSchema(field: string, description: string)',
+        'const optionIndexPayloadSchema: GameActionDefinition',
+        'const popupIdPayloadSchema = singleStringPayloadSchema',
+        'const permitIdPayloadSchema = singleStringPayloadSchema',
+        'const npcIdPayloadSchema = singleStringPayloadSchema',
+        "commandType: 'DISMISS_POPUP'",
+        'payloadSchema: popupIdPayloadSchema',
+        "commandType: 'SUBMIT_PERMIT'",
+        'payloadSchema: permitIdPayloadSchema',
+        "commandType: 'TALK_TO_NPC'",
+        'payloadSchema: npcIdPayloadSchema',
+        "commandType: 'CHOOSE_DIALOGUE'",
+        'payloadSchema: optionIndexPayloadSchema',
+    ]) {
+        assertContains(aureus, snippet);
+    }
+});
+
 test('payload schema validation is opt-in and keeps the legacy path for undeclared actions', () => {
     const validator = source('engine/game-definition/GameCommandValidator.ts');
     const runner = source('scripts/run-contract-tests.js');
