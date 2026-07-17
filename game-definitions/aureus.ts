@@ -4,7 +4,7 @@ import { BUILDINGS, INITIAL_RESOURCES } from '../engine/data/VoxelConstants';
 import { RAW_AGENT_ROLE_SCHEMA } from '../engine/data/agentRoles';
 import { COMBAT_WEAPONS, ROLE_WEAPON_LOADOUTS } from '../engine/data/combatWeapons';
 import { RESOURCE_GRID_ROLE_SCHEMA } from '../engine/data/resourceGridRoleSchema';
-import { defineGameDefinition, type EntityArchetypeDefinition, type GameActionDefinition, type GameResourceDefinition, type GameSystemBindingDefinition } from '../engine/game-definition';
+import { defineGameDefinition, type EntityArchetypeDefinition, type GameActionDefinition, type GameActionPayloadFieldType, type GameResourceDefinition, type GameSystemBindingDefinition } from '../engine/game-definition';
 
 const resourceDefinitions: GameResourceDefinition[] = [
     { id: 'agt', label: 'AGT', kind: 'currency', initial: INITIAL_RESOURCES.agt, min: 0, tradeable: true, description: 'Primary treasury currency used to buy buildings and trade.' },
@@ -96,6 +96,46 @@ const weaponArchetypes: EntityArchetypeDefinition[] = Object.values(COMBAT_WEAPO
     },
 }));
 
+const AUREUS_PAYLOAD_FIELD_TYPES: Record<string, GameActionPayloadFieldType> = {
+    x: 'number',
+    y: 'number',
+    z: 'number',
+    dx: 'number',
+    dz: 'number',
+    amount: 'number',
+    cost: 'number',
+    optionIndex: 'number',
+    threshold: 'number',
+    radius: 'number',
+    damage: 'number',
+    enabled: 'boolean',
+    agentIds: 'string[]',
+};
+
+const tradeableResourceIds = resourceDefinitions
+    .filter((resource) => resource.tradeable)
+    .map((resource) => resource.id);
+
+function getAureusPayloadFieldValues(field: string): string[] | undefined {
+    if (field === 'buildingType') return Object.values(BuildingType);
+    if (field === 'resource') return tradeableResourceIds;
+    return undefined;
+}
+
+function withAureusPayloadSchema(action: GameActionDefinition): GameActionDefinition {
+    const payloadSchema = Object.fromEntries(action.payloadFields.map((field) => [
+        field,
+        {
+            type: AUREUS_PAYLOAD_FIELD_TYPES[field] ?? 'string',
+            required: true,
+            allowPrimitive: action.payloadFields.length === 1,
+            values: getAureusPayloadFieldValues(field),
+        },
+    ])) as GameActionDefinition['payloadSchema'];
+
+    return { ...action, payloadSchema };
+}
+
 const actionDefinitions: GameActionDefinition[] = [
     { id: 'action.placeBuilding', label: 'Place Building', category: 'build', commandType: 'PLACE_BUILDING', target: 'tile', payloadFields: ['x', 'z', 'buildingType'], description: 'Places a building archetype on a surface tile.' },
     { id: 'action.buyBuilding', label: 'Buy Building', category: 'economy', commandType: 'BUY_BUILDING', target: 'screen', payloadFields: ['buildingType', 'cost'], description: 'Adds a building archetype to player inventory.' },
@@ -129,7 +169,7 @@ const actionDefinitions: GameActionDefinition[] = [
     { id: 'action.talkToNpc', label: 'Talk To NPC', category: 'dialogue', commandType: 'TALK_TO_NPC', target: 'agent', payloadFields: ['npcId'], description: 'Starts dialogue with a bureaucracy NPC.' },
     { id: 'action.chooseDialogue', label: 'Choose Dialogue', category: 'dialogue', commandType: 'CHOOSE_DIALOGUE', target: 'screen', payloadFields: ['optionIndex'], description: 'Chooses a dialogue option.' },
     { id: 'action.closeDialogue', label: 'Close Dialogue', category: 'dialogue', commandType: 'CLOSE_DIALOGUE', target: 'screen', payloadFields: [], description: 'Closes the active dialogue.' },
-];
+].map(withAureusPayloadSchema);
 
 const systemBindings: GameSystemBindingDefinition[] = [
     { id: 'system.resources', label: 'Resources', module: 'engine/sim/systems/EconomySystem', reads: ['resources', 'buildings'], writes: ['resources'], description: 'Calculates production, maintenance, and resource flow.' },
