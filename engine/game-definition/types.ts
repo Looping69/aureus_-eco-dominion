@@ -5,6 +5,7 @@ export type ResourceKind = 'currency' | 'material' | 'reputation' | 'capacity' |
 export type EntityCategory = 'agent' | 'building' | 'terrain' | 'item' | 'projectile' | 'effect' | 'ui' | 'world';
 export type ActionCategory = 'build' | 'move' | 'combat' | 'economy' | 'research' | 'dialogue' | 'world' | 'debug';
 export type ActionTarget = 'none' | 'tile' | 'agent' | 'entity' | 'resource' | 'screen';
+export type GameActionPayloadFieldType = 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'object' | 'any';
 
 export interface GameResourceDefinition {
     id: string;
@@ -27,6 +28,16 @@ export interface EntityArchetypeDefinition {
     description?: string;
 }
 
+export interface GameActionPayloadFieldDefinition {
+    type: GameActionPayloadFieldType;
+    required?: boolean;
+    allowPrimitive?: boolean;
+    values?: string[];
+    description?: string;
+}
+
+export type GameActionPayloadSchema = Record<string, GameActionPayloadFieldDefinition>;
+
 export interface GameActionDefinition {
     id: string;
     label: string;
@@ -34,6 +45,7 @@ export interface GameActionDefinition {
     commandType: string;
     target: ActionTarget;
     payloadFields: string[];
+    payloadSchema?: GameActionPayloadSchema;
     description?: string;
 }
 
