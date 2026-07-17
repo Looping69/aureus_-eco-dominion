@@ -4,6 +4,9 @@ export type {
     EntityArchetypeDefinition,
     EntityCategory,
     GameActionDefinition,
+    GameActionPayloadFieldDefinition,
+    GameActionPayloadFieldType,
+    GameActionPayloadSchema,
     GameDefinition,
     GameDefinitionId,
     GameDefinitionSummary,
@@ -15,6 +18,7 @@ export type {
 
 export {
     findActionForCommandType,
+    findInvalidPayloadFields,
     findMissingPayloadFields,
     validateGameCommandForActiveDefinition,
     validateGameCommandType,
