@@ -162,6 +162,24 @@ test('screen and dialogue commands declare payload schemas in the Aureus game pa
     }
 });
 
+test('schema-backed command diagnostics describe expected payload field types', () => {
+    const validator = source('engine/game-definition/GameCommandValidator.ts');
+
+    for (const snippet of [
+        'function describePayloadFieldExpectation(schema: GameActionPayloadFieldDefinition | null): string',
+        "if (!schema) return 'declared payload field';",
+        'if (schema.allowPrimitive) return `${schema.type} or primitive ${schema.type}`;',
+        'function formatPayloadFieldDiagnostic(action: GameActionDefinition, field: string): string',
+        'return `${field} expected ${describePayloadFieldExpectation(getPayloadFieldSchema(action, field))}`;',
+        'function findMissingPayloadFieldDiagnostics(action: GameActionDefinition, payload: unknown): string[]',
+        'function findInvalidPayloadFieldDiagnostics(action: GameActionDefinition, payload: unknown): string[]',
+        'const missingFields = findMissingPayloadFieldDiagnostics(action, payload);',
+        'const invalidFields = findInvalidPayloadFieldDiagnostics(action, payload);',
+    ]) {
+        assertContains(validator, snippet);
+    }
+});
+
 test('payload schema validation is opt-in and keeps the legacy path for undeclared actions', () => {
     const validator = source('engine/game-definition/GameCommandValidator.ts');
     const runner = source('scripts/run-contract-tests.js');
