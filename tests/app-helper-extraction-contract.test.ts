@@ -22,6 +22,38 @@ test('App delegates tile selection and FPS HUD helpers to small modules', () => 
     assert.equal(app.includes('const canTileOpenModal'), false);
 });
 
+test('DebugMenu exposes a schema-driven command form for active game pack actions', () => {
+    const debugMenu = source('components/DebugMenu.tsx');
+    const form = source('components/CommandSchemaForm.tsx');
+
+    for (const snippet of [
+        "import { CommandSchemaForm } from './CommandSchemaForm';",
+        '<CommandSchemaForm dispatch={dispatch} />',
+    ]) {
+        assert.match(debugMenu, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    }
+
+    for (const snippet of [
+        "import type { GameActionDefinition, GameActionPayloadFieldDefinition } from '../engine/game-definition';",
+        "import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';",
+        'function getSchemaActions(): GameActionDefinition[]',
+        'action.payloadSchema && action.payloadFields.length > 0',
+        'function getDefaultFieldValue(schema: GameActionPayloadFieldDefinition): string',
+        "case 'number':",
+        "case 'boolean':",
+        "case 'string[]':",
+        "case 'number[]':",
+        "case 'object':",
+        'function parseFieldValue(schema: GameActionPayloadFieldDefinition, rawValue: string): unknown',
+        'function buildPayload(action: GameActionDefinition, values: FormValues): Record<string, unknown>',
+        'dispatch({ type: selectedAction.commandType, payload });',
+        'Schema Command',
+        'Dispatch {selectedAction.commandType}',
+    ]) {
+        assert.match(form, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    }
+});
+
 test('HomePage presents an animated live command scene', () => {
     const home = source('components/HomePage.tsx');
 
