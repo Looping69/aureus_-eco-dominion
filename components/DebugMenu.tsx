@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Cpu, Database, Box, Users, Layers, Zap, X, Monitor, ToggleLeft, ToggleRight, Unlock, Eye, EyeOff, Image, FileCode, Hash } from 'lucide-react';
 import { GameState, Action } from '../types';
 import { getActiveGameDefinitionSummary } from '../game-definitions/activeGameDefinition';
+import { CommandSchemaForm } from './CommandSchemaForm';
 
 interface DebugMenuProps {
   getDebugStats: () => any;
@@ -156,6 +157,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
               <div className="mt-1 px-1 text-[8px] text-slate-500 truncate" title={activeGameDefinitionSummary.genreTags.join(' / ')}>
                 {activeGameDefinitionSummary.genreTags.join(' / ')}
               </div>
+              <CommandSchemaForm dispatch={dispatch} />
             </div>
           )}
 
