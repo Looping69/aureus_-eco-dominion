@@ -44,6 +44,16 @@ function getSchemaPayloadFieldValue(
   return { present: true, value: payload[field] };
 }
 
+function describePayloadFieldExpectation(schema: GameActionPayloadFieldDefinition | null): string {
+  if (!schema) return 'declared payload field';
+  if (schema.allowPrimitive) return `${schema.type} or primitive ${schema.type}`;
+  return schema.type;
+}
+
+function formatPayloadFieldDiagnostic(action: GameActionDefinition, field: string): string {
+  return `${field} expected ${describePayloadFieldExpectation(getPayloadFieldSchema(action, field))}`;
+}
+
 function matchesPayloadFieldSchema(schema: GameActionPayloadFieldDefinition, value: unknown): boolean {
   if (value === null || value === undefined) return schema.required === false;
 
@@ -110,6 +120,12 @@ export function findMissingPayloadFields(action: GameActionDefinition, payload: 
   return action.payloadFields.filter((field) => !hasLegacyRequiredPayloadField(payload, field, action.payloadFields));
 }
 
+function findMissingPayloadFieldDiagnostics(action: GameActionDefinition, payload: unknown): string[] {
+  const missingFields = findMissingPayloadFields(action, payload);
+  if (!actionHasPayloadSchema(action)) return missingFields;
+  return missingFields.map((field) => formatPayloadFieldDiagnostic(action, field));
+}
+
 export function findInvalidPayloadFields(action: GameActionDefinition, payload: unknown): string[] {
   if (!actionHasPayloadSchema(action)) return [];
 
@@ -121,6 +137,12 @@ export function findInvalidPayloadFields(action: GameActionDefinition, payload: 
     if (!present && schema.required === false) return false;
     return !matchesPayloadFieldSchema(schema, value);
   });
+}
+
+function findInvalidPayloadFieldDiagnostics(action: GameActionDefinition, payload: unknown): string[] {
+  const invalidFields = findInvalidPayloadFields(action, payload);
+  if (!actionHasPayloadSchema(action)) return invalidFields;
+  return invalidFields.map((field) => formatPayloadFieldDiagnostic(action, field));
 }
 
 export function findActionForCommandType(
@@ -152,7 +174,7 @@ export function validateGameCommandType(
   }
 
   if (arguments.length >= 3) {
-    const missingFields = findMissingPayloadFields(action, payload);
+    const missingFields = findMissingPayloadFieldDiagnostics(action, payload);
     if (missingFields.length > 0) {
       return {
         ok: false,
@@ -161,7 +183,7 @@ export function validateGameCommandType(
       };
     }
 
-    const invalidFields = findInvalidPayloadFields(action, payload);
+    const invalidFields = findInvalidPayloadFieldDiagnostics(action, payload);
     if (invalidFields.length > 0) {
       return {
         ok: false,
