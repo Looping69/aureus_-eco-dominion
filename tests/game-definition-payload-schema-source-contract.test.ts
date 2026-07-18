@@ -57,6 +57,55 @@ test('build commands declare payload schemas in the Aureus game pack', () => {
     }
 });
 
+test('world and progression commands declare payload schemas in the Aureus game pack', () => {
+    const aureus = source('game-definitions/aureus.ts');
+
+    for (const snippet of [
+        'const voxelPayloadSchema: NonNullable<GameActionDefinition',
+        'const buyBuildingPayloadSchema: GameActionDefinition',
+        'const explodeTilePayloadSchema: GameActionDefinition',
+        'const techIdPayloadSchema = singleStringPayloadSchema',
+        "commandType: 'BUY_BUILDING'",
+        'payloadSchema: buyBuildingPayloadSchema',
+        "commandType: 'EXPLODE_TILE'",
+        'payloadSchema: explodeTilePayloadSchema',
+        "commandType: 'DIG_VOXEL'",
+        "commandType: 'CLEAR_RUBBLE'",
+        "commandType: 'DESIGNATE_RUBBLE_DUMP'",
+        "commandType: 'FILL_VOXEL'",
+        'payloadSchema: voxelPayloadSchema',
+        "commandType: 'MARK_HARVEST'",
+        "commandType: 'RESEARCH_TECH'",
+        'payloadSchema: techIdPayloadSchema',
+    ]) {
+        assertContains(aureus, snippet);
+    }
+});
+
+test('agent movement and combat commands declare payload schemas in the Aureus game pack', () => {
+    const aureus = source('game-definitions/aureus.ts');
+
+    for (const snippet of [
+        'const agentMovePayloadSchema: GameActionDefinition',
+        'const agentGroupMovePayloadSchema: GameActionDefinition',
+        "type: 'string[]',",
+        'const manualMovePayloadSchema: GameActionDefinition',
+        'const agentIdsPayloadSchema: GameActionDefinition',
+        "commandType: 'COMMAND_AGENT'",
+        'payloadSchema: agentMovePayloadSchema',
+        "commandType: 'COMMAND_AGENTS'",
+        'payloadSchema: agentGroupMovePayloadSchema',
+        "commandType: 'MANUAL_MOVE_AGENT'",
+        'payloadSchema: manualMovePayloadSchema',
+        "commandType: 'COMBAT_ATTACK_TARGET'",
+        "commandType: 'COMBAT_HOLD_POSITION'",
+        "commandType: 'COMBAT_CLEAR_ORDERS'",
+        'payloadSchema: agentIdsPayloadSchema',
+    ]) {
+        assertContains(aureus, snippet);
+    }
+});
+
 test('contract commands declare payload schemas in the Aureus game pack', () => {
     const aureus = source('game-definitions/aureus.ts');
 
