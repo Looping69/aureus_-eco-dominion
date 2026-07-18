@@ -109,12 +109,94 @@ const tilePayloadSchema: NonNullable<GameActionDefinition['payloadSchema']> = {
     },
 };
 
+const voxelPayloadSchema: NonNullable<GameActionDefinition['payloadSchema']> = {
+    ...tilePayloadSchema,
+    y: {
+        type: 'number',
+        required: true,
+        description: 'Voxel layer Y coordinate.',
+    },
+};
+
 const placeBuildingPayloadSchema: GameActionDefinition['payloadSchema'] = {
     ...tilePayloadSchema,
     buildingType: {
         type: 'string',
         required: true,
         description: 'Building type identifier to place.',
+    },
+};
+
+const buyBuildingPayloadSchema: GameActionDefinition['payloadSchema'] = {
+    buildingType: {
+        type: 'string',
+        required: true,
+        description: 'Building type identifier to buy for inventory.',
+    },
+    cost: {
+        type: 'number',
+        required: true,
+        description: 'AGT purchase cost supplied by the shop command.',
+    },
+};
+
+const explodeTilePayloadSchema: GameActionDefinition['payloadSchema'] = {
+    ...tilePayloadSchema,
+    radius: {
+        type: 'number',
+        required: true,
+        description: 'Explosion radius in tiles.',
+    },
+    damage: {
+        type: 'number',
+        required: true,
+        description: 'Damage amount applied by the debug explosion.',
+    },
+};
+
+const agentMovePayloadSchema: GameActionDefinition['payloadSchema'] = {
+    agentId: {
+        type: 'string',
+        required: true,
+        description: 'Agent identifier to command.',
+    },
+    x: tilePayloadSchema.x,
+    z: tilePayloadSchema.z,
+};
+
+const agentGroupMovePayloadSchema: GameActionDefinition['payloadSchema'] = {
+    agentIds: {
+        type: 'string[]',
+        required: true,
+        description: 'Selected agent identifiers to command as a group.',
+    },
+    x: tilePayloadSchema.x,
+    z: tilePayloadSchema.z,
+};
+
+const manualMovePayloadSchema: GameActionDefinition['payloadSchema'] = {
+    agentId: {
+        type: 'string',
+        required: true,
+        description: 'Agent identifier to move manually.',
+    },
+    dx: {
+        type: 'number',
+        required: true,
+        description: 'Manual movement delta on the X axis.',
+    },
+    dz: {
+        type: 'number',
+        required: true,
+        description: 'Manual movement delta on the Z axis.',
+    },
+};
+
+const agentIdsPayloadSchema: GameActionDefinition['payloadSchema'] = {
+    agentIds: {
+        type: 'string[]',
+        required: true,
+        description: 'Selected agent identifiers affected by this combat order.',
     },
 };
 
@@ -177,30 +259,31 @@ const popupIdPayloadSchema = singleStringPayloadSchema('popupId', 'Popup identif
 const permitIdPayloadSchema = singleStringPayloadSchema('permitId', 'Permit identifier accepted either as { permitId } or as a legacy primitive string payload.');
 const npcIdPayloadSchema = singleStringPayloadSchema('npcId', 'NPC identifier accepted either as { npcId } or as a legacy primitive string payload.');
 const resourcePayloadSchema = singleStringPayloadSchema('resource', 'Market resource identifier accepted either as { resource } or as a legacy primitive string payload.');
+const techIdPayloadSchema = singleStringPayloadSchema('techId', 'Technology identifier accepted either as { techId } or as a legacy primitive string payload.');
 
 const actionDefinitions: GameActionDefinition[] = [
     { id: 'action.placeBuilding', label: 'Place Building', category: 'build', commandType: 'PLACE_BUILDING', target: 'tile', payloadFields: ['x', 'z', 'buildingType'], payloadSchema: placeBuildingPayloadSchema, description: 'Places a building archetype on a surface tile.' },
-    { id: 'action.buyBuilding', label: 'Buy Building', category: 'economy', commandType: 'BUY_BUILDING', target: 'screen', payloadFields: ['buildingType', 'cost'], description: 'Adds a building archetype to player inventory.' },
+    { id: 'action.buyBuilding', label: 'Buy Building', category: 'economy', commandType: 'BUY_BUILDING', target: 'screen', payloadFields: ['buildingType', 'cost'], payloadSchema: buyBuildingPayloadSchema, description: 'Adds a building archetype to player inventory.' },
     { id: 'action.bulldoze', label: 'Bulldoze', category: 'build', commandType: 'BULLDOZE', target: 'tile', payloadFields: ['x', 'z'], payloadSchema: tilePayloadSchema, description: 'Removes or damages a tile structure.' },
     { id: 'action.speedUp', label: 'Speed Up Construction', category: 'build', commandType: 'SPEED_UP', target: 'tile', payloadFields: ['x', 'z'], payloadSchema: tilePayloadSchema, description: 'Rushes an active construction job.' },
     { id: 'action.rehabilitate', label: 'Rehabilitate Tile', category: 'world', commandType: 'REHABILITATE', target: 'tile', payloadFields: ['x', 'z'], payloadSchema: tilePayloadSchema, description: 'Repairs ecological damage on a tile.' },
     { id: 'action.upgradeBuilding', label: 'Upgrade Building', category: 'build', commandType: 'UPGRADE_BUILDING', target: 'tile', payloadFields: ['x', 'z'], payloadSchema: tilePayloadSchema, description: 'Upgrades a placed building to the next level.' },
-    { id: 'action.explodeTile', label: 'Explode Tile', category: 'debug', commandType: 'EXPLODE_TILE', target: 'tile', payloadFields: ['x', 'z', 'radius', 'damage'], description: 'Debug/destruction command for testing damaged tiles.' },
-    { id: 'action.digVoxel', label: 'Dig Voxel', category: 'world', commandType: 'DIG_VOXEL', target: 'tile', payloadFields: ['x', 'y', 'z'], description: 'Queues subsurface excavation at a voxel.' },
-    { id: 'action.clearRubble', label: 'Clear Rubble', category: 'world', commandType: 'CLEAR_RUBBLE', target: 'tile', payloadFields: ['x', 'y', 'z'], description: 'Queues rubble clearing at a subsurface voxel.' },
-    { id: 'action.designateRubbleDump', label: 'Designate Rubble Dump', category: 'world', commandType: 'DESIGNATE_RUBBLE_DUMP', target: 'tile', payloadFields: ['x', 'y', 'z'], description: 'Marks a subsurface voxel as a rubble dump zone.' },
-    { id: 'action.fillVoxel', label: 'Fill Voxel', category: 'world', commandType: 'FILL_VOXEL', target: 'tile', payloadFields: ['x', 'y', 'z'], description: 'Queues a rubble fill command for a subsurface voxel.' },
-    { id: 'action.commandAgent', label: 'Command Agent', category: 'move', commandType: 'COMMAND_AGENT', target: 'agent', payloadFields: ['agentId', 'x', 'z'], description: 'Orders one agent to move or work at a tile.' },
-    { id: 'action.commandAgents', label: 'Command Agents', category: 'move', commandType: 'COMMAND_AGENTS', target: 'agent', payloadFields: ['agentIds', 'x', 'z'], description: 'Orders a selected group of agents.' },
-    { id: 'action.manualMoveAgent', label: 'Manual Move Agent', category: 'move', commandType: 'MANUAL_MOVE_AGENT', target: 'agent', payloadFields: ['agentId', 'dx', 'dz'], description: 'Directly moves an agent through manual control.' },
-    { id: 'action.attackTarget', label: 'Attack Target', category: 'combat', commandType: 'COMBAT_ATTACK_TARGET', target: 'agent', payloadFields: ['agentIds'], description: 'Sets aggression or direct combat targeting.' },
-    { id: 'action.holdPosition', label: 'Hold Position', category: 'combat', commandType: 'COMBAT_HOLD_POSITION', target: 'agent', payloadFields: ['agentIds'], description: 'Tells agents to hold combat position.' },
-    { id: 'action.clearCombatOrders', label: 'Clear Combat Orders', category: 'combat', commandType: 'COMBAT_CLEAR_ORDERS', target: 'agent', payloadFields: ['agentIds'], description: 'Returns agents to automatic combat behavior.' },
+    { id: 'action.explodeTile', label: 'Explode Tile', category: 'debug', commandType: 'EXPLODE_TILE', target: 'tile', payloadFields: ['x', 'z', 'radius', 'damage'], payloadSchema: explodeTilePayloadSchema, description: 'Debug/destruction command for testing damaged tiles.' },
+    { id: 'action.digVoxel', label: 'Dig Voxel', category: 'world', commandType: 'DIG_VOXEL', target: 'tile', payloadFields: ['x', 'y', 'z'], payloadSchema: voxelPayloadSchema, description: 'Queues subsurface excavation at a voxel.' },
+    { id: 'action.clearRubble', label: 'Clear Rubble', category: 'world', commandType: 'CLEAR_RUBBLE', target: 'tile', payloadFields: ['x', 'y', 'z'], payloadSchema: voxelPayloadSchema, description: 'Queues rubble clearing at a subsurface voxel.' },
+    { id: 'action.designateRubbleDump', label: 'Designate Rubble Dump', category: 'world', commandType: 'DESIGNATE_RUBBLE_DUMP', target: 'tile', payloadFields: ['x', 'y', 'z'], payloadSchema: voxelPayloadSchema, description: 'Marks a subsurface voxel as a rubble dump zone.' },
+    { id: 'action.fillVoxel', label: 'Fill Voxel', category: 'world', commandType: 'FILL_VOXEL', target: 'tile', payloadFields: ['x', 'y', 'z'], payloadSchema: voxelPayloadSchema, description: 'Queues a rubble fill command for a subsurface voxel.' },
+    { id: 'action.commandAgent', label: 'Command Agent', category: 'move', commandType: 'COMMAND_AGENT', target: 'agent', payloadFields: ['agentId', 'x', 'z'], payloadSchema: agentMovePayloadSchema, description: 'Orders one agent to move or work at a tile.' },
+    { id: 'action.commandAgents', label: 'Command Agents', category: 'move', commandType: 'COMMAND_AGENTS', target: 'agent', payloadFields: ['agentIds', 'x', 'z'], payloadSchema: agentGroupMovePayloadSchema, description: 'Orders a selected group of agents.' },
+    { id: 'action.manualMoveAgent', label: 'Manual Move Agent', category: 'move', commandType: 'MANUAL_MOVE_AGENT', target: 'agent', payloadFields: ['agentId', 'dx', 'dz'], payloadSchema: manualMovePayloadSchema, description: 'Directly moves an agent through manual control.' },
+    { id: 'action.attackTarget', label: 'Attack Target', category: 'combat', commandType: 'COMBAT_ATTACK_TARGET', target: 'agent', payloadFields: ['agentIds'], payloadSchema: agentIdsPayloadSchema, description: 'Sets aggression or direct combat targeting.' },
+    { id: 'action.holdPosition', label: 'Hold Position', category: 'combat', commandType: 'COMBAT_HOLD_POSITION', target: 'agent', payloadFields: ['agentIds'], payloadSchema: agentIdsPayloadSchema, description: 'Tells agents to hold combat position.' },
+    { id: 'action.clearCombatOrders', label: 'Clear Combat Orders', category: 'combat', commandType: 'COMBAT_CLEAR_ORDERS', target: 'agent', payloadFields: ['agentIds'], payloadSchema: agentIdsPayloadSchema, description: 'Returns agents to automatic combat behavior.' },
     { id: 'action.sellResource', label: 'Sell Resource', category: 'economy', commandType: 'SELL_RESOURCE', target: 'resource', payloadFields: ['resource'], payloadSchema: resourcePayloadSchema, description: 'Sells a material into the market.' },
     { id: 'action.buyResource', label: 'Buy Resource', category: 'economy', commandType: 'BUY_RESOURCE', target: 'resource', payloadFields: ['resource', 'amount'], payloadSchema: buyResourcePayloadSchema, description: 'Buys a material from the market.' },
     { id: 'action.setAutoSell', label: 'Set Auto Sell', category: 'economy', commandType: 'SET_AUTO_SELL', target: 'screen', payloadFields: ['enabled', 'threshold'], payloadSchema: autoSellPayloadSchema, description: 'Updates automatic market sale rules.' },
-    { id: 'action.markHarvest', label: 'Mark Harvest', category: 'world', commandType: 'MARK_HARVEST', target: 'tile', payloadFields: ['x', 'z'], description: 'Marks a tree, resource, or foliage tile for harvesting.' },
-    { id: 'action.researchTech', label: 'Research Tech', category: 'research', commandType: 'RESEARCH_TECH', target: 'screen', payloadFields: ['techId'], description: 'Researches an unlocked technology.' },
+    { id: 'action.markHarvest', label: 'Mark Harvest', category: 'world', commandType: 'MARK_HARVEST', target: 'tile', payloadFields: ['x', 'z'], payloadSchema: tilePayloadSchema, description: 'Marks a tree, resource, or foliage tile for harvesting.' },
+    { id: 'action.researchTech', label: 'Research Tech', category: 'research', commandType: 'RESEARCH_TECH', target: 'screen', payloadFields: ['techId'], payloadSchema: techIdPayloadSchema, description: 'Researches an unlocked technology.' },
     { id: 'action.acceptContract', label: 'Accept Contract', category: 'economy', commandType: 'ACCEPT_CONTRACT', target: 'screen', payloadFields: ['contractId'], payloadSchema: contractIdPayloadSchema, description: 'Accepts an available delivery contract.' },
     { id: 'action.deliverContract', label: 'Deliver Contract', category: 'economy', commandType: 'DELIVER_CONTRACT', target: 'screen', payloadFields: ['contractId'], payloadSchema: contractIdPayloadSchema, description: 'Delivers resources for an accepted contract.' },
     { id: 'action.abandonContract', label: 'Abandon Contract', category: 'economy', commandType: 'ABANDON_CONTRACT', target: 'screen', payloadFields: ['contractId'], payloadSchema: contractIdPayloadSchema, description: 'Abandons an accepted contract.' },
