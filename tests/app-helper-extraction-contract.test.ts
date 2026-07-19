@@ -22,15 +22,33 @@ test('App delegates tile selection and FPS HUD helpers to small modules', () => 
     assert.equal(app.includes('const canTileOpenModal'), false);
 });
 
-test('DebugMenu exposes a schema-driven command form for active game pack actions', () => {
+test('DebugMenu delegates engine game-pack tools to a dedicated panel', () => {
     const debugMenu = source('components/DebugMenu.tsx');
+    const tools = source('components/EngineDevToolsPanel.tsx');
     const form = source('components/CommandSchemaForm.tsx');
 
     for (const snippet of [
-        "import { CommandSchemaForm } from './CommandSchemaForm';",
-        '<CommandSchemaForm dispatch={dispatch} />',
+        "import { EngineDevToolsPanel } from './EngineDevToolsPanel';",
+        '<EngineDevToolsPanel',
+        'activeGameDefinitionSummary={activeGameDefinitionSummary}',
+        'fogRemoved={fogRemoved}',
+        'state={state}',
     ]) {
         assert.match(debugMenu, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    }
+
+    assert.equal(debugMenu.includes("import { CommandSchemaForm } from './CommandSchemaForm';"), false);
+
+    for (const snippet of [
+        "import { CommandSchemaForm } from './CommandSchemaForm';",
+        'Engine Game Pack',
+        'Engine Runtime Tools',
+        '<CommandSchemaForm dispatch={dispatch} />',
+        "dispatch({ type: 'TOGGLE_CHEATS' })",
+        "dispatch({ type: 'REMOVE_FOG_OF_WAR' })",
+        "dispatch({ type: 'TOGGLE_VIEW' })",
+    ]) {
+        assert.match(tools, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     }
 
     for (const snippet of [
@@ -87,17 +105,24 @@ test('DebugMenu exposes a schema-driven command form for active game pack action
     assert.equal(form.includes("field === 'resource'"), false);
 });
 
-test('HomePage presents an animated live command scene', () => {
+test('HomePage presents an animated drop into the live world', () => {
     const home = source('components/HomePage.tsx');
 
     for (const snippet of [
         'aureus-scan',
-        'aureus-drift',
-        'aureus-runner',
+        'aureus-drop',
+        'aureus-cloud',
+        'aureus-agent',
+        'descentFrames',
+        'setDescentFrame',
+        'Drop sequence armed',
+        'Drop into a living colony sim where every tile, worker, weapon, and perimeter line is part of the machine.',
+        'Drop In',
+        'landing vector locked',
+        'drop camera active',
         'colonyNodes.map',
         'systemReadouts.map',
         'missionPillars.map',
-        'Build the colony. Arm the perimeter. Bend the wild planet without breaking it.',
         'Engine online',
         'Qwen pilot ready',
         "event.code === 'Space'",
