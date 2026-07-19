@@ -24,7 +24,7 @@ export {
     validateGameCommandForActiveDefinition,
     validateGameCommandType,
 } from './GameCommandValidator';
-export type { ActiveGameDefinitionProvider, GameCommandValidationResult } from './GameCommandValidator';
+export type { ActiveGameDefinitionProvider, GameCommandValidationContext, GameCommandValidationResult } from './GameCommandValidator';
 
 export {
     GameDefinitionValidationError,
