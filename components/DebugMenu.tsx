@@ -5,10 +5,10 @@
 */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, Cpu, Database, Box, Users, Layers, Zap, X, Monitor, Eye, Image, FileCode, Hash } from 'lucide-react';
+import { Activity, Cpu, Database, Box, Users, Layers, Zap, X, Monitor, ToggleLeft, ToggleRight, Unlock, Eye, EyeOff, Image, FileCode, Hash } from 'lucide-react';
 import type { GameState, Action } from '../types';
 import { getActiveGameDefinitionSummary } from '../game-definitions/activeGameDefinition';
-import { EngineDevToolsPanel } from './EngineDevToolsPanel';
+import { CommandSchemaForm } from './CommandSchemaForm';
 
 interface DebugMenuProps {
   getDebugStats: () => any;
@@ -141,6 +141,26 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
             </div>
           </div>
 
+          {activeGameDefinitionSummary && (
+            <div>
+              <h3 className="text-[9px] text-slate-500 font-black uppercase mb-1.5 flex items-center gap-1.5 font-['Rajdhani'] tracking-widest border-b border-slate-800 pb-0.5">
+                <FileCode size={10} /> Active Game Pack
+              </h3>
+              <div className="space-y-0.5">
+                <StatRow label="Pack" value={activeGameDefinitionSummary.title} icon={FileCode} color="text-cyan-400" />
+                <StatRow label="Version" value={activeGameDefinitionSummary.version} icon={Hash} color="text-slate-300" />
+                <StatRow label="Resources" value={activeGameDefinitionSummary.resourceCount} icon={Database} />
+                <StatRow label="Entities" value={activeGameDefinitionSummary.entityCount} icon={Box} />
+                <StatRow label="Actions" value={activeGameDefinitionSummary.actionCount} icon={Activity} />
+                <StatRow label="Systems" value={activeGameDefinitionSummary.systemCount} icon={Layers} />
+              </div>
+              <div className="mt-1 px-1 text-[8px] text-slate-500 truncate" title={activeGameDefinitionSummary.genreTags.join(' / ')}>
+                {activeGameDefinitionSummary.genreTags.join(' / ')}
+              </div>
+              <CommandSchemaForm dispatch={dispatch} />
+            </div>
+          )}
+
           {/* JS Heap */}
           <div>
             <h3 className="text-[9px] text-slate-500 font-black uppercase mb-1.5 flex items-center gap-1.5 font-['Rajdhani'] tracking-widest border-b border-slate-800 pb-0.5">
@@ -198,12 +218,48 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
             </div>
           </div>
 
-          <EngineDevToolsPanel
-            activeGameDefinitionSummary={activeGameDefinitionSummary}
-            dispatch={dispatch}
-            fogRemoved={fogRemoved}
-            state={state}
-          />
+          {/* Developer Tools */}
+          <div>
+            <h3 className="text-[9px] text-slate-500 font-black uppercase mb-1.5 flex items-center gap-1.5 font-['Rajdhani'] tracking-widest border-b border-slate-800 pb-0.5">
+              <Unlock size={10} /> Developer Tools
+            </h3>
+            <button
+              type="button"
+              onClick={() => dispatch({ type: 'TOGGLE_CHEATS' })}
+              className={`w-full py-2 px-2 rounded-[2px] font-bold text-[10px] flex items-center justify-between transition-all border border-slate-700 ${state.cheatsEnabled ? 'bg-amber-900/30 text-amber-400 border-amber-600/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-750'}`}
+            >
+              <span className="font-['Rajdhani'] uppercase tracking-wider">Creative Mode</span>
+              {state.cheatsEnabled ? <ToggleRight size={16} className="text-amber-400" /> : <ToggleLeft size={16} className="text-slate-500" />}
+            </button>
+            <p className="text-[8px] text-slate-500 mt-1 italic leading-tight">
+              Bypasses all building costs, eco requirements, and tech locks.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!fogRemoved) dispatch({ type: 'REMOVE_FOG_OF_WAR' });
+              }}
+              disabled={fogRemoved}
+              className={`w-full mt-3 py-2 px-2 rounded-[2px] font-bold text-[10px] flex items-center justify-between transition-all border ${fogRemoved ? 'bg-emerald-950/30 text-emerald-400 border-emerald-600/50 cursor-default' : 'bg-slate-800 text-slate-400 hover:bg-slate-750 border-slate-700'}`}
+              title="Remove fog of war from both map and first-person views"
+            >
+              <span className="font-['Rajdhani'] uppercase tracking-wider">{fogRemoved ? 'Fog Removed' : 'Remove Fog'}</span>
+              {fogRemoved ? <Eye size={16} className="text-emerald-400" /> : <EyeOff size={16} className="text-slate-500" />}
+            </button>
+            <p className="text-[8px] text-slate-500 mt-1 italic leading-tight">
+              Reveals the world by disabling the fog-of-war overlay and first-person mist.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => dispatch({ type: 'TOGGLE_VIEW' })}
+              className={`w-full mt-3 py-1.5 px-2 rounded-[2px] font-bold text-[9px] flex items-center justify-center gap-2 transition-all border border-emerald-600/50 bg-emerald-950/20 text-emerald-400 hover:bg-emerald-900/30 uppercase tracking-widest font-['Rajdhani']`}
+            >
+              <Layers size={12} />
+              {state.activeView === 'SURFACE' ? 'Switch to Underground' : 'Return to Surface'}
+            </button>
+          </div>
 
           <div className="pt-2 border-t-2 border-slate-800 shrink-0">
             <div className="flex items-center gap-2 px-2 py-1.5 bg-black/40 rounded-[2px] border border-white/5">
