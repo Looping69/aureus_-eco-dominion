@@ -19,10 +19,20 @@ test('game-definition action payload schemas are part of the generic engine cont
 
     for (const snippet of [
         "export type GameActionPayloadFieldType = 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'object' | 'any';",
+        'export type GameActionPayloadOptionSource =',
+        "| 'entities.buildings'",
+        "| 'resources.tradeable'",
+        "| 'runtime.agents'",
+        "| 'runtime.selectedAgents'",
+        "| 'runtime.selectedTile'",
+        "| 'runtime.activeLayer'",
+        "| 'techs';",
         'export interface GameActionPayloadFieldDefinition',
         'type: GameActionPayloadFieldType;',
         'required?: boolean;',
         'allowPrimitive?: boolean;',
+        'options?: string[];',
+        'optionSource?: GameActionPayloadOptionSource;',
         'export type GameActionPayloadSchema = Record<string, GameActionPayloadFieldDefinition>;',
         'payloadSchema?: GameActionPayloadSchema;',
     ]) {
@@ -32,6 +42,7 @@ test('game-definition action payload schemas are part of the generic engine cont
     for (const snippet of [
         'GameActionPayloadFieldDefinition,',
         'GameActionPayloadFieldType,',
+        'GameActionPayloadOptionSource,',
         'GameActionPayloadSchema,',
     ]) {
         assertContains(index, snippet);
@@ -44,7 +55,9 @@ test('build commands declare payload schemas in the Aureus game pack', () => {
     for (const snippet of [
         'const tilePayloadSchema: NonNullable<GameActionDefinition',
         'const placeBuildingPayloadSchema: GameActionDefinition',
+        "optionSource: 'runtime.selectedTile'",
         "buildingType: {",
+        "optionSource: 'entities.buildings'",
         "commandType: 'PLACE_BUILDING'",
         'payloadSchema: placeBuildingPayloadSchema',
         "commandType: 'BULLDOZE'",
@@ -62,9 +75,11 @@ test('world and progression commands declare payload schemas in the Aureus game 
 
     for (const snippet of [
         'const voxelPayloadSchema: NonNullable<GameActionDefinition',
+        "optionSource: 'runtime.activeLayer'",
         'const buyBuildingPayloadSchema: GameActionDefinition',
         'const explodeTilePayloadSchema: GameActionDefinition',
         'const techIdPayloadSchema = singleStringPayloadSchema',
+        "'techs'",
         "commandType: 'BUY_BUILDING'",
         'payloadSchema: buyBuildingPayloadSchema',
         "commandType: 'EXPLODE_TILE'",
@@ -89,6 +104,8 @@ test('agent movement and combat commands declare payload schemas in the Aureus g
         'const agentMovePayloadSchema: GameActionDefinition',
         'const agentGroupMovePayloadSchema: GameActionDefinition',
         "type: 'string[]',",
+        "optionSource: 'runtime.agents'",
+        "optionSource: 'runtime.selectedAgents'",
         'const manualMovePayloadSchema: GameActionDefinition',
         'const agentIdsPayloadSchema: GameActionDefinition',
         "commandType: 'COMMAND_AGENT'",
@@ -129,6 +146,7 @@ test('market commands declare payload schemas in the Aureus game pack', () => {
         'const buyResourcePayloadSchema: GameActionDefinition',
         'const autoSellPayloadSchema: GameActionDefinition',
         'const resourcePayloadSchema = singleStringPayloadSchema',
+        "optionSource: 'resources.tradeable'",
         "commandType: 'SELL_RESOURCE'",
         'payloadSchema: resourcePayloadSchema',
         "commandType: 'BUY_RESOURCE'",
@@ -144,7 +162,7 @@ test('screen and dialogue commands declare payload schemas in the Aureus game pa
     const aureus = source('game-definitions/aureus.ts');
 
     for (const snippet of [
-        'function singleStringPayloadSchema(field: string, description: string)',
+        'function singleStringPayloadSchema(field: string, description: string, optionSource?: GameActionPayloadOptionSource)',
         'const optionIndexPayloadSchema: GameActionDefinition',
         'const popupIdPayloadSchema = singleStringPayloadSchema',
         'const permitIdPayloadSchema = singleStringPayloadSchema',
