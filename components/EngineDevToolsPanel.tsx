@@ -1,7 +1,7 @@
 import React from 'react';
 import { Activity, Box, Database, Eye, EyeOff, FileCode, Hash, Layers, ToggleLeft, ToggleRight, Unlock } from 'lucide-react';
-import { Action, GameState } from '../types';
-import { GameDefinitionSummary } from '../engine/game-definition';
+import type { Action, GameState } from '../types';
+import type { GameDefinitionSummary } from '../engine/game-definition';
 import { CommandSchemaForm } from './CommandSchemaForm';
 
 interface EngineDevToolsPanelProps {
