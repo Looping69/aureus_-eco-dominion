@@ -34,17 +34,23 @@ test('DebugMenu exposes a schema-driven command form for active game pack action
     }
 
     for (const snippet of [
-        "import type { GameActionDefinition, GameActionPayloadFieldDefinition, GameDefinition } from '../engine/game-definition';",
+        "import type { GameActionDefinition, GameActionPayloadFieldDefinition, GameActionPayloadOptionSource, GameDefinition } from '../engine/game-definition';",
         "import { validateGameCommandType } from '../engine/game-definition';",
         "import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';",
         'function getRuntimeStateSnapshot(): RuntimeStateSnapshot',
         'function getSchemaActions(definition: GameDefinition): GameActionDefinition[]',
         'action.payloadSchema && action.payloadFields.length > 0',
+        'function getRuntimeAgentOptions(state: RuntimeStateSnapshot)',
+        'function getDefaultFromOptionSource(',
+        'source: GameActionPayloadOptionSource | undefined',
+        "case 'runtime.agents':",
+        "case 'runtime.selectedAgents':",
+        "case 'runtime.selectedTile':",
+        "case 'runtime.activeLayer':",
+        "case 'resources.tradeable':",
+        "case 'entities.buildings':",
+        "case 'techs':",
         'function getSmartFieldDefault(',
-        'selectedAgentIds.join(\', \')',
-        "field === 'y' && typeof state?.layeredWorld?.activeY === 'number'",
-        "field === 'buildingType'",
-        "field === 'resource'",
         'function getDefaultFieldValue(schema: GameActionPayloadFieldDefinition): string',
         "case 'number':",
         "case 'boolean':",
@@ -55,6 +61,8 @@ test('DebugMenu exposes a schema-driven command form for active game pack action
         'function buildPayload(action: GameActionDefinition, values: FormValues): Record<string, unknown>',
         'function getBuildingTypeOptions(definition: GameDefinition)',
         'function getChoiceOptions(',
+        'schema.options?.length',
+        'switch (schema.optionSource)',
         'validateGameCommandType(gameDefinition, selectedAction.commandType, payload)',
         'disabled={!validation.ok}',
         'Use Current Selection',
@@ -65,6 +73,9 @@ test('DebugMenu exposes a schema-driven command form for active game pack action
     ]) {
         assert.match(form, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     }
+
+    assert.equal(form.includes("field === 'buildingType'"), false);
+    assert.equal(form.includes("field === 'resource'"), false);
 });
 
 test('HomePage presents an animated live command scene', () => {
