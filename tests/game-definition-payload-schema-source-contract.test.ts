@@ -44,6 +44,7 @@ test('game-definition action payload schemas are part of the generic engine cont
         'GameActionPayloadFieldType,',
         'GameActionPayloadOptionSource,',
         'GameActionPayloadSchema,',
+        'GameCommandValidationContext,',
     ]) {
         assertContains(index, snippet);
     }
@@ -192,7 +193,7 @@ test('schema-backed command diagnostics describe expected payload field types', 
         'function findMissingPayloadFieldDiagnostics(action: GameActionDefinition, payload: unknown): string[]',
         'function findInvalidPayloadFieldDiagnostics(',
         'const missingFields = findMissingPayloadFieldDiagnostics(action, payload);',
-        'const invalidFields = findInvalidPayloadFieldDiagnostics(action, payload, definition);',
+        'const invalidFields = findInvalidPayloadFieldDiagnostics(action, payload, definition, context);',
     ]) {
         assertContains(validator, snippet);
     }
@@ -232,8 +233,25 @@ test('static payload option sources are enforced by command validation', () => {
         'allowedValues.includes(entry)',
         'allowedValues.includes(value)',
         'definition?: GameDefinition | null,',
-        'return !matchesPayloadFieldOptions(definition, schema, value);',
-        'findInvalidPayloadFieldDiagnostics(action, payload, definition)',
+        'return !matchesPayloadFieldOptions(definition, schema, value, context);',
+        'findInvalidPayloadFieldDiagnostics(action, payload, definition, context)',
+    ]) {
+        assertContains(validator, snippet);
+    }
+});
+
+test('runtime payload option sources can be supplied without coupling the engine to Aureus state', () => {
+    const validator = source('engine/game-definition/GameCommandValidator.ts');
+
+    for (const snippet of [
+        'GameActionPayloadOptionSource,',
+        'export interface GameCommandValidationContext',
+        'optionValues?: Partial<Record<GameActionPayloadOptionSource, string[]>>;',
+        'context?: GameCommandValidationContext,',
+        'const runtimeValues = schema.optionSource ? context?.optionValues?.[schema.optionSource] : null;',
+        'if (runtimeValues?.length) return runtimeValues;',
+        'matchesPayloadFieldOptions(definition, schema, value, context)',
+        'validateGameCommandType(provider?.getActive() ?? null, commandType, payload, context)',
     ]) {
         assertContains(validator, snippet);
     }
