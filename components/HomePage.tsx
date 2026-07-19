@@ -66,7 +66,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartGame, onStartDemo, on
                 @keyframes aureus-drop { 0% { transform: translate3d(0,-42px,0) scale(.72) rotateX(62deg) rotateZ(-10deg); filter: blur(2px); opacity: .44; } 42% { filter: blur(.8px); opacity: .88; } 100% { transform: translate3d(0,18px,0) scale(1.08) rotateX(58deg) rotateZ(-10deg); filter: blur(0); opacity: 1; } }
                 @keyframes aureus-cloud { 0% { transform: translate3d(-18%,0,0); opacity: 0; } 18% { opacity: .3; } 72% { opacity: .16; } 100% { transform: translate3d(24%,0,0); opacity: 0; } }
                 @keyframes aureus-orbit { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                @keyframes aureus-agent { 0% { offset-distance: 0%; } 100% { offset-distance: 100%; } }
+                @keyframes aureus-agent-a { 0% { transform: translate3d(0,0,0); } 45% { transform: translate3d(150px,-42px,0); } 100% { transform: translate3d(310px,-12px,0); } }
+                @keyframes aureus-agent-b { 0% { transform: translate3d(0,0,0); } 48% { transform: translate3d(92px,38px,0); } 100% { transform: translate3d(180px,76px,0); } }
                 @media (prefers-reduced-motion: reduce) { .aureus-motion { animation: none !important; transition: none !important; } }
             `}</style>
 
@@ -206,8 +207,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartGame, onStartDemo, on
                                 <div className="absolute left-[24%] top-[68%] h-2 w-[58%] overflow-hidden bg-black/45">
                                     <span className="aureus-motion block h-full w-1/3 bg-gradient-to-r from-transparent via-emerald-200 to-transparent" style={{ animation: 'aureus-runner 3.4s linear infinite' }} />
                                 </div>
-                                <span className="aureus-motion absolute left-[25%] top-[66%] h-2 w-2 rounded-full bg-cyan-200 shadow-[0_0_12px_rgba(34,211,238,.9)]" style={{ offsetPath: 'path("M 0 0 C 80 -56 180 42 310 -12")', animation: 'aureus-agent 7s linear infinite' }} />
-                                <span className="aureus-motion absolute left-[42%] top-[39%] h-2 w-2 rounded-full bg-amber-200 shadow-[0_0_12px_rgba(245,158,11,.9)]" style={{ offsetPath: 'path("M 0 0 C 62 42 110 10 180 76")', animation: 'aureus-agent 6.2s linear infinite reverse' }} />
+                                <span className="aureus-motion absolute left-[25%] top-[66%] h-2 w-2 rounded-full bg-cyan-200 shadow-[0_0_12px_rgba(34,211,238,.9)]" style={{ animation: 'aureus-agent-a 7s linear infinite' }} />
+                                <span className="aureus-motion absolute left-[42%] top-[39%] h-2 w-2 rounded-full bg-amber-200 shadow-[0_0_12px_rgba(245,158,11,.9)]" style={{ animation: 'aureus-agent-b 6.2s linear infinite alternate' }} />
                             </div>
 
                             <div className="absolute left-[7%] bottom-[9%] flex items-center gap-2 text-[10px] font-black uppercase text-amber-100/70">
