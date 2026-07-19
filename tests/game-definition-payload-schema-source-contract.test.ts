@@ -190,9 +190,9 @@ test('schema-backed command diagnostics describe expected payload field types', 
         'function formatPayloadFieldDiagnostic(action: GameActionDefinition, field: string): string',
         'return `${field} expected ${describePayloadFieldExpectation(getPayloadFieldSchema(action, field))}`;',
         'function findMissingPayloadFieldDiagnostics(action: GameActionDefinition, payload: unknown): string[]',
-        'function findInvalidPayloadFieldDiagnostics(action: GameActionDefinition, payload: unknown): string[]',
+        'function findInvalidPayloadFieldDiagnostics(',
         'const missingFields = findMissingPayloadFieldDiagnostics(action, payload);',
-        'const invalidFields = findInvalidPayloadFieldDiagnostics(action, payload);',
+        'const invalidFields = findInvalidPayloadFieldDiagnostics(action, payload, definition);',
     ]) {
         assertContains(validator, snippet);
     }
@@ -215,4 +215,26 @@ test('payload schema validation is opt-in and keeps the legacy path for undeclar
     }
 
     assertContains(runner, 'tests/game-definition-payload-schema-source-contract.test.ts');
+});
+
+test('static payload option sources are enforced by command validation', () => {
+    const validator = source('engine/game-definition/GameCommandValidator.ts');
+
+    for (const snippet of [
+        'function getPayloadFieldOptionValues(',
+        'schema.options?.length',
+        "case 'entities.buildings':",
+        "entity.category === 'building'",
+        'entity.components.buildingType',
+        "case 'resources.tradeable':",
+        'resource.tradeable',
+        'function matchesPayloadFieldOptions(',
+        'allowedValues.includes(entry)',
+        'allowedValues.includes(value)',
+        'definition?: GameDefinition | null,',
+        'return !matchesPayloadFieldOptions(definition, schema, value);',
+        'findInvalidPayloadFieldDiagnostics(action, payload, definition)',
+    ]) {
+        assertContains(validator, snippet);
+    }
 });
