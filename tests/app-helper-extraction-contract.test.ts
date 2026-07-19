@@ -26,33 +26,15 @@ test('App delegates tile selection and FPS HUD helpers to small modules', () => 
     assert.equal(app.includes('const canTileOpenModal'), false);
 });
 
-test('DebugMenu delegates engine game-pack tools to a dedicated panel', () => {
+test('DebugMenu exposes a schema-driven command form for active game pack actions', () => {
     const debugMenu = source('components/DebugMenu.tsx');
-    const tools = source('components/EngineDevToolsPanel.tsx');
     const form = source('components/CommandSchemaForm.tsx');
 
     for (const snippet of [
-        "import { EngineDevToolsPanel } from './EngineDevToolsPanel';",
-        '<EngineDevToolsPanel',
-        'activeGameDefinitionSummary={activeGameDefinitionSummary}',
-        'fogRemoved={fogRemoved}',
-        'state={state}',
+        "import { CommandSchemaForm } from './CommandSchemaForm';",
+        '<CommandSchemaForm dispatch={dispatch} />',
     ]) {
         assertContains(debugMenu, snippet);
-    }
-
-    assert.equal(debugMenu.includes("import { CommandSchemaForm } from './CommandSchemaForm';"), false);
-
-    for (const snippet of [
-        "import { CommandSchemaForm } from './CommandSchemaForm';",
-        'Engine Game Pack',
-        'Engine Runtime Tools',
-        '<CommandSchemaForm dispatch={dispatch} />',
-        "dispatch({ type: 'TOGGLE_CHEATS' })",
-        "dispatch({ type: 'REMOVE_FOG_OF_WAR' })",
-        "dispatch({ type: 'TOGGLE_VIEW' })",
-    ]) {
-        assertContains(tools, snippet);
     }
 
     for (const snippet of [
