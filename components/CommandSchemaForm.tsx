@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Play, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Play, SlidersHorizontal } from 'lucide-react';
 import type { Action } from '../types';
-import type { GameActionDefinition, GameActionPayloadFieldDefinition } from '../engine/game-definition';
+import type { GameActionDefinition, GameActionPayloadFieldDefinition, GameDefinition } from '../engine/game-definition';
+import { validateGameCommandType } from '../engine/game-definition';
 import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';
 
 interface CommandSchemaFormProps {
@@ -10,8 +11,56 @@ interface CommandSchemaFormProps {
 
 type FormValues = Record<string, string>;
 
-function getSchemaActions(): GameActionDefinition[] {
-  return getActiveGameDefinition().actions.filter((action) => action.payloadSchema && action.payloadFields.length > 0);
+type RuntimeStateSnapshot = Record<string, any> | null;
+
+function getRuntimeStateSnapshot(): RuntimeStateSnapshot {
+  const runtimeWindow = window as typeof window & { __aureusGetState?: () => unknown };
+  try {
+    const state = runtimeWindow.__aureusGetState?.();
+    return typeof state === 'object' && state !== null ? state as Record<string, any> : null;
+  } catch {
+    return null;
+  }
+}
+
+function getSchemaActions(definition: GameDefinition): GameActionDefinition[] {
+  return definition.actions.filter((action) => action.payloadSchema && action.payloadFields.length > 0);
+}
+
+function getSelectedTileDefault(state: RuntimeStateSnapshot, field: string): string | null {
+  const candidates = [
+    state?.selectedTilePos,
+    state?.pinnedTilePos,
+    state?.hoverTilePos,
+    state?.selectedTile,
+  ];
+
+  for (const candidate of candidates) {
+    const value = candidate?.[field];
+    if (typeof value === 'number' && Number.isFinite(value)) return String(Math.round(value));
+  }
+
+  return null;
+}
+
+function getSmartFieldDefault(
+  field: string,
+  schema: GameActionPayloadFieldDefinition,
+  definition: GameDefinition,
+  state: RuntimeStateSnapshot,
+): string {
+  if (field === 'agentId' && typeof state?.selectedAgentId === 'string') return state.selectedAgentId;
+  if (field === 'agentIds') {
+    const selectedAgentIds = Array.isArray(state?.selectedAgentIds) ? state?.selectedAgentIds : [];
+    if (selectedAgentIds.length > 0) return selectedAgentIds.join(', ');
+    if (typeof state?.selectedAgentId === 'string') return state.selectedAgentId;
+  }
+  if (field === 'y' && typeof state?.layeredWorld?.activeY === 'number') return String(state.layeredWorld.activeY);
+  if ((field === 'x' || field === 'z') && schema.type === 'number') return getSelectedTileDefault(state, field) ?? '0';
+  if (field === 'resource') return definition.resources.find((resource) => resource.tradeable)?.id ?? '';
+  if (field === 'buildingType') return getBuildingTypeOptions(definition)[0]?.value ?? '';
+
+  return getDefaultFieldValue(schema);
 }
 
 function getDefaultFieldValue(schema: GameActionPayloadFieldDefinition): string {
@@ -32,12 +81,13 @@ function getDefaultFieldValue(schema: GameActionPayloadFieldDefinition): string 
   }
 }
 
-function getInitialValues(action: GameActionDefinition | null): FormValues {
+function getInitialValues(action: GameActionDefinition | null, definition: GameDefinition): FormValues {
   if (!action?.payloadSchema) return {};
+  const state = getRuntimeStateSnapshot();
 
   return action.payloadFields.reduce<FormValues>((values, field) => {
     const schema = action.payloadSchema?.[field];
-    values[field] = schema ? getDefaultFieldValue(schema) : '';
+    values[field] = schema ? getSmartFieldDefault(field, schema, definition, state) : '';
     return values;
   }, {});
 }
@@ -74,6 +124,29 @@ function buildPayload(action: GameActionDefinition, values: FormValues): Record<
   }, {});
 }
 
+function getBuildingTypeOptions(definition: GameDefinition): Array<{ value: string; label: string }> {
+  return definition.entityArchetypes
+    .filter((entity) => entity.category === 'building' && typeof (entity.components as any).buildingType === 'string')
+    .map((entity) => ({ value: String((entity.components as any).buildingType), label: entity.label }));
+}
+
+function getChoiceOptions(
+  field: string,
+  schema: GameActionPayloadFieldDefinition,
+  definition: GameDefinition,
+): Array<{ value: string; label: string }> {
+  if (schema.type !== 'string') return [];
+
+  if (field === 'buildingType') return getBuildingTypeOptions(definition);
+  if (field === 'resource') {
+    return definition.resources
+      .filter((resource) => resource.tradeable)
+      .map((resource) => ({ value: resource.id, label: resource.label }));
+  }
+
+  return [];
+}
+
 function getInputType(schema: GameActionPayloadFieldDefinition): string {
   return schema.type === 'number' ? 'number' : 'text';
 }
@@ -86,25 +159,36 @@ function getPlaceholder(schema: GameActionPayloadFieldDefinition): string {
 }
 
 export const CommandSchemaForm: React.FC<CommandSchemaFormProps> = ({ dispatch }) => {
-  const actions = useMemo(() => getSchemaActions(), []);
+  const gameDefinition = useMemo(() => getActiveGameDefinition(), []);
+  const actions = useMemo(() => getSchemaActions(gameDefinition), [gameDefinition]);
   const [selectedActionId, setSelectedActionId] = useState(actions[0]?.id ?? '');
   const selectedAction = useMemo(
     () => actions.find((action) => action.id === selectedActionId) ?? actions[0] ?? null,
     [actions, selectedActionId]
   );
-  const [values, setValues] = useState<FormValues>(() => getInitialValues(selectedAction));
+  const [values, setValues] = useState<FormValues>(() => getInitialValues(selectedAction, gameDefinition));
   const [lastCommand, setLastCommand] = useState<string | null>(null);
+
+  const payload = useMemo(() => selectedAction ? buildPayload(selectedAction, values) : {}, [selectedAction, values]);
+  const validation = useMemo(
+    () => selectedAction ? validateGameCommandType(gameDefinition, selectedAction.commandType, payload) : { ok: false, reason: 'No schema-backed command selected.' },
+    [gameDefinition, payload, selectedAction]
+  );
 
   const selectAction = (actionId: string) => {
     const action = actions.find((candidate) => candidate.id === actionId) ?? null;
     setSelectedActionId(actionId);
-    setValues(getInitialValues(action));
+    setValues(getInitialValues(action, gameDefinition));
+    setLastCommand(null);
+  };
+
+  const applySmartDefaults = () => {
+    setValues(getInitialValues(selectedAction, gameDefinition));
     setLastCommand(null);
   };
 
   const submitCommand = () => {
-    if (!selectedAction) return;
-    const payload = buildPayload(selectedAction, values);
+    if (!selectedAction || !validation.ok) return;
     dispatch({ type: selectedAction.commandType, payload });
     setLastCommand(`${selectedAction.commandType} queued`);
   };
@@ -132,10 +216,20 @@ export const CommandSchemaForm: React.FC<CommandSchemaFormProps> = ({ dispatch }
         ))}
       </select>
 
+      <button
+        type="button"
+        onClick={applySmartDefaults}
+        className="w-full mt-2 py-1 px-2 rounded-[2px] font-bold text-[8px] border border-slate-700 bg-slate-900 text-slate-400 hover:text-cyan-300 hover:border-cyan-700 uppercase tracking-widest font-['Rajdhani']"
+        title="Refill fields from the currently selected agent, selected tile, active layer, and game pack choices when available"
+      >
+        Use Current Selection
+      </button>
+
       <div className="mt-2 space-y-1.5">
         {selectedAction.payloadFields.map((field) => {
           const schema = selectedAction.payloadSchema?.[field];
           if (!schema) return null;
+          const choices = getChoiceOptions(field, schema, gameDefinition);
 
           return (
             <label key={field} className="block">
@@ -151,6 +245,16 @@ export const CommandSchemaForm: React.FC<CommandSchemaFormProps> = ({ dispatch }
                 >
                   <option value="false">false</option>
                   <option value="true">true</option>
+                </select>
+              ) : choices.length > 0 ? (
+                <select
+                  value={values[field] ?? choices[0]?.value ?? ''}
+                  onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))}
+                  className="w-full bg-slate-900 border border-slate-700 text-slate-200 text-[10px] font-mono rounded-[2px] px-2 py-1 outline-none focus:border-cyan-500"
+                >
+                  {choices.map((choice) => (
+                    <option key={choice.value} value={choice.value}>{choice.label}</option>
+                  ))}
                 </select>
               ) : (
                 <input
@@ -169,10 +273,16 @@ export const CommandSchemaForm: React.FC<CommandSchemaFormProps> = ({ dispatch }
         })}
       </div>
 
+      <div className={`mt-2 flex items-start gap-1.5 rounded-[2px] border px-2 py-1.5 ${validation.ok ? 'border-emerald-800/60 bg-emerald-950/20 text-emerald-300' : 'border-amber-800/60 bg-amber-950/20 text-amber-300'}`}>
+        {validation.ok ? <CheckCircle2 size={11} className="mt-0.5 shrink-0" /> : <AlertTriangle size={11} className="mt-0.5 shrink-0" />}
+        <span className="text-[8px] font-mono leading-tight">{validation.ok ? 'Payload ready for dispatch.' : validation.reason}</span>
+      </div>
+
       <button
         type="button"
         onClick={submitCommand}
-        className="w-full mt-2 py-1.5 px-2 rounded-[2px] font-bold text-[9px] flex items-center justify-center gap-2 transition-all border border-cyan-600/50 bg-cyan-950/25 text-cyan-300 hover:bg-cyan-900/35 uppercase tracking-widest font-['Rajdhani']"
+        disabled={!validation.ok}
+        className={`w-full mt-2 py-1.5 px-2 rounded-[2px] font-bold text-[9px] flex items-center justify-center gap-2 transition-all border uppercase tracking-widest font-['Rajdhani'] ${validation.ok ? 'border-cyan-600/50 bg-cyan-950/25 text-cyan-300 hover:bg-cyan-900/35' : 'border-slate-800 bg-slate-900/60 text-slate-600 cursor-not-allowed'}`}
         title="Dispatch this command through the active game command boundary"
       >
         <Play size={11} /> Dispatch {selectedAction.commandType}
