@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Play, SlidersHorizontal } from 'lucide-react';
 import type { Action } from '../types';
-import type { GameActionDefinition, GameActionPayloadFieldDefinition, GameDefinition } from '../engine/game-definition';
+import type { GameActionDefinition, GameActionPayloadFieldDefinition, GameActionPayloadOptionSource, GameDefinition } from '../engine/game-definition';
 import { validateGameCommandType } from '../engine/game-definition';
 import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';
 
@@ -43,24 +43,52 @@ function getSelectedTileDefault(state: RuntimeStateSnapshot, field: string): str
   return null;
 }
 
+function getRuntimeAgentOptions(state: RuntimeStateSnapshot): Array<{ value: string; label: string }> {
+  const agents = [...(state?.agents || []), ...(state?.ambientNpcs || [])];
+  return agents
+    .filter((agent: any) => typeof agent?.id === 'string')
+    .map((agent: any) => ({
+      value: agent.id,
+      label: agent.name || agent.role || agent.type || agent.id,
+    }));
+}
+
+function getDefaultFromOptionSource(
+  source: GameActionPayloadOptionSource | undefined,
+  field: string,
+  definition: GameDefinition,
+  state: RuntimeStateSnapshot,
+): string | null {
+  switch (source) {
+    case 'runtime.agents':
+      return getRuntimeAgentOptions(state)[0]?.value ?? (typeof state?.selectedAgentId === 'string' ? state.selectedAgentId : null);
+    case 'runtime.selectedAgents': {
+      const selectedAgentIds = Array.isArray(state?.selectedAgentIds) ? state?.selectedAgentIds : [];
+      if (selectedAgentIds.length > 0) return selectedAgentIds.join(', ');
+      return typeof state?.selectedAgentId === 'string' ? state.selectedAgentId : null;
+    }
+    case 'runtime.selectedTile':
+      return getSelectedTileDefault(state, field);
+    case 'runtime.activeLayer':
+      return typeof state?.layeredWorld?.activeY === 'number' ? String(state.layeredWorld.activeY) : null;
+    case 'resources.tradeable':
+      return definition.resources.find((resource) => resource.tradeable)?.id ?? null;
+    case 'entities.buildings':
+      return getBuildingTypeOptions(definition)[0]?.value ?? null;
+    case 'techs':
+      return null;
+    default:
+      return null;
+  }
+}
+
 function getSmartFieldDefault(
   field: string,
   schema: GameActionPayloadFieldDefinition,
   definition: GameDefinition,
   state: RuntimeStateSnapshot,
 ): string {
-  if (field === 'agentId' && typeof state?.selectedAgentId === 'string') return state.selectedAgentId;
-  if (field === 'agentIds') {
-    const selectedAgentIds = Array.isArray(state?.selectedAgentIds) ? state?.selectedAgentIds : [];
-    if (selectedAgentIds.length > 0) return selectedAgentIds.join(', ');
-    if (typeof state?.selectedAgentId === 'string') return state.selectedAgentId;
-  }
-  if (field === 'y' && typeof state?.layeredWorld?.activeY === 'number') return String(state.layeredWorld.activeY);
-  if ((field === 'x' || field === 'z') && schema.type === 'number') return getSelectedTileDefault(state, field) ?? '0';
-  if (field === 'resource') return definition.resources.find((resource) => resource.tradeable)?.id ?? '';
-  if (field === 'buildingType') return getBuildingTypeOptions(definition)[0]?.value ?? '';
-
-  return getDefaultFieldValue(schema);
+  return getDefaultFromOptionSource(schema.optionSource, field, definition, state) ?? getDefaultFieldValue(schema);
 }
 
 function getDefaultFieldValue(schema: GameActionPayloadFieldDefinition): string {
@@ -131,20 +159,24 @@ function getBuildingTypeOptions(definition: GameDefinition): Array<{ value: stri
 }
 
 function getChoiceOptions(
-  field: string,
   schema: GameActionPayloadFieldDefinition,
   definition: GameDefinition,
+  state: RuntimeStateSnapshot,
 ): Array<{ value: string; label: string }> {
-  if (schema.type !== 'string') return [];
+  if (schema.options?.length) return schema.options.map((option) => ({ value: option, label: option }));
 
-  if (field === 'buildingType') return getBuildingTypeOptions(definition);
-  if (field === 'resource') {
-    return definition.resources
-      .filter((resource) => resource.tradeable)
-      .map((resource) => ({ value: resource.id, label: resource.label }));
+  switch (schema.optionSource) {
+    case 'entities.buildings':
+      return getBuildingTypeOptions(definition);
+    case 'resources.tradeable':
+      return definition.resources
+        .filter((resource) => resource.tradeable)
+        .map((resource) => ({ value: resource.id, label: resource.label }));
+    case 'runtime.agents':
+      return getRuntimeAgentOptions(state);
+    default:
+      return [];
   }
-
-  return [];
 }
 
 function getInputType(schema: GameActionPayloadFieldDefinition): string {
@@ -168,6 +200,7 @@ export const CommandSchemaForm: React.FC<CommandSchemaFormProps> = ({ dispatch }
   );
   const [values, setValues] = useState<FormValues>(() => getInitialValues(selectedAction, gameDefinition));
   const [lastCommand, setLastCommand] = useState<string | null>(null);
+  const runtimeState = getRuntimeStateSnapshot();
 
   const payload = useMemo(() => selectedAction ? buildPayload(selectedAction, values) : {}, [selectedAction, values]);
   const validation = useMemo(
@@ -229,7 +262,7 @@ export const CommandSchemaForm: React.FC<CommandSchemaFormProps> = ({ dispatch }
         {selectedAction.payloadFields.map((field) => {
           const schema = selectedAction.payloadSchema?.[field];
           if (!schema) return null;
-          const choices = getChoiceOptions(field, schema, gameDefinition);
+          const choices = getChoiceOptions(schema, gameDefinition, runtimeState);
 
           return (
             <label key={field} className="block">
