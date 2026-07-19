@@ -6,6 +6,7 @@ export type {
     GameActionDefinition,
     GameActionPayloadFieldDefinition,
     GameActionPayloadFieldType,
+    GameActionPayloadOptionSource,
     GameActionPayloadSchema,
     GameDefinition,
     GameDefinitionId,
