@@ -1,7 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Play, SlidersHorizontal } from 'lucide-react';
 import type { Action } from '../types';
-import type { GameActionDefinition, GameActionPayloadFieldDefinition, GameActionPayloadOptionSource, GameDefinition } from '../engine/game-definition';
+import type {
+  GameActionDefinition,
+  GameActionPayloadFieldDefinition,
+  GameActionPayloadOptionSource,
+  GameCommandValidationContext,
+  GameDefinition,
+} from '../engine/game-definition';
 import { validateGameCommandType } from '../engine/game-definition';
 import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';
 
@@ -53,6 +59,25 @@ function getRuntimeAgentOptions(state: RuntimeStateSnapshot): Array<{ value: str
     }));
 }
 
+function getRuntimeSelectedAgentIds(state: RuntimeStateSnapshot): string[] {
+  const selectedAgentIds = Array.isArray(state?.selectedAgentIds) ? state.selectedAgentIds : [];
+  const selectedAgentId = typeof state?.selectedAgentId === 'string' ? [state.selectedAgentId] : [];
+  return Array.from(new Set([...selectedAgentIds, ...selectedAgentId]))
+    .filter((agentId): agentId is string => typeof agentId === 'string' && agentId.length > 0);
+}
+
+function getRuntimeValidationContext(state: RuntimeStateSnapshot): GameCommandValidationContext {
+  const runtimeAgentIds = getRuntimeAgentOptions(state).map((agent) => agent.value);
+  const selectedAgentIds = getRuntimeSelectedAgentIds(state);
+
+  return {
+    optionValues: {
+      'runtime.agents': runtimeAgentIds,
+      'runtime.selectedAgents': selectedAgentIds,
+    },
+  };
+}
+
 function getDefaultFromOptionSource(
   source: GameActionPayloadOptionSource | undefined,
   field: string,
@@ -63,9 +88,9 @@ function getDefaultFromOptionSource(
     case 'runtime.agents':
       return getRuntimeAgentOptions(state)[0]?.value ?? (typeof state?.selectedAgentId === 'string' ? state.selectedAgentId : null);
     case 'runtime.selectedAgents': {
-      const selectedAgentIds = Array.isArray(state?.selectedAgentIds) ? state?.selectedAgentIds : [];
+      const selectedAgentIds = getRuntimeSelectedAgentIds(state);
       if (selectedAgentIds.length > 0) return selectedAgentIds.join(', ');
-      return typeof state?.selectedAgentId === 'string' ? state.selectedAgentId : null;
+      return null;
     }
     case 'runtime.selectedTile':
       return getSelectedTileDefault(state, field);
@@ -201,11 +226,12 @@ export const CommandSchemaForm: React.FC<CommandSchemaFormProps> = ({ dispatch }
   const [values, setValues] = useState<FormValues>(() => getInitialValues(selectedAction, gameDefinition));
   const [lastCommand, setLastCommand] = useState<string | null>(null);
   const runtimeState = getRuntimeStateSnapshot();
+  const runtimeValidationContext = getRuntimeValidationContext(runtimeState);
 
   const payload = useMemo(() => selectedAction ? buildPayload(selectedAction, values) : {}, [selectedAction, values]);
   const validation = useMemo(
-    () => selectedAction ? validateGameCommandType(gameDefinition, selectedAction.commandType, payload) : { ok: false, reason: 'No schema-backed command selected.' },
-    [gameDefinition, payload, selectedAction]
+    () => selectedAction ? validateGameCommandType(gameDefinition, selectedAction.commandType, payload, runtimeValidationContext) : { ok: false, reason: 'No schema-backed command selected.' },
+    [gameDefinition, payload, runtimeValidationContext, selectedAction]
   );
 
   const selectAction = (actionId: string) => {
