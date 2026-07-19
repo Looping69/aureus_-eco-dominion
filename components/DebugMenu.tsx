@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Cpu, Database, Box, Users, Layers, Zap, X, Monitor, Eye, Image, FileCode, Hash } from 'lucide-react';
-import { GameState, Action } from '../types';
+import type { GameState, Action } from '../types';
 import { getActiveGameDefinitionSummary } from '../game-definitions/activeGameDefinition';
 import { EngineDevToolsPanel } from './EngineDevToolsPanel';
 
