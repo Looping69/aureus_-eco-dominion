@@ -4,7 +4,7 @@ import { BUILDINGS, INITIAL_RESOURCES } from '../engine/data/VoxelConstants';
 import { RAW_AGENT_ROLE_SCHEMA } from '../engine/data/agentRoles';
 import { COMBAT_WEAPONS, ROLE_WEAPON_LOADOUTS } from '../engine/data/combatWeapons';
 import { RESOURCE_GRID_ROLE_SCHEMA } from '../engine/data/resourceGridRoleSchema';
-import { defineGameDefinition, type EntityArchetypeDefinition, type GameActionDefinition, type GameResourceDefinition, type GameSystemBindingDefinition } from '../engine/game-definition';
+import { defineGameDefinition, type EntityArchetypeDefinition, type GameActionDefinition, type GameActionPayloadOptionSource, type GameResourceDefinition, type GameSystemBindingDefinition } from '../engine/game-definition';
 
 const resourceDefinitions: GameResourceDefinition[] = [
     { id: 'agt', label: 'AGT', kind: 'currency', initial: INITIAL_RESOURCES.agt, min: 0, tradeable: true, description: 'Primary treasury currency used to buy buildings and trade.' },
@@ -100,11 +100,13 @@ const tilePayloadSchema: NonNullable<GameActionDefinition['payloadSchema']> = {
     x: {
         type: 'number',
         required: true,
+        optionSource: 'runtime.selectedTile',
         description: 'Surface tile X coordinate.',
     },
     z: {
         type: 'number',
         required: true,
+        optionSource: 'runtime.selectedTile',
         description: 'Surface tile Z coordinate.',
     },
 };
@@ -114,6 +116,7 @@ const voxelPayloadSchema: NonNullable<GameActionDefinition['payloadSchema']> = {
     y: {
         type: 'number',
         required: true,
+        optionSource: 'runtime.activeLayer',
         description: 'Voxel layer Y coordinate.',
     },
 };
@@ -123,6 +126,7 @@ const placeBuildingPayloadSchema: GameActionDefinition['payloadSchema'] = {
     buildingType: {
         type: 'string',
         required: true,
+        optionSource: 'entities.buildings',
         description: 'Building type identifier to place.',
     },
 };
@@ -131,6 +135,7 @@ const buyBuildingPayloadSchema: GameActionDefinition['payloadSchema'] = {
     buildingType: {
         type: 'string',
         required: true,
+        optionSource: 'entities.buildings',
         description: 'Building type identifier to buy for inventory.',
     },
     cost: {
@@ -158,6 +163,7 @@ const agentMovePayloadSchema: GameActionDefinition['payloadSchema'] = {
     agentId: {
         type: 'string',
         required: true,
+        optionSource: 'runtime.agents',
         description: 'Agent identifier to command.',
     },
     x: tilePayloadSchema.x,
@@ -168,6 +174,7 @@ const agentGroupMovePayloadSchema: GameActionDefinition['payloadSchema'] = {
     agentIds: {
         type: 'string[]',
         required: true,
+        optionSource: 'runtime.selectedAgents',
         description: 'Selected agent identifiers to command as a group.',
     },
     x: tilePayloadSchema.x,
@@ -178,6 +185,7 @@ const manualMovePayloadSchema: GameActionDefinition['payloadSchema'] = {
     agentId: {
         type: 'string',
         required: true,
+        optionSource: 'runtime.agents',
         description: 'Agent identifier to move manually.',
     },
     dx: {
@@ -196,6 +204,7 @@ const agentIdsPayloadSchema: GameActionDefinition['payloadSchema'] = {
     agentIds: {
         type: 'string[]',
         required: true,
+        optionSource: 'runtime.selectedAgents',
         description: 'Selected agent identifiers affected by this combat order.',
     },
 };
@@ -209,12 +218,13 @@ const contractIdPayloadSchema: GameActionDefinition['payloadSchema'] = {
     },
 };
 
-function singleStringPayloadSchema(field: string, description: string): GameActionDefinition['payloadSchema'] {
+function singleStringPayloadSchema(field: string, description: string, optionSource?: GameActionPayloadOptionSource): GameActionDefinition['payloadSchema'] {
     return {
         [field]: {
             type: 'string',
             required: true,
             allowPrimitive: true,
+            optionSource,
             description,
         },
     };
@@ -233,6 +243,7 @@ const buyResourcePayloadSchema: GameActionDefinition['payloadSchema'] = {
     resource: {
         type: 'string',
         required: true,
+        optionSource: 'resources.tradeable',
         description: 'Market resource identifier to buy.',
     },
     amount: {
@@ -258,8 +269,8 @@ const autoSellPayloadSchema: GameActionDefinition['payloadSchema'] = {
 const popupIdPayloadSchema = singleStringPayloadSchema('popupId', 'Popup identifier accepted either as { popupId } or as a legacy primitive string payload.');
 const permitIdPayloadSchema = singleStringPayloadSchema('permitId', 'Permit identifier accepted either as { permitId } or as a legacy primitive string payload.');
 const npcIdPayloadSchema = singleStringPayloadSchema('npcId', 'NPC identifier accepted either as { npcId } or as a legacy primitive string payload.');
-const resourcePayloadSchema = singleStringPayloadSchema('resource', 'Market resource identifier accepted either as { resource } or as a legacy primitive string payload.');
-const techIdPayloadSchema = singleStringPayloadSchema('techId', 'Technology identifier accepted either as { techId } or as a legacy primitive string payload.');
+const resourcePayloadSchema = singleStringPayloadSchema('resource', 'Market resource identifier accepted either as { resource } or as a legacy primitive string payload.', 'resources.tradeable');
+const techIdPayloadSchema = singleStringPayloadSchema('techId', 'Technology identifier accepted either as { techId } or as a legacy primitive string payload.', 'techs');
 
 const actionDefinitions: GameActionDefinition[] = [
     { id: 'action.placeBuilding', label: 'Place Building', category: 'build', commandType: 'PLACE_BUILDING', target: 'tile', payloadFields: ['x', 'z', 'buildingType'], payloadSchema: placeBuildingPayloadSchema, description: 'Places a building archetype on a surface tile.' },
