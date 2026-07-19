@@ -6,6 +6,14 @@ export type EntityCategory = 'agent' | 'building' | 'terrain' | 'item' | 'projec
 export type ActionCategory = 'build' | 'move' | 'combat' | 'economy' | 'research' | 'dialogue' | 'world' | 'debug';
 export type ActionTarget = 'none' | 'tile' | 'agent' | 'entity' | 'resource' | 'screen';
 export type GameActionPayloadFieldType = 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'object' | 'any';
+export type GameActionPayloadOptionSource =
+    | 'entities.buildings'
+    | 'resources.tradeable'
+    | 'runtime.agents'
+    | 'runtime.selectedAgents'
+    | 'runtime.selectedTile'
+    | 'runtime.activeLayer'
+    | 'techs';
 
 export interface GameResourceDefinition {
     id: string;
@@ -32,6 +40,8 @@ export interface GameActionPayloadFieldDefinition {
     type: GameActionPayloadFieldType;
     required?: boolean;
     allowPrimitive?: boolean;
+    options?: string[];
+    optionSource?: GameActionPayloadOptionSource;
     description?: string;
 }
 
