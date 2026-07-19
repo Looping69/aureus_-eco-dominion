@@ -1,9 +1,18 @@
-import type { GameActionDefinition, GameActionPayloadFieldDefinition, GameDefinition } from './types';
+import type {
+  GameActionDefinition,
+  GameActionPayloadFieldDefinition,
+  GameActionPayloadOptionSource,
+  GameDefinition,
+} from './types';
 
 export interface GameCommandValidationResult {
   ok: boolean;
   action?: GameActionDefinition;
   reason?: string;
+}
+
+export interface GameCommandValidationContext {
+  optionValues?: Partial<Record<GameActionPayloadOptionSource, string[]>>;
 }
 
 export interface ActiveGameDefinitionProvider {
@@ -57,8 +66,12 @@ function formatPayloadFieldDiagnostic(action: GameActionDefinition, field: strin
 function getPayloadFieldOptionValues(
   definition: GameDefinition,
   schema: GameActionPayloadFieldDefinition,
+  context?: GameCommandValidationContext,
 ): string[] | null {
   if (schema.options?.length) return schema.options;
+
+  const runtimeValues = schema.optionSource ? context?.optionValues?.[schema.optionSource] : null;
+  if (runtimeValues?.length) return runtimeValues;
 
   switch (schema.optionSource) {
     case 'entities.buildings':
@@ -77,10 +90,11 @@ function matchesPayloadFieldOptions(
   definition: GameDefinition | null | undefined,
   schema: GameActionPayloadFieldDefinition,
   value: unknown,
+  context?: GameCommandValidationContext,
 ): boolean {
   if (!definition) return true;
 
-  const allowedValues = getPayloadFieldOptionValues(definition, schema);
+  const allowedValues = getPayloadFieldOptionValues(definition, schema, context);
   if (!allowedValues || allowedValues.length === 0) return true;
 
   if (schema.type === 'string[]') {
@@ -170,6 +184,7 @@ export function findInvalidPayloadFields(
   action: GameActionDefinition,
   payload: unknown,
   definition?: GameDefinition | null,
+  context?: GameCommandValidationContext,
 ): string[] {
   if (!actionHasPayloadSchema(action)) return [];
 
@@ -180,7 +195,7 @@ export function findInvalidPayloadFields(
     const { present, value } = getSchemaPayloadFieldValue(action, payload, field);
     if (!present && schema.required === false) return false;
     if (!matchesPayloadFieldSchema(schema, value)) return true;
-    return !matchesPayloadFieldOptions(definition, schema, value);
+    return !matchesPayloadFieldOptions(definition, schema, value, context);
   });
 }
 
@@ -188,8 +203,9 @@ function findInvalidPayloadFieldDiagnostics(
   action: GameActionDefinition,
   payload: unknown,
   definition?: GameDefinition | null,
+  context?: GameCommandValidationContext,
 ): string[] {
-  const invalidFields = findInvalidPayloadFields(action, payload, definition);
+  const invalidFields = findInvalidPayloadFields(action, payload, definition, context);
   if (!actionHasPayloadSchema(action)) return invalidFields;
   return invalidFields.map((field) => formatPayloadFieldDiagnostic(action, field));
 }
@@ -206,6 +222,7 @@ export function validateGameCommandType(
   definition: GameDefinition | null | undefined,
   commandType: string,
   payload?: unknown,
+  context?: GameCommandValidationContext,
 ): GameCommandValidationResult {
   if (!definition) {
     return {
@@ -232,7 +249,7 @@ export function validateGameCommandType(
       };
     }
 
-    const invalidFields = findInvalidPayloadFieldDiagnostics(action, payload, definition);
+    const invalidFields = findInvalidPayloadFieldDiagnostics(action, payload, definition, context);
     if (invalidFields.length > 0) {
       return {
         ok: false,
@@ -249,9 +266,10 @@ export function validateGameCommandForActiveDefinition(
   provider: ActiveGameDefinitionProvider | null | undefined,
   commandType: string,
   payload?: unknown,
+  context?: GameCommandValidationContext,
 ): GameCommandValidationResult {
   if (arguments.length >= 3) {
-    return validateGameCommandType(provider?.getActive() ?? null, commandType, payload);
+    return validateGameCommandType(provider?.getActive() ?? null, commandType, payload, context);
   }
   return validateGameCommandType(provider?.getActive() ?? null, commandType);
 }
