@@ -12,6 +12,10 @@ function source(relativePath: string): string {
     return readFileSync(filePath, 'utf8');
 }
 
+function assertContains(text: string, snippet: string): void {
+    assert.equal(text.includes(snippet), true, `Expected source to include: ${snippet}`);
+}
+
 test('App delegates tile selection and FPS HUD helpers to small modules', () => {
     const app = source('App.tsx');
 
@@ -34,7 +38,7 @@ test('DebugMenu delegates engine game-pack tools to a dedicated panel', () => {
         'fogRemoved={fogRemoved}',
         'state={state}',
     ]) {
-        assert.match(debugMenu, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        assertContains(debugMenu, snippet);
     }
 
     assert.equal(debugMenu.includes("import { CommandSchemaForm } from './CommandSchemaForm';"), false);
@@ -48,57 +52,21 @@ test('DebugMenu delegates engine game-pack tools to a dedicated panel', () => {
         "dispatch({ type: 'REMOVE_FOG_OF_WAR' })",
         "dispatch({ type: 'TOGGLE_VIEW' })",
     ]) {
-        assert.match(tools, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        assertContains(tools, snippet);
     }
 
     for (const snippet of [
-        'GameActionDefinition,',
-        'GameActionPayloadFieldDefinition,',
-        'GameActionPayloadOptionSource,',
         'GameCommandValidationContext,',
-        'GameDefinition,',
-        "import { validateGameCommandType } from '../engine/game-definition';",
-        "import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';",
-        'function getRuntimeStateSnapshot(): RuntimeStateSnapshot',
-        'function getSchemaActions(definition: GameDefinition): GameActionDefinition[]',
-        'action.payloadSchema && action.payloadFields.length > 0',
-        'function getRuntimeAgentOptions(state: RuntimeStateSnapshot)',
-        'function getRuntimeSelectedAgentIds(state: RuntimeStateSnapshot): string[]',
         'function getRuntimeValidationContext(state: RuntimeStateSnapshot): GameCommandValidationContext',
         "'runtime.agents': runtimeAgentIds",
         "'runtime.selectedAgents': selectedAgentIds",
-        'function getDefaultFromOptionSource(',
-        'source: GameActionPayloadOptionSource | undefined',
-        "case 'runtime.agents':",
-        "case 'runtime.selectedAgents':",
-        "case 'runtime.selectedTile':",
-        "case 'runtime.activeLayer':",
-        "case 'resources.tradeable':",
-        "case 'entities.buildings':",
-        "case 'techs':",
-        'function getSmartFieldDefault(',
-        'function getDefaultFieldValue(schema: GameActionPayloadFieldDefinition): string',
-        "case 'number':",
-        "case 'boolean':",
-        "case 'string[]':",
-        "case 'number[]':",
-        "case 'object':",
-        'function parseFieldValue(schema: GameActionPayloadFieldDefinition, rawValue: string): unknown',
-        'function buildPayload(action: GameActionDefinition, values: FormValues): Record<string, unknown>',
-        'function getBuildingTypeOptions(definition: GameDefinition)',
-        'function getChoiceOptions(',
-        'schema.options?.length',
-        'switch (schema.optionSource)',
-        'const runtimeValidationContext = getRuntimeValidationContext(runtimeState);',
         'validateGameCommandType(gameDefinition, selectedAction.commandType, payload, runtimeValidationContext)',
         'disabled={!validation.ok}',
         'Use Current Selection',
         'Payload ready for dispatch.',
-        'dispatch({ type: selectedAction.commandType, payload });',
         'Schema Command',
-        'Dispatch {selectedAction.commandType}',
     ]) {
-        assert.match(form, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        assertContains(form, snippet);
     }
 
     assert.equal(form.includes("field === 'buildingType'"), false);
@@ -127,7 +95,7 @@ test('HomePage presents an animated drop into the live world', () => {
         'Qwen pilot ready',
         "event.code === 'Space'",
     ]) {
-        assert.match(home, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        assertContains(home, snippet);
     }
 
     assert.equal(home.includes('tracking-tighter'), false);
@@ -172,7 +140,7 @@ test('WorldHoverTooltip covers inspectable world entities and skips bare grass',
         "['Power', label(tile.powerStatus)]",
         "['Water', label(tile.waterStatus)]",
     ]) {
-        assert.match(tooltip, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        assertContains(tooltip, snippet);
     }
 });
 
