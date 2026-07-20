@@ -2,6 +2,7 @@ import type { GameCommand, GameState } from '../types';
 import {
     buildGameCommandValidationContext,
     createGameCommandCandidate,
+    GAME_COMMAND_CANDIDATE_SOURCES,
     validateGameCommandCandidate,
     type GameCommandCandidate,
     type GameCommandCandidateValidationResult,
@@ -131,7 +132,7 @@ export function isExecutablePilotAction(action: OverseerPilotAction | undefined)
 }
 
 export function createOverseerPilotCommandCandidate(action: OverseerPilotAction): GameCommandCandidate {
-    return createGameCommandCandidate(action.type, action.payload || {}, 'local-qwen', action.reason);
+    return createGameCommandCandidate(action.type, action.payload || {}, GAME_COMMAND_CANDIDATE_SOURCES.LOCAL_QWEN, action.reason);
 }
 
 export function validateOverseerPilotAction(
