@@ -19,6 +19,17 @@ export type {
 } from './types';
 
 export {
+    buildGameCommandValidationContext,
+    getActiveLayerNumber,
+    getBrowserRuntimeStateSnapshot,
+    getRuntimeAgentOptions,
+    getRuntimeSelectedAgentIds,
+    getSelectedTileDefault,
+    getSelectedTileNumber,
+} from './GameCommandRuntimeContext';
+export type { GameCommandRuntimeStateSnapshot, RuntimeAgentOption } from './GameCommandRuntimeContext';
+
+export {
     findActionForCommandType,
     findInvalidPayloadFields,
     findMissingPayloadFields,
