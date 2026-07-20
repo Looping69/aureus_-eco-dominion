@@ -63,6 +63,20 @@ function formatPayloadFieldDiagnostic(action: GameActionDefinition, field: strin
   return `${field} expected ${describePayloadFieldExpectation(getPayloadFieldSchema(action, field))}`;
 }
 
+function formatValueForDiagnostic(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map((entry) => String(entry)).join(', ')}]`;
+  if (typeof value === 'string') return value;
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  return String(value);
+}
+
+function summarizeAllowedValues(values: string[]): string {
+  const sample = values.slice(0, 6).join(', ');
+  const remaining = values.length > 6 ? `, +${values.length - 6} more` : '';
+  return `${sample}${remaining}`;
+}
+
 function getPayloadFieldOptionValues(
   definition: GameDefinition,
   schema: GameActionPayloadFieldDefinition,
@@ -106,6 +120,20 @@ function matchesPayloadFieldOptions(
   }
 
   return true;
+}
+
+function describePayloadFieldOptionExpectation(
+  definition: GameDefinition | null | undefined,
+  schema: GameActionPayloadFieldDefinition,
+  value: unknown,
+  context?: GameCommandValidationContext,
+): string | null {
+  if (!definition) return null;
+
+  const allowedValues = getPayloadFieldOptionValues(definition, schema, context);
+  if (!allowedValues || allowedValues.length === 0 || matchesPayloadFieldOptions(definition, schema, value, context)) return null;
+
+  return `value ${formatValueForDiagnostic(value)} must be one of ${summarizeAllowedValues(allowedValues)}`;
 }
 
 function matchesPayloadFieldSchema(schema: GameActionPayloadFieldDefinition, value: unknown): boolean {
@@ -207,7 +235,14 @@ function findInvalidPayloadFieldDiagnostics(
 ): string[] {
   const invalidFields = findInvalidPayloadFields(action, payload, definition, context);
   if (!actionHasPayloadSchema(action)) return invalidFields;
-  return invalidFields.map((field) => formatPayloadFieldDiagnostic(action, field));
+
+  return invalidFields.map((field) => {
+    const schema = getPayloadFieldSchema(action, field);
+    if (!schema) return formatPayloadFieldDiagnostic(action, field);
+    const { value } = getSchemaPayloadFieldValue(action, payload, field);
+    const optionExpectation = describePayloadFieldOptionExpectation(definition, schema, value, context);
+    return optionExpectation ? `${field} ${optionExpectation}` : formatPayloadFieldDiagnostic(action, field);
+  });
 }
 
 export function findActionForCommandType(
