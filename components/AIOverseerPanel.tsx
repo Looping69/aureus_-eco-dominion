@@ -10,7 +10,9 @@ import {
     OVERSEER_LOCAL_QWEN_CONFIG,
     type OverseerLocalInsight,
     type OverseerLocalModelStatus,
+    validateOverseerPilotAction,
 } from '../services/overseerLocalQwen';
+import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';
 
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
 type OverseerPilotProvider = 'HEURISTIC' | 'LOCAL_QWEN';
@@ -70,6 +72,8 @@ function queuePilotGameCommand(world: any, insight: OverseerLocalInsight): boole
     const gameState = world?.getState?.();
     const action = insight.action;
     if (!gameState?.commandQueue || !isExecutablePilotAction(action) || action.type === 'NONE') return false;
+    const validation = validateOverseerPilotAction(action, gameState, getActiveGameDefinition());
+    if (!validation.ok) return false;
     gameState.commandQueue.push({
         id: `qwen_pilot_${Date.now()}_${action.type.toLowerCase()}`,
         type: action.type as GameCommand['type'],
