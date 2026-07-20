@@ -3,6 +3,7 @@ import {
     buildGameCommandValidationContext,
     createGameCommandCandidate,
     createGameCommandCandidateEnvelope,
+    createGameCommandCandidateId,
     GAME_COMMAND_CANDIDATE_SOURCES,
     validateGameCommandCandidate,
     type GameCommandCandidate,
@@ -135,6 +136,10 @@ export function isExecutablePilotAction(action: OverseerPilotAction | undefined)
 
 export function createOverseerPilotCommandCandidate(action: OverseerPilotAction): GameCommandCandidate {
     return createGameCommandCandidate(action.type, action.payload || {}, GAME_COMMAND_CANDIDATE_SOURCES.LOCAL_QWEN, action.reason);
+}
+
+export function createOverseerPilotCommandId(action: OverseerPilotAction, issuedAtTick: number, sequence = 0): string {
+    return createGameCommandCandidateId(GAME_COMMAND_CANDIDATE_SOURCES.LOCAL_QWEN, action.type, issuedAtTick, sequence);
 }
 
 export function createOverseerPilotCommandEnvelope(action: OverseerPilotAction, id: string, issuedAtTick?: number): GameCommandCandidateEnvelope {
