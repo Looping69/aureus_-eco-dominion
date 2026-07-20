@@ -101,6 +101,7 @@ test('overseer panel assigns Pilot mode to Local Qwen and queues whitelisted mod
 
     for (const snippet of [
         "type OverseerPilotProvider = 'HEURISTIC' | 'LOCAL_QWEN'",
+        'type PilotQueueResult = { queued: boolean; reason?: string };',
         'generateOverseerPilotDirective',
         'queuePilotGameCommand',
         "pilotProvider: mode === 'AUTOPILOT' ? 'LOCAL_QWEN' : 'HEURISTIC'",
@@ -123,7 +124,22 @@ test('overseer panel validates Qwen pilot actions before queueing them', () => {
         'validateOverseerPilotAction,',
         "import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';",
         'const validation = validateOverseerPilotAction(action, gameState, getActiveGameDefinition());',
-        'if (!validation.ok) return false;',
+        "if (!validation.ok) return { queued: false, reason: validation.reason || 'Qwen action was rejected by the active game rules.' };",
+    ]) {
+        assertSnippet(text, snippet);
+    }
+});
+
+test('overseer panel shows rejected Qwen pilot action reasons', () => {
+    const text = source(panelPath);
+
+    for (const snippet of [
+        'const [qwenPilotBlocked, setQwenPilotBlocked] = React.useState<string | null>(null);',
+        'setQwenPilotBlocked(null);',
+        'const result = queuePilotGameCommand(currentWorld, insight);',
+        'if (result.queued) {',
+        'setQwenPilotBlocked(result.reason);',
+        'Pilot action blocked: {qwenPilotBlocked}',
     ]) {
         assertSnippet(text, snippet);
     }
