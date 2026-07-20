@@ -33,6 +33,7 @@ export {
     createGameCommandCandidate,
     createGameCommandCandidateEnvelope,
     createGameCommandCandidateId,
+    describeGameCommandCandidate,
     GAME_COMMAND_CANDIDATE_SOURCES,
     isValidGameCommandCandidate,
     validateGameCommandCandidate,
