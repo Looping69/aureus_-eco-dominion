@@ -26,16 +26,23 @@ test('App delegates tile selection and FPS HUD helpers to small modules', () => 
     assert.equal(app.includes('const canTileOpenModal'), false);
 });
 
-test('DebugMenu exposes a schema-driven command form for active game pack actions', () => {
+test('DebugMenu exposes an inline engine tools surface for game-pack commands', () => {
     const debugMenu = source('components/DebugMenu.tsx');
     const form = source('components/CommandSchemaForm.tsx');
 
     for (const snippet of [
         "import { CommandSchemaForm } from './CommandSchemaForm';",
+        'Engine Game Pack',
+        'Engine Runtime Tools',
         '<CommandSchemaForm dispatch={dispatch} />',
+        "dispatch({ type: 'TOGGLE_CHEATS' })",
+        "dispatch({ type: 'REMOVE_FOG_OF_WAR' })",
+        "dispatch({ type: 'TOGGLE_VIEW' })",
     ]) {
         assertContains(debugMenu, snippet);
     }
+
+    assert.equal(debugMenu.includes("import { EngineDevToolsPanel } from './EngineDevToolsPanel';"), false);
 
     for (const snippet of [
         'GameCommandValidationContext,',
