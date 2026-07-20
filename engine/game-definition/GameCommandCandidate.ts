@@ -7,6 +7,7 @@ export const GAME_COMMAND_CANDIDATE_SOURCES = {
   LOCAL_QWEN: 'local-qwen',
   HEURISTIC_OVERSEER: 'heuristic-overseer',
   NETWORK: 'network',
+  REPLAY: 'replay',
 } as const;
 
 export type GameCommandCandidateSource = typeof GAME_COMMAND_CANDIDATE_SOURCES[keyof typeof GAME_COMMAND_CANDIDATE_SOURCES] | (string & {});
