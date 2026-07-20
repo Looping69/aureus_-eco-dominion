@@ -1,5 +1,10 @@
 import type { GameCommand, GameState } from '../types';
-import { buildGameCommandValidationContext, validateGameCommandType, type GameDefinition } from '../engine/game-definition';
+import {
+    buildGameCommandValidationContext,
+    createGameCommandCandidate,
+    validateGameCommandCandidate,
+    type GameDefinition,
+} from '../engine/game-definition';
 
 export type OverseerLocalDevice = 'webgpu' | 'wasm';
 export type OverseerLocalModelStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -128,7 +133,8 @@ export function validateOverseerPilotAction(
 ): { ok: boolean; reason?: string } {
     if (!isExecutablePilotAction(action)) return { ok: false, reason: 'Pilot action is not executable.' };
     if (action.type === 'NONE') return { ok: true };
-    return validateGameCommandType(definition, action.type, action.payload || {}, buildGameCommandValidationContext(state as any));
+    const candidate = createGameCommandCandidate(action.type, action.payload || {}, 'local-qwen', action.reason);
+    return validateGameCommandCandidate(definition, candidate, buildGameCommandValidationContext(state as any));
 }
 
 async function runOverseerGeneration(prompt: string): Promise<string> {
