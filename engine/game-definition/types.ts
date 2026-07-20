@@ -41,7 +41,7 @@ export interface GameActionPayloadFieldDefinition {
     type: GameActionPayloadFieldType;
     required?: boolean;
     allowPrimitive?: boolean;
-    options?: GameActionPayloadOptionValue[];
+    options?: string[];
     optionSource?: GameActionPayloadOptionSource;
     description?: string;
 }
