@@ -2,10 +2,19 @@ import type { GameCommandValidationContext, GameCommandValidationResult } from '
 import { validateGameCommandType } from './GameCommandValidator';
 import type { GameDefinition } from './types';
 
+export const GAME_COMMAND_CANDIDATE_SOURCES = {
+  UI: 'ui',
+  LOCAL_QWEN: 'local-qwen',
+  HEURISTIC_OVERSEER: 'heuristic-overseer',
+  NETWORK: 'network',
+} as const;
+
+export type GameCommandCandidateSource = typeof GAME_COMMAND_CANDIDATE_SOURCES[keyof typeof GAME_COMMAND_CANDIDATE_SOURCES] | (string & {});
+
 export interface GameCommandCandidate {
   commandType: string;
   payload?: unknown;
-  source?: string;
+  source?: GameCommandCandidateSource;
   reason?: string;
 }
 
@@ -16,7 +25,7 @@ export interface GameCommandCandidateValidationResult extends GameCommandValidat
 export function createGameCommandCandidate(
   commandType: string,
   payload?: unknown,
-  source?: string,
+  source?: GameCommandCandidateSource,
   reason?: string,
 ): GameCommandCandidate {
   return { commandType, payload, source, reason };
