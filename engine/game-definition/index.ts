@@ -31,10 +31,11 @@ export type { GameCommandRuntimeStateSnapshot, RuntimeAgentOption } from './Game
 
 export {
     createGameCommandCandidate,
+    GAME_COMMAND_CANDIDATE_SOURCES,
     isValidGameCommandCandidate,
     validateGameCommandCandidate,
 } from './GameCommandCandidate';
-export type { GameCommandCandidate, GameCommandCandidateValidationResult } from './GameCommandCandidate';
+export type { GameCommandCandidate, GameCommandCandidateSource, GameCommandCandidateValidationResult } from './GameCommandCandidate';
 
 export {
     findActionForCommandType,
