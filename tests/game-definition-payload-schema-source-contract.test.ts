@@ -19,6 +19,7 @@ test('game-definition action payload schemas are part of the generic engine cont
 
     for (const snippet of [
         "export type GameActionPayloadFieldType = 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'object' | 'any';",
+        'export type GameActionPayloadOptionValue = string | number;',
         'export type GameActionPayloadOptionSource =',
         "| 'entities.buildings'",
         "| 'resources.tradeable'",
@@ -31,7 +32,7 @@ test('game-definition action payload schemas are part of the generic engine cont
         'type: GameActionPayloadFieldType;',
         'required?: boolean;',
         'allowPrimitive?: boolean;',
-        'options?: string[];',
+        'options?: GameActionPayloadOptionValue[];',
         'optionSource?: GameActionPayloadOptionSource;',
         'export type GameActionPayloadSchema = Record<string, GameActionPayloadFieldDefinition>;',
         'payloadSchema?: GameActionPayloadSchema;',
@@ -43,6 +44,7 @@ test('game-definition action payload schemas are part of the generic engine cont
         'GameActionPayloadFieldDefinition,',
         'GameActionPayloadFieldType,',
         'GameActionPayloadOptionSource,',
+        'GameActionPayloadOptionValue,',
         'GameActionPayloadSchema,',
         'GameCommandValidationContext,',
     ]) {
@@ -191,12 +193,12 @@ test('schema-backed command diagnostics describe expected payload field types', 
         'function formatPayloadFieldDiagnostic(action: GameActionDefinition, field: string): string',
         'return `${field} expected ${describePayloadFieldExpectation(getPayloadFieldSchema(action, field))}`;',
         'function formatValueForDiagnostic(value: unknown): string',
-        'function summarizeAllowedValues(values: string[]): string',
+        'function summarizeAllowedValues(values: GameActionPayloadOptionValue[]): string',
         'function describePayloadFieldOptionExpectation(',
         'return `value ${formatValueForDiagnostic(value)} must be one of ${summarizeAllowedValues(allowedValues)}`;',
         'function findMissingPayloadFieldDiagnostics(action: GameActionDefinition, payload: unknown): string[]',
         'function findInvalidPayloadFieldDiagnostics(',
-        'const optionExpectation = describePayloadFieldOptionExpectation(definition, schema, value, context);',
+        'const optionExpectation = describePayloadFieldOptionExpectation(definition, schema, field, value, context);',
         'return optionExpectation ? `${field} ${optionExpectation}` : formatPayloadFieldDiagnostic(action, field);',
         'const missingFields = findMissingPayloadFieldDiagnostics(action, payload);',
         'const invalidFields = findInvalidPayloadFieldDiagnostics(action, payload, definition, context);',
@@ -239,7 +241,7 @@ test('static payload option sources are enforced by command validation', () => {
         'allowedValues.includes(entry)',
         'allowedValues.includes(value)',
         'definition?: GameDefinition | null,',
-        'return !matchesPayloadFieldOptions(definition, schema, value, context);',
+        'return !matchesPayloadFieldOptions(definition, schema, field, value, context);',
         'findInvalidPayloadFieldDiagnostics(action, payload, definition, context)',
     ]) {
         assertContains(validator, snippet);
@@ -251,12 +253,18 @@ test('runtime payload option sources can be supplied without coupling the engine
 
     for (const snippet of [
         'GameActionPayloadOptionSource,',
+        'GameActionPayloadOptionValue,',
         'export interface GameCommandValidationContext',
-        'optionValues?: Partial<Record<GameActionPayloadOptionSource, string[]>>;',
+        'optionValues?: Partial<Record<GameActionPayloadOptionSource, GameActionPayloadOptionValue[]>>;',
+        'payloadFieldValues?: Partial<Record<GameActionPayloadOptionSource, Record<string, GameActionPayloadOptionValue[]>>>;',
         'context?: GameCommandValidationContext,',
+        'const runtimeFieldValues = schema.optionSource ? context?.payloadFieldValues?.[schema.optionSource]?.[field] : null;',
+        'if (runtimeFieldValues?.length) return runtimeFieldValues;',
         'const runtimeValues = schema.optionSource ? context?.optionValues?.[schema.optionSource] : null;',
         'if (runtimeValues?.length) return runtimeValues;',
-        'matchesPayloadFieldOptions(definition, schema, value, context)',
+        "if (schema.type === 'number[]')",
+        "if (typeof value === 'string' || typeof value === 'number')",
+        'matchesPayloadFieldOptions(definition, schema, field, value, context)',
         'validateGameCommandType(provider?.getActive() ?? null, commandType, payload, context)',
     ]) {
         assertContains(validator, snippet);
