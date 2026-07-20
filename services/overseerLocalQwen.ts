@@ -151,6 +151,10 @@ export function createOverseerPilotCommandEnvelope(action: OverseerPilotAction, 
     return createGameCommandCandidateEnvelope(createOverseerPilotCommandCandidate(action), id, issuedAtTick);
 }
 
+export function createOverseerPilotCommandEnvelopeForTick(action: OverseerPilotAction, issuedAtTick: number, sequence = 0): GameCommandCandidateEnvelope {
+    return createOverseerPilotCommandEnvelope(action, createOverseerPilotCommandId(action, issuedAtTick, sequence), issuedAtTick);
+}
+
 export function validateOverseerPilotAction(
     action: OverseerPilotAction | undefined,
     state: GameState,
