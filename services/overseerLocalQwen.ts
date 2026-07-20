@@ -3,6 +3,7 @@ import {
     buildGameCommandValidationContext,
     createGameCommandCandidate,
     validateGameCommandCandidate,
+    type GameCommandCandidateValidationResult,
     type GameDefinition,
 } from '../engine/game-definition';
 
@@ -15,6 +16,8 @@ export type OverseerPilotAction = {
     payload?: Record<string, unknown>;
     reason?: string;
 };
+
+export type OverseerPilotActionValidationResult = Pick<GameCommandCandidateValidationResult, 'ok' | 'reason'>;
 
 export type OverseerLocalInsight = {
     focus: string;
@@ -130,7 +133,7 @@ export function validateOverseerPilotAction(
     action: OverseerPilotAction | undefined,
     state: GameState,
     definition: GameDefinition,
-): { ok: boolean; reason?: string } {
+): OverseerPilotActionValidationResult {
     if (!isExecutablePilotAction(action)) return { ok: false, reason: 'Pilot action is not executable.' };
     if (action.type === 'NONE') return { ok: true };
     const candidate = createGameCommandCandidate(action.type, action.payload || {}, 'local-qwen', action.reason);
