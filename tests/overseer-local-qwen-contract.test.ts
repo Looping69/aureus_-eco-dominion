@@ -80,6 +80,7 @@ test('local Qwen pilot actions can be validated against the active game definiti
         'createGameCommandCandidate',
         'createGameCommandCandidateEnvelope',
         'createGameCommandCandidateId',
+        'describeGameCommandCandidate',
         'GAME_COMMAND_CANDIDATE_SOURCES',
         'validateGameCommandCandidate',
         'type GameCommandCandidate,',
@@ -89,6 +90,8 @@ test('local Qwen pilot actions can be validated against the active game definiti
         "export type OverseerPilotActionValidationResult = Pick<GameCommandCandidateValidationResult, 'ok' | 'reason'>;",
         'export function createOverseerPilotCommandCandidate(action: OverseerPilotAction): GameCommandCandidate {',
         'return createGameCommandCandidate(action.type, action.payload || {}, GAME_COMMAND_CANDIDATE_SOURCES.LOCAL_QWEN, action.reason);',
+        'export function describeOverseerPilotCommand(action: OverseerPilotAction): string {',
+        'return describeGameCommandCandidate(createOverseerPilotCommandCandidate(action));',
         'export function createOverseerPilotCommandId(action: OverseerPilotAction, issuedAtTick: number, sequence = 0): string {',
         'return createGameCommandCandidateId(GAME_COMMAND_CANDIDATE_SOURCES.LOCAL_QWEN, action.type, issuedAtTick, sequence);',
         'export function createOverseerPilotCommandEnvelope(action: OverseerPilotAction, id: string, issuedAtTick?: number): GameCommandCandidateEnvelope {',
@@ -112,6 +115,7 @@ test('overseer panel assigns Pilot mode to Local Qwen and queues whitelisted mod
         'type PilotQueueResult = { queued: boolean; reason?: string };',
         'createOverseerPilotCommandEnvelope,',
         'createOverseerPilotCommandId,',
+        'describeOverseerPilotCommand,',
         'generateOverseerPilotDirective',
         'queuePilotGameCommand',
         "pilotProvider: mode === 'AUTOPILOT' ? 'LOCAL_QWEN' : 'HEURISTIC'",
@@ -123,6 +127,7 @@ test('overseer panel assigns Pilot mode to Local Qwen and queues whitelisted mod
         'const commandId = createOverseerPilotCommandId(action, gameState.tickCount, gameState.commandQueue.length);',
         'const command = createOverseerPilotCommandEnvelope(action, commandId, gameState.tickCount);',
         'gameState.commandQueue.push(command as GameCommand);',
+        'Next: {describeOverseerPilotCommand(qwenInsight.action)}',
         "{overseer.autoAct ? 'Qwen Pilot Enabled' : 'Enable Qwen Auto Act'}",
     ]) {
         assertSnippet(text, snippet);
