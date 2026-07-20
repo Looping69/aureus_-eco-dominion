@@ -33,6 +33,13 @@ import { AgentDebugOverlay } from './components/AgentDebugOverlay';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { FPSAbilityHUD, type FPSAbility } from './components/FPSAbilityHUD';
 import { canTileOpenModal, isLinePlacementType } from './game/ui/tileSelection';
+import {
+    FPS_ABILITY_BY_KEY,
+    canFPSHarvestTarget,
+    createFPSQueuedCommand,
+    describeFPSScanTarget,
+    getFPSDigLayer,
+} from './game/ui/fpsAbilityLogic';
 
 const CommandFailureToast: React.FC<{ result?: any }> = ({ result }) => {
     if (!result || result.ok) return null;
@@ -279,12 +286,7 @@ const App: React.FC = () => {
             showFPSAbilityMessage('Command bridge is not ready yet.');
             return false;
         }
-        currentState.commandQueue.push({
-            id: `fps_${type.toLowerCase()}_${Date.now()}`,
-            type,
-            payload,
-            issuedAtTick: currentState.tickCount,
-        });
+        currentState.commandQueue.push(createFPSQueuedCommand(type, payload, currentState.tickCount));
         return true;
     }, [showFPSAbilityMessage, worldInstance]);
 
@@ -295,18 +297,13 @@ const App: React.FC = () => {
         if (!aim) return;
 
         if (ability === 'SCAN') {
-            const subject = aim.tile.buildingType !== BuildingType.EMPTY
-                ? String(aim.tile.buildingType).replace(/_/g, ' ')
-                : aim.tile.foliage && aim.tile.foliage !== 'NONE'
-                    ? String(aim.tile.foliage).replace(/_/g, ' ')
-                    : `${String(aim.tile.biome).toLowerCase()} ground`;
-            showFPSAbilityMessage(`Scan: ${subject} at ${aim.x}, ${aim.z}. Height ${aim.tile.terrainHeight}.`);
+            showFPSAbilityMessage(describeFPSScanTarget(aim));
             playSfx(SfxType.UI_CLICK);
             return;
         }
 
         if (ability === 'HARVEST') {
-            if (!aim.tile.foliage || aim.tile.foliage === 'NONE') {
+            if (!canFPSHarvestTarget(aim)) {
                 showFPSAbilityMessage('No harvestable foliage or surface resource on that tile.');
                 playSfx(SfxType.ERROR);
                 return;
@@ -326,10 +323,7 @@ const App: React.FC = () => {
         }
 
         if (ability === 'DIG') {
-            const layeredWorld = currentState.layeredWorld;
-            const activeY = layeredWorld.activeY < layeredWorld.surfaceY
-                ? layeredWorld.activeY
-                : layeredWorld.surfaceY - 1;
+            const activeY = getFPSDigLayer(currentState.layeredWorld);
             if (enqueueFPSCommand('DIG_VOXEL', { x: aim.x, y: activeY, z: aim.z })) {
                 showFPSAbilityMessage(`Excavation order placed at layer ${activeY}.`);
                 playSfx(SfxType.MINING_HIT);
@@ -463,14 +457,7 @@ const App: React.FC = () => {
             }
 
             if (stateRef.current?.isFPS) {
-                const abilityByKey: Partial<Record<string, FPSAbility>> = {
-                    KeyQ: 'SCAN',
-                    KeyE: 'HARVEST',
-                    KeyR: 'RESTORE',
-                    KeyF: 'DIG',
-                    KeyG: 'MOVE',
-                };
-                const ability = abilityByKey[e.code];
+                const ability = FPS_ABILITY_BY_KEY[e.code];
                 if (ability) {
                     e.preventDefault();
                     handleFPSAbility(ability);
