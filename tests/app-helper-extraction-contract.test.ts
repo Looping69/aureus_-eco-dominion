@@ -26,6 +26,48 @@ test('App delegates tile selection and FPS HUD helpers to small modules', () => 
     assert.equal(app.includes('const canTileOpenModal'), false);
 });
 
+test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
+    const app = source('App.tsx');
+    const helper = source('game/ui/fpsAbilityLogic.ts');
+
+    for (const snippet of [
+        'FPS_ABILITY_BY_KEY,',
+        'canFPSHarvestTarget,',
+        'createFPSQueuedCommand,',
+        'describeFPSScanTarget,',
+        'getFPSDigLayer,',
+        "from './game/ui/fpsAbilityLogic'",
+        'currentState.commandQueue.push(createFPSQueuedCommand(type, payload, currentState.tickCount))',
+        'showFPSAbilityMessage(describeFPSScanTarget(aim))',
+        'if (!canFPSHarvestTarget(aim))',
+        'const activeY = getFPSDigLayer(currentState.layeredWorld)',
+        'const ability = FPS_ABILITY_BY_KEY[e.code]',
+    ]) {
+        assertContains(app, snippet);
+    }
+
+    for (const staleInlineSnippet of [
+        'const abilityByKey: Partial<Record<string, FPSAbility>>',
+        'const subject = aim.tile.buildingType',
+        'id: `fps_${type.toLowerCase()}_${Date.now()}`',
+        'const layeredWorld = currentState.layeredWorld',
+        'layeredWorld.activeY < layeredWorld.surfaceY',
+        "!aim.tile.foliage || aim.tile.foliage === 'NONE'",
+    ]) {
+        assert.equal(app.includes(staleInlineSnippet), false, `App should not keep inline FPS helper logic: ${staleInlineSnippet}`);
+    }
+
+    for (const helperSnippet of [
+        'export const FPS_ABILITY_BY_KEY',
+        'export function describeFPSScanTarget',
+        'export function canFPSHarvestTarget',
+        'export function getFPSDigLayer',
+        'export function createFPSQueuedCommand',
+    ]) {
+        assertContains(helper, helperSnippet);
+    }
+});
+
 test('DebugMenu exposes a schema-driven command form for active game pack actions', () => {
     const debugMenu = source('components/DebugMenu.tsx');
     const form = source('components/CommandSchemaForm.tsx');
