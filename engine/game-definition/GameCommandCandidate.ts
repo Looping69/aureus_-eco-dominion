@@ -18,6 +18,15 @@ export interface GameCommandCandidate {
   reason?: string;
 }
 
+export interface GameCommandCandidateEnvelope {
+  id: string;
+  type: string;
+  payload: unknown;
+  issuedAtTick?: number;
+  source?: GameCommandCandidateSource;
+  reason?: string;
+}
+
 export interface GameCommandCandidateValidationResult extends GameCommandValidationResult {
   candidate: GameCommandCandidate;
 }
@@ -29,6 +38,21 @@ export function createGameCommandCandidate(
   reason?: string,
 ): GameCommandCandidate {
   return { commandType, payload, source, reason };
+}
+
+export function createGameCommandCandidateEnvelope(
+  candidate: GameCommandCandidate,
+  id: string,
+  issuedAtTick?: number,
+): GameCommandCandidateEnvelope {
+  return {
+    id,
+    type: candidate.commandType,
+    payload: candidate.payload || {},
+    issuedAtTick,
+    source: candidate.source,
+    reason: candidate.reason,
+  };
 }
 
 export function validateGameCommandCandidate(
