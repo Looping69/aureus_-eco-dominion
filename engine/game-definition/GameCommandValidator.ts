@@ -2,6 +2,7 @@ import type {
   GameActionDefinition,
   GameActionPayloadFieldDefinition,
   GameActionPayloadOptionSource,
+  GameActionPayloadOptionValue,
   GameDefinition,
 } from './types';
 
@@ -12,7 +13,8 @@ export interface GameCommandValidationResult {
 }
 
 export interface GameCommandValidationContext {
-  optionValues?: Partial<Record<GameActionPayloadOptionSource, string[]>>;
+  optionValues?: Partial<Record<GameActionPayloadOptionSource, GameActionPayloadOptionValue[]>>;
+  payloadFieldValues?: Partial<Record<GameActionPayloadOptionSource, Record<string, GameActionPayloadOptionValue[]>>>;
 }
 
 export interface ActiveGameDefinitionProvider {
@@ -71,8 +73,8 @@ function formatValueForDiagnostic(value: unknown): string {
   return String(value);
 }
 
-function summarizeAllowedValues(values: string[]): string {
-  const sample = values.slice(0, 6).join(', ');
+function summarizeAllowedValues(values: GameActionPayloadOptionValue[]): string {
+  const sample = values.slice(0, 6).map((value) => String(value)).join(', ');
   const remaining = values.length > 6 ? `, +${values.length - 6} more` : '';
   return `${sample}${remaining}`;
 }
@@ -80,9 +82,13 @@ function summarizeAllowedValues(values: string[]): string {
 function getPayloadFieldOptionValues(
   definition: GameDefinition,
   schema: GameActionPayloadFieldDefinition,
+  field: string,
   context?: GameCommandValidationContext,
-): string[] | null {
+): GameActionPayloadOptionValue[] | null {
   if (schema.options?.length) return schema.options;
+
+  const runtimeFieldValues = schema.optionSource ? context?.payloadFieldValues?.[schema.optionSource]?.[field] : null;
+  if (runtimeFieldValues?.length) return runtimeFieldValues;
 
   const runtimeValues = schema.optionSource ? context?.optionValues?.[schema.optionSource] : null;
   if (runtimeValues?.length) return runtimeValues;
@@ -103,19 +109,24 @@ function getPayloadFieldOptionValues(
 function matchesPayloadFieldOptions(
   definition: GameDefinition | null | undefined,
   schema: GameActionPayloadFieldDefinition,
+  field: string,
   value: unknown,
   context?: GameCommandValidationContext,
 ): boolean {
   if (!definition) return true;
 
-  const allowedValues = getPayloadFieldOptionValues(definition, schema, context);
+  const allowedValues = getPayloadFieldOptionValues(definition, schema, field, context);
   if (!allowedValues || allowedValues.length === 0) return true;
 
   if (schema.type === 'string[]') {
     return Array.isArray(value) && value.every((entry) => typeof entry === 'string' && allowedValues.includes(entry));
   }
 
-  if (typeof value === 'string') {
+  if (schema.type === 'number[]') {
+    return Array.isArray(value) && value.every((entry) => typeof entry === 'number' && allowedValues.includes(entry));
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
     return allowedValues.includes(value);
   }
 
@@ -125,13 +136,14 @@ function matchesPayloadFieldOptions(
 function describePayloadFieldOptionExpectation(
   definition: GameDefinition | null | undefined,
   schema: GameActionPayloadFieldDefinition,
+  field: string,
   value: unknown,
   context?: GameCommandValidationContext,
 ): string | null {
   if (!definition) return null;
 
-  const allowedValues = getPayloadFieldOptionValues(definition, schema, context);
-  if (!allowedValues || allowedValues.length === 0 || matchesPayloadFieldOptions(definition, schema, value, context)) return null;
+  const allowedValues = getPayloadFieldOptionValues(definition, schema, field, context);
+  if (!allowedValues || allowedValues.length === 0 || matchesPayloadFieldOptions(definition, schema, field, value, context)) return null;
 
   return `value ${formatValueForDiagnostic(value)} must be one of ${summarizeAllowedValues(allowedValues)}`;
 }
@@ -223,7 +235,7 @@ export function findInvalidPayloadFields(
     const { present, value } = getSchemaPayloadFieldValue(action, payload, field);
     if (!present && schema.required === false) return false;
     if (!matchesPayloadFieldSchema(schema, value)) return true;
-    return !matchesPayloadFieldOptions(definition, schema, value, context);
+    return !matchesPayloadFieldOptions(definition, schema, field, value, context);
   });
 }
 
@@ -240,7 +252,7 @@ function findInvalidPayloadFieldDiagnostics(
     const schema = getPayloadFieldSchema(action, field);
     if (!schema) return formatPayloadFieldDiagnostic(action, field);
     const { value } = getSchemaPayloadFieldValue(action, payload, field);
-    const optionExpectation = describePayloadFieldOptionExpectation(definition, schema, value, context);
+    const optionExpectation = describePayloadFieldOptionExpectation(definition, schema, field, value, context);
     return optionExpectation ? `${field} ${optionExpectation}` : formatPayloadFieldDiagnostic(action, field);
   });
 }
