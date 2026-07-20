@@ -5,6 +5,7 @@ import { NarrativePanel } from './NarrativePanel';
 import {
     createOverseerPilotCommandEnvelope,
     createOverseerPilotCommandId,
+    describeOverseerPilotCommand,
     generateOverseerLocalInsight,
     generateOverseerPilotDirective,
     getOverseerLocalModelStatus,
@@ -311,7 +312,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                                 <span className="text-violet-200 font-black">{qwenInsight.focus}</span>
                                 <span className="block mt-1">{qwenInsight.recommendation}</span>
                                 {qwenInsight.action && qwenInsight.action.type !== 'NONE' && (
-                                    <span className="block mt-1 text-[8px] font-mono uppercase tracking-wider text-emerald-300">Next: {qwenInsight.action.type}</span>
+                                    <span className="block mt-1 text-[8px] font-mono uppercase tracking-wider text-emerald-300">Next: {describeOverseerPilotCommand(qwenInsight.action)}</span>
                                 )}
                                 <span className="block mt-1 text-[8px] font-mono uppercase tracking-wider text-slate-500">{qwenInsight.device} / local browser model</span>
                             </div>
