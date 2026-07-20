@@ -16,6 +16,7 @@ import { getActiveGameDefinition } from '../game-definitions/activeGameDefinitio
 
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
 type OverseerPilotProvider = 'HEURISTIC' | 'LOCAL_QWEN';
+type PilotQueueResult = { queued: boolean; reason?: string };
 
 type OverseerState = {
     enabled?: boolean;
@@ -68,19 +69,20 @@ function queueOverseerCommand(world: any, payload: Partial<OverseerState>): bool
     return true;
 }
 
-function queuePilotGameCommand(world: any, insight: OverseerLocalInsight): boolean {
+function queuePilotGameCommand(world: any, insight: OverseerLocalInsight): PilotQueueResult {
     const gameState = world?.getState?.();
     const action = insight.action;
-    if (!gameState?.commandQueue || !isExecutablePilotAction(action) || action.type === 'NONE') return false;
+    if (!gameState?.commandQueue) return { queued: false, reason: 'Game command queue is not ready.' };
+    if (!isExecutablePilotAction(action) || action.type === 'NONE') return { queued: false, reason: action?.reason || 'Qwen did not choose an executable action.' };
     const validation = validateOverseerPilotAction(action, gameState, getActiveGameDefinition());
-    if (!validation.ok) return false;
+    if (!validation.ok) return { queued: false, reason: validation.reason || 'Qwen action was rejected by the active game rules.' };
     gameState.commandQueue.push({
         id: `qwen_pilot_${Date.now()}_${action.type.toLowerCase()}`,
         type: action.type as GameCommand['type'],
         payload: action.payload || {},
         issuedAtTick: gameState.tickCount,
     });
-    return true;
+    return { queued: true };
 }
 
 function readInitialCollapsed(): boolean {
@@ -111,6 +113,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
     const [qwenWorking, setQwenWorking] = React.useState(false);
     const [qwenInsight, setQwenInsight] = React.useState<OverseerLocalInsight | null>(null);
     const [qwenError, setQwenError] = React.useState<string | null>(null);
+    const [qwenPilotBlocked, setQwenPilotBlocked] = React.useState<string | null>(null);
     const qwenPilotBusyRef = React.useRef(false);
     const latestStateRef = React.useRef(state);
     const latestWorldRef = React.useRef(world);
@@ -168,6 +171,7 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
         qwenPilotBusyRef.current = true;
         setQwenWorking(true);
         setQwenError(null);
+        setQwenPilotBlocked(null);
         setQwenStatus('loading');
         if (!executePilotAction) playSfx(SfxType.UI_CLICK);
         try {
@@ -178,8 +182,13 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                 : await generateOverseerLocalInsight(currentState);
             setQwenInsight(insight);
             setQwenStatus(getOverseerLocalModelStatus());
-            if (executePilotAction && queuePilotGameCommand(currentWorld, insight)) {
-                playSfx(SfxType.UI_COIN);
+            if (executePilotAction) {
+                const result = queuePilotGameCommand(currentWorld, insight);
+                if (result.queued) {
+                    playSfx(SfxType.UI_COIN);
+                } else if (result.reason) {
+                    setQwenPilotBlocked(result.reason);
+                }
             }
         } catch (error) {
             setQwenInsight(null);
@@ -306,6 +315,11 @@ export const AIOverseerPanel: React.FC<AIOverseerPanelProps> = ({ state, world, 
                                     <span className="block mt-1 text-[8px] font-mono uppercase tracking-wider text-emerald-300">Next: {qwenInsight.action.type}</span>
                                 )}
                                 <span className="block mt-1 text-[8px] font-mono uppercase tracking-wider text-slate-500">{qwenInsight.device} / local browser model</span>
+                            </div>
+                        )}
+                        {qwenPilotBlocked && (
+                            <div className="rounded-[4px] border border-amber-800 bg-amber-950/50 px-2 py-1 text-[9px] font-bold text-amber-200 leading-snug">
+                                Pilot action blocked: {qwenPilotBlocked}
                             </div>
                         )}
                         {!qwenInsight && !qwenError && (
