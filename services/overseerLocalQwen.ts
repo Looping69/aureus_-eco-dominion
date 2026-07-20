@@ -3,6 +3,7 @@ import {
     buildGameCommandValidationContext,
     createGameCommandCandidate,
     validateGameCommandCandidate,
+    type GameCommandCandidate,
     type GameCommandCandidateValidationResult,
     type GameDefinition,
 } from '../engine/game-definition';
@@ -129,6 +130,10 @@ export function isExecutablePilotAction(action: OverseerPilotAction | undefined)
     return Boolean(action && EXECUTABLE_ACTIONS.has(action.type));
 }
 
+export function createOverseerPilotCommandCandidate(action: OverseerPilotAction): GameCommandCandidate {
+    return createGameCommandCandidate(action.type, action.payload || {}, 'local-qwen', action.reason);
+}
+
 export function validateOverseerPilotAction(
     action: OverseerPilotAction | undefined,
     state: GameState,
@@ -136,7 +141,7 @@ export function validateOverseerPilotAction(
 ): OverseerPilotActionValidationResult {
     if (!isExecutablePilotAction(action)) return { ok: false, reason: 'Pilot action is not executable.' };
     if (action.type === 'NONE') return { ok: true };
-    const candidate = createGameCommandCandidate(action.type, action.payload || {}, 'local-qwen', action.reason);
+    const candidate = createOverseerPilotCommandCandidate(action);
     return validateGameCommandCandidate(definition, candidate, buildGameCommandValidationContext(state as any));
 }
 
