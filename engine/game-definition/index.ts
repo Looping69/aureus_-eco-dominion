@@ -30,6 +30,13 @@ export {
 export type { GameCommandRuntimeStateSnapshot, RuntimeAgentOption } from './GameCommandRuntimeContext';
 
 export {
+    createGameCommandCandidate,
+    isValidGameCommandCandidate,
+    validateGameCommandCandidate,
+} from './GameCommandCandidate';
+export type { GameCommandCandidate, GameCommandCandidateValidationResult } from './GameCommandCandidate';
+
+export {
     findActionForCommandType,
     findInvalidPayloadFields,
     findMissingPayloadFields,
