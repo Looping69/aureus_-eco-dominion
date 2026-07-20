@@ -47,6 +47,9 @@ test('game-definition action payload schemas are part of the generic engine cont
         'GameActionPayloadOptionValue,',
         'GameActionPayloadSchema,',
         'GameCommandValidationContext,',
+        'buildGameCommandValidationContext,',
+        'getBrowserRuntimeStateSnapshot,',
+        'GameCommandRuntimeStateSnapshot,',
     ]) {
         assertContains(index, snippet);
     }
@@ -271,21 +274,37 @@ test('runtime payload option sources can be supplied without coupling the engine
     }
 });
 
-test('schema command form supplies tile and layer runtime payload constraints', () => {
+test('shared runtime command context supplies tile, layer, and agent constraints', () => {
+    const context = source('engine/game-definition/GameCommandRuntimeContext.ts');
     const form = source('components/CommandSchemaForm.tsx');
 
     for (const snippet of [
-        'function getSelectedTileNumber(state: RuntimeStateSnapshot, field: string): number | null',
-        'function getActiveLayerNumber(state: RuntimeStateSnapshot): number | null',
-        'const selectedTileX = getSelectedTileNumber(state, \'x\');',
-        'const selectedTileZ = getSelectedTileNumber(state, \'z\');',
-        'const activeLayerY = getActiveLayerNumber(state);',
-        'payloadFieldValues: {',
+        'export type GameCommandRuntimeStateSnapshot = Record<string, any> | null;',
+        'export function getBrowserRuntimeStateSnapshot(): GameCommandRuntimeStateSnapshot',
+        'export function getRuntimeAgentOptions(state: GameCommandRuntimeStateSnapshot): RuntimeAgentOption[]',
+        'export function getRuntimeSelectedAgentIds(state: GameCommandRuntimeStateSnapshot): string[]',
+        'export function getSelectedTileNumber(state: GameCommandRuntimeStateSnapshot, field: string): number | null',
+        'export function getSelectedTileDefault(state: GameCommandRuntimeStateSnapshot, field: string): string | null',
+        'export function getActiveLayerNumber(state: GameCommandRuntimeStateSnapshot): number | null',
+        'export function buildGameCommandValidationContext(state: GameCommandRuntimeStateSnapshot): GameCommandValidationContext',
+        "'runtime.agents': runtimeAgentIds,",
+        "'runtime.selectedAgents': selectedAgentIds,",
         "'runtime.selectedTile': {",
         'x: selectedTileX === null ? [] : [selectedTileX],',
         'z: selectedTileZ === null ? [] : [selectedTileZ],',
         "'runtime.activeLayer': {",
         'y: activeLayerY === null ? [] : [activeLayerY],',
+    ]) {
+        assertContains(context, snippet);
+    }
+
+    for (const snippet of [
+        'buildGameCommandValidationContext,',
+        'getBrowserRuntimeStateSnapshot,',
+        'type GameCommandRuntimeStateSnapshot,',
+        "from '../engine/game-definition/GameCommandRuntimeContext';",
+        'const runtimeState = getBrowserRuntimeStateSnapshot();',
+        'const runtimeValidationContext = buildGameCommandValidationContext(runtimeState);',
     ]) {
         assertContains(form, snippet);
     }
