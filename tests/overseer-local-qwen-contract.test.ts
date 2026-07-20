@@ -72,6 +72,22 @@ test('local Qwen is taught pilot rules and a strict action schema', () => {
     }
 });
 
+test('local Qwen pilot actions can be validated against the active game definition', () => {
+    const text = source(servicePath);
+
+    for (const snippet of [
+        'buildGameCommandValidationContext',
+        'validateGameCommandType',
+        'type GameDefinition',
+        'export function validateOverseerPilotAction',
+        "if (!isExecutablePilotAction(action)) return { ok: false, reason: 'Pilot action is not executable.' };",
+        "if (action.type === 'NONE') return { ok: true };",
+        'return validateGameCommandType(definition, action.type, action.payload || {}, buildGameCommandValidationContext(state as any));',
+    ]) {
+        assertSnippet(text, snippet);
+    }
+});
+
 test('overseer panel assigns Pilot mode to Local Qwen and queues whitelisted model actions', () => {
     const text = source(panelPath);
 
