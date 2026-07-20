@@ -38,6 +38,17 @@ function normalizeCandidateIdPart(value: unknown): string {
     .replace(/^_+|_+$/g, '') || 'unknown';
 }
 
+function normalizeCandidateLabelPart(value: unknown): string {
+  return String(value || 'unknown')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || 'unknown';
+}
+
+export function describeGameCommandCandidate(candidate: GameCommandCandidate): string {
+  return `${normalizeCandidateLabelPart(candidate.source)}: ${normalizeCandidateLabelPart(candidate.commandType)}`;
+}
+
 export function createGameCommandCandidateId(
   source: GameCommandCandidateSource | undefined,
   commandType: string,
