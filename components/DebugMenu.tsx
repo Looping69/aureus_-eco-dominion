@@ -144,7 +144,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
           {activeGameDefinitionSummary && (
             <div>
               <h3 className="text-[9px] text-slate-500 font-black uppercase mb-1.5 flex items-center gap-1.5 font-['Rajdhani'] tracking-widest border-b border-slate-800 pb-0.5">
-                <FileCode size={10} /> Active Game Pack
+                <FileCode size={10} /> Engine Game Pack
               </h3>
               <div className="space-y-0.5">
                 <StatRow label="Pack" value={activeGameDefinitionSummary.title} icon={FileCode} color="text-cyan-400" />
@@ -218,10 +218,10 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
             </div>
           </div>
 
-          {/* Developer Tools */}
+          {/* Engine Runtime Tools */}
           <div>
             <h3 className="text-[9px] text-slate-500 font-black uppercase mb-1.5 flex items-center gap-1.5 font-['Rajdhani'] tracking-widest border-b border-slate-800 pb-0.5">
-              <Unlock size={10} /> Developer Tools
+              <Unlock size={10} /> Engine Runtime Tools
             </h3>
             <button
               type="button"
