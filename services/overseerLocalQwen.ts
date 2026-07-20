@@ -2,9 +2,11 @@ import type { GameCommand, GameState } from '../types';
 import {
     buildGameCommandValidationContext,
     createGameCommandCandidate,
+    createGameCommandCandidateEnvelope,
     GAME_COMMAND_CANDIDATE_SOURCES,
     validateGameCommandCandidate,
     type GameCommandCandidate,
+    type GameCommandCandidateEnvelope,
     type GameCommandCandidateValidationResult,
     type GameDefinition,
 } from '../engine/game-definition';
@@ -133,6 +135,10 @@ export function isExecutablePilotAction(action: OverseerPilotAction | undefined)
 
 export function createOverseerPilotCommandCandidate(action: OverseerPilotAction): GameCommandCandidate {
     return createGameCommandCandidate(action.type, action.payload || {}, GAME_COMMAND_CANDIDATE_SOURCES.LOCAL_QWEN, action.reason);
+}
+
+export function createOverseerPilotCommandEnvelope(action: OverseerPilotAction, id: string, issuedAtTick?: number): GameCommandCandidateEnvelope {
+    return createGameCommandCandidateEnvelope(createOverseerPilotCommandCandidate(action), id, issuedAtTick);
 }
 
 export function validateOverseerPilotAction(
