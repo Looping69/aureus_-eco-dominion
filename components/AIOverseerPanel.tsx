@@ -3,8 +3,7 @@ import { Bot, Briefcase, Cpu, Eye, Maximize2, Minimize2, Play, Shield, TrendingU
 import { GameCommand, GameState, SfxType } from '../types';
 import { NarrativePanel } from './NarrativePanel';
 import {
-    createOverseerPilotCommandEnvelope,
-    createOverseerPilotCommandId,
+    createOverseerPilotCommandEnvelopeForTick,
     describeOverseerPilotCommand,
     generateOverseerLocalInsight,
     generateOverseerPilotDirective,
@@ -79,8 +78,7 @@ function queuePilotGameCommand(world: any, insight: OverseerLocalInsight): Pilot
     if (!isExecutablePilotAction(action) || action.type === 'NONE') return { queued: false, reason: action?.reason || 'Qwen did not choose an executable action.' };
     const validation = validateOverseerPilotAction(action, gameState, getActiveGameDefinition());
     if (!validation.ok) return { queued: false, reason: validation.reason || 'Qwen action was rejected by the active game rules.' };
-    const commandId = createOverseerPilotCommandId(action, gameState.tickCount, gameState.commandQueue.length);
-    const command = createOverseerPilotCommandEnvelope(action, commandId, gameState.tickCount);
+    const command = createOverseerPilotCommandEnvelopeForTick(action, gameState.tickCount, gameState.commandQueue.length);
     gameState.commandQueue.push(command as GameCommand);
     return { queued: true };
 }
