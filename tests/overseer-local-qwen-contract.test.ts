@@ -108,6 +108,19 @@ test('overseer panel assigns Pilot mode to Local Qwen and queues whitelisted mod
     }
 });
 
+test('overseer panel validates Qwen pilot actions before queueing them', () => {
+    const text = source(panelPath);
+
+    for (const snippet of [
+        'validateOverseerPilotAction,',
+        "import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';",
+        'const validation = validateOverseerPilotAction(action, gameState, getActiveGameDefinition());',
+        'if (!validation.ok) return false;',
+    ]) {
+        assertSnippet(text, snippet);
+    }
+});
+
 test('Auto Act control always promotes Local Qwen to the decision-maker', () => {
     const text = source(panelPath);
 
