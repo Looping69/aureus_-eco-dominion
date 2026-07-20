@@ -79,14 +79,17 @@ test('local Qwen pilot actions can be validated against the active game definiti
         'buildGameCommandValidationContext',
         'createGameCommandCandidate',
         'validateGameCommandCandidate',
+        'type GameCommandCandidate,',
         'type GameCommandCandidateValidationResult',
         'type GameDefinition',
         "export type OverseerPilotActionValidationResult = Pick<GameCommandCandidateValidationResult, 'ok' | 'reason'>;",
+        'export function createOverseerPilotCommandCandidate(action: OverseerPilotAction): GameCommandCandidate {',
+        "return createGameCommandCandidate(action.type, action.payload || {}, 'local-qwen', action.reason);",
         'export function validateOverseerPilotAction',
         '): OverseerPilotActionValidationResult {',
         "if (!isExecutablePilotAction(action)) return { ok: false, reason: 'Pilot action is not executable.' };",
         "if (action.type === 'NONE') return { ok: true };",
-        "const candidate = createGameCommandCandidate(action.type, action.payload || {}, 'local-qwen', action.reason);",
+        'const candidate = createOverseerPilotCommandCandidate(action);',
         'return validateGameCommandCandidate(definition, candidate, buildGameCommandValidationContext(state as any));',
     ]) {
         assertSnippet(text, snippet);
