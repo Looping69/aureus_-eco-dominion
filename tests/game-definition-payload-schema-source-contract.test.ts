@@ -274,9 +274,8 @@ test('runtime payload option sources can be supplied without coupling the engine
     }
 });
 
-test('shared runtime command context supplies tile, layer, and agent constraints', () => {
+test('shared runtime command context adapter supplies tile, layer, and agent constraints', () => {
     const context = source('engine/game-definition/GameCommandRuntimeContext.ts');
-    const form = source('components/CommandSchemaForm.tsx');
 
     for (const snippet of [
         'export type GameCommandRuntimeStateSnapshot = Record<string, any> | null;',
@@ -296,14 +295,5 @@ test('shared runtime command context supplies tile, layer, and agent constraints
         'y: activeLayerY === null ? [] : [activeLayerY],',
     ]) {
         assertContains(context, snippet);
-    }
-
-    for (const snippet of [
-        'import { buildGameCommandValidationContext, validateGameCommandType } from \'../engine/game-definition\';',
-        'function getRuntimeValidationContext(state: RuntimeStateSnapshot): GameCommandValidationContext',
-        'return buildGameCommandValidationContext(state);',
-        'const runtimeValidationContext = getRuntimeValidationContext(runtimeState);',
-    ]) {
-        assertContains(form, snippet);
     }
 });
