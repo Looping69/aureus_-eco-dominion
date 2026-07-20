@@ -32,6 +32,7 @@ export type { GameCommandRuntimeStateSnapshot, RuntimeAgentOption } from './Game
 export {
     createGameCommandCandidate,
     createGameCommandCandidateEnvelope,
+    createGameCommandCandidateId,
     GAME_COMMAND_CANDIDATE_SOURCES,
     isValidGameCommandCandidate,
     validateGameCommandCandidate,
