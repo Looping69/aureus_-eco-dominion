@@ -31,6 +31,22 @@ export interface GameCommandCandidateValidationResult extends GameCommandValidat
   candidate: GameCommandCandidate;
 }
 
+function normalizeCandidateIdPart(value: unknown): string {
+  return String(value || 'unknown')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'unknown';
+}
+
+export function createGameCommandCandidateId(
+  source: GameCommandCandidateSource | undefined,
+  commandType: string,
+  issuedAtTick: number,
+  sequence = 0,
+): string {
+  return `${normalizeCandidateIdPart(source)}_${normalizeCandidateIdPart(commandType)}_${issuedAtTick}_${sequence}`;
+}
+
 export function createGameCommandCandidate(
   commandType: string,
   payload?: unknown,
