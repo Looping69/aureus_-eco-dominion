@@ -32,7 +32,7 @@ test('game-definition action payload schemas are part of the generic engine cont
         'type: GameActionPayloadFieldType;',
         'required?: boolean;',
         'allowPrimitive?: boolean;',
-        'options?: GameActionPayloadOptionValue[];',
+        'options?: string[];',
         'optionSource?: GameActionPayloadOptionSource;',
         'export type GameActionPayloadSchema = Record<string, GameActionPayloadFieldDefinition>;',
         'payloadSchema?: GameActionPayloadSchema;',
@@ -268,5 +268,25 @@ test('runtime payload option sources can be supplied without coupling the engine
         'validateGameCommandType(provider?.getActive() ?? null, commandType, payload, context)',
     ]) {
         assertContains(validator, snippet);
+    }
+});
+
+test('schema command form supplies tile and layer runtime payload constraints', () => {
+    const form = source('components/CommandSchemaForm.tsx');
+
+    for (const snippet of [
+        'function getSelectedTileNumber(state: RuntimeStateSnapshot, field: string): number | null',
+        'function getActiveLayerNumber(state: RuntimeStateSnapshot): number | null',
+        'const selectedTileX = getSelectedTileNumber(state, \'x\');',
+        'const selectedTileZ = getSelectedTileNumber(state, \'z\');',
+        'const activeLayerY = getActiveLayerNumber(state);',
+        'payloadFieldValues: {',
+        "'runtime.selectedTile': {",
+        'x: selectedTileX === null ? [] : [selectedTileX],',
+        'z: selectedTileZ === null ? [] : [selectedTileZ],',
+        "'runtime.activeLayer': {",
+        'y: activeLayerY === null ? [] : [activeLayerY],',
+    ]) {
+        assertContains(form, snippet);
     }
 });
