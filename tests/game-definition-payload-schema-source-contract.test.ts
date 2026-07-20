@@ -299,12 +299,10 @@ test('shared runtime command context supplies tile, layer, and agent constraints
     }
 
     for (const snippet of [
-        'buildGameCommandValidationContext,',
-        'getBrowserRuntimeStateSnapshot,',
-        'type GameCommandRuntimeStateSnapshot,',
-        "from '../engine/game-definition/GameCommandRuntimeContext';",
-        'const runtimeState = getBrowserRuntimeStateSnapshot();',
-        'const runtimeValidationContext = buildGameCommandValidationContext(runtimeState);',
+        'import { buildGameCommandValidationContext, validateGameCommandType } from \'../engine/game-definition\';',
+        'function getRuntimeValidationContext(state: RuntimeStateSnapshot): GameCommandValidationContext',
+        'return buildGameCommandValidationContext(state);',
+        'const runtimeValidationContext = getRuntimeValidationContext(runtimeState);',
     ]) {
         assertContains(form, snippet);
     }
