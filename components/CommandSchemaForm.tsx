@@ -33,7 +33,7 @@ function getSchemaActions(definition: GameDefinition): GameActionDefinition[] {
   return definition.actions.filter((action) => action.payloadSchema && action.payloadFields.length > 0);
 }
 
-function getSelectedTileDefault(state: RuntimeStateSnapshot, field: string): string | null {
+function getSelectedTileNumber(state: RuntimeStateSnapshot, field: string): number | null {
   const candidates = [
     state?.selectedTilePos,
     state?.pinnedTilePos,
@@ -43,10 +43,15 @@ function getSelectedTileDefault(state: RuntimeStateSnapshot, field: string): str
 
   for (const candidate of candidates) {
     const value = candidate?.[field];
-    if (typeof value === 'number' && Number.isFinite(value)) return String(Math.round(value));
+    if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value);
   }
 
   return null;
+}
+
+function getSelectedTileDefault(state: RuntimeStateSnapshot, field: string): string | null {
+  const value = getSelectedTileNumber(state, field);
+  return value === null ? null : String(value);
 }
 
 function getRuntimeAgentOptions(state: RuntimeStateSnapshot): Array<{ value: string; label: string }> {
@@ -66,14 +71,31 @@ function getRuntimeSelectedAgentIds(state: RuntimeStateSnapshot): string[] {
     .filter((agentId): agentId is string => typeof agentId === 'string' && agentId.length > 0);
 }
 
+function getActiveLayerNumber(state: RuntimeStateSnapshot): number | null {
+  const activeY = state?.layeredWorld?.activeY;
+  return typeof activeY === 'number' && Number.isFinite(activeY) ? activeY : null;
+}
+
 function getRuntimeValidationContext(state: RuntimeStateSnapshot): GameCommandValidationContext {
   const runtimeAgentIds = getRuntimeAgentOptions(state).map((agent) => agent.value);
   const selectedAgentIds = getRuntimeSelectedAgentIds(state);
+  const selectedTileX = getSelectedTileNumber(state, 'x');
+  const selectedTileZ = getSelectedTileNumber(state, 'z');
+  const activeLayerY = getActiveLayerNumber(state);
 
   return {
     optionValues: {
       'runtime.agents': runtimeAgentIds,
       'runtime.selectedAgents': selectedAgentIds,
+    },
+    payloadFieldValues: {
+      'runtime.selectedTile': {
+        x: selectedTileX === null ? [] : [selectedTileX],
+        z: selectedTileZ === null ? [] : [selectedTileZ],
+      },
+      'runtime.activeLayer': {
+        y: activeLayerY === null ? [] : [activeLayerY],
+      },
     },
   };
 }
@@ -95,7 +117,7 @@ function getDefaultFromOptionSource(
     case 'runtime.selectedTile':
       return getSelectedTileDefault(state, field);
     case 'runtime.activeLayer':
-      return typeof state?.layeredWorld?.activeY === 'number' ? String(state.layeredWorld.activeY) : null;
+      return getActiveLayerNumber(state)?.toString() ?? null;
     case 'resources.tradeable':
       return definition.resources.find((resource) => resource.tradeable)?.id ?? null;
     case 'entities.buildings':
