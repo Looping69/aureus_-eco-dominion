@@ -8,7 +8,7 @@ import type {
   GameCommandValidationContext,
   GameDefinition,
 } from '../engine/game-definition';
-import { buildGameCommandValidationContext, validateGameCommandType } from '../engine/game-definition';
+import { validateGameCommandType } from '../engine/game-definition';
 import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';
 
 interface CommandSchemaFormProps {
@@ -77,7 +77,27 @@ function getActiveLayerNumber(state: RuntimeStateSnapshot): number | null {
 }
 
 function getRuntimeValidationContext(state: RuntimeStateSnapshot): GameCommandValidationContext {
-  return buildGameCommandValidationContext(state);
+  const runtimeAgentIds = getRuntimeAgentOptions(state).map((agent) => agent.value);
+  const selectedAgentIds = getRuntimeSelectedAgentIds(state);
+  const selectedTileX = getSelectedTileNumber(state, 'x');
+  const selectedTileZ = getSelectedTileNumber(state, 'z');
+  const activeLayerY = getActiveLayerNumber(state);
+
+  return {
+    optionValues: {
+      'runtime.agents': runtimeAgentIds,
+      'runtime.selectedAgents': selectedAgentIds,
+    },
+    payloadFieldValues: {
+      'runtime.selectedTile': {
+        x: selectedTileX === null ? [] : [selectedTileX],
+        z: selectedTileZ === null ? [] : [selectedTileZ],
+      },
+      'runtime.activeLayer': {
+        y: activeLayerY === null ? [] : [activeLayerY],
+      },
+    },
+  };
 }
 
 function getDefaultFromOptionSource(
