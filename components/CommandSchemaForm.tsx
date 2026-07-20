@@ -5,18 +5,10 @@ import type {
   GameActionDefinition,
   GameActionPayloadFieldDefinition,
   GameActionPayloadOptionSource,
+  GameCommandValidationContext,
   GameDefinition,
 } from '../engine/game-definition';
-import { validateGameCommandType } from '../engine/game-definition';
-import {
-  buildGameCommandValidationContext,
-  getActiveLayerNumber,
-  getBrowserRuntimeStateSnapshot,
-  getRuntimeAgentOptions,
-  getRuntimeSelectedAgentIds,
-  getSelectedTileDefault,
-  type GameCommandRuntimeStateSnapshot,
-} from '../engine/game-definition/GameCommandRuntimeContext';
+import { buildGameCommandValidationContext, validateGameCommandType } from '../engine/game-definition';
 import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';
 
 interface CommandSchemaFormProps {
@@ -25,15 +17,74 @@ interface CommandSchemaFormProps {
 
 type FormValues = Record<string, string>;
 
+type RuntimeStateSnapshot = Record<string, any> | null;
+
+function getRuntimeStateSnapshot(): RuntimeStateSnapshot {
+  const runtimeWindow = window as typeof window & { __aureusGetState?: () => unknown };
+  try {
+    const state = runtimeWindow.__aureusGetState?.();
+    return typeof state === 'object' && state !== null ? state as Record<string, any> : null;
+  } catch {
+    return null;
+  }
+}
+
 function getSchemaActions(definition: GameDefinition): GameActionDefinition[] {
   return definition.actions.filter((action) => action.payloadSchema && action.payloadFields.length > 0);
+}
+
+function getSelectedTileNumber(state: RuntimeStateSnapshot, field: string): number | null {
+  const candidates = [
+    state?.selectedTilePos,
+    state?.pinnedTilePos,
+    state?.hoverTilePos,
+    state?.selectedTile,
+  ];
+
+  for (const candidate of candidates) {
+    const value = candidate?.[field];
+    if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value);
+  }
+
+  return null;
+}
+
+function getSelectedTileDefault(state: RuntimeStateSnapshot, field: string): string | null {
+  const value = getSelectedTileNumber(state, field);
+  return value === null ? null : String(value);
+}
+
+function getRuntimeAgentOptions(state: RuntimeStateSnapshot): Array<{ value: string; label: string }> {
+  const agents = [...(state?.agents || []), ...(state?.ambientNpcs || [])];
+  return agents
+    .filter((agent: any) => typeof agent?.id === 'string')
+    .map((agent: any) => ({
+      value: agent.id,
+      label: agent.name || agent.role || agent.type || agent.id,
+    }));
+}
+
+function getRuntimeSelectedAgentIds(state: RuntimeStateSnapshot): string[] {
+  const selectedAgentIds = Array.isArray(state?.selectedAgentIds) ? state.selectedAgentIds : [];
+  const selectedAgentId = typeof state?.selectedAgentId === 'string' ? [state.selectedAgentId] : [];
+  return Array.from(new Set([...selectedAgentIds, ...selectedAgentId]))
+    .filter((agentId): agentId is string => typeof agentId === 'string' && agentId.length > 0);
+}
+
+function getActiveLayerNumber(state: RuntimeStateSnapshot): number | null {
+  const activeY = state?.layeredWorld?.activeY;
+  return typeof activeY === 'number' && Number.isFinite(activeY) ? activeY : null;
+}
+
+function getRuntimeValidationContext(state: RuntimeStateSnapshot): GameCommandValidationContext {
+  return buildGameCommandValidationContext(state);
 }
 
 function getDefaultFromOptionSource(
   source: GameActionPayloadOptionSource | undefined,
   field: string,
   definition: GameDefinition,
-  state: GameCommandRuntimeStateSnapshot,
+  state: RuntimeStateSnapshot,
 ): string | null {
   switch (source) {
     case 'runtime.agents':
@@ -62,7 +113,7 @@ function getSmartFieldDefault(
   field: string,
   schema: GameActionPayloadFieldDefinition,
   definition: GameDefinition,
-  state: GameCommandRuntimeStateSnapshot,
+  state: RuntimeStateSnapshot,
 ): string {
   return getDefaultFromOptionSource(schema.optionSource, field, definition, state) ?? getDefaultFieldValue(schema);
 }
@@ -87,7 +138,7 @@ function getDefaultFieldValue(schema: GameActionPayloadFieldDefinition): string 
 
 function getInitialValues(action: GameActionDefinition | null, definition: GameDefinition): FormValues {
   if (!action?.payloadSchema) return {};
-  const state = getBrowserRuntimeStateSnapshot();
+  const state = getRuntimeStateSnapshot();
 
   return action.payloadFields.reduce<FormValues>((values, field) => {
     const schema = action.payloadSchema?.[field];
@@ -137,7 +188,7 @@ function getBuildingTypeOptions(definition: GameDefinition): Array<{ value: stri
 function getChoiceOptions(
   schema: GameActionPayloadFieldDefinition,
   definition: GameDefinition,
-  state: GameCommandRuntimeStateSnapshot,
+  state: RuntimeStateSnapshot,
 ): Array<{ value: string; label: string }> {
   if (schema.options?.length) return schema.options.map((option) => ({ value: option, label: option }));
 
@@ -176,8 +227,8 @@ export const CommandSchemaForm: React.FC<CommandSchemaFormProps> = ({ dispatch }
   );
   const [values, setValues] = useState<FormValues>(() => getInitialValues(selectedAction, gameDefinition));
   const [lastCommand, setLastCommand] = useState<string | null>(null);
-  const runtimeState = getBrowserRuntimeStateSnapshot();
-  const runtimeValidationContext = buildGameCommandValidationContext(runtimeState);
+  const runtimeState = getRuntimeStateSnapshot();
+  const runtimeValidationContext = getRuntimeValidationContext(runtimeState);
 
   const payload = useMemo(() => selectedAction ? buildPayload(selectedAction, values) : {}, [selectedAction, values]);
   const validation = useMemo(
