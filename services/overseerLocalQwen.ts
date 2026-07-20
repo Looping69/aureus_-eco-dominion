@@ -1,4 +1,5 @@
 import type { GameCommand, GameState } from '../types';
+import { buildGameCommandValidationContext, validateGameCommandType, type GameDefinition } from '../engine/game-definition';
 
 export type OverseerLocalDevice = 'webgpu' | 'wasm';
 export type OverseerLocalModelStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -118,6 +119,16 @@ export async function generateOverseerPilotDirective(state: Parameters<typeof bu
 
 export function isExecutablePilotAction(action: OverseerPilotAction | undefined): action is OverseerPilotAction {
     return Boolean(action && EXECUTABLE_ACTIONS.has(action.type));
+}
+
+export function validateOverseerPilotAction(
+    action: OverseerPilotAction | undefined,
+    state: GameState,
+    definition: GameDefinition,
+): { ok: boolean; reason?: string } {
+    if (!isExecutablePilotAction(action)) return { ok: false, reason: 'Pilot action is not executable.' };
+    if (action.type === 'NONE') return { ok: true };
+    return validateGameCommandType(definition, action.type, action.payload || {}, buildGameCommandValidationContext(state as any));
 }
 
 async function runOverseerGeneration(prompt: string): Promise<string> {
