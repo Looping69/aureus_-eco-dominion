@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import { BuildingType, SfxType } from '../types.ts';
 import { resolveFPSAbilityIntent } from '../game/ui/fpsAbilityLogic.ts';
+import { getEscapeKeyAction } from '../game/ui/escapeKeyAction.ts';
 import { canTileAtPositionOpenModal, canTileOpenModal, findTileInChunks, isLinePlacementType } from '../game/ui/tileSelection.ts';
 
 function source(relativePath: string): string {
@@ -17,19 +18,46 @@ function assertContains(text: string, snippet: string): void {
     assert.equal(text.includes(snippet), true, `Expected source to include: ${snippet}`);
 }
 
-test('App delegates tile selection and FPS HUD helpers to small modules', () => {
+test('App delegates tile selection, Escape key, and FPS HUD helpers to small modules', () => {
     const app = source('App.tsx');
     const tileSelection = source('game/ui/tileSelection.ts');
+    const escapeKeyAction = source('game/ui/escapeKeyAction.ts');
 
     assert.match(app, /from '\.\/game\/ui\/tileSelection'/);
+    assert.match(app, /from '\.\/game\/ui\/escapeKeyAction'/);
     assert.match(app, /from '\.\/components\/FPSAbilityHUD'/);
     assertContains(app, 'canTileAtPositionOpenModal(state.chunks, selectedTilePos.x, selectedTilePos.z)');
+    assertContains(app, 'const escapeAction = getEscapeKeyAction({');
     assertContains(tileSelection, 'export const findTileInChunks');
     assertContains(tileSelection, 'export const canTileAtPositionOpenModal');
+    assertContains(escapeKeyAction, 'export function getEscapeKeyAction');
     assert.equal(app.includes('const LINE_PLACEMENT_TYPES'), false);
     assert.equal(app.includes('const FPSAbilityHUD'), false);
     assert.equal(app.includes('const canTileOpenModal'), false);
     assert.equal(app.includes('Object.values(state.chunks)'), false);
+    assert.equal(app.includes("if (stateRef.current?.isFPS) {\n                    handleExitFPS();"), false);
+    assert.equal(app.includes("if (showWorldMap) {\n                    setShowWorldMap(false);"), false);
+});
+
+test('Escape key helper preserves App escape priority', () => {
+    const base = {
+        showHomePage: false,
+        isFPS: false,
+        eraModalOpen: false,
+        showWorldMap: false,
+        hasPendingPlacement: false,
+        hasSelectedTile: false,
+        sidebarOpen: 'NONE' as const,
+    };
+
+    assert.equal(getEscapeKeyAction({ ...base, showHomePage: true }), null);
+    assert.equal(getEscapeKeyAction({ ...base, isFPS: true, showWorldMap: true }), 'EXIT_FPS');
+    assert.equal(getEscapeKeyAction({ ...base, eraModalOpen: true, showWorldMap: true }), 'DISMISS_ERA');
+    assert.equal(getEscapeKeyAction({ ...base, showWorldMap: true, hasPendingPlacement: true }), 'CLOSE_WORLD_MAP');
+    assert.equal(getEscapeKeyAction({ ...base, hasPendingPlacement: true, hasSelectedTile: true }), 'CLEAR_PLACEMENT');
+    assert.equal(getEscapeKeyAction({ ...base, hasSelectedTile: true, sidebarOpen: 'SHOP' }), 'CLEAR_SELECTED_TILE');
+    assert.equal(getEscapeKeyAction({ ...base, sidebarOpen: 'SHOP' }), 'CLOSE_SIDEBAR');
+    assert.equal(getEscapeKeyAction(base), null);
 });
 
 test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
