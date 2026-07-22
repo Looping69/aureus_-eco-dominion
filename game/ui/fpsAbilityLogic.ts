@@ -15,6 +15,24 @@ export interface FPSAimTarget {
     tile: any;
 }
 
+export function findFPSAimTile(chunks: any, x: number, z: number): any | null {
+    for (const chunk of Object.values(chunks || {}) as any[]) {
+        const tile = chunk?.tiles?.find((candidate: any) => candidate.x === x && candidate.z === z);
+        if (tile) return tile;
+    }
+    return null;
+}
+
+export function createFPSAimTarget(hit: any, chunks: any): FPSAimTarget | null {
+    if (!hit) return null;
+
+    const x = Math.round(hit.x);
+    const z = Math.round(hit.z);
+    const tile = findFPSAimTile(chunks, x, z);
+
+    return tile ? { x, z, tile } : null;
+}
+
 export function describeFPSScanTarget(aim: FPSAimTarget): string {
     const subject = aim.tile.buildingType !== BuildingType.EMPTY
         ? String(aim.tile.buildingType).replace(/_/g, ' ')
@@ -42,4 +60,11 @@ export function createFPSQueuedCommand(type: string, payload: any, tickCount: nu
         payload,
         issuedAtTick: tickCount,
     };
+}
+
+export function enqueueFPSQueuedCommand(commandQueue: any[] | undefined, type: string, payload: any, tickCount: number): boolean {
+    if (!commandQueue) return false;
+
+    commandQueue.push(createFPSQueuedCommand(type, payload, tickCount));
+    return true;
 }
