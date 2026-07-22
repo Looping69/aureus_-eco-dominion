@@ -7,6 +7,12 @@ export interface AppPanelOpenTransition {
     activeHUDBlock: null;
 }
 
+export interface AppTileInteractionPanelReset {
+    showWorldMap: false;
+    sidebarOpen: 'NONE';
+    selectedTilePos: null;
+}
+
 function createPanelOpenTransition(showWorldMap: boolean, sidebarOpen: SidebarMode): AppPanelOpenTransition {
     return {
         showWorldMap,
@@ -18,6 +24,14 @@ function createPanelOpenTransition(showWorldMap: boolean, sidebarOpen: SidebarMo
 
 export function getClosedPanelTransition(): AppPanelOpenTransition {
     return createPanelOpenTransition(false, 'NONE');
+}
+
+export function getTileInteractionPanelReset(): AppTileInteractionPanelReset {
+    return {
+        showWorldMap: false,
+        sidebarOpen: 'NONE',
+        selectedTilePos: null,
+    };
 }
 
 export function getSidebarOpenTransition(mode: SidebarMode): AppPanelOpenTransition {
