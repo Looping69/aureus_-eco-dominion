@@ -76,6 +76,7 @@ export interface GridTile {
     foliage?: FoliageType;
     locked?: boolean;
     integrity?: number;
+    harvestVisualStage?: number; // 0-4, used to refresh staged foliage gathering visuals
     isUnderConstruction?: boolean;
     constructionTimeLeft?: number;
     structureHeadX?: number;
