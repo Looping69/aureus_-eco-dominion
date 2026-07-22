@@ -16,6 +16,10 @@ function createPanelOpenTransition(showWorldMap: boolean, sidebarOpen: SidebarMo
     };
 }
 
+export function getClosedPanelTransition(): AppPanelOpenTransition {
+    return createPanelOpenTransition(false, 'NONE');
+}
+
 export function getSidebarOpenTransition(mode: SidebarMode): AppPanelOpenTransition {
     return createPanelOpenTransition(false, mode);
 }
