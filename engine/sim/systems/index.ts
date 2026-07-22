@@ -9,6 +9,7 @@ export * from './EventSystem';
 export * from './MissionSystem';
 export * from './CombatSystem';
 export * from './ProductionSystem';
+export * from './HarvestVisualProgressSystem';
 export * from './ConstructionSystem';
 export * from './EraSystem';
 export * from './PowerGridSystem';
