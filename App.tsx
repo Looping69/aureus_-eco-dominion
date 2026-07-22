@@ -36,8 +36,9 @@ import { canTileOpenModal, isLinePlacementType } from './game/ui/tileSelection';
 import {
     FPS_ABILITY_BY_KEY,
     canFPSHarvestTarget,
-    createFPSQueuedCommand,
+    createFPSAimTarget,
     describeFPSScanTarget,
+    enqueueFPSQueuedCommand,
     getFPSDigLayer,
 } from './game/ui/fpsAbilityLogic';
 
@@ -255,30 +256,19 @@ const App: React.FC = () => {
     const debugVisible = Boolean(state?.debugMode && !eraModalOpen && !showWorldMap && !placementModalOpen && !tileModalOpen);
     const hoverTooltipHidden = Boolean(showHomePage || isIntroAnim || blockingModalOpen || state?.isFPS || linePlacementStart || sidebarOpen !== 'NONE');
 
-    const findTileAt = useCallback((x: number, z: number) => {
-        const currentState = stateRef.current;
-        for (const chunk of Object.values(currentState?.chunks || {}) as any[]) {
-            const tile = chunk?.tiles?.find((candidate: any) => candidate.x === x && candidate.z === z);
-            if (tile) return tile;
-        }
-        return null;
-    }, []);
-
     const getFPSAim = useCallback(() => {
         const hit = worldInstance?.getFPSIntersection?.();
         if (!hit) {
             showFPSAbilityMessage('No target in sight. Aim lower at the terrain.');
             return null;
         }
-        const x = Math.round(hit.x);
-        const z = Math.round(hit.z);
-        const tile = findTileAt(x, z);
-        if (!tile) {
+        const aim = createFPSAimTarget(hit, stateRef.current?.chunks);
+        if (!aim) {
             showFPSAbilityMessage('That target is outside the generated world.');
             return null;
         }
-        return { x, z, tile };
-    }, [findTileAt, showFPSAbilityMessage, worldInstance]);
+        return aim;
+    }, [showFPSAbilityMessage, worldInstance]);
 
     const enqueueFPSCommand = useCallback((type: string, payload: any) => {
         const currentState = worldInstance?.getState?.() || stateRef.current;
@@ -286,8 +276,7 @@ const App: React.FC = () => {
             showFPSAbilityMessage('Command bridge is not ready yet.');
             return false;
         }
-        currentState.commandQueue.push(createFPSQueuedCommand(type, payload, currentState.tickCount));
-        return true;
+        return enqueueFPSQueuedCommand(currentState.commandQueue, type, payload, currentState.tickCount);
     }, [showFPSAbilityMessage, worldInstance]);
 
     const handleFPSAbility = useCallback((ability: FPSAbility) => {
