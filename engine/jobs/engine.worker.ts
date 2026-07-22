@@ -324,11 +324,27 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
     const getData = (gx: number, gz: number) => {
         const t = getTile(gx, gz);
         if (t) {
-            return { h: t.terrainHeight, b: t.biome, bt: t.buildingType, f: t.foliage || 'NONE', in: true, marked: t.markedForHarvest };
+            return {
+                h: t.terrainHeight,
+                b: t.biome,
+                bt: t.buildingType,
+                f: t.foliage || 'NONE',
+                in: true,
+                marked: t.markedForHarvest,
+                integrity: t.integrity,
+            };
         }
 
         const data = getBiomeAtImpl(gx, gz);
-        return { h: data.height, b: data.biome, bt: 'EMPTY', f: 'NONE', in: false, marked: false };
+        return {
+            h: data.height,
+            b: data.biome,
+            bt: 'EMPTY',
+            f: 'NONE',
+            in: false,
+            marked: false,
+            integrity: undefined as number | undefined,
+        };
     };
 
     const getTopSurfaceY = (data: { h: number; bt: string; in: boolean }) => {
@@ -382,7 +398,8 @@ function processMeshChunk(job: MeshChunkJob): MeshChunkResult {
                     y: getTerrainSurfaceY(data.h),
                     z: macro.sampleZ,
                     type: macro.foliageType,
-                    marked: data.marked
+                    marked: data.marked,
+                    integrity: data.integrity,
                 });
             }
 
