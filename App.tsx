@@ -34,7 +34,7 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { FPSAbilityHUD, type FPSAbility } from './components/FPSAbilityHUD';
 import { canTileAtPositionOpenModal, isLinePlacementType } from './game/ui/tileSelection';
 import { getEscapeKeyAction } from './game/ui/escapeKeyAction';
-import { getSidebarOpenTransition, getWorldMapOpenTransition, type AppPanelOpenTransition } from './game/ui/appPanelTransitions';
+import { getClosedPanelTransition, getSidebarOpenTransition, getWorldMapOpenTransition, type AppPanelOpenTransition } from './game/ui/appPanelTransitions';
 import {
     FPS_ABILITY_BY_KEY,
     createFPSAimTarget,
@@ -338,9 +338,7 @@ const App: React.FC = () => {
     const handleNewGame = () => {
         setDismissedEraPopup(null);
         world?.dismissEraPopup?.();
-        setShowWorldMap(false);
-        setSidebarOpen('NONE');
-        setSelectedTilePos(null);
+        applyPanelOpenTransition(getClosedPanelTransition());
         clearPlacementPrompt();
         setShowHomePage(false);
         setIsIntroAnim(true);
@@ -351,9 +349,7 @@ const App: React.FC = () => {
         if (world?.hasSave()) {
             setDismissedEraPopup(null);
             world?.dismissEraPopup?.();
-            setShowWorldMap(false);
-            setSidebarOpen('NONE');
-            setSelectedTilePos(null);
+            applyPanelOpenTransition(getClosedPanelTransition());
             clearPlacementPrompt();
             setShowHomePage(false);
             playSfx(SfxType.UI_CLICK);
@@ -475,9 +471,7 @@ const App: React.FC = () => {
                                             setDismissedEraPopup(null);
                                             world?.dismissEraPopup?.();
                                             clearPlacementPrompt();
-                                            setShowWorldMap(false);
-                                            setSidebarOpen('NONE');
-                                            setSelectedTilePos(null);
+                                            applyPanelOpenTransition(getClosedPanelTransition());
                                             dispatch({ type: 'START_DEMO' });
                                             setShowHomePage(false);
                                         }}
