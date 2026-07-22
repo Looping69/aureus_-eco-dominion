@@ -6,6 +6,7 @@ import path from 'node:path';
 import { BuildingType, SfxType } from '../types.ts';
 import { resolveFPSAbilityIntent } from '../game/ui/fpsAbilityLogic.ts';
 import { getEscapeKeyAction } from '../game/ui/escapeKeyAction.ts';
+import { getSidebarOpenTransition, getWorldMapOpenTransition } from '../game/ui/appPanelTransitions.ts';
 import { canTileAtPositionOpenModal, canTileOpenModal, findTileInChunks, isLinePlacementType } from '../game/ui/tileSelection.ts';
 
 function source(relativePath: string): string {
@@ -18,25 +19,33 @@ function assertContains(text: string, snippet: string): void {
     assert.equal(text.includes(snippet), true, `Expected source to include: ${snippet}`);
 }
 
-test('App delegates tile selection, Escape key, and FPS HUD helpers to small modules', () => {
+test('App delegates tile selection, Escape key, panel transitions, and FPS HUD helpers to small modules', () => {
     const app = source('App.tsx');
     const tileSelection = source('game/ui/tileSelection.ts');
     const escapeKeyAction = source('game/ui/escapeKeyAction.ts');
+    const panelTransitions = source('game/ui/appPanelTransitions.ts');
 
     assert.match(app, /from '\.\/game\/ui\/tileSelection'/);
     assert.match(app, /from '\.\/game\/ui\/escapeKeyAction'/);
+    assert.match(app, /from '\.\/game\/ui\/appPanelTransitions'/);
     assert.match(app, /from '\.\/components\/FPSAbilityHUD'/);
     assertContains(app, 'canTileAtPositionOpenModal(state.chunks, selectedTilePos.x, selectedTilePos.z)');
     assertContains(app, 'const escapeAction = getEscapeKeyAction({');
+    assertContains(app, 'applyPanelOpenTransition(getSidebarOpenTransition(mode))');
+    assertContains(app, 'applyPanelOpenTransition(getWorldMapOpenTransition())');
     assertContains(tileSelection, 'export const findTileInChunks');
     assertContains(tileSelection, 'export const canTileAtPositionOpenModal');
     assertContains(escapeKeyAction, 'export function getEscapeKeyAction');
+    assertContains(panelTransitions, 'export function getSidebarOpenTransition');
+    assertContains(panelTransitions, 'export function getWorldMapOpenTransition');
     assert.equal(app.includes('const LINE_PLACEMENT_TYPES'), false);
     assert.equal(app.includes('const FPSAbilityHUD'), false);
     assert.equal(app.includes('const canTileOpenModal'), false);
     assert.equal(app.includes('Object.values(state.chunks)'), false);
     assert.equal(app.includes("if (stateRef.current?.isFPS) {\n                    handleExitFPS();"), false);
     assert.equal(app.includes("if (showWorldMap) {\n                    setShowWorldMap(false);"), false);
+    assert.equal(app.includes("const handleSidebarOpen = useCallback((mode: SidebarMode) => {\n        clearPlacementPrompt();\n        setShowWorldMap(false);"), false);
+    assert.equal(app.includes("const handleOpenMap = useCallback(() => {\n        clearPlacementPrompt();\n        setSidebarOpen('NONE');"), false);
 });
 
 test('Escape key helper preserves App escape priority', () => {
@@ -58,6 +67,27 @@ test('Escape key helper preserves App escape priority', () => {
     assert.equal(getEscapeKeyAction({ ...base, hasSelectedTile: true, sidebarOpen: 'SHOP' }), 'CLEAR_SELECTED_TILE');
     assert.equal(getEscapeKeyAction({ ...base, sidebarOpen: 'SHOP' }), 'CLOSE_SIDEBAR');
     assert.equal(getEscapeKeyAction(base), null);
+});
+
+test('App panel transition helper keeps sidebar and map openings mutually exclusive', () => {
+    assert.deepEqual(getSidebarOpenTransition('SHOP'), {
+        showWorldMap: false,
+        sidebarOpen: 'SHOP',
+        selectedTilePos: null,
+        activeHUDBlock: null,
+    });
+    assert.deepEqual(getSidebarOpenTransition('OPS'), {
+        showWorldMap: false,
+        sidebarOpen: 'OPS',
+        selectedTilePos: null,
+        activeHUDBlock: null,
+    });
+    assert.deepEqual(getWorldMapOpenTransition(), {
+        showWorldMap: true,
+        sidebarOpen: 'NONE',
+        selectedTilePos: null,
+        activeHUDBlock: null,
+    });
 });
 
 test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
