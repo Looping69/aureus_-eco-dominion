@@ -35,11 +35,9 @@ import { FPSAbilityHUD, type FPSAbility } from './components/FPSAbilityHUD';
 import { canTileAtPositionOpenModal, isLinePlacementType } from './game/ui/tileSelection';
 import {
     FPS_ABILITY_BY_KEY,
-    canFPSHarvestTarget,
     createFPSAimTarget,
-    describeFPSScanTarget,
     enqueueFPSQueuedCommand,
-    getFPSDigLayer,
+    resolveFPSAbilityIntent,
 } from './game/ui/fpsAbilityLogic';
 
 const CommandFailureToast: React.FC<{ result?: any }> = ({ result }) => {
@@ -284,51 +282,18 @@ const App: React.FC = () => {
         const aim = getFPSAim();
         if (!aim) return;
 
-        if (ability === 'SCAN') {
-            showFPSAbilityMessage(describeFPSScanTarget(aim));
-            playSfx(SfxType.UI_CLICK);
+        const intent = resolveFPSAbilityIntent(ability, currentState, aim);
+        if (!intent) return;
+
+        if (intent.command && !enqueueFPSCommand(intent.command.type, intent.command.payload)) {
             return;
         }
-
-        if (ability === 'HARVEST') {
-            if (!canFPSHarvestTarget(aim)) {
-                showFPSAbilityMessage('No harvestable foliage or surface resource on that tile.');
-                playSfx(SfxType.ERROR);
-                return;
-            }
-            if (enqueueFPSCommand('MARK_HARVEST', { x: aim.x, z: aim.z })) {
-                showFPSAbilityMessage(`Marked ${String(aim.tile.foliage).replace(/_/g, ' ')} for harvest.`);
-                playSfx(SfxType.UI_CLICK);
-            }
-            return;
+        if (intent.dispatchAction) {
+            dispatch(intent.dispatchAction);
         }
 
-        if (ability === 'RESTORE') {
-            dispatch({ type: 'REHABILITATE_TILE', payload: { x: aim.x, z: aim.z } });
-            showFPSAbilityMessage(`Restoration order placed at ${aim.x}, ${aim.z}.`);
-            playSfx(SfxType.UI_CLICK);
-            return;
-        }
-
-        if (ability === 'DIG') {
-            const activeY = getFPSDigLayer(currentState.layeredWorld);
-            if (enqueueFPSCommand('DIG_VOXEL', { x: aim.x, y: activeY, z: aim.z })) {
-                showFPSAbilityMessage(`Excavation order placed at layer ${activeY}.`);
-                playSfx(SfxType.MINING_HIT);
-            }
-            return;
-        }
-
-        if (ability === 'MOVE') {
-            if (!currentState.selectedAgentId) {
-                showFPSAbilityMessage('No agent is linked to this first-person view.');
-                playSfx(SfxType.ERROR);
-                return;
-            }
-            dispatch({ type: 'COMMAND_AGENT', payload: { agentId: currentState.selectedAgentId, x: aim.x, z: aim.z } });
-            showFPSAbilityMessage(`Move order sent to ${aim.x}, ${aim.z}.`);
-            playSfx(SfxType.UI_CLICK);
-        }
+        showFPSAbilityMessage(intent.message);
+        playSfx(intent.sfx);
     }, [dispatch, enqueueFPSCommand, getFPSAim, playSfx, showFPSAbilityMessage]);
 
     const handleEraModalClose = useCallback(() => {
