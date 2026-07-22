@@ -32,7 +32,7 @@ import { DebugMenu } from './components/DebugMenu';
 import { AgentDebugOverlay } from './components/AgentDebugOverlay';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { FPSAbilityHUD, type FPSAbility } from './components/FPSAbilityHUD';
-import { canTileOpenModal, isLinePlacementType } from './game/ui/tileSelection';
+import { canTileAtPositionOpenModal, isLinePlacementType } from './game/ui/tileSelection';
 import {
     FPS_ABILITY_BY_KEY,
     canFPSHarvestTarget,
@@ -239,12 +239,11 @@ const App: React.FC = () => {
     }, []);
 
     const selectedTileCanOpenModal = useMemo(() => {
-        if (!selectedTilePos || !state?.chunks) return false;
-        for (const chunk of Object.values(state.chunks) as any[]) {
-            const tile = chunk?.tiles?.find((candidate: any) => candidate.x === selectedTilePos.x && candidate.z === selectedTilePos.z);
-            if (tile) return canTileOpenModal(tile);
-        }
-        return false;
+        return Boolean(
+            selectedTilePos
+            && state?.chunks
+            && canTileAtPositionOpenModal(state.chunks, selectedTilePos.x, selectedTilePos.z)
+        );
     }, [selectedTilePos?.x, selectedTilePos?.z, state?.chunks]);
 
     const eraModalOpen = Boolean(!showHomePage && !isIntroAnim && state?.eraUnlockedPopup && state.eraUnlockedPopup !== dismissedEraPopup);
