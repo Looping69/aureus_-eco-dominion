@@ -33,6 +33,7 @@ import { AgentDebugOverlay } from './components/AgentDebugOverlay';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { FPSAbilityHUD, type FPSAbility } from './components/FPSAbilityHUD';
 import { canTileAtPositionOpenModal, isLinePlacementType } from './game/ui/tileSelection';
+import { getEscapeKeyAction } from './game/ui/escapeKeyAction';
 import {
     FPS_ABILITY_BY_KEY,
     createFPSAimTarget,
@@ -378,32 +379,42 @@ const App: React.FC = () => {
             if (e.code === 'Escape') {
                 e.preventDefault();
 
-                if (stateRef.current?.isFPS) {
+                const escapeAction = getEscapeKeyAction({
+                    showHomePage,
+                    isFPS: Boolean(stateRef.current?.isFPS),
+                    eraModalOpen,
+                    showWorldMap,
+                    hasPendingPlacement: Boolean(pendingPlacementPos),
+                    hasSelectedTile: Boolean(selectedTilePos),
+                    sidebarOpen,
+                });
+
+                if (escapeAction === 'EXIT_FPS') {
                     handleExitFPS();
                     return;
                 }
 
-                if (eraModalOpen) {
+                if (escapeAction === 'DISMISS_ERA') {
                     handleEraModalClose();
                     return;
                 }
 
-                if (showWorldMap) {
+                if (escapeAction === 'CLOSE_WORLD_MAP') {
                     setShowWorldMap(false);
                     return;
                 }
 
-                if (pendingPlacementPos) {
+                if (escapeAction === 'CLEAR_PLACEMENT') {
                     clearPlacementPrompt();
                     return;
                 }
 
-                if (selectedTilePos) {
+                if (escapeAction === 'CLEAR_SELECTED_TILE') {
                     setSelectedTilePos(null);
                     return;
                 }
 
-                if (sidebarOpen !== 'NONE') {
+                if (escapeAction === 'CLOSE_SIDEBAR') {
                     setSidebarOpen('NONE');
                     return;
                 }
