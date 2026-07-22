@@ -34,6 +34,7 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { FPSAbilityHUD, type FPSAbility } from './components/FPSAbilityHUD';
 import { canTileAtPositionOpenModal, isLinePlacementType } from './game/ui/tileSelection';
 import { getEscapeKeyAction } from './game/ui/escapeKeyAction';
+import { getSidebarOpenTransition, getWorldMapOpenTransition, type AppPanelOpenTransition } from './game/ui/appPanelTransitions';
 import {
     FPS_ABILITY_BY_KEY,
     createFPSAimTarget,
@@ -316,22 +317,23 @@ const App: React.FC = () => {
         playSfx(SfxType.UI_CLICK);
     }, [dispatch, playSfx]);
 
+    const applyPanelOpenTransition = useCallback((transition: AppPanelOpenTransition) => {
+        setShowWorldMap(transition.showWorldMap);
+        setSidebarOpen(transition.sidebarOpen);
+        setSelectedTilePos(transition.selectedTilePos);
+        setActiveHUDBlock(transition.activeHUDBlock);
+    }, []);
+
     const handleSidebarOpen = useCallback((mode: SidebarMode) => {
         clearPlacementPrompt();
-        setShowWorldMap(false);
-        setSelectedTilePos(null);
-        setActiveHUDBlock(null);
-        setSidebarOpen(mode);
-    }, [clearPlacementPrompt]);
+        applyPanelOpenTransition(getSidebarOpenTransition(mode));
+    }, [applyPanelOpenTransition, clearPlacementPrompt]);
 
     const handleOpenMap = useCallback(() => {
         clearPlacementPrompt();
-        setSidebarOpen('NONE');
-        setSelectedTilePos(null);
-        setActiveHUDBlock(null);
-        setShowWorldMap(true);
+        applyPanelOpenTransition(getWorldMapOpenTransition());
         playSfx(SfxType.UI_OPEN);
-    }, [clearPlacementPrompt, playSfx]);
+    }, [applyPanelOpenTransition, clearPlacementPrompt, playSfx]);
 
     const handleNewGame = () => {
         setDismissedEraPopup(null);
