@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { BuildingType, SfxType } from '../types.ts';
+import { getAppModalVisibility } from '../game/ui/appModalVisibility.ts';
 import { resolveFPSAbilityIntent } from '../game/ui/fpsAbilityLogic.ts';
 import { canTileAtPositionOpenModal, canTileOpenModal, findTileInChunks, isLinePlacementType } from '../game/ui/tileSelection.ts';
 
@@ -17,19 +18,27 @@ function assertContains(text: string, snippet: string): void {
     assert.equal(text.includes(snippet), true, `Expected source to include: ${snippet}`);
 }
 
-test('App delegates tile selection and FPS HUD helpers to small modules', () => {
+test('App delegates tile selection, modal visibility, and FPS HUD helpers to small modules', () => {
     const app = source('App.tsx');
     const tileSelection = source('game/ui/tileSelection.ts');
+    const modalVisibility = source('game/ui/appModalVisibility.ts');
 
     assert.match(app, /from '\.\/game\/ui\/tileSelection'/);
+    assert.match(app, /from '\.\/game\/ui\/appModalVisibility'/);
     assert.match(app, /from '\.\/components\/FPSAbilityHUD'/);
     assertContains(app, 'canTileAtPositionOpenModal(state.chunks, selectedTilePos.x, selectedTilePos.z)');
+    assertContains(app, '} = useMemo(() => getAppModalVisibility({');
     assertContains(tileSelection, 'export const findTileInChunks');
     assertContains(tileSelection, 'export const canTileAtPositionOpenModal');
+    assertContains(modalVisibility, 'export function getAppModalVisibility');
     assert.equal(app.includes('const LINE_PLACEMENT_TYPES'), false);
     assert.equal(app.includes('const FPSAbilityHUD'), false);
     assert.equal(app.includes('const canTileOpenModal'), false);
     assert.equal(app.includes('Object.values(state.chunks)'), false);
+    assert.equal(app.includes('const eraModalOpen = Boolean'), false);
+    assert.equal(app.includes('const placementModalOpen = Boolean'), false);
+    assert.equal(app.includes('const tileModalOpen = Boolean'), false);
+    assert.equal(app.includes('const blockingModalOpen ='), false);
 });
 
 test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
@@ -87,6 +96,43 @@ test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
     ]) {
         assertContains(helper, helperSnippet);
     }
+});
+
+test('App modal visibility helper preserves blocking, HUD, debug, and hover rules', () => {
+    const base = {
+        showHomePage: false,
+        isIntroAnim: false,
+        eraUnlockedPopup: null,
+        dismissedEraPopup: null,
+        showWorldMap: false,
+        isFPS: false,
+        pendingPlacementPos: null,
+        selectedBuilding: null,
+        selectedTilePos: null,
+        selectedTileCanOpenModal: false,
+        debugMode: true,
+        linePlacementStart: null,
+        sidebarOpen: 'NONE' as const,
+    };
+
+    assert.deepEqual(getAppModalVisibility(base), {
+        eraModalOpen: false,
+        placementModalOpen: false,
+        tileModalOpen: false,
+        blockingModalOpen: false,
+        floatingHudVisible: true,
+        sidebarsVisible: true,
+        debugVisible: true,
+        hoverTooltipHidden: false,
+    });
+
+    assert.equal(getAppModalVisibility({ ...base, eraUnlockedPopup: 'GROWTH' }).eraModalOpen, true);
+    assert.equal(getAppModalVisibility({ ...base, showWorldMap: true }).blockingModalOpen, true);
+    assert.equal(getAppModalVisibility({ ...base, isFPS: true }).floatingHudVisible, false);
+    assert.equal(getAppModalVisibility({ ...base, selectedTilePos: { x: 1, z: 2 }, selectedTileCanOpenModal: true }).tileModalOpen, true);
+    assert.equal(getAppModalVisibility({ ...base, pendingPlacementPos: { x: 1, z: 2 }, selectedBuilding: BuildingType.STAFF_QUARTERS }).placementModalOpen, true);
+    assert.equal(getAppModalVisibility({ ...base, pendingPlacementPos: { x: 1, z: 2 }, selectedBuilding: BuildingType.ROAD }).placementModalOpen, false);
+    assert.equal(getAppModalVisibility({ ...base, linePlacementStart: { x: 0, z: 0 } }).hoverTooltipHidden, true);
 });
 
 test('FPS ability intent helper preserves command, dispatch, message, and sound behavior', () => {
