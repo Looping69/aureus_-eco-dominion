@@ -34,7 +34,7 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { FPSAbilityHUD, type FPSAbility } from './components/FPSAbilityHUD';
 import { canTileAtPositionOpenModal, isLinePlacementType } from './game/ui/tileSelection';
 import { getEscapeKeyAction } from './game/ui/escapeKeyAction';
-import { getClosedPanelTransition, getSidebarOpenTransition, getWorldMapOpenTransition, type AppPanelOpenTransition } from './game/ui/appPanelTransitions';
+import { getClosedPanelTransition, getSidebarOpenTransition, getTileInteractionPanelReset, getWorldMapOpenTransition, type AppPanelOpenTransition } from './game/ui/appPanelTransitions';
 import { getPlacementPromptReset } from './game/ui/appPlacementReset';
 import {
     FPS_ABILITY_BY_KEY,
@@ -93,6 +93,13 @@ const App: React.FC = () => {
         setLinePlacementStart(reset.linePlacementStart);
     }, [worldInstance]);
 
+    const applyTileInteractionPanelReset = useCallback(() => {
+        const reset = getTileInteractionPanelReset();
+        setShowWorldMap(reset.showWorldMap);
+        setSidebarOpen(reset.sidebarOpen);
+        setSelectedTilePos(reset.selectedTilePos);
+    }, []);
+
     const showFPSAbilityMessage = useCallback((message: string) => {
         setFpsAbilityMessage(message);
         if (fpsMessageTimerRef.current) clearTimeout(fpsMessageTimerRef.current);
@@ -107,9 +114,7 @@ const App: React.FC = () => {
             const selectedBuilding = currentState.selectedBuilding as BuildingType;
 
             if (isLinePlacementType(selectedBuilding)) {
-                setShowWorldMap(false);
-                setSidebarOpen('NONE');
-                setSelectedTilePos(null);
+                applyTileInteractionPanelReset();
 
                 if (!linePlacementStart || linePlacementStart.type !== selectedBuilding) {
                     setLinePlacementStart({ x, z, type: selectedBuilding });
@@ -137,20 +142,17 @@ const App: React.FC = () => {
             }
 
             clearLinePlacement();
-            setShowWorldMap(false);
-            setSidebarOpen('NONE');
-            setSelectedTilePos(null);
+            applyTileInteractionPanelReset();
             setPendingPlacementPos({ x, z });
             worldInstance?.pinBuildingForConfirmation(x, z);
         } else if (currentState.interactionMode === 'INSPECT' || (currentState.interactionMode === 'BUILD' && !currentState.selectedBuilding)) {
             clearLinePlacement();
-            setShowWorldMap(false);
-            setSidebarOpen('NONE');
+            applyTileInteractionPanelReset();
             setPendingPlacementPos(null);
             setPinnedTilePos(null);
             setSelectedTilePos({ x, z });
         }
-    }, [clearLinePlacement, linePlacementStart, worldInstance]);
+    }, [applyTileInteractionPanelReset, clearLinePlacement, linePlacementStart, worldInstance]);
 
     const handleTileHover = useCallback((x: number | null, z: number | null) => {
         setHoverTilePos(x === null || z === null ? null : { x, z });
