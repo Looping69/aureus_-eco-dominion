@@ -35,6 +35,7 @@ import { FPSAbilityHUD, type FPSAbility } from './components/FPSAbilityHUD';
 import { canTileAtPositionOpenModal, isLinePlacementType } from './game/ui/tileSelection';
 import { getEscapeKeyAction } from './game/ui/escapeKeyAction';
 import { getClosedPanelTransition, getSidebarOpenTransition, getWorldMapOpenTransition, type AppPanelOpenTransition } from './game/ui/appPanelTransitions';
+import { getPlacementPromptReset } from './game/ui/appPlacementReset';
 import {
     FPS_ABILITY_BY_KEY,
     createFPSAimTarget,
@@ -86,9 +87,10 @@ const App: React.FC = () => {
     const clearPlacementPrompt = useCallback(() => {
         worldInstance?.clearPinnedBuilding?.();
         worldInstance?.clearInfrastructureLinePreview?.();
-        setPendingPlacementPos(null);
-        setPinnedTilePos(null);
-        setLinePlacementStart(null);
+        const reset = getPlacementPromptReset();
+        setPendingPlacementPos(reset.pendingPlacementPos);
+        setPinnedTilePos(reset.pinnedTilePos);
+        setLinePlacementStart(reset.linePlacementStart);
     }, [worldInstance]);
 
     const showFPSAbilityMessage = useCallback((message: string) => {
