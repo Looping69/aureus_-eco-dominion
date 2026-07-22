@@ -5,12 +5,14 @@
 
 import { BaseSimSystem } from '../Simulation';
 import { FixedContext } from '../../kernel';
-import { BuildingType, Era, FactoryNodeState, FactoryResourceType, FactoryState, GameState, IndustryState, SfxType } from '../../../types';
+import { BuildingType, Chunk, Era, FactoryNodeState, FactoryResourceType, FactoryState, GameState, GridTile, IndustryState, SfxType } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
-import { getEcoMultiplier, HARVESTABLE_TREES, HARVESTABLE_ROCKS } from '../../utils/GameUtils';
+import { getEcoMultiplier, HARVESTABLE_TREES, HARVESTABLE_ROCKS, isHarvestable } from '../../utils/GameUtils';
 import { BASE_STORAGE_CAPACITY, DEPOT_CAPACITY_BONUS, STOCKPILE_CAPACITY_BONUS } from '../logic/SimulationLogic';
+import { getHarvestVisualStage } from '../logic/HarvestVisualProgress';
 import { ChunkStore } from '../../space/ChunkStore';
 import { worldToChunk, CHUNK_SIZE } from '../../utils/coords';
+import { isSubsurfaceDigJob } from '../../subsurface/SubsurfaceModel';
 import { getEventEnvironmentModifiers, getWeatherGameplayEffects } from '../../weather/weatherModel';
 
 export class ProductionSystem extends BaseSimSystem {
@@ -256,6 +258,8 @@ export class ProductionSystem extends BaseSimSystem {
         industry.automatedChains = automatedChains;
         industry.gridLoad = state.powerGrid?.industrialDemand || 0;
 
+        this.updateHarvestVisualProgress(state);
+
         if (state.logistics.autoSell && state.resources.minerals >= state.logistics.sellThreshold) {
             this.executeAutoSell(ctx, state, modifiers);
         }
@@ -371,6 +375,51 @@ export class ProductionSystem extends BaseSimSystem {
         return mods;
     }
 
+    private updateHarvestVisualProgress(state: GameState): void {
+        const updatesByChunk = new Map<string, GridTile[]>();
+
+        for (const job of state.jobs) {
+            if (job.type !== 'MINE' || isSubsurfaceDigJob(job) || typeof job.progress !== 'number') continue;
+            const tile = ChunkStore.getTile(state.chunks, job.targetX, job.targetZ);
+            if (!tile || !isHarvestable(tile.foliage)) continue;
+
+            tile.integrity = Math.max(0, 100 - Math.min(100, job.progress));
+            this.queueHarvestVisualUpdate(state.chunks, tile, updatesByChunk);
+        }
+
+        for (const chunk of Object.values(state.chunks)) {
+            for (const tile of chunk.tiles) {
+                if (!isHarvestable(tile.foliage) || typeof tile.integrity !== 'number') continue;
+                this.queueHarvestVisualUpdate(state.chunks, tile, updatesByChunk);
+            }
+        }
+
+        for (const [key, updates] of updatesByChunk) {
+            const [cx, cz] = key.split(',').map(Number);
+            state.pendingEffects.push({ type: 'CHUNK_UPDATE', cx, cz, updates });
+        }
+    }
+
+    private queueHarvestVisualUpdate(chunks: Record<string, Chunk>, tile: GridTile, updatesByChunk: Map<string, GridTile[]>): void {
+        const nextStage = getHarvestVisualStage(tile.integrity);
+        if (tile.harvestVisualStage === nextStage) return;
+
+        tile.harvestVisualStage = nextStage;
+        const { cx, cz } = worldToChunk(tile.x, tile.z, CHUNK_SIZE);
+        const key = `${cx},${cz}`;
+        const chunk = chunks[key];
+        if (chunk) {
+            chunk.meshDirty = true;
+            chunk.simDirty = true;
+        }
+
+        const updates = updatesByChunk.get(key) || [];
+        updatesByChunk.set(key, updates);
+        if (!updates.includes(tile)) {
+            updates.push(tile);
+        }
+    }
+
     private consumeEnvironment(state: GameState, buildingTile: any, dt: number): boolean {
         const radius = 10;
         const isWood = buildingTile.buildingType === BuildingType.SAWMILL;
@@ -408,6 +457,7 @@ export class ProductionSystem extends BaseSimSystem {
                             tile.foliage = 'NONE' as any;
                             tile.markedForHarvest = false;
                             tile.integrity = 100;
+                            tile.harvestVisualStage = undefined;
                         }
 
                         const { cx, cz } = worldToChunk(tx, tz, CHUNK_SIZE);
