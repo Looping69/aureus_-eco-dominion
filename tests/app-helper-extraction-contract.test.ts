@@ -33,11 +33,13 @@ test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
     for (const snippet of [
         'FPS_ABILITY_BY_KEY,',
         'canFPSHarvestTarget,',
-        'createFPSQueuedCommand,',
+        'createFPSAimTarget,',
         'describeFPSScanTarget,',
+        'enqueueFPSQueuedCommand,',
         'getFPSDigLayer,',
         "from './game/ui/fpsAbilityLogic'",
-        'currentState.commandQueue.push(createFPSQueuedCommand(type, payload, currentState.tickCount))',
+        'const aim = createFPSAimTarget(hit, stateRef.current?.chunks)',
+        'return enqueueFPSQueuedCommand(currentState.commandQueue, type, payload, currentState.tickCount)',
         'showFPSAbilityMessage(describeFPSScanTarget(aim))',
         'if (!canFPSHarvestTarget(aim))',
         'const activeY = getFPSDigLayer(currentState.layeredWorld)',
@@ -50,6 +52,11 @@ test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
         'const abilityByKey: Partial<Record<string, FPSAbility>>',
         'const subject = aim.tile.buildingType',
         'id: `fps_${type.toLowerCase()}_${Date.now()}`',
+        'currentState.commandQueue.push(',
+        'const findTileAt = useCallback',
+        'chunk?.tiles?.find((candidate: any) => candidate.x === x && candidate.z === z)',
+        'const x = Math.round(hit.x)',
+        'const z = Math.round(hit.z)',
         'const layeredWorld = currentState.layeredWorld',
         'layeredWorld.activeY < layeredWorld.surfaceY',
         "!aim.tile.foliage || aim.tile.foliage === 'NONE'",
@@ -59,10 +66,13 @@ test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
 
     for (const helperSnippet of [
         'export const FPS_ABILITY_BY_KEY',
+        'export function findFPSAimTile',
+        'export function createFPSAimTarget',
         'export function describeFPSScanTarget',
         'export function canFPSHarvestTarget',
         'export function getFPSDigLayer',
         'export function createFPSQueuedCommand',
+        'export function enqueueFPSQueuedCommand',
     ]) {
         assertContains(helper, helperSnippet);
     }
