@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { BuildingType } from '../types.ts';
+import { BuildingType, SfxType } from '../types.ts';
+import { resolveFPSAbilityIntent } from '../game/ui/fpsAbilityLogic.ts';
 import { canTileAtPositionOpenModal, canTileOpenModal, findTileInChunks, isLinePlacementType } from '../game/ui/tileSelection.ts';
 
 function source(relativePath: string): string {
@@ -37,17 +38,17 @@ test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
 
     for (const snippet of [
         'FPS_ABILITY_BY_KEY,',
-        'canFPSHarvestTarget,',
         'createFPSAimTarget,',
-        'describeFPSScanTarget,',
         'enqueueFPSQueuedCommand,',
-        'getFPSDigLayer,',
+        'resolveFPSAbilityIntent,',
         "from './game/ui/fpsAbilityLogic'",
         'const aim = createFPSAimTarget(hit, stateRef.current?.chunks)',
         'return enqueueFPSQueuedCommand(currentState.commandQueue, type, payload, currentState.tickCount)',
-        'showFPSAbilityMessage(describeFPSScanTarget(aim))',
-        'if (!canFPSHarvestTarget(aim))',
-        'const activeY = getFPSDigLayer(currentState.layeredWorld)',
+        'const intent = resolveFPSAbilityIntent(ability, currentState, aim)',
+        'if (intent.command && !enqueueFPSCommand(intent.command.type, intent.command.payload))',
+        'if (intent.dispatchAction)',
+        'showFPSAbilityMessage(intent.message)',
+        'playSfx(intent.sfx)',
         'const ability = FPS_ABILITY_BY_KEY[e.code]',
     ]) {
         assertContains(app, snippet);
@@ -62,8 +63,12 @@ test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
         'chunk?.tiles?.find((candidate: any) => candidate.x === x && candidate.z === z)',
         'const x = Math.round(hit.x)',
         'const z = Math.round(hit.z)',
-        'const layeredWorld = currentState.layeredWorld',
-        'layeredWorld.activeY < layeredWorld.surfaceY',
+        'if (ability === \'SCAN\')',
+        'if (ability === \'HARVEST\')',
+        'if (ability === \'RESTORE\')',
+        'if (ability === \'DIG\')',
+        'if (ability === \'MOVE\')',
+        'const activeY = getFPSDigLayer(currentState.layeredWorld)',
         "!aim.tile.foliage || aim.tile.foliage === 'NONE'",
     ]) {
         assert.equal(app.includes(staleInlineSnippet), false, `App should not keep inline FPS helper logic: ${staleInlineSnippet}`);
@@ -78,9 +83,47 @@ test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
         'export function getFPSDigLayer',
         'export function createFPSQueuedCommand',
         'export function enqueueFPSQueuedCommand',
+        'export function resolveFPSAbilityIntent',
     ]) {
         assertContains(helper, helperSnippet);
     }
+});
+
+test('FPS ability intent helper preserves command, dispatch, message, and sound behavior', () => {
+    const aim = {
+        x: 4,
+        z: 7,
+        tile: {
+            buildingType: BuildingType.EMPTY,
+            foliage: 'TREE_OAK',
+            biome: 'GRASS',
+            terrainHeight: 3,
+        },
+    };
+    const state = {
+        selectedAgentId: 'agent_1',
+        layeredWorld: { activeY: 0, surfaceY: 2 },
+    };
+
+    assert.deepEqual(resolveFPSAbilityIntent('HARVEST', state, aim), {
+        command: { type: 'MARK_HARVEST', payload: { x: 4, z: 7 } },
+        message: 'Marked TREE OAK for harvest.',
+        sfx: SfxType.UI_CLICK,
+    });
+    assert.deepEqual(resolveFPSAbilityIntent('DIG', state, aim), {
+        command: { type: 'DIG_VOXEL', payload: { x: 4, y: 0, z: 7 } },
+        message: 'Excavation order placed at layer 0.',
+        sfx: SfxType.MINING_HIT,
+    });
+    assert.deepEqual(resolveFPSAbilityIntent('MOVE', state, aim), {
+        dispatchAction: { type: 'COMMAND_AGENT', payload: { agentId: 'agent_1', x: 4, z: 7 } },
+        message: 'Move order sent to 4, 7.',
+        sfx: SfxType.UI_CLICK,
+    });
+    assert.deepEqual(resolveFPSAbilityIntent('MOVE', { ...state, selectedAgentId: null }, aim), {
+        message: 'No agent is linked to this first-person view.',
+        sfx: SfxType.ERROR,
+    });
 });
 
 test('DebugMenu exposes a schema-driven command form for active game pack actions', () => {
