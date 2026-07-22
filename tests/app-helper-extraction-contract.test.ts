@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { BuildingType } from '../types.ts';
-import { canTileOpenModal, isLinePlacementType } from '../game/ui/tileSelection.ts';
+import { canTileAtPositionOpenModal, canTileOpenModal, findTileInChunks, isLinePlacementType } from '../game/ui/tileSelection.ts';
 
 function source(relativePath: string): string {
     const filePath = path.join(process.cwd(), relativePath);
@@ -18,12 +18,17 @@ function assertContains(text: string, snippet: string): void {
 
 test('App delegates tile selection and FPS HUD helpers to small modules', () => {
     const app = source('App.tsx');
+    const tileSelection = source('game/ui/tileSelection.ts');
 
     assert.match(app, /from '\.\/game\/ui\/tileSelection'/);
     assert.match(app, /from '\.\/components\/FPSAbilityHUD'/);
+    assertContains(app, 'canTileAtPositionOpenModal(state.chunks, selectedTilePos.x, selectedTilePos.z)');
+    assertContains(tileSelection, 'export const findTileInChunks');
+    assertContains(tileSelection, 'export const canTileAtPositionOpenModal');
     assert.equal(app.includes('const LINE_PLACEMENT_TYPES'), false);
     assert.equal(app.includes('const FPSAbilityHUD'), false);
     assert.equal(app.includes('const canTileOpenModal'), false);
+    assert.equal(app.includes('Object.values(state.chunks)'), false);
 });
 
 test('App delegates FPS ability behavior to fpsAbilityLogic helpers', () => {
@@ -216,10 +221,25 @@ test('tile selection helper identifies line placement infrastructure', () => {
 });
 
 test('tile selection helper opens modals only for inspectable tiles', () => {
+    const chunks = {
+        '0,0': {
+            tiles: [
+                { x: 0, z: 0, buildingType: BuildingType.EMPTY },
+                { x: 1, z: 0, buildingType: BuildingType.STAFF_QUARTERS },
+                { x: 2, z: 0, foliage: 'MINE_HOLE' },
+            ],
+        },
+    };
+
     assert.equal(canTileOpenModal(null), false);
     assert.equal(canTileOpenModal({ foliage: 'MINE_HOLE' }), true);
     assert.equal(canTileOpenModal({ isUnderConstruction: true }), true);
     assert.equal(canTileOpenModal({ buildingType: BuildingType.EMPTY }), false);
     assert.equal(canTileOpenModal({ buildingType: BuildingType.POND }), false);
     assert.equal(canTileOpenModal({ buildingType: BuildingType.STAFF_QUARTERS }), true);
+    assert.deepEqual(findTileInChunks(chunks, 1, 0), chunks['0,0'].tiles[1]);
+    assert.equal(canTileAtPositionOpenModal(chunks, 0, 0), false);
+    assert.equal(canTileAtPositionOpenModal(chunks, 1, 0), true);
+    assert.equal(canTileAtPositionOpenModal(chunks, 2, 0), true);
+    assert.equal(canTileAtPositionOpenModal(chunks, 99, 0), false);
 });
