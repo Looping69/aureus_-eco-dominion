@@ -1,4 +1,4 @@
-import { BuildingType } from '../../types';
+import { BuildingType, SfxType, type Action } from '../../types';
 import type { FPSAbility } from '../../components/FPSAbilityHUD';
 
 export const FPS_ABILITY_BY_KEY: Partial<Record<string, FPSAbility>> = {
@@ -13,6 +13,16 @@ export interface FPSAimTarget {
     x: number;
     z: number;
     tile: any;
+}
+
+export interface FPSAbilityIntent {
+    message: string;
+    sfx: SfxType;
+    dispatchAction?: Action;
+    command?: {
+        type: string;
+        payload: any;
+    };
 }
 
 export function findFPSAimTile(chunks: any, x: number, z: number): any | null {
@@ -67,4 +77,62 @@ export function enqueueFPSQueuedCommand(commandQueue: any[] | undefined, type: s
 
     commandQueue.push(createFPSQueuedCommand(type, payload, tickCount));
     return true;
+}
+
+export function resolveFPSAbilityIntent(ability: FPSAbility, currentState: any, aim: FPSAimTarget): FPSAbilityIntent | null {
+    if (ability === 'SCAN') {
+        return {
+            message: describeFPSScanTarget(aim),
+            sfx: SfxType.UI_CLICK,
+        };
+    }
+
+    if (ability === 'HARVEST') {
+        if (!canFPSHarvestTarget(aim)) {
+            return {
+                message: 'No harvestable foliage or surface resource on that tile.',
+                sfx: SfxType.ERROR,
+            };
+        }
+
+        return {
+            command: { type: 'MARK_HARVEST', payload: { x: aim.x, z: aim.z } },
+            message: `Marked ${String(aim.tile.foliage).replace(/_/g, ' ')} for harvest.`,
+            sfx: SfxType.UI_CLICK,
+        };
+    }
+
+    if (ability === 'RESTORE') {
+        return {
+            dispatchAction: { type: 'REHABILITATE_TILE', payload: { x: aim.x, z: aim.z } },
+            message: `Restoration order placed at ${aim.x}, ${aim.z}.`,
+            sfx: SfxType.UI_CLICK,
+        };
+    }
+
+    if (ability === 'DIG') {
+        const activeY = getFPSDigLayer(currentState.layeredWorld);
+        return {
+            command: { type: 'DIG_VOXEL', payload: { x: aim.x, y: activeY, z: aim.z } },
+            message: `Excavation order placed at layer ${activeY}.`,
+            sfx: SfxType.MINING_HIT,
+        };
+    }
+
+    if (ability === 'MOVE') {
+        if (!currentState.selectedAgentId) {
+            return {
+                message: 'No agent is linked to this first-person view.',
+                sfx: SfxType.ERROR,
+            };
+        }
+
+        return {
+            dispatchAction: { type: 'COMMAND_AGENT', payload: { agentId: currentState.selectedAgentId, x: aim.x, z: aim.z } },
+            message: `Move order sent to ${aim.x}, ${aim.z}.`,
+            sfx: SfxType.UI_CLICK,
+        };
+    }
+
+    return null;
 }
