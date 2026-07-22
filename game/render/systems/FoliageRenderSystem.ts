@@ -23,6 +23,7 @@ export interface FoliageItem {
     z: number;
     type: string;
     marked?: boolean;
+    integrity?: number;
 }
 
 type GrassBlade = {
@@ -47,6 +48,20 @@ type GroundDetailBudget = {
     maxBladesPerChunk: number;
 };
 
+type HarvestVisual = {
+    widthScale: number;
+    heightScale: number;
+    tintStrength: number;
+};
+
+const TREE_HARVEST_VISUALS: HarvestVisual[] = [
+    { widthScale: 1, heightScale: 1, tintStrength: 0 },
+    { widthScale: 0.92, heightScale: 0.72, tintStrength: 0.22 },
+    { widthScale: 0.76, heightScale: 0.46, tintStrength: 0.42 },
+    { widthScale: 0.58, heightScale: 0.28, tintStrength: 0.6 },
+    { widthScale: 0.4, heightScale: 0.14, tintStrength: 0.78 },
+];
+
 function getGroundDetailBudget(): GroundDetailBudget {
     const device = getRenderDeviceProfile();
     if (device.severelyConstrained || device.veryConstrained) {
@@ -59,6 +74,20 @@ function getGroundDetailBudget(): GroundDetailBudget {
         return { enabled: true, densityModulo: 2, maxBladesPerChunk: 160 };
     }
     return { enabled: true, densityModulo: 3, maxBladesPerChunk: 96 };
+}
+
+function isTreeHarvestVisualType(type: string): boolean {
+    return type.startsWith('TREE_') || type.startsWith('CACTUS_') || type.startsWith('BUSH_') || type.startsWith('SHRUB_');
+}
+
+export function getTreeHarvestVisual(type: string, integrity?: number): HarvestVisual {
+    if (!isTreeHarvestVisualType(type) || integrity === undefined || !Number.isFinite(integrity)) {
+        return TREE_HARVEST_VISUALS[0];
+    }
+
+    const clampedIntegrity = Math.max(0, Math.min(100, integrity));
+    const stage = Math.min(TREE_HARVEST_VISUALS.length - 1, Math.floor((100 - clampedIntegrity) / 20));
+    return TREE_HARVEST_VISUALS[stage];
 }
 
 const InstancedUniformsMeshCtor = RuntimeInstancedUniformsMesh as unknown as new (
@@ -80,6 +109,8 @@ export class FoliageRenderSystem {
     private readonly dummy = new THREE.Object3D();
     private readonly markedColor = new THREE.Color(1, 0.3, 0.3);
     private readonly defaultColor = new THREE.Color(1, 1, 1);
+    private readonly harvestColor = new THREE.Color(0.72, 0.44, 0.24);
+    private readonly instanceColor = new THREE.Color(1, 1, 1);
     private readonly grassColor = new THREE.Color();
     private groundDetailVisible = false;
     private grassGeometry: THREE.BufferGeometry | null = null;
@@ -513,14 +544,24 @@ export class FoliageRenderSystem {
 
             const scaleSeed = Math.abs(item.x * 7.11 + item.z * 3.45);
             const scale = 0.85 + (scaleSeed % 10) * 0.03;
+            const harvestVisual = getTreeHarvestVisual(item.type, item.integrity);
 
             this.dummy.position.set(item.x, item.y, item.z);
             this.dummy.rotation.set(0, rotY, 0);
-            this.dummy.scale.setScalar(scale);
+            this.dummy.scale.set(
+                scale * harvestVisual.widthScale,
+                scale * harvestVisual.heightScale,
+                scale * harvestVisual.widthScale
+            );
             this.dummy.updateMatrix();
 
+            this.instanceColor.copy(this.defaultColor).lerp(this.harvestColor, harvestVisual.tintStrength);
+            if (item.marked) {
+                this.instanceColor.lerp(this.markedColor, 0.35);
+            }
+
             mesh.setMatrixAt(idx, this.dummy.matrix);
-            mesh.setColorAt(idx, item.marked ? this.markedColor : this.defaultColor);
+            mesh.setColorAt(idx, this.instanceColor);
         }
 
         mesh.instanceMatrix.needsUpdate = true;
