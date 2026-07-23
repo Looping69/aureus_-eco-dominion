@@ -135,9 +135,10 @@ const App: React.FC = () => {
                 worldInstance?.selectBuilding(null);
                 worldInstance?.clearPinnedBuilding();
                 worldInstance?.clearInfrastructureLinePreview?.();
-                setLinePlacementStart(null);
-                setPendingPlacementPos(null);
-                setPinnedTilePos(null);
+                const reset = getPlacementPromptReset();
+                setLinePlacementStart(reset.linePlacementStart);
+                setPendingPlacementPos(reset.pendingPlacementPos);
+                setPinnedTilePos(reset.pinnedTilePos);
                 return;
             }
 
