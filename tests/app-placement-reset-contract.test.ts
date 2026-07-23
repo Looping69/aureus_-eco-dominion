@@ -29,3 +29,10 @@ test('App placement prompt clearing uses the shared reset shape', () => {
     assert.match(app, /setLinePlacementStart\(reset\.linePlacementStart\);/);
     assert.equal(app.includes("setPendingPlacementPos(null);\n        setPinnedTilePos(null);\n        setLinePlacementStart(null);"), false);
 });
+
+test('App line placement completion reuses the placement reset shape', () => {
+    const app = source('App.tsx');
+
+    assert.match(app, /worldInstance\?\.placeInfrastructureLine\([\s\S]*?const reset = getPlacementPromptReset\(\);[\s\S]*?setLinePlacementStart\(reset\.linePlacementStart\);[\s\S]*?setPendingPlacementPos\(reset\.pendingPlacementPos\);[\s\S]*?setPinnedTilePos\(reset\.pinnedTilePos\);/);
+    assert.equal(app.includes("setLinePlacementStart(null);\n                setPendingPlacementPos(null);\n                setPinnedTilePos(null);"), false);
+});
