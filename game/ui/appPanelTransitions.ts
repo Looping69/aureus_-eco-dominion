@@ -13,6 +13,12 @@ export interface AppTileInteractionPanelReset {
     selectedTilePos: null;
 }
 
+export interface AppEscapePanelCloseTransition {
+    showWorldMap?: false;
+    sidebarOpen?: 'NONE';
+    selectedTilePos?: null;
+}
+
 function createPanelOpenTransition(showWorldMap: boolean, sidebarOpen: SidebarMode): AppPanelOpenTransition {
     return {
         showWorldMap,
@@ -32,6 +38,18 @@ export function getTileInteractionPanelReset(): AppTileInteractionPanelReset {
         sidebarOpen: 'NONE',
         selectedTilePos: null,
     };
+}
+
+export function getWorldMapCloseTransition(): AppEscapePanelCloseTransition {
+    return { showWorldMap: false };
+}
+
+export function getSelectedTileClearTransition(): AppEscapePanelCloseTransition {
+    return { selectedTilePos: null };
+}
+
+export function getSidebarCloseTransition(): AppEscapePanelCloseTransition {
+    return { sidebarOpen: 'NONE' };
 }
 
 export function getSidebarOpenTransition(mode: SidebarMode): AppPanelOpenTransition {
