@@ -34,7 +34,7 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { FPSAbilityHUD, type FPSAbility } from './components/FPSAbilityHUD';
 import { canTileAtPositionOpenModal, isLinePlacementType } from './game/ui/tileSelection';
 import { getEscapeKeyAction } from './game/ui/escapeKeyAction';
-import { getClosedPanelTransition, getSidebarOpenTransition, getTileInteractionPanelReset, getWorldMapOpenTransition, type AppPanelOpenTransition } from './game/ui/appPanelTransitions';
+import { getClosedPanelTransition, getSelectedTileClearTransition, getSidebarCloseTransition, getSidebarOpenTransition, getTileInteractionPanelReset, getWorldMapCloseTransition, getWorldMapOpenTransition, type AppEscapePanelCloseTransition, type AppPanelOpenTransition } from './game/ui/appPanelTransitions';
 import { getInspectTilePlacementReset, getLinePlacementStartPrompt, getPlacementPromptReset } from './game/ui/appPlacementReset';
 import {
     FPS_ABILITY_BY_KEY,
@@ -332,6 +332,12 @@ const App: React.FC = () => {
         setActiveHUDBlock(transition.activeHUDBlock);
     }, []);
 
+    const applyEscapePanelCloseTransition = useCallback((transition: AppEscapePanelCloseTransition) => {
+        if ('showWorldMap' in transition) setShowWorldMap(transition.showWorldMap);
+        if ('sidebarOpen' in transition) setSidebarOpen(transition.sidebarOpen);
+        if ('selectedTilePos' in transition) setSelectedTilePos(transition.selectedTilePos);
+    }, []);
+
     const handleSidebarOpen = useCallback((mode: SidebarMode) => {
         clearPlacementPrompt();
         applyPanelOpenTransition(getSidebarOpenTransition(mode));
@@ -406,7 +412,7 @@ const App: React.FC = () => {
                 }
 
                 if (escapeAction === 'CLOSE_WORLD_MAP') {
-                    setShowWorldMap(false);
+                    applyEscapePanelCloseTransition(getWorldMapCloseTransition());
                     return;
                 }
 
@@ -416,12 +422,12 @@ const App: React.FC = () => {
                 }
 
                 if (escapeAction === 'CLEAR_SELECTED_TILE') {
-                    setSelectedTilePos(null);
+                    applyEscapePanelCloseTransition(getSelectedTileClearTransition());
                     return;
                 }
 
                 if (escapeAction === 'CLOSE_SIDEBAR') {
-                    setSidebarOpen('NONE');
+                    applyEscapePanelCloseTransition(getSidebarCloseTransition());
                     return;
                 }
             }
@@ -443,7 +449,7 @@ const App: React.FC = () => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [clearPlacementPrompt, eraModalOpen, handleEraModalClose, handleExitFPS, handleFPSAbility, handleToggleView, pendingPlacementPos, selectedTilePos, showHomePage, showWorldMap, sidebarOpen]);
+    }, [applyEscapePanelCloseTransition, clearPlacementPrompt, eraModalOpen, handleEraModalClose, handleExitFPS, handleFPSAbility, handleToggleView, pendingPlacementPos, selectedTilePos, showHomePage, showWorldMap, sidebarOpen]);
 
     return (
         <div className="relative w-full h-full bg-slate-950 overflow-hidden select-none font-['Inter']">
