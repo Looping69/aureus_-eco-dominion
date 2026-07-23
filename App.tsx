@@ -35,7 +35,7 @@ import { FPSAbilityHUD, type FPSAbility } from './components/FPSAbilityHUD';
 import { canTileAtPositionOpenModal, isLinePlacementType } from './game/ui/tileSelection';
 import { getEscapeKeyAction } from './game/ui/escapeKeyAction';
 import { getClosedPanelTransition, getSidebarOpenTransition, getTileInteractionPanelReset, getWorldMapOpenTransition, type AppPanelOpenTransition } from './game/ui/appPanelTransitions';
-import { getPlacementPromptReset } from './game/ui/appPlacementReset';
+import { getInspectTilePlacementReset, getLinePlacementStartPrompt, getPlacementPromptReset } from './game/ui/appPlacementReset';
 import {
     FPS_ABILITY_BY_KEY,
     createFPSAimTarget,
@@ -79,6 +79,13 @@ const App: React.FC = () => {
     const stateRef = useRef<any>(null);
     const fpsMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    const applyPlacementPromptReset = useCallback(() => {
+        const reset = getPlacementPromptReset();
+        setPendingPlacementPos(reset.pendingPlacementPos);
+        setPinnedTilePos(reset.pinnedTilePos);
+        setLinePlacementStart(reset.linePlacementStart);
+    }, []);
+
     const clearLinePlacement = useCallback(() => {
         worldInstance?.clearInfrastructureLinePreview?.();
         setLinePlacementStart(null);
@@ -87,11 +94,8 @@ const App: React.FC = () => {
     const clearPlacementPrompt = useCallback(() => {
         worldInstance?.clearPinnedBuilding?.();
         worldInstance?.clearInfrastructureLinePreview?.();
-        const reset = getPlacementPromptReset();
-        setPendingPlacementPos(reset.pendingPlacementPos);
-        setPinnedTilePos(reset.pinnedTilePos);
-        setLinePlacementStart(reset.linePlacementStart);
-    }, [worldInstance]);
+        applyPlacementPromptReset();
+    }, [applyPlacementPromptReset, worldInstance]);
 
     const applyTileInteractionPanelReset = useCallback(() => {
         const reset = getTileInteractionPanelReset();
@@ -117,9 +121,10 @@ const App: React.FC = () => {
                 applyTileInteractionPanelReset();
 
                 if (!linePlacementStart || linePlacementStart.type !== selectedBuilding) {
-                    setLinePlacementStart({ x, z, type: selectedBuilding });
-                    setPendingPlacementPos(null);
-                    setPinnedTilePos({ x, z });
+                    const placementPrompt = getLinePlacementStartPrompt(x, z, selectedBuilding);
+                    setLinePlacementStart(placementPrompt.linePlacementStart);
+                    setPendingPlacementPos(placementPrompt.pendingPlacementPos);
+                    setPinnedTilePos(placementPrompt.pinnedTilePos);
                     worldInstance?.pinBuildingForConfirmation(x, z);
                     worldInstance?.previewInfrastructureLine?.(x, z, x, z, selectedBuilding);
                     return;
@@ -135,10 +140,7 @@ const App: React.FC = () => {
                 worldInstance?.selectBuilding(null);
                 worldInstance?.clearPinnedBuilding();
                 worldInstance?.clearInfrastructureLinePreview?.();
-                const reset = getPlacementPromptReset();
-                setLinePlacementStart(reset.linePlacementStart);
-                setPendingPlacementPos(reset.pendingPlacementPos);
-                setPinnedTilePos(reset.pinnedTilePos);
+                applyPlacementPromptReset();
                 return;
             }
 
@@ -149,11 +151,12 @@ const App: React.FC = () => {
         } else if (currentState.interactionMode === 'INSPECT' || (currentState.interactionMode === 'BUILD' && !currentState.selectedBuilding)) {
             clearLinePlacement();
             applyTileInteractionPanelReset();
-            setPendingPlacementPos(null);
-            setPinnedTilePos(null);
+            const placementReset = getInspectTilePlacementReset();
+            setPendingPlacementPos(placementReset.pendingPlacementPos);
+            setPinnedTilePos(placementReset.pinnedTilePos);
             setSelectedTilePos({ x, z });
         }
-    }, [applyTileInteractionPanelReset, clearLinePlacement, linePlacementStart, worldInstance]);
+    }, [applyPlacementPromptReset, applyTileInteractionPanelReset, clearLinePlacement, linePlacementStart, worldInstance]);
 
     const handleTileHover = useCallback((x: number | null, z: number | null) => {
         setHoverTilePos(x === null || z === null ? null : { x, z });
