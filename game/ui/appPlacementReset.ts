@@ -15,6 +15,10 @@ export interface AppPlacementPromptReset {
     linePlacementStart: null;
 }
 
+export interface AppLinePlacementClearReset {
+    linePlacementStart: null;
+}
+
 export interface AppLinePlacementStartPrompt {
     pendingPlacementPos: null;
     pinnedTilePos: AppPlacementTilePos;
@@ -30,6 +34,12 @@ export function getPlacementPromptReset(): AppPlacementPromptReset {
     return {
         pendingPlacementPos: null,
         pinnedTilePos: null,
+        linePlacementStart: null,
+    };
+}
+
+export function getLinePlacementClearReset(): AppLinePlacementClearReset {
+    return {
         linePlacementStart: null,
     };
 }
