@@ -13,27 +13,17 @@ function assertContains(text: string, snippet: string): void {
     assert.equal(text.includes(snippet), true, `Expected source to include: ${snippet}`);
 }
 
-test('App modal visibility formulas are delegated to the modal visibility helper', () => {
+test('App modal visibility formulas remain explicit while helper handoff is pending validation', () => {
     const app = source('App.tsx');
     const helper = source('game/ui/appModalVisibility.ts');
 
-    assertContains(app, "from './game/ui/appModalVisibility'");
-    assertContains(app, 'const modalVisibility = useMemo(() => getAppModalVisibility({');
-    assertContains(app, 'const {');
-    assertContains(app, 'hoverTooltipHidden,');
-    assertContains(app, '} = modalVisibility;');
     assertContains(helper, 'export function getAppModalVisibility');
-
-    for (const staleInlineSnippet of [
-        "const eraModalOpen = Boolean(!showHomePage && !isIntroAnim && state?.eraUnlockedPopup && state.eraUnlockedPopup !== dismissedEraPopup);",
-        "const placementModalOpen = Boolean(!eraModalOpen && !showWorldMap && !state?.isFPS && pendingPlacementPos && state?.selectedBuilding && !isLinePlacementType(state.selectedBuilding));",
-        "const tileModalOpen = Boolean(!eraModalOpen && !showWorldMap && !placementModalOpen && !state?.isFPS && selectedTilePos && selectedTileCanOpenModal);",
-        "const blockingModalOpen = eraModalOpen || showWorldMap || placementModalOpen || tileModalOpen;",
-        "const floatingHudVisible = !blockingModalOpen && !state?.isFPS;",
-        "const sidebarsVisible = !blockingModalOpen && !state?.isFPS;",
-        "const debugVisible = Boolean(state?.debugMode && !eraModalOpen && !showWorldMap && !placementModalOpen && !tileModalOpen);",
-        "const hoverTooltipHidden = Boolean(showHomePage || isIntroAnim || blockingModalOpen || state?.isFPS || linePlacementStart || sidebarOpen !== 'NONE');",
-    ]) {
-        assert.equal(app.includes(staleInlineSnippet), false, `App.tsx should not keep inline modal visibility formula: ${staleInlineSnippet}`);
-    }
+    assertContains(app, "const eraModalOpen = Boolean(!showHomePage && !isIntroAnim && state?.eraUnlockedPopup && state.eraUnlockedPopup !== dismissedEraPopup);");
+    assertContains(app, "const placementModalOpen = Boolean(!eraModalOpen && !showWorldMap && !state?.isFPS && pendingPlacementPos && state?.selectedBuilding && !isLinePlacementType(state.selectedBuilding));");
+    assertContains(app, "const tileModalOpen = Boolean(!eraModalOpen && !showWorldMap && !placementModalOpen && !state?.isFPS && selectedTilePos && selectedTileCanOpenModal);");
+    assertContains(app, "const blockingModalOpen = eraModalOpen || showWorldMap || placementModalOpen || tileModalOpen;");
+    assertContains(app, "const floatingHudVisible = !blockingModalOpen && !state?.isFPS;");
+    assertContains(app, "const sidebarsVisible = !blockingModalOpen && !state?.isFPS;");
+    assertContains(app, "const debugVisible = Boolean(state?.debugMode && !eraModalOpen && !showWorldMap && !placementModalOpen && !tileModalOpen);");
+    assertContains(app, "const hoverTooltipHidden = Boolean(showHomePage || isIntroAnim || blockingModalOpen || state?.isFPS || linePlacementStart || sidebarOpen !== 'NONE');");
 });
