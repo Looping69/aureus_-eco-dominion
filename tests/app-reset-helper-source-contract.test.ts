@@ -15,6 +15,7 @@ import {
 } from '../game/ui/appPanelTransitions.ts';
 import {
     getInspectTilePlacementReset,
+    getLinePlacementClearReset,
     getLinePlacementStartPrompt,
     getPlacementPromptReset,
 } from '../game/ui/appPlacementReset.ts';
@@ -34,6 +35,7 @@ test('App reset helpers cover panel and placement reset state shapes', () => {
     assert.deepEqual(getSelectedTileClearTransition(), { selectedTilePos: null });
     assert.deepEqual(getSidebarCloseTransition(), { sidebarOpen: 'NONE' });
     assert.deepEqual(getPlacementPromptReset(), { pendingPlacementPos: null, pinnedTilePos: null, linePlacementStart: null });
+    assert.deepEqual(getLinePlacementClearReset(), { linePlacementStart: null });
     assert.deepEqual(getLinePlacementStartPrompt(4, 8, BuildingType.PIPE), {
         pendingPlacementPos: null,
         pinnedTilePos: { x: 4, z: 8 },
@@ -56,6 +58,7 @@ test('App reset flows stay routed through reset helper applicators', () => {
         'applyEscapePanelCloseTransition(getWorldMapCloseTransition())',
         'applyEscapePanelCloseTransition(getSelectedTileClearTransition())',
         'applyEscapePanelCloseTransition(getSidebarCloseTransition())',
+        'const lineReset = getLinePlacementClearReset()',
         'const placementPrompt = getLinePlacementStartPrompt(x, z, selectedBuilding)',
         'const placementReset = getInspectTilePlacementReset()',
     ]) {
@@ -67,6 +70,7 @@ test('App reset flows stay routed through reset helper applicators', () => {
 
     for (const staleInlineSnippet of [
         'setLinePlacementStart({ x, z, type: selectedBuilding });',
+        "worldInstance?.clearInfrastructureLinePreview?.();\n        setLinePlacementStart(null);",
         "setLinePlacementStart(null);\n                setPendingPlacementPos(null);\n                setPinnedTilePos(null);",
         "setPendingPlacementPos(null);\n        setPinnedTilePos(null);\n        setLinePlacementStart(null);",
         "setShowWorldMap(false);\n                setSidebarOpen('NONE');\n                setSelectedTilePos(null);",
