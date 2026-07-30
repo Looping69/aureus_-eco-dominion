@@ -36,6 +36,7 @@ import { canTileAtPositionOpenModal, isLinePlacementType } from './game/ui/tileS
 import { getEscapeKeyAction } from './game/ui/escapeKeyAction';
 import { getClosedPanelTransition, getSelectedTileClearTransition, getSidebarCloseTransition, getSidebarOpenTransition, getTileInteractionPanelReset, getWorldMapCloseTransition, getWorldMapOpenTransition, type AppEscapePanelCloseTransition, type AppPanelOpenTransition } from './game/ui/appPanelTransitions';
 import { getInspectTilePlacementReset, getLinePlacementClearReset, getLinePlacementStartPrompt, getPlacementPromptReset } from './game/ui/appPlacementReset';
+import { getAppModalVisibility } from './game/ui/appModalVisibility';
 import {
     FPS_ABILITY_BY_KEY,
     createFPSAimTarget,
@@ -255,14 +256,47 @@ const App: React.FC = () => {
         );
     }, [selectedTilePos?.x, selectedTilePos?.z, state?.chunks]);
 
-    const eraModalOpen = Boolean(!showHomePage && !isIntroAnim && state?.eraUnlockedPopup && state.eraUnlockedPopup !== dismissedEraPopup);
-    const placementModalOpen = Boolean(!eraModalOpen && !showWorldMap && !state?.isFPS && pendingPlacementPos && state?.selectedBuilding && !isLinePlacementType(state.selectedBuilding));
-    const tileModalOpen = Boolean(!eraModalOpen && !showWorldMap && !placementModalOpen && !state?.isFPS && selectedTilePos && selectedTileCanOpenModal);
-    const blockingModalOpen = eraModalOpen || showWorldMap || placementModalOpen || tileModalOpen;
-    const floatingHudVisible = !blockingModalOpen && !state?.isFPS;
-    const sidebarsVisible = !blockingModalOpen && !state?.isFPS;
-    const debugVisible = Boolean(state?.debugMode && !eraModalOpen && !showWorldMap && !placementModalOpen && !tileModalOpen);
-    const hoverTooltipHidden = Boolean(showHomePage || isIntroAnim || blockingModalOpen || state?.isFPS || linePlacementStart || sidebarOpen !== 'NONE');
+    const modalVisibility = useMemo(() => getAppModalVisibility({
+        showHomePage,
+        isIntroAnim,
+        eraUnlockedPopup: state?.eraUnlockedPopup,
+        dismissedEraPopup,
+        showWorldMap,
+        isFPS: Boolean(state?.isFPS),
+        hasPendingPlacement: Boolean(pendingPlacementPos),
+        hasSelectedBuilding: Boolean(state?.selectedBuilding),
+        selectedBuildingIsLinePlacement: Boolean(state?.selectedBuilding && isLinePlacementType(state.selectedBuilding)),
+        hasSelectedTile: Boolean(selectedTilePos),
+        selectedTileCanOpenModal,
+        debugMode: Boolean(state?.debugMode),
+        hasLinePlacementStart: Boolean(linePlacementStart),
+        sidebarOpen,
+    }), [
+        dismissedEraPopup,
+        isIntroAnim,
+        linePlacementStart,
+        pendingPlacementPos,
+        selectedTileCanOpenModal,
+        selectedTilePos,
+        showHomePage,
+        showWorldMap,
+        sidebarOpen,
+        state?.debugMode,
+        state?.eraUnlockedPopup,
+        state?.isFPS,
+        state?.selectedBuilding,
+    ]);
+
+    const {
+        eraModalOpen,
+        placementModalOpen,
+        tileModalOpen,
+        blockingModalOpen,
+        floatingHudVisible,
+        sidebarsVisible,
+        debugVisible,
+        hoverTooltipHidden,
+    } = modalVisibility;
 
     const getFPSAim = useCallback(() => {
         const hit = worldInstance?.getFPSIntersection?.();
