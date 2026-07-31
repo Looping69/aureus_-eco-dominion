@@ -6,6 +6,7 @@ import test from 'node:test';
 const root = process.cwd();
 const contractTrackerPath = path.join(root, 'components', 'ContractTracker.tsx');
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
+const gameTypesPath = path.join(root, 'engine', 'types', 'game.ts');
 const aureusWorldPath = path.join(root, 'game', 'AureusWorld.ts');
 const contractBridgePath = path.join(root, 'game', 'world', 'contractBridge.ts');
 const dispatchBridgePath = path.join(root, 'game', 'world', 'dispatchBridge.ts');
@@ -51,9 +52,51 @@ test('contract lifecycle mutations live in the command dispatcher', () => {
     'state.resources[resourceKey] -= contract.amount;',
     'state.resources.agt += contract.reward;',
     'state.resources.trust = Math.min(100, state.resources.trust + trustReward);',
-    'this.reportResult(cmd.id, result, state, handledBy, cmd);',
+    'this.reportResult(cmd.id, result, state, handledBy, cmd, sequence);',
   ]) {
     assertSnippet(dispatcherText, snippet);
+  }
+});
+
+test('command dispatcher records deterministic audit metadata for every dispatched command', () => {
+  const dispatcherText = source(commandDispatcherPath);
+
+  for (const snippet of [
+    'for (let sequence = 0; sequence < queue.length; sequence += 1) {',
+    'this.dispatchCommand(cmd, commandCtx, state, sequence);',
+    'private dispatchCommand(cmd: GameCommand, ctx: CommandContext, state: GameState, sequence: number)',
+    'this.reportResult(cmd.id, result, state, handledBy, cmd, sequence);',
+    'issuedAtTick: cmd?.issuedAtTick ?? state.tickCount,',
+    'sequence,',
+    'source: this.getCommandSource(cmd),',
+    "validationResult: ok ? 'accepted' : 'rejected',",
+    'rejectionReason: reason,',
+    'private getCommandSource(cmd?: GameCommand): string',
+    "cmd.source.length > 0 ? cmd.source : 'unknown'",
+  ]) {
+    assertSnippet(dispatcherText, snippet);
+  }
+});
+
+test('game state types expose command audit metadata and source-carrying commands', () => {
+  const gameTypesText = source(gameTypesPath);
+
+  for (const snippet of [
+    'export type GameCommandType =',
+    '| (string & {});',
+    'type: GameCommandType;',
+    'source?: string;',
+    'reason?: string;',
+    "export type CommandAuditValidationResult = 'accepted' | 'rejected';",
+    'export interface CommandTraceEntry',
+    'issuedAtTick?: number;',
+    'sequence: number;',
+    'source: string;',
+    'validationResult: CommandAuditValidationResult;',
+    'rejectionReason?: string;',
+    'commandTrace: CommandTraceEntry[];',
+  ]) {
+    assertSnippet(gameTypesText, snippet);
   }
 });
 
