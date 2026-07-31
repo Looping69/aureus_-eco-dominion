@@ -83,6 +83,12 @@ test('game state types expose command audit metadata and source-carrying command
 
   for (const snippet of [
     'export type GameCommandType =',
+    "'CLEAR_RUBBLE'",
+    "'DESIGNATE_RUBBLE_DUMP'",
+    "'FILL_VOXEL'",
+    "'BULLDOZE_SUB'",
+    "'PLACE_SUB_BUILDING'",
+    "'SET_AI_OVERSEER'",
     '| (string & {});',
     'type: GameCommandType;',
     'source?: string;',
@@ -92,6 +98,7 @@ test('game state types expose command audit metadata and source-carrying command
     'issuedAtTick?: number;',
     'sequence: number;',
     'source: string;',
+    "commandType: GameCommandType | 'UNKNOWN';",
     'validationResult: CommandAuditValidationResult;',
     'rejectionReason?: string;',
     'commandTrace: CommandTraceEntry[];',
