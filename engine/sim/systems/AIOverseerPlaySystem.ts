@@ -4,6 +4,12 @@ import { BuildingType, Contract, Era, GameCommand, GameState, GridTile, SfxType 
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { ChunkStore } from '../../space/ChunkStore';
 import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../utils/GameUtils';
+import {
+    createGameCommandCandidate,
+    createGameCommandCandidateEnvelope,
+    createGameCommandCandidateId,
+    GAME_COMMAND_CANDIDATE_SOURCES,
+} from '../../game-definition';
 
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
 type OverseerPilotProvider = 'HEURISTIC' | 'LOCAL_QWEN';
@@ -43,6 +49,8 @@ const DEFAULT_OVERSEER: OverseerState = {
     nextReviewAt: 0,
     actionLog: [],
 };
+
+const HEURISTIC_OVERSEER_COMMAND_REASON = 'AI Overseer heuristic autopilot';
 
 const ERA_ORDER: Record<Era, number> = {
     [Era.SETTLEMENT]: 1,
@@ -257,7 +265,7 @@ export class AIOverseerSystem extends BaseSimSystem {
 
     private tryAct(ctx: FixedContext, state: GameState, overseer: OverseerState): void {
         if (overseer.mode === 'OBSERVE') return;
-        if (state.commandQueue.some(command => String(command.id).startsWith('ai_cmd_'))) return;
+        if (state.commandQueue.some(command => this.isQueuedHeuristicCommand(command))) return;
 
         if (this.claimCompletedGoal(state, overseer)) return;
 
@@ -624,13 +632,21 @@ export class AIOverseerSystem extends BaseSimSystem {
         return true;
     }
 
+    private isQueuedHeuristicCommand(command: GameCommand): boolean {
+        return (command as any).source === GAME_COMMAND_CANDIDATE_SOURCES.HEURISTIC_OVERSEER || String(command.id).startsWith('ai_cmd_');
+    }
+
     private queueCommand(ctx: FixedContext, state: GameState, type: GameCommand['type'], payload: any): void {
-        state.commandQueue.push({
-            id: ctx.getNextId?.('ai_cmd') || `ai_cmd_${Date.now()}_${type.toLowerCase()}`,
+        const issuedAtTick = state.tickCount;
+        const candidate = createGameCommandCandidate(type, payload, GAME_COMMAND_CANDIDATE_SOURCES.HEURISTIC_OVERSEER, HEURISTIC_OVERSEER_COMMAND_REASON);
+        const commandId = ctx.getNextId?.('ai_cmd') || createGameCommandCandidateId(
+            GAME_COMMAND_CANDIDATE_SOURCES.HEURISTIC_OVERSEER,
             type,
-            payload,
-            issuedAtTick: state.tickCount,
-        });
+            issuedAtTick,
+            state.commandQueue.length,
+        );
+        const command = createGameCommandCandidateEnvelope(candidate, commandId, issuedAtTick);
+        state.commandQueue.push(command as GameCommand);
     }
 
     private log(state: GameState, overseer: OverseerState, label: string): void {
