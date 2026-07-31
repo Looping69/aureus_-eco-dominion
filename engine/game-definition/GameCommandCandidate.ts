@@ -90,11 +90,12 @@ export function createQueuedGameCommandCandidateEnvelope(
   reason: string | undefined,
   issuedAtTick: number,
   sequence = 0,
+  id?: string,
 ): GameCommandCandidateEnvelope {
   const candidate = createGameCommandCandidate(commandType, payload, source, reason);
   return createGameCommandCandidateEnvelope(
     candidate,
-    createGameCommandCandidateId(source, commandType, issuedAtTick, sequence),
+    id ?? createGameCommandCandidateId(source, commandType, issuedAtTick, sequence),
     issuedAtTick,
   );
 }
