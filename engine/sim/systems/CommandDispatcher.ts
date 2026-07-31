@@ -37,13 +37,14 @@ export class CommandDispatcher extends BaseSimSystem {
             reportResult: (commandId, result) => this.reportResult(commandId, result, state)
         };
 
-        for (const cmd of queue) {
+        for (let sequence = 0; sequence < queue.length; sequence += 1) {
+            const cmd = queue[sequence];
             cmd.issuedAtTick = cmd.issuedAtTick ?? state.tickCount;
-            this.dispatchCommand(cmd, commandCtx, state);
+            this.dispatchCommand(cmd, commandCtx, state, sequence);
         }
     }
 
-    private dispatchCommand(cmd: GameCommand, ctx: CommandContext, state: GameState) {
+    private dispatchCommand(cmd: GameCommand, ctx: CommandContext, state: GameState, sequence: number) {
         let handledBy: string | null = null;
         let result: CommandResult | null = null;
         const commandType = cmd.type as string;
@@ -94,7 +95,7 @@ export class CommandDispatcher extends BaseSimSystem {
             handledBy = 'NONE';
         }
 
-        this.reportResult(cmd.id, result, state, handledBy, cmd);
+        this.reportResult(cmd.id, result, state, handledBy, cmd, sequence);
     }
 
     private getVoxelTarget(cmd: GameCommand): { x: number; y: number; z: number } | CommandResult {
@@ -247,7 +248,8 @@ export class CommandDispatcher extends BaseSimSystem {
         result: CommandResult,
         state: GameState,
         handledBy: string = 'UNKNOWN',
-        cmd?: GameCommand
+        cmd?: GameCommand,
+        sequence = -1,
     ) {
         // 1. Prepare result data with safe narrowing
         const ok = result.ok;
@@ -269,10 +271,15 @@ export class CommandDispatcher extends BaseSimSystem {
         // 3. Log to Debug Trace (Ring Buffer)
         state.debug.commandTrace.push({
             tick: state.tickCount,
+            issuedAtTick: cmd?.issuedAtTick ?? state.tickCount,
+            sequence,
+            source: this.getCommandSource(cmd),
             commandId,
             commandType: cmd?.type || 'UNKNOWN',
             payloadSummary: this.summarizePayload(cmd?.payload),
             handledBy,
+            validationResult: ok ? 'accepted' : 'rejected',
+            rejectionReason: reason,
             result: { ok, code, reason }
         });
 
@@ -286,6 +293,10 @@ export class CommandDispatcher extends BaseSimSystem {
         } else {
             console.log(`[CommandDispatcher] Command ${commandId} (${cmd?.type}) ACCEPTED by ${handledBy}`);
         }
+    }
+
+    private getCommandSource(cmd?: GameCommand): string {
+        return typeof cmd?.source === 'string' && cmd.source.length > 0 ? cmd.source : 'unknown';
     }
 
     private summarizePayload(payload: any): string {
