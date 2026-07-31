@@ -13,10 +13,13 @@ UI components and external actors (like AI agents) never mutate the `GameState` 
 stateManager.pushCommand('PLACE_BUILDING', { x, z, buildingType });
 ```
 
+Commands can also carry source metadata from the shared command-candidate envelope path, such as `ui`, `local-qwen`, `heuristic-overseer`, `network`, or `replay`.
+
 ### 2. Command Dispatcher
 The `CommandDispatcher` is a high-priority `SimSystem` that runs at the beginning of every simulation tick.
 
 - **Collects**: Clears the `commandQueue` for the current tick.
+- **Sequences**: Assigns each queued command a deterministic sequence number for that dispatch tick.
 - **Validates**: Passes each command to registered systems via the `handleCommand` method.
 - **Executes**: If a system returns a `CommandResult` indicating success, the command is considered processed.
 - **Reports**: Captures `CommandResult` (Success or Failure with Reason) and updates `state.ui.lastCommandResult` and `state.debug.commandTrace`.
@@ -35,13 +38,16 @@ handleCommand(cmd: GameCommand, ctx: CommandContext, state: GameState): CommandR
 
 ## Observability
 
-### Debug Trace
-The `state.debug.commandTrace` is a ring buffer containing the last 100 command executions. Developers can inspect this to see:
-- Tick of execution.
-- Command ID and Type.
+### Command Audit Trace
+The `state.debug.commandTrace` is a 200-entry ring buffer containing recent command executions. Developers can inspect this to see:
+- Dispatch tick and original issued tick.
+- Command sequence within the dispatch tick.
+- Command source, ID, and type.
 - Payload summary.
 - Which system handled it.
-- Precise result (Success/Failure reason).
+- Validation result: `accepted` or `rejected`.
+- Rejection reason, when present.
+- Full command result data.
 
 ### UI Feedback
 The `state.ui.lastCommandResult` contains the result of the last critical command (e.g., building placement). This is used by the UI to show error messages or play failure sounds.
