@@ -15,6 +15,12 @@ import {
     validateOverseerPilotAction,
 } from '../services/overseerLocalQwen';
 import { getActiveGameDefinition } from '../game-definitions/activeGameDefinition';
+import {
+    createGameCommandCandidate,
+    createGameCommandCandidateEnvelope,
+    createGameCommandCandidateId,
+    GAME_COMMAND_CANDIDATE_SOURCES,
+} from '../engine/game-definition';
 
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
 type OverseerPilotProvider = 'HEURISTIC' | 'LOCAL_QWEN';
@@ -62,12 +68,19 @@ const DEFAULT_OVERSEER: Required<Pick<OverseerState, 'enabled' | 'mode' | 'autoA
 function queueOverseerCommand(world: any, payload: Partial<OverseerState>): boolean {
     const gameState = world?.getState?.();
     if (!gameState?.commandQueue) return false;
-    gameState.commandQueue.push({
-        id: `ui_ai_overseer_${Date.now()}`,
-        type: 'SET_AI_OVERSEER' as any,
+    const issuedAtTick = gameState.tickCount;
+    const candidate = createGameCommandCandidate(
+        'SET_AI_OVERSEER',
         payload,
-        issuedAtTick: gameState.tickCount,
-    });
+        GAME_COMMAND_CANDIDATE_SOURCES.UI,
+        'AI Overseer panel settings',
+    );
+    const command = createGameCommandCandidateEnvelope(
+        candidate,
+        createGameCommandCandidateId(GAME_COMMAND_CANDIDATE_SOURCES.UI, 'SET_AI_OVERSEER', issuedAtTick, gameState.commandQueue.length),
+        issuedAtTick,
+    );
+    gameState.commandQueue.push(command as GameCommand);
     return true;
 }
 
