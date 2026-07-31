@@ -133,11 +133,33 @@ export type SimulationEffect =
     | GameDiff
     | { type: 'AUDIO', sfx: SfxType };
 
+export type GameCommandType =
+    | 'PLACE_BUILDING' | 'BULLDOZE' | 'SPEED_UP' | 'REHABILITATE' | 'UPGRADE_BUILDING' | 'EXPLODE_TILE' | 'DIG_VOXEL' | 'COMMAND_AGENT' | 'COMMAND_AGENTS' | 'MANUAL_MOVE_AGENT' | 'COMBAT_ATTACK_TARGET' | 'COMBAT_HOLD_POSITION' | 'COMBAT_CLEAR_ORDERS' | 'BUY_BUILDING' | 'SELL_RESOURCE' | 'BUY_RESOURCE' | 'SET_AUTO_SELL' | 'MARK_HARVEST' | 'RESEARCH_TECH' | 'ACCEPT_CONTRACT' | 'DELIVER_CONTRACT' | 'ABANDON_CONTRACT' | 'ADVANCE_TUTORIAL' | 'START_DEMO' | 'DISMISS_POPUP' | 'SUBMIT_PERMIT' | 'TALK_TO_NPC' | 'CHOOSE_DIALOGUE' | 'CLOSE_DIALOGUE'
+    | (string & {});
+
 export interface GameCommand {
     id: string;
-    type: 'PLACE_BUILDING' | 'BULLDOZE' | 'SPEED_UP' | 'REHABILITATE' | 'UPGRADE_BUILDING' | 'EXPLODE_TILE' | 'DIG_VOXEL' | 'COMMAND_AGENT' | 'COMMAND_AGENTS' | 'MANUAL_MOVE_AGENT' | 'COMBAT_ATTACK_TARGET' | 'COMBAT_HOLD_POSITION' | 'COMBAT_CLEAR_ORDERS' | 'BUY_BUILDING' | 'SELL_RESOURCE' | 'BUY_RESOURCE' | 'SET_AUTO_SELL' | 'MARK_HARVEST' | 'RESEARCH_TECH' | 'ACCEPT_CONTRACT' | 'DELIVER_CONTRACT' | 'ABANDON_CONTRACT' | 'ADVANCE_TUTORIAL' | 'START_DEMO' | 'DISMISS_POPUP' | 'SUBMIT_PERMIT' | 'TALK_TO_NPC' | 'CHOOSE_DIALOGUE' | 'CLOSE_DIALOGUE';
+    type: GameCommandType;
     payload: any;
     issuedAtTick?: number;
+    source?: string;
+    reason?: string;
+}
+
+export type CommandAuditValidationResult = 'accepted' | 'rejected';
+
+export interface CommandTraceEntry {
+    tick: number;
+    issuedAtTick?: number;
+    sequence: number;
+    source: string;
+    commandId: string;
+    commandType: string;
+    payloadSummary: string;
+    handledBy: string;
+    validationResult: CommandAuditValidationResult;
+    rejectionReason?: string;
+    result: { ok: boolean; code?: string; reason?: string };
 }
 
 export type LogisticsOverlayMode = 'OFF' | 'FLOW' | 'CONGESTION' | 'JUNCTIONS' | 'WATER';
@@ -368,14 +390,7 @@ export interface GameState {
     isLoading: boolean;
     loadingMessage: string;
     debug: {
-        commandTrace: Array<{
-            tick: number;
-            commandId: string;
-            commandType: string;
-            payloadSummary: string;
-            handledBy: string;
-            result: { ok: boolean; code?: string; reason?: string };
-        }>;
+        commandTrace: CommandTraceEntry[];
     };
     ui: {
         lastCommandResult: {
