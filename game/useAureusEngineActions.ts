@@ -1,7 +1,15 @@
+import {
+    createGameCommandCandidate,
+    createGameCommandCandidateEnvelope,
+    createGameCommandCandidateId,
+    GAME_COMMAND_CANDIDATE_SOURCES,
+} from '../engine/game-definition';
 import { ChunkStore } from '../engine/space/ChunkStore';
 import { BuildingType, SfxType } from '../types';
 import type { GameCommand, GameState, LogisticsOverlayMode } from '../types';
 import type { AureusWorld } from './AureusWorld';
+
+const WORLD_ACTION_COMMAND_REASON = 'Aureus world action';
 
 export function reloadWorldState(world: AureusWorld, state: GameState): void {
     world.dispatch({ type: 'LOAD_GAME', payload: state });
@@ -9,12 +17,19 @@ export function reloadWorldState(world: AureusWorld, state: GameState): void {
 
 export function enqueueWorldCommand(world: AureusWorld, type: GameCommand['type'], payload?: any): void {
     const state = world.getState();
-    state.commandQueue.push({
-        id: `ui_${type.toLowerCase()}_${Date.now()}`,
+    const issuedAtTick = state.tickCount;
+    const candidate = createGameCommandCandidate(
         type,
         payload,
-        issuedAtTick: state.tickCount,
-    });
+        GAME_COMMAND_CANDIDATE_SOURCES.UI,
+        WORLD_ACTION_COMMAND_REASON,
+    );
+    const command = createGameCommandCandidateEnvelope(
+        candidate,
+        createGameCommandCandidateId(GAME_COMMAND_CANDIDATE_SOURCES.UI, type, issuedAtTick, state.commandQueue.length),
+        issuedAtTick,
+    );
+    state.commandQueue.push(command as GameCommand);
 }
 
 export function setLayeredActiveY(state: GameState, requestedY: number): GameState {
