@@ -5,6 +5,7 @@ import test from 'node:test';
 
 const root = process.cwd();
 const panelPath = path.join(root, 'components', 'AIOverseerPanel.tsx');
+const systemPath = path.join(root, 'engine', 'sim', 'systems', 'AIOverseerPlaySystem.ts');
 
 function source(filePath: string): string {
     assert.equal(existsSync(filePath), true, `${filePath} is missing`);
@@ -35,4 +36,25 @@ test('AI Overseer UI settings are queued through the shared command-candidate en
     }
 
     assert.doesNotMatch(text, /id:\s*`ui_ai_overseer_\$\{Date\.now\(\)\}`/);
+});
+
+test('heuristic AI Overseer auto-act commands are queued through shared envelopes', () => {
+    const text = source(systemPath);
+
+    for (const snippet of [
+        'createGameCommandCandidate,',
+        'createGameCommandCandidateEnvelope,',
+        'createGameCommandCandidateId,',
+        'GAME_COMMAND_CANDIDATE_SOURCES,',
+        "const HEURISTIC_OVERSEER_COMMAND_REASON = 'AI Overseer heuristic autopilot';",
+        'this.isQueuedHeuristicCommand(command)',
+        'GAME_COMMAND_CANDIDATE_SOURCES.HEURISTIC_OVERSEER',
+        "String(command.id).startsWith('ai_cmd_')",
+        'const candidate = createGameCommandCandidate(type, payload, GAME_COMMAND_CANDIDATE_SOURCES.HEURISTIC_OVERSEER, HEURISTIC_OVERSEER_COMMAND_REASON);',
+        "const commandId = ctx.getNextId?.('ai_cmd') || createGameCommandCandidateId(",
+        'const command = createGameCommandCandidateEnvelope(candidate, commandId, issuedAtTick);',
+        'state.commandQueue.push(command as GameCommand);',
+    ]) {
+        assertSnippet(text, snippet);
+    }
 });
