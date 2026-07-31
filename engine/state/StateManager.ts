@@ -2,7 +2,11 @@ import { Agent, BuildingType, Era, FogExplorationState, GameState, GameStep } fr
 import { INITIAL_PERMITS, INITIAL_NPCS } from '../data/bureaucracy';
 import { INITIAL_RESOURCES } from '../data/resources';
 import type { ActiveGameDefinitionProvider } from '../game-definition';
-import { validateGameCommandForActiveDefinition } from '../game-definition';
+import {
+    createQueuedGameCommandCandidateEnvelope,
+    GAME_COMMAND_CANDIDATE_SOURCES,
+    validateGameCommandForActiveDefinition,
+} from '../game-definition';
 import { DAY_NIGHT } from '../sim/dayNightCycle';
 import { ChunkStore } from '../space/ChunkStore';
 import type { DeterministicCommandInput } from '../net/DeterministicCommand';
@@ -509,12 +513,16 @@ export class StateManager {
             return;
         }
 
-        this.state.commandQueue.push({
-            id: this.getNextId('cmd'),
-            type: type as any,
+        const issuedAtTick = this.state.tickCount;
+        const command = createQueuedGameCommandCandidateEnvelope(
+            type,
             payload,
-            issuedAtTick: this.state.tickCount,
-        });
+            GAME_COMMAND_CANDIDATE_SOURCES.UI,
+            'StateManager pushCommand',
+            issuedAtTick,
+            this.state.commandQueue.length,
+        );
+        this.state.commandQueue.push(command as GameState['commandQueue'][number]);
         this.markDirty('commandQueue');
     }
 
