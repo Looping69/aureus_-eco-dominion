@@ -1,4 +1,5 @@
-import { BuildingType, SfxType, type Action } from '../../types';
+import { createQueuedGameCommandCandidateEnvelope, GAME_COMMAND_CANDIDATE_SOURCES } from '../../engine/game-definition';
+import { BuildingType, SfxType, type Action, type GameCommand } from '../../types';
 import type { FPSAbility } from '../../components/FPSAbilityHUD';
 
 export const FPS_ABILITY_BY_KEY: Partial<Record<string, FPSAbility>> = {
@@ -8,6 +9,8 @@ export const FPS_ABILITY_BY_KEY: Partial<Record<string, FPSAbility>> = {
     KeyF: 'DIG',
     KeyG: 'MOVE',
 };
+
+const FPS_COMMAND_REASON = 'FPS ability HUD';
 
 export interface FPSAimTarget {
     x: number;
@@ -63,19 +66,21 @@ export function getFPSDigLayer(layeredWorld: any): number {
         : layeredWorld.surfaceY - 1;
 }
 
-export function createFPSQueuedCommand(type: string, payload: any, tickCount: number) {
-    return {
-        id: `fps_${type.toLowerCase()}_${Date.now()}`,
+export function createFPSQueuedCommand(type: string, payload: any, tickCount: number, sequence = 0) {
+    return createQueuedGameCommandCandidateEnvelope(
         type,
         payload,
-        issuedAtTick: tickCount,
-    };
+        GAME_COMMAND_CANDIDATE_SOURCES.UI,
+        FPS_COMMAND_REASON,
+        tickCount,
+        sequence,
+    ) as GameCommand;
 }
 
 export function enqueueFPSQueuedCommand(commandQueue: any[] | undefined, type: string, payload: any, tickCount: number): boolean {
     if (!commandQueue) return false;
 
-    commandQueue.push(createFPSQueuedCommand(type, payload, tickCount));
+    commandQueue.push(createFPSQueuedCommand(type, payload, tickCount, commandQueue.length));
     return true;
 }
 
