@@ -521,6 +521,7 @@ export class StateManager {
             'StateManager pushCommand',
             issuedAtTick,
             this.state.commandQueue.length,
+            this.getNextId('cmd'),
         );
         this.state.commandQueue.push(command as GameState['commandQueue'][number]);
         this.markDirty('commandQueue');
