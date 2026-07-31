@@ -83,6 +83,22 @@ export function createGameCommandCandidateEnvelope(
   };
 }
 
+export function createQueuedGameCommandCandidateEnvelope(
+  commandType: string,
+  payload: unknown,
+  source: GameCommandCandidateSource | undefined,
+  reason: string | undefined,
+  issuedAtTick: number,
+  sequence = 0,
+): GameCommandCandidateEnvelope {
+  const candidate = createGameCommandCandidate(commandType, payload, source, reason);
+  return createGameCommandCandidateEnvelope(
+    candidate,
+    createGameCommandCandidateId(source, commandType, issuedAtTick, sequence),
+    issuedAtTick,
+  );
+}
+
 export function validateGameCommandCandidate(
   definition: GameDefinition | null | undefined,
   candidate: GameCommandCandidate,
