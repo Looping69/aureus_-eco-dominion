@@ -1,6 +1,7 @@
 import React from 'react';
 import { Briefcase, CheckCircle2, ChevronUp, Clock, Package, XCircle } from 'lucide-react';
-import { Contract, GameState, SfxType } from '../types';
+import { Contract, GameCommand, GameState, SfxType } from '../types';
+import { createQueuedGameCommandCandidateEnvelope, GAME_COMMAND_CANDIDATE_SOURCES } from '../engine/game-definition';
 import { getContractLifecycleState } from '../engine/stateMachines/contractLifecycle';
 import { useContractPanelStore } from './state/useContractPanelStore';
 
@@ -32,6 +33,8 @@ const STATUS_TONE: Record<string, string> = {
     failed: 'border-rose-800 bg-rose-950/40 text-rose-200',
 };
 
+const CONTRACT_TRACKER_COMMAND_REASON = 'Contract tracker action';
+
 const getStatusIcon = (status: Contract['status'] | undefined) => {
     const lifecycleState = getContractLifecycleState(status);
     if (lifecycleState === 'completed' || lifecycleState === 'readyToDeliver') return <CheckCircle2 size={12} />;
@@ -56,12 +59,16 @@ const formatTime = (seconds: number) => {
 const queueContractCommand = (world: any, type: 'ACCEPT_CONTRACT' | 'DELIVER_CONTRACT' | 'ABANDON_CONTRACT', contractId: string) => {
     const gameState = world?.getState?.();
     if (!gameState?.commandQueue) return false;
-    gameState.commandQueue.push({
-        id: `ui_${type.toLowerCase()}_${Date.now()}`,
-        type: type as any,
-        payload: { contractId },
-        issuedAtTick: gameState.tickCount,
-    });
+    const issuedAtTick = gameState.tickCount;
+    const command = createQueuedGameCommandCandidateEnvelope(
+        type,
+        { contractId },
+        GAME_COMMAND_CANDIDATE_SOURCES.UI,
+        CONTRACT_TRACKER_COMMAND_REASON,
+        issuedAtTick,
+        gameState.commandQueue.length,
+    );
+    gameState.commandQueue.push(command as GameCommand);
     return true;
 };
 
