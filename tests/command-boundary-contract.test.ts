@@ -7,11 +7,17 @@ const root = process.cwd();
 const contractTrackerPath = path.join(root, 'components', 'ContractTracker.tsx');
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
 const gameTypesPath = path.join(root, 'engine', 'types', 'game.ts');
+const commandCandidatePath = path.join(root, 'engine', 'game-definition', 'GameCommandCandidate.ts');
+const gameDefinitionIndexPath = path.join(root, 'engine', 'game-definition', 'index.ts');
+const stateManagerPath = path.join(root, 'engine', 'state', 'StateManager.ts');
+const lockstepBridgePath = path.join(root, 'engine', 'net', 'LockstepStateBridge.ts');
+const systemsIndexPath = path.join(root, 'engine', 'sim', 'systems', 'index.ts');
 const aureusWorldPath = path.join(root, 'game', 'AureusWorld.ts');
 const contractBridgePath = path.join(root, 'game', 'world', 'contractBridge.ts');
 const dispatchBridgePath = path.join(root, 'game', 'world', 'dispatchBridge.ts');
 const useEnginePath = path.join(root, 'game', 'useAureusEngine.ts');
 const useEngineActionsPath = path.join(root, 'game', 'useAureusEngineActions.ts');
+const fpsAbilityPath = path.join(root, 'game', 'ui', 'fpsAbilityLogic.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);
@@ -22,19 +28,42 @@ function assertSnippet(text: string, snippet: string) {
   assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
-test('contract UI queues commands instead of mutating resources directly', () => {
+test('shared command candidate helpers expose a one-step queued envelope path', () => {
+  const candidateText = source(commandCandidatePath);
+  const indexText = source(gameDefinitionIndexPath);
+
+  for (const snippet of [
+    'export function createQueuedGameCommandCandidateEnvelope(',
+    'const candidate = createGameCommandCandidate(commandType, payload, source, reason);',
+    'createGameCommandCandidateId(source, commandType, issuedAtTick, sequence)',
+    'createGameCommandCandidateEnvelope(',
+  ]) {
+    assertSnippet(candidateText, snippet);
+  }
+
+  assertSnippet(indexText, 'createQueuedGameCommandCandidateEnvelope,');
+});
+
+test('contract UI queues commands through shared UI envelopes instead of mutating resources directly', () => {
   const trackerText = source(contractTrackerPath);
 
   for (const snippet of [
+    'createQueuedGameCommandCandidateEnvelope,',
+    'GAME_COMMAND_CANDIDATE_SOURCES',
+    "const CONTRACT_TRACKER_COMMAND_REASON = 'Contract tracker action';",
     "const queueContractCommand = (world: any, type: 'ACCEPT_CONTRACT' | 'DELIVER_CONTRACT' | 'ABANDON_CONTRACT', contractId: string)",
-    'gameState.commandQueue.push({',
-    'payload: { contractId },',
+    'const command = createQueuedGameCommandCandidateEnvelope(',
+    'GAME_COMMAND_CANDIDATE_SOURCES.UI,',
+    'CONTRACT_TRACKER_COMMAND_REASON,',
+    'gameState.commandQueue.push(command as GameCommand);',
     "queueContractCommand(world, 'ACCEPT_CONTRACT', contract.id)",
     "queueContractCommand(world, 'DELIVER_CONTRACT', contract.id)",
     "queueContractCommand(world, 'ABANDON_CONTRACT', contract.id)",
   ]) {
     assertSnippet(trackerText, snippet);
   }
+
+  assert.doesNotMatch(trackerText, /id:\s*`ui_\$\{type\.toLowerCase\(\)\}_\$\{Date\.now\(\)\}`/);
 });
 
 test('contract lifecycle mutations live in the command dispatcher', () => {
@@ -108,26 +137,74 @@ test('game state types expose command audit metadata and source-carrying command
   }
 });
 
+test('StateManager pushCommand queues through shared UI envelopes', () => {
+  const stateManagerText = source(stateManagerPath);
+
+  for (const snippet of [
+    'createQueuedGameCommandCandidateEnvelope,',
+    'GAME_COMMAND_CANDIDATE_SOURCES,',
+    'const issuedAtTick = this.state.tickCount;',
+    'const command = createQueuedGameCommandCandidateEnvelope(',
+    'GAME_COMMAND_CANDIDATE_SOURCES.UI,',
+    "'StateManager pushCommand'",
+    'this.state.commandQueue.push(command as GameState[\'commandQueue\'][number]);',
+  ]) {
+    assertSnippet(stateManagerText, snippet);
+  }
+
+  assert.doesNotMatch(stateManagerText, /this\.state\.commandQueue\.push\(\{\s*id: this\.getNextId\('cmd'\)/s);
+});
+
 test('engine action helper queues world commands through shared UI envelopes', () => {
   const actionsText = source(useEngineActionsPath);
 
   for (const snippet of [
-    'createGameCommandCandidate,',
-    'createGameCommandCandidateEnvelope,',
-    'createGameCommandCandidateId,',
+    'createQueuedGameCommandCandidateEnvelope,',
     'GAME_COMMAND_CANDIDATE_SOURCES,',
     "const WORLD_ACTION_COMMAND_REASON = 'Aureus world action';",
-    'const candidate = createGameCommandCandidate(',
+    'const command = createQueuedGameCommandCandidateEnvelope(',
     'GAME_COMMAND_CANDIDATE_SOURCES.UI,',
     'WORLD_ACTION_COMMAND_REASON,',
-    'const command = createGameCommandCandidateEnvelope(',
-    'createGameCommandCandidateId(GAME_COMMAND_CANDIDATE_SOURCES.UI, type, issuedAtTick, state.commandQueue.length)',
     'state.commandQueue.push(command as GameCommand);',
   ]) {
     assertSnippet(actionsText, snippet);
   }
 
   assert.doesNotMatch(actionsText, /id:\s*`ui_\$\{type\.toLowerCase\(\)\}_\$\{Date\.now\(\)\}`/);
+});
+
+test('FPS ability helper queues commands through shared UI envelopes', () => {
+  const fpsText = source(fpsAbilityPath);
+
+  for (const snippet of [
+    'createQueuedGameCommandCandidateEnvelope,',
+    'GAME_COMMAND_CANDIDATE_SOURCES',
+    "const FPS_COMMAND_REASON = 'FPS ability HUD';",
+    'return createQueuedGameCommandCandidateEnvelope(',
+    'GAME_COMMAND_CANDIDATE_SOURCES.UI,',
+    'FPS_COMMAND_REASON,',
+    'commandQueue.push(createFPSQueuedCommand(type, payload, tickCount, commandQueue.length));',
+  ]) {
+    assertSnippet(fpsText, snippet);
+  }
+
+  assert.doesNotMatch(fpsText, /id:\s*`fps_\$\{type\.toLowerCase\(\)\}_\$\{Date\.now\(\)\}`/);
+});
+
+test('lockstep bridge preserves full command envelope metadata when flushing', () => {
+  const bridgeText = source(lockstepBridgePath);
+
+  for (const snippet of [
+    'const ready = buffer.drainReady(currentTick);',
+    'state.commandQueue.push({',
+    '...envelope.command,',
+    'issuedAtTick: envelope.command.issuedAtTick ?? envelope.targetTick,',
+  ]) {
+    assertSnippet(bridgeText, snippet);
+  }
+
+  assert.equal(bridgeText.includes('source: envelope'), false);
+  assert.equal(bridgeText.includes('reason: envelope'), false);
 });
 
 test('world contract methods only queue dispatcher commands', () => {
@@ -186,6 +263,15 @@ test('AureusWorld dispatch delegates to the extracted dispatch bridge', () => {
   ]) {
     assertSnippet(dispatchBridgeText, snippet);
   }
+});
+
+test('AureusWorld uses the active AI Overseer play system, whose autopilot commands are envelope-backed', () => {
+  const systemsIndexText = source(systemsIndexPath);
+  const worldText = source(aureusWorldPath);
+
+  assertSnippet(systemsIndexText, "export * from './AIOverseerPlaySystem';");
+  assertSnippet(worldText, 'AIOverseerSystem, CombatSystem');
+  assert.equal(systemsIndexText.includes("export * from './AIOverseerAutopilotSystem';"), false);
 });
 
 test('AureusWorld simulation flushes lockstep commands before the simulation tick', () => {
