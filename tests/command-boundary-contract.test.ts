@@ -11,6 +11,7 @@ const aureusWorldPath = path.join(root, 'game', 'AureusWorld.ts');
 const contractBridgePath = path.join(root, 'game', 'world', 'contractBridge.ts');
 const dispatchBridgePath = path.join(root, 'game', 'world', 'dispatchBridge.ts');
 const useEnginePath = path.join(root, 'game', 'useAureusEngine.ts');
+const useEngineActionsPath = path.join(root, 'game', 'useAureusEngineActions.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);
@@ -105,6 +106,28 @@ test('game state types expose command audit metadata and source-carrying command
   ]) {
     assertSnippet(gameTypesText, snippet);
   }
+});
+
+test('engine action helper queues world commands through shared UI envelopes', () => {
+  const actionsText = source(useEngineActionsPath);
+
+  for (const snippet of [
+    'createGameCommandCandidate,',
+    'createGameCommandCandidateEnvelope,',
+    'createGameCommandCandidateId,',
+    'GAME_COMMAND_CANDIDATE_SOURCES,',
+    "const WORLD_ACTION_COMMAND_REASON = 'Aureus world action';",
+    'const candidate = createGameCommandCandidate(',
+    'GAME_COMMAND_CANDIDATE_SOURCES.UI,',
+    'WORLD_ACTION_COMMAND_REASON,',
+    'const command = createGameCommandCandidateEnvelope(',
+    'createGameCommandCandidateId(GAME_COMMAND_CANDIDATE_SOURCES.UI, type, issuedAtTick, state.commandQueue.length)',
+    'state.commandQueue.push(command as GameCommand);',
+  ]) {
+    assertSnippet(actionsText, snippet);
+  }
+
+  assert.doesNotMatch(actionsText, /id:\s*`ui_\$\{type\.toLowerCase\(\)\}_\$\{Date\.now\(\)\}`/);
 });
 
 test('world contract methods only queue dispatcher commands', () => {
