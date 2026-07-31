@@ -1,7 +1,5 @@
 import {
-    createGameCommandCandidate,
-    createGameCommandCandidateEnvelope,
-    createGameCommandCandidateId,
+    createQueuedGameCommandCandidateEnvelope,
     GAME_COMMAND_CANDIDATE_SOURCES,
 } from '../engine/game-definition';
 import { ChunkStore } from '../engine/space/ChunkStore';
@@ -18,16 +16,13 @@ export function reloadWorldState(world: AureusWorld, state: GameState): void {
 export function enqueueWorldCommand(world: AureusWorld, type: GameCommand['type'], payload?: any): void {
     const state = world.getState();
     const issuedAtTick = state.tickCount;
-    const candidate = createGameCommandCandidate(
+    const command = createQueuedGameCommandCandidateEnvelope(
         type,
         payload,
         GAME_COMMAND_CANDIDATE_SOURCES.UI,
         WORLD_ACTION_COMMAND_REASON,
-    );
-    const command = createGameCommandCandidateEnvelope(
-        candidate,
-        createGameCommandCandidateId(GAME_COMMAND_CANDIDATE_SOURCES.UI, type, issuedAtTick, state.commandQueue.length),
         issuedAtTick,
+        state.commandQueue.length,
     );
     state.commandQueue.push(command as GameCommand);
 }
