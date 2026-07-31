@@ -6,8 +6,8 @@ import { LockstepCommandBuffer } from '../engine/net/index.ts';
 import { GAME_DEFINITION_REGISTRY } from '../game-definitions/activeGameDefinition.ts';
 import type { GameCommand } from '../types.ts';
 
-function command(id: string, type: GameCommand['type'], payload: GameCommand['payload']): GameCommand {
-    return { id, type, payload };
+function command(id: string, type: GameCommand['type'], payload: GameCommand['payload'], meta: Partial<GameCommand> = {}): GameCommand {
+    return { id, type, payload, ...meta };
 }
 
 test('state manager pushCommand still queues immediately by default', () => {
@@ -19,6 +19,8 @@ test('state manager pushCommand still queues immediately by default', () => {
     assert.equal(stateManager.getMutableState().commandQueue.length, 1);
     assert.equal(queued.id.startsWith('cmd_'), true);
     assert.equal(queued.issuedAtTick, 0);
+    assert.equal(queued.source, 'ui');
+    assert.equal(queued.reason, 'StateManager pushCommand');
 });
 
 test('state manager can validate queued commands against the active game definition', () => {
@@ -29,6 +31,7 @@ test('state manager can validate queued commands against the active game definit
 
     assert.equal(stateManager.getMutableState().commandQueue.length, 1);
     assert.equal(stateManager.getMutableState().commandQueue[0].type, 'PLACE_BUILDING');
+    assert.equal(stateManager.getMutableState().commandQueue[0].source, 'ui');
     assert.equal(stateManager.getMutableState().ui.lastCommandResult?.ok, false);
     assert.equal(stateManager.getMutableState().ui.lastCommandResult?.code, 'COMMAND_NOT_DECLARED');
     assert.match(stateManager.getMutableState().ui.lastCommandResult?.reason ?? '', /not declared by active game definition/);
@@ -72,13 +75,13 @@ test('state manager flushes ready lockstep commands in deterministic order', () 
         playerId: 'player-b',
         targetTick: 4,
         sequence: 2,
-        command: command('cmd-b2', 'BULLDOZE', { x: 2, z: 2 }),
+        command: command('cmd-b2', 'BULLDOZE', { x: 2, z: 2 }, { source: 'network', reason: 'remote player' }),
     });
     stateManager.scheduleDeterministicCommand({
         playerId: 'player-a',
         targetTick: 4,
         sequence: 1,
-        command: command('cmd-a1', 'PLACE_BUILDING', { x: 1, z: 1, buildingType: 'ROAD' }),
+        command: command('cmd-a1', 'PLACE_BUILDING', { x: 1, z: 1, buildingType: 'ROAD' }, { source: 'replay', reason: 'recorded command' }),
     });
 
     stateManager.getMutableState().tickCount = 4;
@@ -86,6 +89,8 @@ test('state manager flushes ready lockstep commands in deterministic order', () 
 
     assert.deepEqual(stateManager.getMutableState().commandQueue.map((cmd) => cmd.id), ['cmd-a1', 'cmd-b2']);
     assert.deepEqual(stateManager.getMutableState().commandQueue.map((cmd) => cmd.issuedAtTick), [4, 4]);
+    assert.deepEqual(stateManager.getMutableState().commandQueue.map((cmd) => cmd.source), ['replay', 'network']);
+    assert.deepEqual(stateManager.getMutableState().commandQueue.map((cmd) => cmd.reason), ['recorded command', 'remote player']);
 });
 
 test('state manager rejects duplicate lockstep player sequences', () => {
