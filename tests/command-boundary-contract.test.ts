@@ -35,7 +35,7 @@ test('shared command candidate helpers expose a one-step queued envelope path', 
   for (const snippet of [
     'export function createQueuedGameCommandCandidateEnvelope(',
     'const candidate = createGameCommandCandidate(commandType, payload, source, reason);',
-    'createGameCommandCandidateId(source, commandType, issuedAtTick, sequence)',
+    'id ?? createGameCommandCandidateId(source, commandType, issuedAtTick, sequence)',
     'createGameCommandCandidateEnvelope(',
   ]) {
     assertSnippet(candidateText, snippet);
@@ -137,7 +137,7 @@ test('game state types expose command audit metadata and source-carrying command
   }
 });
 
-test('StateManager pushCommand queues through shared UI envelopes', () => {
+test('StateManager pushCommand queues through shared UI envelopes while preserving cmd ids', () => {
   const stateManagerText = source(stateManagerPath);
 
   for (const snippet of [
@@ -147,7 +147,8 @@ test('StateManager pushCommand queues through shared UI envelopes', () => {
     'const command = createQueuedGameCommandCandidateEnvelope(',
     'GAME_COMMAND_CANDIDATE_SOURCES.UI,',
     "'StateManager pushCommand'",
-    'this.state.commandQueue.push(command as GameState[\'commandQueue\'][number]);',
+    "this.getNextId('cmd'),",
+    "this.state.commandQueue.push(command as GameState['commandQueue'][number]);",
   ]) {
     assertSnippet(stateManagerText, snippet);
   }
