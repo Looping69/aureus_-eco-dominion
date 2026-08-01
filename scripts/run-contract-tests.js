@@ -16,6 +16,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/low-end-render-workload-contract.test.ts',
     'tests/design-studio-contract.test.ts',
     'tests/game-definition-contract.test.ts',
+    'tests/game-pack-boundary-contract.test.ts',
     'tests/game-definition-payload-schema-source-contract.test.ts',
     'tests/build-action-payload-schema-contract.test.ts',
     'tests/command-boundary-contract.test.ts',
