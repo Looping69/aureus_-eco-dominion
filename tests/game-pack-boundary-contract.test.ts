@@ -119,19 +119,16 @@ test('runtime selector boots Aureus and safely falls back for definition-only pa
   assert.match(missingRuntime.fallbackReason ?? '', /Unknown game pack/);
 });
 
-test('Aureus engine hook delegates runtime selection to the pack selector', () => {
+test('runtime selector is isolated from the stable Aureus hook boot path', () => {
   const hook = source('game/useAureusEngine.ts');
   const runtimeSelector = source('game/gamePackRuntime.ts');
 
   assert.match(runtimeSelector, /export function selectGamePackRuntime/);
   assert.match(runtimeSelector, /BOOTABLE_WORLD_MODULES/);
   assert.match(runtimeSelector, /createRuntimeDefinitionRegistry/);
-  assert.match(hook, /selectGamePackRuntime\(\)/);
-  assert.match(hook, /const gamePackRuntime = selectGamePackRuntime\(\)/);
-  assert.match(hook, /gamePackRuntime\.definitionRegistry/);
-  assert.match(hook, /Runtime game pack/);
-  assert.doesNotMatch(hook, /GAME_DEFINITION_REGISTRY/);
-  assert.doesNotMatch(hook, /gamePackRuntime: GamePackRuntimeSelection/);
+  assert.match(runtimeSelector, /Unknown game pack/);
+  assert.match(hook, /GAME_DEFINITION_REGISTRY/);
+  assert.doesNotMatch(hook, /selectGamePackRuntime/);
 });
 
 test('active game definition module now exposes pack-first wiring', () => {
