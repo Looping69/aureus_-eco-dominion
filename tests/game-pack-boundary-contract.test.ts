@@ -18,6 +18,7 @@ import {
 import { AUREUS_ACTIVE_GAME_DEFINITION, AUREUS_GAME_PACK } from '../game-definitions/aureusGamePack.ts';
 import { SAMPLE_COLONY_GAME_DEFINITION } from '../game-definitions/sampleColony.ts';
 import { SAMPLE_COLONY_GAME_PACK } from '../game-definitions/sampleColonyGamePack.ts';
+import { canBootGamePackRuntime, selectGamePackRuntime } from '../game/gamePackRuntime.ts';
 
 function source(relativePath: string): string {
   const filePath = path.join(process.cwd(), relativePath);
@@ -93,6 +94,42 @@ test('game pack registry can switch packs without changing definition consumers'
     () => defineGamePack({ ...AUREUS_GAME_PACK, id: 'mismatched.pack' }),
     /must match definition id/,
   );
+});
+
+test('runtime selector boots Aureus and safely falls back for definition-only packs', () => {
+  const aureusRuntime = selectGamePackRuntime('aureus.eco-dominion');
+  assert.equal(canBootGamePackRuntime(AUREUS_GAME_PACK), true);
+  assert.equal(aureusRuntime.status, 'selected');
+  assert.equal(aureusRuntime.requestedPack, AUREUS_GAME_PACK);
+  assert.equal(aureusRuntime.runtimePack, AUREUS_GAME_PACK);
+  assert.equal(aureusRuntime.definitionRegistry.getActive()?.id, 'aureus.eco-dominion');
+
+  const sampleRuntime = selectGamePackRuntime('sample.micro-colony');
+  assert.equal(canBootGamePackRuntime(SAMPLE_COLONY_GAME_PACK), false);
+  assert.equal(sampleRuntime.status, 'fallback');
+  assert.equal(sampleRuntime.requestedPack, SAMPLE_COLONY_GAME_PACK);
+  assert.equal(sampleRuntime.runtimePack, AUREUS_GAME_PACK);
+  assert.match(sampleRuntime.fallbackReason ?? '', /not bootable yet/);
+  assert.equal(sampleRuntime.definitionRegistry.getActive()?.id, 'aureus.eco-dominion');
+
+  const missingRuntime = selectGamePackRuntime('missing.pack');
+  assert.equal(missingRuntime.status, 'selected');
+  assert.equal(missingRuntime.requestedPack, AUREUS_GAME_PACK);
+  assert.equal(missingRuntime.runtimePack, AUREUS_GAME_PACK);
+});
+
+test('Aureus engine hook delegates runtime selection to the pack selector', () => {
+  const hook = source('game/useAureusEngine.ts');
+  const runtimeSelector = source('game/gamePackRuntime.ts');
+
+  assert.match(runtimeSelector, /export function selectGamePackRuntime/);
+  assert.match(runtimeSelector, /BOOTABLE_WORLD_MODULES/);
+  assert.match(runtimeSelector, /createRuntimeDefinitionRegistry/);
+  assert.match(hook, /selectGamePackRuntime\(gamePackId\)/);
+  assert.match(hook, /gamePackId\?: string/);
+  assert.match(hook, /gamePackRuntime: GamePackRuntimeSelection/);
+  assert.match(hook, /gamePackRuntime\.definitionRegistry/);
+  assert.doesNotMatch(hook, /GAME_DEFINITION_REGISTRY/);
 });
 
 test('active game definition module now exposes pack-first wiring', () => {
