@@ -29,12 +29,13 @@ export function selectGamePackRuntime(requestedPackId?: string): GamePackRuntime
   const activePack = getActiveGamePack();
   const requestedPack = requestedPackId ? GAME_PACK_REGISTRY.get(requestedPackId) : activePack;
   const resolvedRequestedPack = requestedPack ?? activePack;
-  const canBootRequestedPack = canBootGamePackRuntime(resolvedRequestedPack);
+  const canBootRequestedPack = requestedPack !== null && canBootGamePackRuntime(resolvedRequestedPack);
   const runtimePack = canBootRequestedPack ? resolvedRequestedPack : AUREUS_GAME_PACK;
   const unknownPackReason = requestedPackId && !requestedPack ? `Unknown game pack '${requestedPackId}'` : null;
-  const unsupportedRuntimeReason = !canBootRequestedPack
+  const unsupportedRuntimeReason = requestedPack && !canBootGamePackRuntime(resolvedRequestedPack)
     ? `Game pack '${resolvedRequestedPack.id}' declares runtime '${resolvedRequestedPack.runtime.worldModule}', which is not bootable yet`
     : null;
+  const fallbackReason = unknownPackReason ?? unsupportedRuntimeReason ?? undefined;
 
   return {
     requestedPackId: requestedPackId ?? activePack.id,
@@ -42,7 +43,7 @@ export function selectGamePackRuntime(requestedPackId?: string): GamePackRuntime
     runtimePack,
     definitionRegistry: createRuntimeDefinitionRegistry(runtimePack),
     canBootRequestedPack,
-    status: canBootRequestedPack ? 'selected' : 'fallback',
-    fallbackReason: unknownPackReason ?? unsupportedRuntimeReason ?? undefined,
+    status: fallbackReason ? 'fallback' : 'selected',
+    fallbackReason,
   };
 }
