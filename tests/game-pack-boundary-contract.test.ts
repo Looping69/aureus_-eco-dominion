@@ -126,11 +126,12 @@ test('Aureus engine hook delegates runtime selection to the pack selector', () =
   assert.match(runtimeSelector, /export function selectGamePackRuntime/);
   assert.match(runtimeSelector, /BOOTABLE_WORLD_MODULES/);
   assert.match(runtimeSelector, /createRuntimeDefinitionRegistry/);
-  assert.match(hook, /selectGamePackRuntime\(gamePackId\)/);
-  assert.match(hook, /gamePackId\?: string/);
-  assert.match(hook, /gamePackRuntime: GamePackRuntimeSelection/);
+  assert.match(hook, /selectGamePackRuntime\(\)/);
+  assert.match(hook, /const gamePackRuntime = selectGamePackRuntime\(\)/);
   assert.match(hook, /gamePackRuntime\.definitionRegistry/);
+  assert.match(hook, /Runtime game pack/);
   assert.doesNotMatch(hook, /GAME_DEFINITION_REGISTRY/);
+  assert.doesNotMatch(hook, /gamePackRuntime: GamePackRuntimeSelection/);
 });
 
 test('active game definition module now exposes pack-first wiring', () => {
