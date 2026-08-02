@@ -113,9 +113,10 @@ test('runtime selector boots Aureus and safely falls back for definition-only pa
   assert.equal(sampleRuntime.definitionRegistry.getActive()?.id, 'aureus.eco-dominion');
 
   const missingRuntime = selectGamePackRuntime('missing.pack');
-  assert.equal(missingRuntime.status, 'selected');
+  assert.equal(missingRuntime.status, 'fallback');
   assert.equal(missingRuntime.requestedPack, AUREUS_GAME_PACK);
   assert.equal(missingRuntime.runtimePack, AUREUS_GAME_PACK);
+  assert.match(missingRuntime.fallbackReason ?? '', /Unknown game pack/);
 });
 
 test('Aureus engine hook delegates runtime selection to the pack selector', () => {
