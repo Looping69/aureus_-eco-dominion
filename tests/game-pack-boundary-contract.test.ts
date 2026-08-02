@@ -4,16 +4,20 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { createGamePackRegistry, defineGamePack, summarizeGamePack } from '../engine/game-pack/index.ts';
+import { collectGameDefinitionIssues, validateGameCommandType } from '../engine/game-definition/index.ts';
 import {
   ACTIVE_GAME_DEFINITION,
   ACTIVE_GAME_PACK,
   ACTIVE_GAME_PACK_SUMMARY,
   GAME_DEFINITION_REGISTRY,
   GAME_PACK_REGISTRY,
+  GAME_PACKS,
   getActiveGamePack,
   getActiveGamePackSummary,
 } from '../game-definitions/activeGameDefinition.ts';
 import { AUREUS_ACTIVE_GAME_DEFINITION, AUREUS_GAME_PACK } from '../game-definitions/aureusGamePack.ts';
+import { SAMPLE_COLONY_GAME_DEFINITION } from '../game-definitions/sampleColony.ts';
+import { SAMPLE_COLONY_GAME_PACK } from '../game-definitions/sampleColonyGamePack.ts';
 
 function source(relativePath: string): string {
   const filePath = path.join(process.cwd(), relativePath);
@@ -50,23 +54,40 @@ test('Aureus is wrapped as the default swappable game pack', () => {
   assert.equal(summary.definition.actionCount, AUREUS_ACTIVE_GAME_DEFINITION.actions.length);
 });
 
+test('sample colony is a valid non-Aureus game pack', () => {
+  assert.equal(SAMPLE_COLONY_GAME_PACK.id, 'sample.micro-colony');
+  assert.equal(SAMPLE_COLONY_GAME_PACK.definition, SAMPLE_COLONY_GAME_DEFINITION);
+  assert.notEqual(SAMPLE_COLONY_GAME_PACK.id, AUREUS_GAME_PACK.id);
+  assert.deepEqual(collectGameDefinitionIssues(SAMPLE_COLONY_GAME_DEFINITION), []);
+  assert.equal(validateGameCommandType(SAMPLE_COLONY_GAME_DEFINITION, 'SAMPLE_PING').ok, true);
+  assert.equal(validateGameCommandType(SAMPLE_COLONY_GAME_DEFINITION, 'PLACE_BUILDING').ok, false);
+  assert.equal(SAMPLE_COLONY_GAME_PACK.runtime.worldModule, 'game-definitions/sampleColonyRuntime');
+});
+
 test('game pack registry drives the existing active definition registry', () => {
   assert.equal(ACTIVE_GAME_PACK, AUREUS_GAME_PACK);
   assert.equal(getActiveGamePack(), AUREUS_GAME_PACK);
   assert.equal(ACTIVE_GAME_PACK_SUMMARY?.id, 'aureus.eco-dominion');
   assert.equal(getActiveGamePackSummary()?.definition.title, 'Aureus: Eco Dominion');
+  assert.equal(GAME_PACKS.length, 2);
+  assert.equal(GAME_PACK_REGISTRY.get('sample.micro-colony'), SAMPLE_COLONY_GAME_PACK);
+  assert.equal(GAME_DEFINITION_REGISTRY.get('sample.micro-colony'), SAMPLE_COLONY_GAME_DEFINITION);
   assert.equal(GAME_PACK_REGISTRY.getActiveDefinition(), AUREUS_ACTIVE_GAME_DEFINITION);
   assert.equal(ACTIVE_GAME_DEFINITION, AUREUS_ACTIVE_GAME_DEFINITION);
   assert.equal(GAME_DEFINITION_REGISTRY.getActive(), AUREUS_ACTIVE_GAME_DEFINITION);
 });
 
 test('game pack registry can switch packs without changing definition consumers', () => {
-  const registry = createGamePackRegistry([AUREUS_GAME_PACK]);
+  const registry = createGamePackRegistry([AUREUS_GAME_PACK, SAMPLE_COLONY_GAME_PACK]);
 
   assert.equal(registry.has('aureus.eco-dominion'), true);
+  assert.equal(registry.has('sample.micro-colony'), true);
   assert.equal(registry.getActive()?.id, 'aureus.eco-dominion');
   assert.equal(registry.getActiveDefinition()?.id, 'aureus.eco-dominion');
   assert.equal(registry.getActiveDefinitionSummary()?.title, 'Aureus: Eco Dominion');
+  assert.equal(registry.setActive('sample.micro-colony'), SAMPLE_COLONY_GAME_PACK);
+  assert.equal(registry.getActiveDefinition()?.id, 'sample.micro-colony');
+  assert.equal(registry.getActiveSummary()?.definition.actionCount, 1);
   assert.throws(() => registry.setActive('missing.pack'), /Unknown game pack/);
   assert.throws(
     () => defineGamePack({ ...AUREUS_GAME_PACK, id: 'mismatched.pack' }),
@@ -77,11 +98,16 @@ test('game pack registry can switch packs without changing definition consumers'
 test('active game definition module now exposes pack-first wiring', () => {
   const activeGameDefinition = source('game-definitions/activeGameDefinition.ts');
   const aureusGamePack = source('game-definitions/aureusGamePack.ts');
+  const sampleColony = source('game-definitions/sampleColony.ts');
+  const sampleColonyGamePack = source('game-definitions/sampleColonyGamePack.ts');
 
   assert.match(activeGameDefinition, /createGamePackRegistry/);
+  assert.match(activeGameDefinition, /export const GAME_PACKS = \[AUREUS_GAME_PACK, SAMPLE_COLONY_GAME_PACK\] as const/);
   assert.match(activeGameDefinition, /export const GAME_PACK_REGISTRY/);
   assert.match(activeGameDefinition, /export function getActiveGamePack/);
-  assert.match(activeGameDefinition, /ACTIVE_GAME_PACK\.definition/);
+  assert.match(activeGameDefinition, /GAME_PACKS\.map\(\(pack\) => pack\.definition\)/);
   assert.match(aureusGamePack, /export const AUREUS_GAME_PACK = defineGamePack/);
   assert.match(aureusGamePack, /worldModule: 'game\/AureusWorld'/);
+  assert.match(sampleColony, /export const SAMPLE_COLONY_GAME_DEFINITION = defineGameDefinition/);
+  assert.match(sampleColonyGamePack, /export const SAMPLE_COLONY_GAME_PACK = defineGamePack/);
 });
