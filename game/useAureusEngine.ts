@@ -13,10 +13,10 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { WorldHost, Runtime } from '../engine';
 import { RuntimeQualityGovernor, ThreeRenderAdapter, getRecommendedRenderQuality } from '../engine/render';
 import { DebugHud } from '../engine/tools';
+import { GAME_DEFINITION_REGISTRY } from '../game-definitions/activeGameDefinition';
 import { AureusWorld, AureusWorldConfig } from './AureusWorld';
 import { GameState, SfxType } from '../types';
 import { ChunkStore } from '../engine/space/ChunkStore';
-import { selectGamePackRuntime } from './gamePackRuntime';
 import {
     claimCompletedGoal,
     enqueueWorldCommand,
@@ -120,9 +120,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
             return;
         }
 
-        const gamePackRuntime = selectGamePackRuntime();
         console.log('[useAureusEngine] Container ready, starting initialization...');
-        console.log(`[useAureusEngine] Runtime game pack: ${gamePackRuntime.runtimePack.id}`);
         let cancelled = false;
 
         const initializeEngine = async () => {
@@ -149,7 +147,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 console.log('[useAureusEngine] Creating AureusWorld...');
 
                 const worldInstance = new AureusWorld(render);
-                (worldInstance as any).stateManager?.setActiveGameDefinitionProvider?.(gamePackRuntime.definitionRegistry);
+                (worldInstance as any).stateManager?.setActiveGameDefinitionProvider?.(GAME_DEFINITION_REGISTRY);
 
                 if (cancelled) return;
                 await stageDelay();
