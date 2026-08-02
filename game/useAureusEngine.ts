@@ -8,15 +8,15 @@
  * - Provides action methods for UI interaction
  */
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 
 import { WorldHost, Runtime } from '../engine';
 import { RuntimeQualityGovernor, ThreeRenderAdapter, getRecommendedRenderQuality } from '../engine/render';
 import { DebugHud } from '../engine/tools';
-import { GAME_DEFINITION_REGISTRY } from '../game-definitions/activeGameDefinition';
 import { AureusWorld, AureusWorldConfig } from './AureusWorld';
 import { GameState, SfxType } from '../types';
 import { ChunkStore } from '../engine/space/ChunkStore';
+import { selectGamePackRuntime, type GamePackRuntimeSelection } from './gamePackRuntime';
 import {
     claimCompletedGoal,
     enqueueWorldCommand,
@@ -39,6 +39,9 @@ export interface UseAureusEngineOptions {
     /** Container element for the renderer */
     container: HTMLElement | null;
 
+    /** Optional game pack id to boot when its runtime is supported */
+    gamePackId?: string;
+
     /** Callbacks for external game interactions (optional, for compatibility) */
     onTileClick?: (x: number, z: number, isTouch?: boolean) => void;
     onTileRightClick?: (x: number, z: number, isTouch?: boolean) => void;
@@ -51,6 +54,9 @@ export interface UseAureusEngineOptions {
 }
 
 export interface AureusEngineHandle {
+    /** The selected game-pack runtime route */
+    gamePackRuntime: GamePackRuntimeSelection;
+
     /** The Aureus game world */
     world: AureusWorld | null;
 
@@ -86,6 +92,7 @@ export interface AureusEngineHandle {
 export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHandle {
     const {
         container,
+        gamePackId,
         onTileClick,
         onTileRightClick,
         onAgentClick,
@@ -94,6 +101,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
         paused = false,
     } = options;
 
+    const gamePackRuntime = useMemo(() => selectGamePackRuntime(gamePackId), [gamePackId]);
     const [world, setWorld] = useState<AureusWorld | null>(null);
     const [runtime, setRuntime] = useState<Runtime | null>(null);
     const [debugHud, setDebugHud] = useState<DebugHud | null>(null);
@@ -121,6 +129,10 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
         }
 
         console.log('[useAureusEngine] Container ready, starting initialization...');
+        console.log(`[useAureusEngine] Requested game pack: ${gamePackRuntime.requestedPack.id}`);
+        if (gamePackRuntime.status === 'fallback') {
+            console.warn(`[useAureusEngine] Falling back to runtime pack ${gamePackRuntime.runtimePack.id}: ${gamePackRuntime.fallbackReason}`);
+        }
         let cancelled = false;
 
         const initializeEngine = async () => {
@@ -144,10 +156,10 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 await stageDelay();
 
                 setLoading({ stage: 'Creating game world...', percent: 20 });
-                console.log('[useAureusEngine] Creating AureusWorld...');
+                console.log(`[useAureusEngine] Creating world for runtime pack ${gamePackRuntime.runtimePack.id}...`);
 
                 const worldInstance = new AureusWorld(render);
-                (worldInstance as any).stateManager?.setActiveGameDefinitionProvider?.(GAME_DEFINITION_REGISTRY);
+                (worldInstance as any).stateManager?.setActiveGameDefinitionProvider?.(gamePackRuntime.definitionRegistry);
 
                 if (cancelled) return;
                 await stageDelay();
@@ -303,7 +315,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
             setRuntime(null);
             setState(null);
         };
-    }, [container]);
+    }, [container, gamePackRuntime]);
 
     useEffect(() => {
         if (world) {
@@ -312,6 +324,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
     }, [world, paused]);
 
     return {
+        gamePackRuntime,
         world,
         runtime,
         debugHud,
