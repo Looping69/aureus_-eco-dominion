@@ -12,8 +12,10 @@ import {
   GAME_DEFINITION_REGISTRY,
   GAME_PACK_REGISTRY,
   GAME_PACKS,
+  canBootRegisteredGamePack,
   getActiveGamePack,
   getActiveGamePackSummary,
+  getGamePackRuntimeDebugSummaries,
 } from '../game-definitions/activeGameDefinition.ts';
 import { AUREUS_ACTIVE_GAME_DEFINITION, AUREUS_GAME_PACK } from '../game-definitions/aureusGamePack.ts';
 import { SAMPLE_COLONY_GAME_DEFINITION } from '../game-definitions/sampleColony.ts';
@@ -131,6 +133,35 @@ test('runtime selector is isolated from the stable Aureus hook boot path', () =>
   assert.doesNotMatch(hook, /selectGamePackRuntime/);
 });
 
+test('active definition module exposes DebugMenu game pack runtime summaries', () => {
+  assert.equal(canBootRegisteredGamePack('aureus.eco-dominion'), true);
+  assert.equal(canBootRegisteredGamePack('sample.micro-colony'), false);
+  assert.equal(canBootRegisteredGamePack('missing.pack'), false);
+
+  const summaries = getGamePackRuntimeDebugSummaries();
+  assert.equal(summaries.length, 2);
+  assert.deepEqual(
+    summaries.map((pack) => [pack.id, pack.runtimeStatus, pack.fallbackPackId ?? null]),
+    [
+      ['aureus.eco-dominion', 'active', null],
+      ['sample.micro-colony', 'definition-only', 'aureus.eco-dominion'],
+    ],
+  );
+  assert.equal(summaries[0].runtimeWorldModule, 'game/AureusWorld');
+  assert.equal(summaries[1].runtimeWorldModule, 'game-definitions/sampleColonyRuntime');
+});
+
+test('DebugMenu surfaces registered game pack runtime status', () => {
+  const debugMenu = source('components/DebugMenu.tsx');
+
+  assert.match(debugMenu, /getGamePackRuntimeDebugSummaries/);
+  assert.match(debugMenu, /gamePackRuntimeSummaries\.map/);
+  assert.match(debugMenu, /pack\.runtimeStatus/);
+  assert.match(debugMenu, /pack\.runtimeWorldModule/);
+  assert.match(debugMenu, /pack\.fallbackPackId/);
+  assert.match(debugMenu, /definition-only/);
+});
+
 test('active game definition module now exposes pack-first wiring', () => {
   const activeGameDefinition = source('game-definitions/activeGameDefinition.ts');
   const aureusGamePack = source('game-definitions/aureusGamePack.ts');
@@ -142,6 +173,7 @@ test('active game definition module now exposes pack-first wiring', () => {
   assert.match(activeGameDefinition, /export const GAME_PACK_REGISTRY/);
   assert.match(activeGameDefinition, /export function getActiveGamePack/);
   assert.match(activeGameDefinition, /GAME_PACKS\.map\(\(pack\) => pack\.definition\)/);
+  assert.match(activeGameDefinition, /export function getGamePackRuntimeDebugSummaries/);
   assert.match(aureusGamePack, /export const AUREUS_GAME_PACK = defineGamePack/);
   assert.match(aureusGamePack, /worldModule: 'game\/AureusWorld'/);
   assert.match(sampleColony, /export const SAMPLE_COLONY_GAME_DEFINITION = defineGameDefinition/);
