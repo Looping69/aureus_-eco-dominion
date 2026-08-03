@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Cpu, Database, Box, Users, Layers, Zap, X, Monitor, ToggleLeft, ToggleRight, Unlock, Eye, EyeOff, Image, FileCode, Hash } from 'lucide-react';
 import type { GameState, Action } from '../types';
-import { getActiveGameDefinitionSummary } from '../game-definitions/activeGameDefinition';
+import { getActiveGameDefinitionSummary, getGamePackRuntimeDebugSummaries } from '../game-definitions/activeGameDefinition';
 import { CommandSchemaForm } from './CommandSchemaForm';
 
 interface DebugMenuProps {
@@ -23,6 +23,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
   const [frameTime, setFrameTime] = useState(0);
   const fogRemoved = Boolean((state as GameState & { fogOfWarDisabled?: boolean }).fogOfWarDisabled);
   const activeGameDefinitionSummary = getActiveGameDefinitionSummary();
+  const gamePackRuntimeSummaries = getGamePackRuntimeDebugSummaries();
 
   const frameCountRef = useRef(0);
   const lastTimeRef = useRef(performance.now());
@@ -156,6 +157,31 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({ getDebugStats, state, onCl
               </div>
               <div className="mt-1 px-1 text-[8px] text-slate-500 truncate" title={activeGameDefinitionSummary.genreTags.join(' / ')}>
                 {activeGameDefinitionSummary.genreTags.join(' / ')}
+              </div>
+              <div className="mt-2 space-y-1">
+                {gamePackRuntimeSummaries.map((pack) => (
+                  <div
+                    key={pack.id}
+                    className="rounded-[2px] border border-slate-800 bg-slate-950/45 px-2 py-1.5"
+                    title={`${pack.title} | ${pack.runtimeWorldModule}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[9px] font-mono font-bold text-slate-300 truncate">{pack.title}</span>
+                      <span className={`shrink-0 text-[7px] uppercase font-black tracking-wider ${pack.runtimeStatus === 'active' ? 'text-emerald-400' : pack.bootable ? 'text-cyan-400' : 'text-amber-400'}`}>
+                        {pack.runtimeStatus}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex items-center justify-between gap-2 text-[8px] font-mono text-slate-500">
+                      <span className="truncate">{pack.runtimeWorldModule}</span>
+                      <span className="shrink-0">{pack.actionCount} cmd</span>
+                    </div>
+                    {pack.fallbackPackId && (
+                      <div className="mt-0.5 text-[8px] font-mono text-slate-500 truncate">
+                        fallback: {pack.fallbackPackId}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
               <CommandSchemaForm dispatch={dispatch} />
             </div>
