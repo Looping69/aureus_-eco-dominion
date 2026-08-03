@@ -159,7 +159,7 @@ test('DebugMenu surfaces registered game pack runtime status', () => {
   assert.match(debugMenu, /pack\.runtimeStatus/);
   assert.match(debugMenu, /pack\.runtimeWorldModule/);
   assert.match(debugMenu, /pack\.fallbackPackId/);
-  assert.match(debugMenu, /definition-only/);
+  assert.match(debugMenu, /fallback: \{pack\.fallbackPackId\}/);
 });
 
 test('active game definition module now exposes pack-first wiring', () => {
