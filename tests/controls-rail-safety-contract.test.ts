@@ -1,0 +1,39 @@
+import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+const controls = readFileSync('components/Controls.tsx', 'utf8');
+
+test('controls rail keeps stable command anchors before collapse redesign', () => {
+    assert.doesNotMatch(controls, /useState/);
+    assert.doesNotMatch(controls, /ChevronDown/);
+    assert.doesNotMatch(controls, /commandRailCollapsed/);
+    assert.doesNotMatch(controls, /command-rail-actions/);
+    assert.doesNotMatch(controls, /peer-checked/);
+
+    assert.match(controls, /setSidebarOpen\('OPS'\)/);
+    assert.match(controls, /setSidebarOpen\('SHOP'\)/);
+    assert.ok(controls.indexOf("setSidebarOpen('OPS')") < controls.indexOf("setSidebarOpen('SHOP')"));
+    assert.match(controls, /highlightOps \? 'animate-bounce border-emerald-400 z-50' : ''/);
+    assert.match(controls, /highlightBuild \? 'highlight-pulse z-50 ring-4 ring-emerald-400' : ''/);
+
+    assert.match(controls, /<div className="flex gap-3 pointer-events-auto items-end pb-1">/);
+    assert.match(controls, /dispatch\(\{ type: 'TOGGLE_DEBUG' \}\)/);
+    assert.match(controls, /dispatch\(\{ type: 'UPDATE_LOGISTICS', payload: \{ overlayMode: nextOverlayMode \} \}\)/);
+    assert.match(controls, /toggleWaterView\(\)/);
+    assert.match(controls, /toggleAudio\(\)/);
+    assert.match(controls, /href="\/design-studio"/);
+    assert.match(controls, /setSidebarOpen\('TRADE'\)/);
+    assert.match(controls, /dispatch\(\{ type: 'SELECT_ALL_COLONY_AGENTS' \}\)/);
+    assert.match(controls, /dispatch\(\{ type: 'ENTER_FPS', payload: selectedAgentId \}\)/);
+    assert.match(controls, /onToggleView\(\)/);
+});
+
+test('controls layer tools preserve underground command behavior', () => {
+    assert.match(controls, /const canUseLayerTools = activeView === 'SURFACE' && \(undergroundUnlocked \|\| debugMode\);/);
+    assert.match(controls, /dispatch\(\{ type: 'SET_LAYERED_ACTIVE_Y', payload: lowerLayer \}\)/);
+    assert.match(controls, /setLayerTool\('DIG'\)/);
+    assert.match(controls, /setLayerTool\('DUMP_RUBBLE'\)/);
+    assert.match(controls, /setLayerTool\('FILL_RUBBLE'\)/);
+    assert.match(controls, /dispatch\(\{ type: 'SET_LAYERED_ACTIVE_Y', payload: upperLayer \}\)/);
+});
