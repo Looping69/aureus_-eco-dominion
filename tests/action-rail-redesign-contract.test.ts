@@ -33,15 +33,15 @@ test('Controls keeps Ops and Build as persistent action rail anchors', () => {
 test('Controls center command rail is collapsible with a persistent summary', () => {
   const controls = source('components/Controls.tsx');
 
-  assert.match(controls, /import React, \{ useState \} from 'react'/);
   assert.match(controls, /ChevronDown/);
-  assert.match(controls, /const \[commandRailCollapsed, setCommandRailCollapsed\] = useState\(false\)/);
-  assert.match(controls, /const commandRailActions = \(/);
-  assert.match(controls, /aria-expanded=\{!commandRailCollapsed\}/);
-  assert.match(controls, /aria-controls="command-rail-actions"/);
+  assert.match(controls, /id="command-rail-toggle"/);
+  assert.match(controls, /type="checkbox"/);
+  assert.match(controls, /defaultChecked/);
+  assert.match(controls, /className="peer sr-only"/);
+  assert.match(controls, /htmlFor="command-rail-toggle"/);
+  assert.match(controls, /role="button"/);
   assert.match(controls, /id="command-rail-actions"/);
-  assert.match(controls, /setCommandRailCollapsed\(value => !value\)/);
-  assert.match(controls, /title=\{commandRailCollapsed \? 'Expand command rail' : 'Collapse command rail'\}/);
+  assert.match(controls, /title="Toggle command rail"/);
 
   assertInOrder(controls, [
     'const modeLabel',
@@ -53,10 +53,11 @@ test('Controls center command rail is collapsible with a persistent summary', ()
   ]);
 });
 
-test('Controls command rail uses subtle collapse motion instead of abrupt removal', () => {
+test('Controls command rail uses subtle CSS-only collapse motion', () => {
   const controls = source('components/Controls.tsx');
 
   assert.match(controls, /transition-\[max-height,opacity,transform\]/);
-  assert.match(controls, /commandRailCollapsed \? '-rotate-90' : 'rotate-0'/);
-  assert.match(controls, /commandRailCollapsed \? 'pointer-events-none max-h-0 translate-y-1 opacity-0' : 'max-h-\[9rem\] translate-y-0 opacity-100'/);
+  assert.match(controls, /-rotate-90 text-slate-500 transition-transform duration-300 ease-out peer-checked:rotate-0/);
+  assert.match(controls, /max-h-0 translate-y-1 overflow-hidden opacity-0/);
+  assert.match(controls, /peer-checked:max-h-\[9rem\] peer-checked:translate-y-0 peer-checked:opacity-100/);
 });
