@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX, ChevronDown } from 'lucide-react';
 import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode, SfxType } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
@@ -38,7 +38,6 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     debugMode, interactionMode, undergroundUnlocked, activeView, overlayMode, onToggleView,
     selectedAgentId, activeLayer, minLayer, maxLayer
 }) => {
-    const [commandRailCollapsed, setCommandRailCollapsed] = useState(false);
     const audioBelowSurface = activeLayer < SURFACE_LAYER || activeView === 'DUNGEON';
     const { audioEnabled, toggleAudio, playAudioSfx } = useAureusAudio({
         activeView: audioBelowSurface ? 'DUNGEON' : 'SURFACE',
@@ -95,279 +94,6 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
         playSfx('UI_CLICK');
     };
 
-    const commandRailActions = (
-        <div className="flex flex-wrap justify-center gap-2 pt-1 sm:gap-3 items-end">
-            <button
-                type="button"
-                onMouseDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    dispatch({ type: 'TOGGLE_DEBUG' });
-                    playSfx('UI_CLICK');
-                }}
-                className={`
-                    w-10 h-10 rounded-[4px] flex items-center justify-center transition-all
-                    border-2 border-b-[4px] 
-                    ${debugMode
-                        ? 'bg-emerald-600 border-emerald-900 border-b-2 translate-y-[2px]'
-                        : 'bg-slate-800 border-slate-950 hover:-translate-y-0.5'
-                    }
-                `}
-                title="System Monitor"
-            >
-                <Activity size={18} className={debugMode ? 'text-white' : 'text-slate-400'} />
-            </button>
-
-            <button
-                type="button"
-                onMouseDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    dispatch({ type: 'UPDATE_LOGISTICS', payload: { overlayMode: nextOverlayMode } });
-                    playSfx('UI_CLICK');
-                }}
-                className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-slate-800 border-slate-950 hover:-translate-y-0.5 border-2 border-b-[4px]"
-                title={`Logistics Overlay: ${overlayMode}`}
-            >
-                <Layers size={20} className={overlayMode === 'OFF' || overlayMode === 'WATER' ? 'text-slate-500' : 'text-cyan-400'} />
-            </button>
-
-            <button
-                type="button"
-                onMouseDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    toggleWaterView();
-                }}
-                className={`w-12 h-12 rounded-[4px] flex items-center justify-center transition-all border-2 border-b-[4px] ${overlayMode === 'WATER' ? 'bg-cyan-500 border-cyan-900 text-cyan-950 border-b-2 translate-y-[2px]' : 'bg-slate-800 border-slate-950 text-cyan-300 hover:-translate-y-0.5'}`}
-                title={overlayMode === 'WATER' ? 'Hide Water View' : 'Show Water View'}
-                aria-label={overlayMode === 'WATER' ? 'Hide Water View' : 'Show Water View'}
-            >
-                <Layers size={20} />
-            </button>
-
-            <button
-                type="button"
-                onMouseDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    toggleAudio();
-                    playAudioSfx(SfxType.UI_CLICK);
-                }}
-                className={`w-12 h-12 rounded-[4px] flex items-center justify-center transition-all border-2 border-b-[4px] ${audioEnabled ? 'bg-cyan-700 border-cyan-950 text-cyan-50' : 'bg-slate-800 border-slate-950 text-slate-500 hover:-translate-y-0.5'}`}
-                title={audioEnabled ? 'Mute Soundscape' : 'Start Soundscape'}
-                aria-label={audioEnabled ? 'Mute Soundscape' : 'Start Soundscape'}
-            >
-                {audioEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
-            </button>
-
-            {canUseLayerTools && (
-                <div className="flex items-center gap-1 bg-slate-950/80 border-2 border-b-[4px] border-slate-950 rounded-[4px] p-1 shadow-[4px_4px_0_rgba(0,0,0,0.25)]">
-                    <button
-                        type="button"
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            dispatch({ type: 'SET_LAYERED_ACTIVE_Y', payload: lowerLayer });
-                            playSfx('UI_CLICK');
-                        }}
-                        disabled={activeLayer <= minLayer}
-                        className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 disabled:opacity-35 disabled:hover:bg-slate-800 flex items-center justify-center text-slate-300"
-                        title="Lower subsurface layer"
-                    >
-                        <ArrowDown size={16} />
-                    </button>
-                    <button
-                        type="button"
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setLayerTool('DIG');
-                        }}
-                        className={`h-9 min-w-14 rounded-[3px] px-2 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'DIG' ? 'bg-amber-500 text-amber-950' : 'bg-slate-800 text-amber-300 hover:bg-slate-700'}`}
-                        title="Dig or clear rubble on selected subsurface layer"
-                    >
-                        <Pickaxe size={15} /> L{activeLayer}
-                    </button>
-                    <button
-                        type="button"
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setLayerTool('DUMP_RUBBLE');
-                        }}
-                        className={`h-9 min-w-12 rounded-[3px] px-2 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'DUMP_RUBBLE' ? 'bg-cyan-400 text-cyan-950' : 'bg-slate-800 text-cyan-300 hover:bg-slate-700'}`}
-                        title="Designate an open underground cell as a rubble dump"
-                    >
-                        Dump
-                    </button>
-                    <button
-                        type="button"
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setLayerTool('FILL_RUBBLE');
-                        }}
-                        className={`h-9 min-w-10 rounded-[3px] px-2 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'FILL_RUBBLE' ? 'bg-emerald-400 text-emerald-950' : 'bg-slate-800 text-emerald-300 hover:bg-slate-700'}`}
-                        title="Fill an open underground cell using stored rubble"
-                    >
-                        Fill
-                    </button>
-                    <button
-                        type="button"
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            dispatch({ type: 'SET_LAYERED_ACTIVE_Y', payload: upperLayer });
-                            playSfx('UI_CLICK');
-                        }}
-                        disabled={activeLayer >= maxLayer}
-                        className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 disabled:opacity-35 disabled:hover:bg-slate-800 flex items-center justify-center text-slate-300"
-                        title="Raise subsurface layer"
-                    >
-                        <ArrowUp size={16} />
-                    </button>
-                </div>
-            )}
-
-            <a
-                href="/design-studio"
-                onMouseDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                    event.stopPropagation();
-                    playSfx('UI_CLICK');
-                }}
-                className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-slate-800 border-slate-950 hover:-translate-y-0.5 border-2 border-b-[4px]"
-                title="Design Studio"
-            >
-                <Palette size={20} className="text-fuchsia-300" />
-            </a>
-
-            <button
-                type="button"
-                onMouseDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setSidebarOpen('TRADE');
-                    playSfx('UI_CLICK');
-                }}
-                className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-slate-800 border-slate-950 hover:-translate-y-0.5 border-2 border-b-[4px]"
-            >
-                <TrendingUp size={20} className="text-blue-400" />
-            </button>
-
-            <div className="flex items-center gap-1 bg-slate-950/80 border-2 border-b-[4px] border-slate-950 rounded-[4px] p-1 shadow-[4px_4px_0_rgba(0,0,0,0.25)]">
-                <button
-                    type="button"
-                    onMouseDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        dispatch({ type: 'SELECT_ALL_COLONY_AGENTS' });
-                        playSfx('UI_CLICK');
-                    }}
-                    className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-emerald-300"
-                    title="Select all colony agents"
-                    aria-label="Select all colony agents"
-                >
-                    <Menu size={14} /> All
-                </button>
-                {selectedAgentId && (
-                    <>
-                        <button
-                            type="button"
-                            onMouseDown={(event) => event.stopPropagation()}
-                            onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                dispatch({ type: 'COMBAT_ATTACK_TARGET' });
-                                playSfx('UI_CLICK');
-                            }}
-                            className="h-9 min-w-14 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-rose-300"
-                            title="Toggle aggression stance"
-                            aria-label="Toggle aggression stance"
-                        >
-                            <Hammer size={14} /> Aggro
-                        </button>
-                        <button
-                            type="button"
-                            onMouseDown={(event) => event.stopPropagation()}
-                            onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                dispatch({ type: 'COMBAT_HOLD_POSITION' });
-                                playSfx('UI_CLICK');
-                            }}
-                            className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-amber-300"
-                            title="Hold combat position"
-                            aria-label="Hold combat position"
-                        >
-                            <Activity size={14} /> Hold
-                        </button>
-                        <button
-                            type="button"
-                            onMouseDown={(event) => event.stopPropagation()}
-                            onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                dispatch({ type: 'COMBAT_CLEAR_ORDERS' });
-                                playSfx('UI_CLICK');
-                            }}
-                            className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-cyan-300"
-                            title="Clear combat stance"
-                            aria-label="Clear combat stance"
-                        >
-                            <X size={14} /> Auto
-                        </button>
-                    </>
-                )}
-            </div>
-
-            {selectedAgentId && (
-                <button
-                    type="button"
-                    onMouseDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        dispatch({ type: 'ENTER_FPS', payload: selectedAgentId });
-                        playSfx('UI_CLICK');
-                    }}
-                    className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-indigo-600 border-indigo-900 hover:-translate-y-0.5 border-2 border-b-[4px]"
-                    title="First Person View"
-                >
-                    <Eye size={20} className="text-white" />
-                </button>
-            )}
-
-            {undergroundUnlocked && (
-                <button
-                    type="button"
-                    onMouseDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onToggleView();
-                    }}
-                    className={`view-switch-button ${isBelowSurface ? 'is-dungeon' : 'is-surface'} w-12 h-12 !p-0`}
-                    title={isBelowSurface ? 'Return to Surface (U)' : 'Open Subsurface Cut (U)'}
-                >
-                    {isBelowSurface ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
-                </button>
-            )}
-        </div>
-    );
-
     return (
         <div className="absolute bottom-16 sm:bottom-6 left-3 right-3 sm:left-6 sm:right-6 z-[120] flex justify-between pointer-events-none gap-3 sm:gap-4">
             <button
@@ -395,33 +121,300 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
             </button>
 
             <div className="pointer-events-auto flex max-w-[calc(100vw-8.5rem)] flex-col items-center gap-1 pb-1 sm:max-w-none">
-                <button
-                    type="button"
-                    aria-expanded={!commandRailCollapsed}
-                    aria-controls="command-rail-actions"
+                <input id="command-rail-toggle" type="checkbox" defaultChecked className="peer sr-only" aria-label="Toggle command rail" />
+                <label
+                    htmlFor="command-rail-toggle"
+                    role="button"
                     onMouseDown={(event) => event.stopPropagation()}
                     onClick={(event) => {
-                        event.preventDefault();
                         event.stopPropagation();
-                        setCommandRailCollapsed(value => !value);
                         playSfx('UI_CLICK');
                     }}
-                    className="group flex h-8 max-w-full items-center gap-2 rounded-[5px] border border-slate-800 bg-slate-950/88 px-2.5 text-left shadow-[3px_3px_0_rgba(0,0,0,0.28)] backdrop-blur-md transition-colors duration-200 hover:border-slate-700 hover:bg-slate-900/92 focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
-                    title={commandRailCollapsed ? 'Expand command rail' : 'Collapse command rail'}
+                    className="group flex h-8 max-w-full cursor-pointer items-center gap-2 rounded-[5px] border border-slate-800 bg-slate-950/88 px-2.5 text-left shadow-[3px_3px_0_rgba(0,0,0,0.28)] backdrop-blur-md transition-colors duration-200 hover:border-slate-700 hover:bg-slate-900/92 focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
+                    title="Toggle command rail"
                 >
-                    <ChevronDown size={14} strokeWidth={3} className={`shrink-0 text-slate-500 transition-transform duration-300 ease-out ${commandRailCollapsed ? '-rotate-90' : 'rotate-0'}`} />
+                    <ChevronDown size={14} strokeWidth={3} className="shrink-0 -rotate-90 text-slate-500 transition-transform duration-300 ease-out peer-checked:rotate-0" />
                     <span className="shrink-0 text-[9px] font-black uppercase tracking-widest text-slate-300 font-['Rajdhani']">Command Rail</span>
                     <span className="hidden h-4 w-px bg-slate-800 sm:block" />
                     <span className="truncate font-mono text-[9px] font-bold uppercase text-cyan-300">{modeLabel}</span>
                     <span className="hidden font-mono text-[9px] font-bold uppercase text-slate-500 sm:inline">{overlayLabel}</span>
                     <span className="hidden font-mono text-[9px] font-bold uppercase text-amber-300 md:inline">{layerLabel}</span>
-                </button>
+                </label>
 
                 <div
                     id="command-rail-actions"
-                    className={`max-w-full overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out ${commandRailCollapsed ? 'pointer-events-none max-h-0 translate-y-1 opacity-0' : 'max-h-[9rem] translate-y-0 opacity-100'}`}
+                    className="max-w-full max-h-0 translate-y-1 overflow-hidden opacity-0 transition-[max-height,opacity,transform] duration-300 ease-out peer-checked:max-h-[9rem] peer-checked:translate-y-0 peer-checked:opacity-100"
                 >
-                    {commandRailActions}
+                    <div className="flex flex-wrap justify-center gap-2 pt-1 sm:gap-3 items-end">
+                        <button
+                            type="button"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                dispatch({ type: 'TOGGLE_DEBUG' });
+                                playSfx('UI_CLICK');
+                            }}
+                            className={`
+                    w-10 h-10 rounded-[4px] flex items-center justify-center transition-all
+                    border-2 border-b-[4px] 
+                    ${debugMode
+                                    ? 'bg-emerald-600 border-emerald-900 border-b-2 translate-y-[2px]'
+                                    : 'bg-slate-800 border-slate-950 hover:-translate-y-0.5'
+                                }
+                    `}
+                            title="System Monitor"
+                        >
+                            <Activity size={18} className={debugMode ? 'text-white' : 'text-slate-400'} />
+                        </button>
+
+                        <button
+                            type="button"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                dispatch({ type: 'UPDATE_LOGISTICS', payload: { overlayMode: nextOverlayMode } });
+                                playSfx('UI_CLICK');
+                            }}
+                            className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-slate-800 border-slate-950 hover:-translate-y-0.5 border-2 border-b-[4px]"
+                            title={`Logistics Overlay: ${overlayMode}`}
+                        >
+                            <Layers size={20} className={overlayMode === 'OFF' || overlayMode === 'WATER' ? 'text-slate-500' : 'text-cyan-400'} />
+                        </button>
+
+                        <button
+                            type="button"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                toggleWaterView();
+                            }}
+                            className={`w-12 h-12 rounded-[4px] flex items-center justify-center transition-all border-2 border-b-[4px] ${overlayMode === 'WATER' ? 'bg-cyan-500 border-cyan-900 text-cyan-950 border-b-2 translate-y-[2px]' : 'bg-slate-800 border-slate-950 text-cyan-300 hover:-translate-y-0.5'}`}
+                            title={overlayMode === 'WATER' ? 'Hide Water View' : 'Show Water View'}
+                            aria-label={overlayMode === 'WATER' ? 'Hide Water View' : 'Show Water View'}
+                        >
+                            <Layers size={20} />
+                        </button>
+
+                        <button
+                            type="button"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                toggleAudio();
+                                playAudioSfx(SfxType.UI_CLICK);
+                            }}
+                            className={`w-12 h-12 rounded-[4px] flex items-center justify-center transition-all border-2 border-b-[4px] ${audioEnabled ? 'bg-cyan-700 border-cyan-950 text-cyan-50' : 'bg-slate-800 border-slate-950 text-slate-500 hover:-translate-y-0.5'}`}
+                            title={audioEnabled ? 'Mute Soundscape' : 'Start Soundscape'}
+                            aria-label={audioEnabled ? 'Mute Soundscape' : 'Start Soundscape'}
+                        >
+                            {audioEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                        </button>
+
+                        {canUseLayerTools && (
+                            <div className="flex items-center gap-1 bg-slate-950/80 border-2 border-b-[4px] border-slate-950 rounded-[4px] p-1 shadow-[4px_4px_0_rgba(0,0,0,0.25)]">
+                                <button
+                                    type="button"
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        dispatch({ type: 'SET_LAYERED_ACTIVE_Y', payload: lowerLayer });
+                                        playSfx('UI_CLICK');
+                                    }}
+                                    disabled={activeLayer <= minLayer}
+                                    className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 disabled:opacity-35 disabled:hover:bg-slate-800 flex items-center justify-center text-slate-300"
+                                    title="Lower subsurface layer"
+                                >
+                                    <ArrowDown size={16} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        setLayerTool('DIG');
+                                    }}
+                                    className={`h-9 min-w-14 rounded-[3px] px-2 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'DIG' ? 'bg-amber-500 text-amber-950' : 'bg-slate-800 text-amber-300 hover:bg-slate-700'}`}
+                                    title="Dig or clear rubble on selected subsurface layer"
+                                >
+                                    <Pickaxe size={15} /> L{activeLayer}
+                                </button>
+                                <button
+                                    type="button"
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        setLayerTool('DUMP_RUBBLE');
+                                    }}
+                                    className={`h-9 min-w-12 rounded-[3px] px-2 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'DUMP_RUBBLE' ? 'bg-cyan-400 text-cyan-950' : 'bg-slate-800 text-cyan-300 hover:bg-slate-700'}`}
+                                    title="Designate an open underground cell as a rubble dump"
+                                >
+                                    Dump
+                                </button>
+                                <button
+                                    type="button"
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        setLayerTool('FILL_RUBBLE');
+                                    }}
+                                    className={`h-9 min-w-10 rounded-[3px] px-2 text-[10px] font-black font-mono uppercase transition-all ${interactionMode === 'FILL_RUBBLE' ? 'bg-emerald-400 text-emerald-950' : 'bg-slate-800 text-emerald-300 hover:bg-slate-700'}`}
+                                    title="Fill an open underground cell using stored rubble"
+                                >
+                                    Fill
+                                </button>
+                                <button
+                                    type="button"
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        dispatch({ type: 'SET_LAYERED_ACTIVE_Y', payload: upperLayer });
+                                        playSfx('UI_CLICK');
+                                    }}
+                                    disabled={activeLayer >= maxLayer}
+                                    className="w-9 h-9 rounded-[3px] bg-slate-800 hover:bg-slate-700 disabled:opacity-35 disabled:hover:bg-slate-800 flex items-center justify-center text-slate-300"
+                                    title="Raise subsurface layer"
+                                >
+                                    <ArrowUp size={16} />
+                                </button>
+                            </div>
+                        )}
+
+                        <a
+                            href="/design-studio"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                playSfx('UI_CLICK');
+                            }}
+                            className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-slate-800 border-slate-950 hover:-translate-y-0.5 border-2 border-b-[4px]"
+                            title="Design Studio"
+                        >
+                            <Palette size={20} className="text-fuchsia-300" />
+                        </a>
+
+                        <button
+                            type="button"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setSidebarOpen('TRADE');
+                                playSfx('UI_CLICK');
+                            }}
+                            className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-slate-800 border-slate-950 hover:-translate-y-0.5 border-2 border-b-[4px]"
+                        >
+                            <TrendingUp size={20} className="text-blue-400" />
+                        </button>
+
+                        <div className="flex items-center gap-1 bg-slate-950/80 border-2 border-b-[4px] border-slate-950 rounded-[4px] p-1 shadow-[4px_4px_0_rgba(0,0,0,0.25)]">
+                            <button
+                                type="button"
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    dispatch({ type: 'SELECT_ALL_COLONY_AGENTS' });
+                                    playSfx('UI_CLICK');
+                                }}
+                                className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-emerald-300"
+                                title="Select all colony agents"
+                                aria-label="Select all colony agents"
+                            >
+                                <Menu size={14} /> All
+                            </button>
+                            {selectedAgentId && (
+                                <>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(event) => event.stopPropagation()}
+                                        onClick={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            dispatch({ type: 'COMBAT_ATTACK_TARGET' });
+                                            playSfx('UI_CLICK');
+                                        }}
+                                        className="h-9 min-w-14 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-rose-300"
+                                        title="Toggle aggression stance"
+                                        aria-label="Toggle aggression stance"
+                                    >
+                                        <Hammer size={14} /> Aggro
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(event) => event.stopPropagation()}
+                                        onClick={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            dispatch({ type: 'COMBAT_HOLD_POSITION' });
+                                            playSfx('UI_CLICK');
+                                        }}
+                                        className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-amber-300"
+                                        title="Hold combat position"
+                                        aria-label="Hold combat position"
+                                    >
+                                        <Activity size={14} /> Hold
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(event) => event.stopPropagation()}
+                                        onClick={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            dispatch({ type: 'COMBAT_CLEAR_ORDERS' });
+                                            playSfx('UI_CLICK');
+                                        }}
+                                        className="h-9 min-w-12 rounded-[3px] px-2 bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 text-[10px] font-black font-mono uppercase text-cyan-300"
+                                        title="Clear combat stance"
+                                        aria-label="Clear combat stance"
+                                    >
+                                        <X size={14} /> Auto
+                                    </button>
+                                </>
+                            )}
+                        </div>
+
+                        {selectedAgentId && (
+                            <button
+                                type="button"
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    dispatch({ type: 'ENTER_FPS', payload: selectedAgentId });
+                                    playSfx('UI_CLICK');
+                                }}
+                                className="w-12 h-12 rounded-[4px] flex items-center justify-center transition-all bg-indigo-600 border-indigo-900 hover:-translate-y-0.5 border-2 border-b-[4px]"
+                                title="First Person View"
+                            >
+                                <Eye size={20} className="text-white" />
+                            </button>
+                        )}
+
+                        {undergroundUnlocked && (
+                            <button
+                                type="button"
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    onToggleView();
+                                }}
+                                className={`view-switch-button ${isBelowSurface ? 'is-dungeon' : 'is-surface'} w-12 h-12 !p-0`}
+                                title={isBelowSurface ? 'Return to Surface (U)' : 'Open Subsurface Cut (U)'}
+                            >
+                                {isBelowSurface ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
