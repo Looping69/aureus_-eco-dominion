@@ -394,32 +394,51 @@ const MarketBlock = ({ state, isExpanded, onToggle }: { state: GameState; isExpa
   );
 };
 
+const HUDCluster = ({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) => (
+  <section className={`pointer-events-none min-w-0 ${className}`} aria-label={`${label} HUD cluster`}>
+    <div className="mb-1 pl-1 text-[8px] font-black uppercase tracking-widest text-slate-400/80 font-mono">{label}</div>
+    <div className="flex flex-wrap items-start gap-2 sm:gap-2.5 pointer-events-none">
+      {children}
+    </div>
+  </section>
+);
+
 export const HUD: React.FC<HUDProps> = React.memo(({ resources, financials, population, currentEra, state, activeBlock, onToggleBlock }) => {
   const toggleBlock = (id: string, isOpen: boolean) => {
     onToggleBlock(isOpen ? id : null);
   };
 
   return (
-    <div className="absolute top-0 left-0 right-0 p-2 sm:p-3 pt-3 sm:pt-4 z-10 flex flex-wrap gap-2 sm:gap-3 pointer-events-none items-start justify-start sm:justify-center px-3 sm:px-4">
-      <EraBlock currentEra={currentEra} state={state} isExpanded={activeBlock === 'era'} onToggle={(open) => toggleBlock('era', open)} />
-      <ResourceBlock icon={Coins} val={resources.agt} label="AGT" borderClass="border-amber-600/80" iconBgClass="bg-amber-500" sub={financials.net} isExpanded={activeBlock === 'agt'} onToggle={(open: boolean) => toggleBlock('agt', open)} />
-      <ResourceBlock icon={Pickaxe} val={resources.minerals} label="Ore" borderClass="border-slate-500/80" iconBgClass="bg-slate-400" isExpanded={activeBlock === 'minerals'} onToggle={(open: boolean) => toggleBlock('minerals', open)} />
-      <ResourceBlock icon={Leaf} val={resources.eco} label="Eco" borderClass="border-emerald-600/80" iconBgClass="bg-emerald-500" isExpanded={activeBlock === 'eco'} onToggle={(open: boolean) => toggleBlock('eco', open)} />
-      <ResourceBlock icon={Heart} val={resources.trust} label="Trust" borderClass="border-rose-600/80" iconBgClass="bg-rose-500" isExpanded={activeBlock === 'trust'} onToggle={(open: boolean) => toggleBlock('trust', open)} />
-      <ResourceBlock icon={Users} val={population} label="Pop" borderClass="border-blue-600/80" iconBgClass="bg-blue-500" isExpanded={activeBlock === 'pop'} onToggle={(open: boolean) => toggleBlock('pop', open)} />
-      <ResourceBlock icon={Trees} val={resources.wood} label="Wood" borderClass="border-amber-700/80" iconBgClass="bg-amber-900" isExpanded={activeBlock === 'wood'} onToggle={(open: boolean) => toggleBlock('wood', open)} />
-      <ResourceBlock icon={Database} val={resources.stone} label="Stone" borderClass="border-slate-400/80" iconBgClass="bg-slate-600" isExpanded={activeBlock === 'stone'} onToggle={(open: boolean) => toggleBlock('stone', open)} />
-      <ResourceBlock icon={Gem} val={resources.gems} label="Thundergems" borderClass="border-purple-600/80" iconBgClass="bg-purple-500" textColor="text-purple-300" isExpanded={activeBlock === 'gems'} onToggle={(open: boolean) => toggleBlock('gems', open)} />
-      <ResourceBlock icon={Database} val={state.industry?.refinedMaterials || 0} label="Refined" borderClass="border-sky-600/80" iconBgClass="bg-sky-400" textColor="text-sky-100" isExpanded={activeBlock === 'refined'} onToggle={(open: boolean) => toggleBlock('refined', open)} />
-      <ResourceBlock icon={Gem} val={state.industry?.alloys || 0} label="Alloys" borderClass="border-violet-600/80" iconBgClass="bg-violet-400" textColor="text-violet-100" isExpanded={activeBlock === 'alloys'} onToggle={(open: boolean) => toggleBlock('alloys', open)} />
-      <ResourceBlock icon={Hammer} val={state.industry?.machineParts || 0} label="Parts" borderClass="border-orange-600/80" iconBgClass="bg-orange-400" textColor="text-orange-100" isExpanded={activeBlock === 'parts'} onToggle={(open: boolean) => toggleBlock('parts', open)} />
-      <ResourceBlock icon={Truck} val={state.industry?.automationKits || 0} label="Kits" borderClass="border-teal-600/80" iconBgClass="bg-teal-400" textColor="text-teal-100" isExpanded={activeBlock === 'kits'} onToggle={(open: boolean) => toggleBlock('kits', open)} />
-      <ResourceBlock icon={Hammer} val={state.industry?.automatedChains || 0} label="Chains" borderClass="border-lime-600/80" iconBgClass="bg-lime-400" textColor="text-lime-100" isExpanded={activeBlock === 'chains'} onToggle={(open: boolean) => toggleBlock('chains', open)} />
-      <ResourceBlock icon={Zap} val={state.industry?.gridLoad || 0} label="Grid" borderClass="border-yellow-500/80" iconBgClass="bg-yellow-400" textColor="text-yellow-100" sub={state.powerGrid?.strandedDemand ? -Math.floor(state.powerGrid.strandedDemand) : undefined} isExpanded={activeBlock === 'grid'} onToggle={(open: boolean) => toggleBlock('grid', open)} />
-      <ResourceBlock icon={Truck} val={state.factory?.throughput || 0} label="Flow" borderClass="border-cyan-600/80" iconBgClass="bg-cyan-500" textColor="text-cyan-200" isExpanded={activeBlock === 'flow'} onToggle={(open: boolean) => toggleBlock('flow', open)} />
-      <ResourceBlock icon={Truck} val={state.factory?.regionalThroughput || 0} label="Rail" borderClass="border-sky-700/80" iconBgClass="bg-sky-500" textColor="text-sky-100" isExpanded={activeBlock === 'rail'} onToggle={(open: boolean) => toggleBlock('rail', open)} />
-      <ResourceBlock icon={Zap} val={(state.factory?.droneCharge || 0) * 100} label="Charge" borderClass="border-emerald-700/80" iconBgClass="bg-emerald-400" textColor="text-emerald-100" sub={state.factory?.droneUpkeep ? -Math.floor(state.factory.droneUpkeep) : undefined} isExpanded={activeBlock === 'charge'} onToggle={(open: boolean) => toggleBlock('charge', open)} />
-      <MarketBlock state={state} isExpanded={activeBlock === 'market'} onToggle={(open) => toggleBlock('market', open)} />
+    <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none px-2 pt-3 sm:px-4 sm:pt-4">
+      <div className="mx-auto flex w-full max-w-[88rem] flex-col gap-2 sm:flex-row sm:items-start sm:justify-center sm:gap-4">
+        <HUDCluster label="Core" className="sm:max-w-[26rem]">
+          <EraBlock currentEra={currentEra} state={state} isExpanded={activeBlock === 'era'} onToggle={(open) => toggleBlock('era', open)} />
+          <ResourceBlock icon={Coins} val={resources.agt} label="AGT" borderClass="border-amber-600/80" iconBgClass="bg-amber-500" sub={financials.net} isExpanded={activeBlock === 'agt'} onToggle={(open: boolean) => toggleBlock('agt', open)} />
+          <ResourceBlock icon={Leaf} val={resources.eco} label="Eco" borderClass="border-emerald-600/80" iconBgClass="bg-emerald-500" isExpanded={activeBlock === 'eco'} onToggle={(open: boolean) => toggleBlock('eco', open)} />
+          <ResourceBlock icon={Heart} val={resources.trust} label="Trust" borderClass="border-rose-600/80" iconBgClass="bg-rose-500" isExpanded={activeBlock === 'trust'} onToggle={(open: boolean) => toggleBlock('trust', open)} />
+          <ResourceBlock icon={Users} val={population} label="Pop" borderClass="border-blue-600/80" iconBgClass="bg-blue-500" isExpanded={activeBlock === 'pop'} onToggle={(open: boolean) => toggleBlock('pop', open)} />
+        </HUDCluster>
+
+        <HUDCluster label="Materials" className="sm:max-w-[19rem]">
+          <ResourceBlock icon={Pickaxe} val={resources.minerals} label="Ore" borderClass="border-slate-500/80" iconBgClass="bg-slate-400" isExpanded={activeBlock === 'minerals'} onToggle={(open: boolean) => toggleBlock('minerals', open)} />
+          <ResourceBlock icon={Trees} val={resources.wood} label="Wood" borderClass="border-amber-700/80" iconBgClass="bg-amber-900" isExpanded={activeBlock === 'wood'} onToggle={(open: boolean) => toggleBlock('wood', open)} />
+          <ResourceBlock icon={Database} val={resources.stone} label="Stone" borderClass="border-slate-400/80" iconBgClass="bg-slate-600" isExpanded={activeBlock === 'stone'} onToggle={(open: boolean) => toggleBlock('stone', open)} />
+          <ResourceBlock icon={Gem} val={resources.gems} label="Thundergems" borderClass="border-purple-600/80" iconBgClass="bg-purple-500" textColor="text-purple-300" isExpanded={activeBlock === 'gems'} onToggle={(open: boolean) => toggleBlock('gems', open)} />
+        </HUDCluster>
+
+        <HUDCluster label="Industry / Logistics" className="sm:max-w-[43rem]">
+          <ResourceBlock icon={Database} val={state.industry?.refinedMaterials || 0} label="Refined" borderClass="border-sky-600/80" iconBgClass="bg-sky-400" textColor="text-sky-100" isExpanded={activeBlock === 'refined'} onToggle={(open: boolean) => toggleBlock('refined', open)} />
+          <ResourceBlock icon={Gem} val={state.industry?.alloys || 0} label="Alloys" borderClass="border-violet-600/80" iconBgClass="bg-violet-400" textColor="text-violet-100" isExpanded={activeBlock === 'alloys'} onToggle={(open: boolean) => toggleBlock('alloys', open)} />
+          <ResourceBlock icon={Hammer} val={state.industry?.machineParts || 0} label="Parts" borderClass="border-orange-600/80" iconBgClass="bg-orange-400" textColor="text-orange-100" isExpanded={activeBlock === 'parts'} onToggle={(open: boolean) => toggleBlock('parts', open)} />
+          <ResourceBlock icon={Truck} val={state.industry?.automationKits || 0} label="Kits" borderClass="border-teal-600/80" iconBgClass="bg-teal-400" textColor="text-teal-100" isExpanded={activeBlock === 'kits'} onToggle={(open: boolean) => toggleBlock('kits', open)} />
+          <ResourceBlock icon={Hammer} val={state.industry?.automatedChains || 0} label="Chains" borderClass="border-lime-600/80" iconBgClass="bg-lime-400" textColor="text-lime-100" isExpanded={activeBlock === 'chains'} onToggle={(open: boolean) => toggleBlock('chains', open)} />
+          <ResourceBlock icon={Zap} val={state.industry?.gridLoad || 0} label="Grid" borderClass="border-yellow-500/80" iconBgClass="bg-yellow-400" textColor="text-yellow-100" sub={state.powerGrid?.strandedDemand ? -Math.floor(state.powerGrid.strandedDemand) : undefined} isExpanded={activeBlock === 'grid'} onToggle={(open: boolean) => toggleBlock('grid', open)} />
+          <ResourceBlock icon={Truck} val={state.factory?.throughput || 0} label="Flow" borderClass="border-cyan-600/80" iconBgClass="bg-cyan-500" textColor="text-cyan-200" isExpanded={activeBlock === 'flow'} onToggle={(open: boolean) => toggleBlock('flow', open)} />
+          <ResourceBlock icon={Truck} val={state.factory?.regionalThroughput || 0} label="Rail" borderClass="border-sky-700/80" iconBgClass="bg-sky-500" textColor="text-sky-100" isExpanded={activeBlock === 'rail'} onToggle={(open: boolean) => toggleBlock('rail', open)} />
+          <ResourceBlock icon={Zap} val={(state.factory?.droneCharge || 0) * 100} label="Charge" borderClass="border-emerald-700/80" iconBgClass="bg-emerald-400" textColor="text-emerald-100" sub={state.factory?.droneUpkeep ? -Math.floor(state.factory.droneUpkeep) : undefined} isExpanded={activeBlock === 'charge'} onToggle={(open: boolean) => toggleBlock('charge', open)} />
+          <MarketBlock state={state} isExpanded={activeBlock === 'market'} onToggle={(open) => toggleBlock('market', open)} />
+        </HUDCluster>
+      </div>
     </div>
   );
 });
