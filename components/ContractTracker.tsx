@@ -72,6 +72,13 @@ const queueContractCommand = (world: any, type: 'ACCEPT_CONTRACT' | 'DELIVER_CON
     return true;
 };
 
+const ContractStatusPill = ({ label, value, tone = 'text-slate-200' }: { label: string; value: number | string; tone?: string }) => (
+    <span className="inline-flex items-center gap-1 rounded-[3px] border border-slate-800 bg-slate-950/75 px-1.5 py-0.5 font-mono text-[9px] leading-none text-slate-500">
+        <span>{label}</span>
+        <span className={`font-black ${tone}`}>{value}</span>
+    </span>
+);
+
 export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, playSfx }) => {
     const [, forceRefresh] = React.useState(0);
     const isCollapsed = useContractPanelStore((store) => store.isCollapsed);
@@ -91,6 +98,8 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
 
     const readyCount = contracts.filter(contract => getContractLifecycleState(contract.status) === 'readyToDeliver').length;
     const acceptedCount = contracts.filter(contract => getContractLifecycleState(contract.status) === 'accepted').length;
+    const availableCount = contracts.filter(contract => getContractLifecycleState(contract.status) === 'available').length;
+    const urgentCount = contracts.filter(contract => contract.timeLeft < 30 && ['accepted', 'readyToDeliver'].includes(getContractLifecycleState(contract.status))).length;
 
     React.useEffect(() => {
         if (isCollapsed && readyCount > 0) {
@@ -110,22 +119,26 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
         playSfx(SfxType.UI_CLICK);
     };
 
-    if (isCollapsed) {
-        const collapsedTitle = readyCount > 0
-            ? `${readyCount} contract${readyCount === 1 ? '' : 's'} ready to deliver`
-            : acceptedCount > 0
-                ? `${acceptedCount} contract${acceptedCount === 1 ? '' : 's'} in progress`
-                : `${contracts.length} contract${contracts.length === 1 ? '' : 's'} available`;
+    const collapsedTitle = readyCount > 0
+        ? `${readyCount} contract${readyCount === 1 ? '' : 's'} ready to deliver`
+        : acceptedCount > 0
+            ? `${acceptedCount} contract${acceptedCount === 1 ? '' : 's'} in progress`
+            : `${contracts.length} contract${contracts.length === 1 ? '' : 's'} available`;
 
+    if (isCollapsed) {
         return (
             <button
                 onClick={handleToggle}
                 aria-label={`Open contracts: ${collapsedTitle}`}
                 title={collapsedTitle}
-                className={`relative pointer-events-auto w-11 h-11 rounded-[6px] border shadow-[3px_3px_0_rgba(0,0,0,0.35)] backdrop-blur-md flex items-center justify-center transition-colors ${readyCount > 0 ? 'bg-emerald-950/90 border-emerald-700 hover:bg-emerald-900/90' : 'bg-slate-950/88 border-slate-800 hover:bg-slate-900/90'}`}
+                className={`relative pointer-events-auto min-h-11 max-w-[calc(100vw-1rem)] rounded-[6px] border px-3 py-2 shadow-[3px_3px_0_rgba(0,0,0,0.35)] backdrop-blur-md flex items-center gap-2 transition-[background-color,border-color,transform] duration-200 hover:-translate-y-0.5 ${readyCount > 0 ? 'bg-emerald-950/90 border-emerald-700 hover:bg-emerald-900/90' : 'bg-slate-950/88 border-slate-800 hover:bg-slate-900/90'}`}
             >
-                <Briefcase size={19} className={readyCount > 0 ? 'text-emerald-300' : 'text-amber-300'} />
-                <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-slate-100 text-slate-950 border border-slate-950 text-[10px] font-black leading-5 text-center">
+                <Briefcase size={18} className={readyCount > 0 ? 'text-emerald-300' : 'text-amber-300'} />
+                <div className="min-w-0 text-left">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-white">Contracts</div>
+                    <div className="text-[9px] font-mono uppercase text-slate-500 truncate">{collapsedTitle}</div>
+                </div>
+                <span className="ml-1 min-w-5 h-5 px-1 rounded-full bg-slate-100 text-slate-950 border border-slate-950 text-[10px] font-black leading-5 text-center">
                     {readyCount > 0 ? readyCount : contracts.length}
                 </span>
                 {(hasAttention || readyCount > 0) && (
@@ -136,10 +149,12 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
     }
 
     return (
-        <div className="w-[21rem] max-w-[calc(100vw-1rem)] pointer-events-auto">
+        <div className="w-[22rem] max-w-[calc(100vw-1rem)] pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200">
             <div className="bg-slate-950/88 backdrop-blur-md border border-slate-800 shadow-[4px_4px_0_rgba(0,0,0,0.35)] rounded-[6px] overflow-hidden">
                 <button
                     onClick={handleToggle}
+                    aria-expanded={!isCollapsed}
+                    aria-controls="contract-docket-list"
                     className="w-full flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-800 bg-slate-900/80 hover:bg-slate-800/80 transition-colors text-left"
                 >
                     <div className="flex items-center gap-2 min-w-0">
@@ -156,13 +171,22 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        <ContractStatusPill label="Ready" value={readyCount} tone={readyCount > 0 ? 'text-emerald-300' : 'text-slate-400'} />
+                        <ContractStatusPill label="Run" value={acceptedCount} tone={acceptedCount > 0 ? 'text-amber-300' : 'text-slate-400'} />
+                        <ContractStatusPill label="New" value={availableCount} tone={availableCount > 0 ? 'text-cyan-300' : 'text-slate-400'} />
                         <div className="text-[9px] font-mono text-slate-500">{contracts.length}/3</div>
-                        <ChevronUp size={14} className="text-slate-400" />
+                        <ChevronUp size={14} className="text-slate-400 transition-transform duration-200" />
                     </div>
                 </button>
 
-                <div className="p-2 space-y-2">
+                {urgentCount > 0 && (
+                    <div className="border-b border-rose-900/60 bg-rose-950/35 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-rose-200 font-mono">
+                        {urgentCount} urgent deadline{urgentCount === 1 ? '' : 's'}
+                    </div>
+                )}
+
+                <div id="contract-docket-list" className="p-2 space-y-2 transition-[max-height,opacity,transform] duration-300 ease-out max-h-[42rem] opacity-100 translate-y-0">
                     {contracts.map(contract => {
                         const status = contract.status || 'AVAILABLE';
                         const lifecycleState = getContractLifecycleState(status);
@@ -204,7 +228,7 @@ export const ContractTracker: React.FC<ContractTrackerProps> = ({ state, world, 
                         };
 
                         return (
-                            <div key={contract.id} className="bg-slate-900/90 border border-slate-800 rounded-[5px] p-2">
+                            <div key={contract.id} className="bg-slate-900/90 border border-slate-800 rounded-[5px] p-2 transition-colors duration-200 hover:border-slate-700">
                                 <div className="flex items-start justify-between gap-2 mb-2">
                                     <div className="min-w-0">
                                         <div className={`inline-flex items-center gap-1 border rounded-[3px] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${STATUS_TONE[lifecycleState] || STATUS_TONE.available}`}>
