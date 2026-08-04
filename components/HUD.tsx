@@ -5,7 +5,7 @@
 */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Coins, Pickaxe, Leaf, Heart, Gem, Users, Target, Trees, Database, Truck, Hammer, Zap } from 'lucide-react';
+import { ChevronDown, Coins, Pickaxe, Leaf, Heart, Gem, Users, Target, Trees, Database, Truck, Hammer, Zap } from 'lucide-react';
 import { GameState, Era, FactoryResourceType, BuildingType } from '../types';
 import { BUILDINGS, ERAS } from '../engine/data/VoxelConstants';
 
@@ -31,6 +31,7 @@ const getSectorBadge = (name: string) =>
     .toUpperCase();
 
 const toPercent = (value: number) => `${Math.round(value * 100)}%`;
+const formatHUDNumber = (value: number) => Math.floor(value).toLocaleString();
 
 const getSatisfactionTone = (value: number) => {
   if (value >= 0.75) return 'text-emerald-300';
@@ -166,7 +167,7 @@ const ResourceBlock = React.memo(({ icon: Icon, val, label, borderClass, iconBgC
           <div className="flex flex-col items-start leading-none gap-0.5 animate-in fade-in slide-in-from-left-1 duration-200">
             <span className="text-[7px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-wider">{label}</span>
             <div className="flex items-baseline gap-1">
-              <span className={`text-xs sm:text-sm font-['Rajdhani'] font-bold ${textColor} tracking-wide leading-none`}>{Math.floor(val).toLocaleString()}</span>
+              <span className={`text-xs sm:text-sm font-['Rajdhani'] font-bold ${textColor} tracking-wide leading-none`}>{formatHUDNumber(val)}</span>
               {sub !== undefined && (
                 <span className={`text-[7px] sm:text-[9px] font-mono font-bold ${sub < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                   {sub > 0 ? '▲' : sub < 0 ? '▼' : ''}
@@ -394,24 +395,95 @@ const MarketBlock = ({ state, isExpanded, onToggle }: { state: GameState; isExpa
   );
 };
 
-const HUDCluster = ({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) => (
-  <section className={`pointer-events-none min-w-0 ${className}`} aria-label={`${label} HUD cluster`}>
-    <div className="mb-1 pl-1 text-[8px] font-black uppercase tracking-widest text-slate-400/80 font-mono">{label}</div>
-    <div className="flex flex-wrap items-start gap-2 sm:gap-2.5 pointer-events-none">
-      {children}
-    </div>
-  </section>
+const HUDSummaryPill = ({ label, value, tone = 'text-slate-200' }: { label: string; value: React.ReactNode; tone?: string }) => (
+  <span className="inline-flex items-center gap-1 rounded-[3px] border border-slate-700/80 bg-slate-950/80 px-1.5 py-0.5 font-mono text-[8px] leading-none text-slate-500 sm:text-[9px]">
+    <span>{label}</span>
+    <span className={`font-black ${tone}`}>{value}</span>
+  </span>
 );
 
+interface HUDClusterProps {
+  label: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  summary: React.ReactNode;
+  className?: string;
+}
+
+const HUDCluster = ({ label, collapsed, onToggle, children, summary, className = '' }: HUDClusterProps) => {
+  const contentId = `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-hud-cluster`;
+
+  return (
+    <section className={`pointer-events-auto min-w-0 rounded-[4px] border border-slate-800/70 bg-slate-950/45 px-1.5 py-1 shadow-[0_8px_24px_rgba(0,0,0,0.18)] backdrop-blur-sm transition-colors duration-200 hover:border-slate-700/90 ${className}`} aria-label={`${label} HUD cluster`}>
+      <button
+        type="button"
+        aria-expanded={!collapsed}
+        aria-controls={contentId}
+        onClick={onToggle}
+        className="group flex w-full items-center justify-between gap-2 rounded-[3px] px-1 py-0.5 text-left transition-colors duration-200 hover:bg-slate-900/70 focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <ChevronDown size={13} strokeWidth={3} className={`shrink-0 text-slate-500 transition-transform duration-300 ease-out ${collapsed ? '-rotate-90' : 'rotate-0'}`} />
+          <span className="shrink-0 text-[8px] font-black uppercase tracking-widest text-slate-400/90 font-mono">{label}</span>
+        </div>
+        <div className="flex min-w-0 flex-1 justify-end gap-1 overflow-hidden transition-opacity duration-200 group-hover:opacity-100 sm:gap-1.5">
+          {summary}
+        </div>
+      </button>
+      <div
+        id={contentId}
+        className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out ${collapsed ? 'pointer-events-none -translate-y-1 opacity-0' : 'translate-y-0 opacity-100'}`}
+        style={{ gridTemplateRows: collapsed ? '0fr' : '1fr' }}
+      >
+        <div className="overflow-hidden">
+          <div className="flex flex-wrap items-start gap-2 pt-2 sm:gap-2.5 pointer-events-none">
+            {children}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const CLUSTER_BLOCK_IDS: Record<string, string[]> = {
+  core: ['era', 'agt', 'eco', 'trust', 'pop'],
+  materials: ['minerals', 'wood', 'stone', 'gems'],
+  industry: ['refined', 'alloys', 'parts', 'kits', 'chains', 'grid', 'flow', 'rail', 'charge', 'market'],
+};
+
 export const HUD: React.FC<HUDProps> = React.memo(({ resources, financials, population, currentEra, state, activeBlock, onToggleBlock }) => {
+  const [collapsedClusters, setCollapsedClusters] = useState<Record<string, boolean>>({});
+
   const toggleBlock = (id: string, isOpen: boolean) => {
     onToggleBlock(isOpen ? id : null);
   };
 
+  const toggleCluster = (clusterId: keyof typeof CLUSTER_BLOCK_IDS) => {
+    const nextCollapsed = !collapsedClusters[clusterId];
+    setCollapsedClusters(prev => ({ ...prev, [clusterId]: nextCollapsed }));
+
+    if (nextCollapsed && activeBlock && CLUSTER_BLOCK_IDS[clusterId].includes(activeBlock)) {
+      onToggleBlock(null);
+    }
+  };
+
   return (
     <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none px-2 pt-3 sm:px-4 sm:pt-4">
-      <div className="mx-auto flex w-full max-w-[88rem] flex-col gap-2 sm:flex-row sm:items-start sm:justify-center sm:gap-4">
-        <HUDCluster label="Core" className="sm:max-w-[26rem]">
+      <div className="mx-auto flex w-full max-w-[88rem] flex-col gap-2 sm:flex-row sm:items-start sm:justify-center sm:gap-3">
+        <HUDCluster
+          label="Core"
+          collapsed={collapsedClusters.core === true}
+          onToggle={() => toggleCluster('core')}
+          className="sm:max-w-[28rem]"
+          summary={(
+            <>
+              <HUDSummaryPill label="AGT" value={formatHUDNumber(resources.agt)} tone="text-amber-300" />
+              <HUDSummaryPill label="Eco" value={formatHUDNumber(resources.eco)} tone="text-emerald-300" />
+              <HUDSummaryPill label="Pop" value={formatHUDNumber(population)} tone="text-blue-300" />
+            </>
+          )}
+        >
           <EraBlock currentEra={currentEra} state={state} isExpanded={activeBlock === 'era'} onToggle={(open) => toggleBlock('era', open)} />
           <ResourceBlock icon={Coins} val={resources.agt} label="AGT" borderClass="border-amber-600/80" iconBgClass="bg-amber-500" sub={financials.net} isExpanded={activeBlock === 'agt'} onToggle={(open: boolean) => toggleBlock('agt', open)} />
           <ResourceBlock icon={Leaf} val={resources.eco} label="Eco" borderClass="border-emerald-600/80" iconBgClass="bg-emerald-500" isExpanded={activeBlock === 'eco'} onToggle={(open: boolean) => toggleBlock('eco', open)} />
@@ -419,14 +491,38 @@ export const HUD: React.FC<HUDProps> = React.memo(({ resources, financials, popu
           <ResourceBlock icon={Users} val={population} label="Pop" borderClass="border-blue-600/80" iconBgClass="bg-blue-500" isExpanded={activeBlock === 'pop'} onToggle={(open: boolean) => toggleBlock('pop', open)} />
         </HUDCluster>
 
-        <HUDCluster label="Materials" className="sm:max-w-[19rem]">
+        <HUDCluster
+          label="Materials"
+          collapsed={collapsedClusters.materials === true}
+          onToggle={() => toggleCluster('materials')}
+          className="sm:max-w-[21rem]"
+          summary={(
+            <>
+              <HUDSummaryPill label="Ore" value={formatHUDNumber(resources.minerals)} />
+              <HUDSummaryPill label="Wood" value={formatHUDNumber(resources.wood)} />
+              <HUDSummaryPill label="Stone" value={formatHUDNumber(resources.stone)} />
+            </>
+          )}
+        >
           <ResourceBlock icon={Pickaxe} val={resources.minerals} label="Ore" borderClass="border-slate-500/80" iconBgClass="bg-slate-400" isExpanded={activeBlock === 'minerals'} onToggle={(open: boolean) => toggleBlock('minerals', open)} />
           <ResourceBlock icon={Trees} val={resources.wood} label="Wood" borderClass="border-amber-700/80" iconBgClass="bg-amber-900" isExpanded={activeBlock === 'wood'} onToggle={(open: boolean) => toggleBlock('wood', open)} />
           <ResourceBlock icon={Database} val={resources.stone} label="Stone" borderClass="border-slate-400/80" iconBgClass="bg-slate-600" isExpanded={activeBlock === 'stone'} onToggle={(open: boolean) => toggleBlock('stone', open)} />
           <ResourceBlock icon={Gem} val={resources.gems} label="Thundergems" borderClass="border-purple-600/80" iconBgClass="bg-purple-500" textColor="text-purple-300" isExpanded={activeBlock === 'gems'} onToggle={(open: boolean) => toggleBlock('gems', open)} />
         </HUDCluster>
 
-        <HUDCluster label="Industry / Logistics" className="sm:max-w-[43rem]">
+        <HUDCluster
+          label="Industry / Logistics"
+          collapsed={collapsedClusters.industry === true}
+          onToggle={() => toggleCluster('industry')}
+          className="sm:max-w-[45rem]"
+          summary={(
+            <>
+              <HUDSummaryPill label="Grid" value={formatHUDNumber(state.industry?.gridLoad || 0)} tone="text-yellow-300" />
+              <HUDSummaryPill label="Flow" value={formatHUDNumber(state.factory?.throughput || 0)} tone="text-cyan-300" />
+              <HUDSummaryPill label="Rail" value={formatHUDNumber(state.factory?.regionalThroughput || 0)} tone="text-sky-300" />
+            </>
+          )}
+        >
           <ResourceBlock icon={Database} val={state.industry?.refinedMaterials || 0} label="Refined" borderClass="border-sky-600/80" iconBgClass="bg-sky-400" textColor="text-sky-100" isExpanded={activeBlock === 'refined'} onToggle={(open: boolean) => toggleBlock('refined', open)} />
           <ResourceBlock icon={Gem} val={state.industry?.alloys || 0} label="Alloys" borderClass="border-violet-600/80" iconBgClass="bg-violet-400" textColor="text-violet-100" isExpanded={activeBlock === 'alloys'} onToggle={(open: boolean) => toggleBlock('alloys', open)} />
           <ResourceBlock icon={Hammer} val={state.industry?.machineParts || 0} label="Parts" borderClass="border-orange-600/80" iconBgClass="bg-orange-400" textColor="text-orange-100" isExpanded={activeBlock === 'parts'} onToggle={(open: boolean) => toggleBlock('parts', open)} />
