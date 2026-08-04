@@ -36,6 +36,7 @@ test('Controls center command rail is collapsible with a persistent summary', ()
   assert.match(controls, /import React, \{ useState \} from 'react'/);
   assert.match(controls, /ChevronDown/);
   assert.match(controls, /const \[commandRailCollapsed, setCommandRailCollapsed\] = useState\(false\)/);
+  assert.match(controls, /const commandRailActions = \(/);
   assert.match(controls, /aria-expanded=\{!commandRailCollapsed\}/);
   assert.match(controls, /aria-controls="command-rail-actions"/);
   assert.match(controls, /id="command-rail-actions"/);
@@ -55,8 +56,7 @@ test('Controls center command rail is collapsible with a persistent summary', ()
 test('Controls command rail uses subtle collapse motion instead of abrupt removal', () => {
   const controls = source('components/Controls.tsx');
 
-  assert.match(controls, /transition-\[grid-template-rows,opacity,transform\]/);
-  assert.match(controls, /style=\{\{ gridTemplateRows: commandRailCollapsed \? '0fr' : '1fr' \}\}/);
+  assert.match(controls, /transition-\[max-height,opacity,transform\]/);
   assert.match(controls, /commandRailCollapsed \? '-rotate-90' : 'rotate-0'/);
-  assert.match(controls, /commandRailCollapsed \? 'pointer-events-none translate-y-1 opacity-0' : 'translate-y-0 opacity-100'/);
+  assert.match(controls, /commandRailCollapsed \? 'pointer-events-none max-h-0 translate-y-1 opacity-0' : 'max-h-\[9rem\] translate-y-0 opacity-100'/);
 });
