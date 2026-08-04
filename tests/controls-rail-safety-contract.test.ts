@@ -4,20 +4,30 @@ import assert from 'node:assert/strict';
 
 const controls = readFileSync('components/Controls.tsx', 'utf8');
 
-test('controls rail keeps stable command anchors before collapse redesign', () => {
+test('controls rail uses a native collapsible command surface', () => {
     assert.doesNotMatch(controls, /useState/);
     assert.doesNotMatch(controls, /ChevronDown/);
     assert.doesNotMatch(controls, /commandRailCollapsed/);
     assert.doesNotMatch(controls, /command-rail-actions/);
     assert.doesNotMatch(controls, /peer-checked/);
 
+    assert.match(controls, /<details className="group pointer-events-auto self-end pb-1/);
+    assert.match(controls, /<summary[\s\S]*aria-controls="command-rail-panel"/);
+    assert.match(controls, /id="command-rail-panel"/);
+    assert.match(controls, /transition-\[grid-template-rows,opacity,transform\]/);
+    assert.match(controls, /group-open:grid-rows-\[1fr\]/);
+    assert.match(controls, /group-open:opacity-100/);
+    assert.match(controls, /group-open:translate-y-0/);
+    assert.match(controls, /selectedAgentId \? 'Agent' : 'Core'/);
+});
+
+test('controls rail keeps stable command anchors through the collapse redesign', () => {
     assert.match(controls, /setSidebarOpen\('OPS'\)/);
     assert.match(controls, /setSidebarOpen\('SHOP'\)/);
     assert.ok(controls.indexOf("setSidebarOpen('OPS')") < controls.indexOf("setSidebarOpen('SHOP')"));
     assert.match(controls, /highlightOps \? 'animate-bounce border-emerald-400 z-50' : ''/);
     assert.match(controls, /highlightBuild \? 'highlight-pulse z-50 ring-4 ring-emerald-400' : ''/);
 
-    assert.match(controls, /<div className="flex gap-3 pointer-events-auto items-end pb-1">/);
     assert.match(controls, /dispatch\(\{ type: 'TOGGLE_DEBUG' \}\)/);
     assert.match(controls, /dispatch\(\{ type: 'UPDATE_LOGISTICS', payload: \{ overlayMode: nextOverlayMode \} \}\)/);
     assert.match(controls, /toggleWaterView\(\)/);
