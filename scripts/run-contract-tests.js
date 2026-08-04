@@ -39,6 +39,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/overseer-local-qwen-contract.test.ts',
     'tests/app-helper-extraction-contract.test.ts',
     'tests/hud-redesign-contract.test.ts',
+    'tests/fps-ability-hud-contract.test.ts',
 ];
 
 const testFiles = STABILIZATION_CONTRACTS.filter((file) => existsSync(path.join(repoRoot, file)));
