@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Boxes, ChevronDown, ChevronUp, Pickaxe, Shield, Upload, UserPlus, Zap } from 'lucide-react';
+import { AlertTriangle, Boxes, ChevronDown, Pickaxe, Shield, Upload, UserPlus, Zap } from 'lucide-react';
 import { UndergroundState, UndergroundTile } from '../types';
 
 type DungeonMode = 'mine' | 'build_support' | 'build_recharger';
@@ -26,6 +26,13 @@ const percent = (value: number, max: number) => {
     return Math.max(0, Math.min(100, Math.round((value / max) * 100)));
 };
 
+const UndergroundSummaryPill = ({ label, value, tone = 'text-slate-200' }: { label: string; value: React.ReactNode; tone?: string }) => (
+    <span className="inline-flex items-center gap-1 rounded-[3px] border border-slate-800 bg-slate-950/75 px-1.5 py-0.5 font-mono text-[9px] leading-none text-slate-500">
+        <span>{label}</span>
+        <span className={`font-black ${tone}`}>{value}</span>
+    </span>
+);
+
 export const UndergroundHUD: React.FC<UndergroundHUDProps> = ({ underground }) => {
     const [activeMode, setActiveMode] = useState<DungeonMode>('mine');
     const [ledgerCollapsed, setLedgerCollapsed] = useState(true);
@@ -38,6 +45,7 @@ export const UndergroundHUD: React.FC<UndergroundHUDProps> = ({ underground }) =
     const sectorLabel = `Sector B${underground.depthLevel}`;
     const openPit = underground.openPit;
     const rubblePercent = openPit ? percent(openPit.rubbleStored, openPit.rubbleCapacity) : 0;
+    const activeModeLabel = modeOptions.find(option => option.mode === activeMode)?.label || 'Mine';
 
     const setMode = (mode: DungeonMode) => {
         setActiveMode(mode);
@@ -50,20 +58,32 @@ export const UndergroundHUD: React.FC<UndergroundHUDProps> = ({ underground }) =
 
     return (
         <div className="absolute top-24 right-4 z-50 pointer-events-none flex flex-col gap-2 items-end max-w-[calc(100vw-1rem)]">
-            <div className="pointer-events-auto bg-slate-950/90 border border-amber-500/40 rounded-lg shadow-xl min-w-[210px] max-w-[min(22rem,calc(100vw-2rem))] backdrop-blur-md overflow-hidden">
+            <div className="pointer-events-auto bg-slate-950/90 border border-amber-500/40 rounded-[6px] shadow-xl min-w-[230px] max-w-[min(24rem,calc(100vw-2rem))] backdrop-blur-md overflow-hidden animate-in fade-in slide-in-from-right-2 duration-200">
                 <button
                     type="button"
+                    aria-expanded={!ledgerCollapsed}
+                    aria-controls="deep-ledger-body"
                     onClick={() => setLedgerCollapsed(value => !value)}
-                    className="w-full h-10 px-3 flex items-center justify-between gap-3 text-left hover:bg-amber-500/10 transition-colors"
+                    className="w-full min-h-10 px-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-amber-500/10 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-400/60"
                     title={ledgerCollapsed ? 'Expand Deep Ledger' : 'Collapse Deep Ledger'}
                 >
-                    <span className="text-amber-400 text-xs font-black tracking-widest uppercase font-['Rajdhani']">
-                        Deep Ledger // {sectorLabel}
-                    </span>
-                    {ledgerCollapsed ? <ChevronDown size={15} className="text-amber-300" /> : <ChevronUp size={15} className="text-amber-300" />}
+                    <div className="min-w-0">
+                        <div className="text-amber-400 text-xs font-black tracking-widest uppercase font-['Rajdhani']">
+                            Deep Ledger // {sectorLabel}
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                            <UndergroundSummaryPill label="Stab" value={`${underground.globalStability}%`} tone={underground.globalStability < 35 ? 'text-amber-300' : 'text-slate-200'} />
+                            <UndergroundSummaryPill label="O2" value={`${underground.oxygen}%`} tone={underground.oxygen < 35 ? 'text-rose-300' : 'text-cyan-200'} />
+                            <UndergroundSummaryPill label="Haz" value={hazardCount} tone={hazardCount > 0 ? 'text-amber-300' : 'text-slate-400'} />
+                        </div>
+                    </div>
+                    <ChevronDown size={15} className={`shrink-0 text-amber-300 transition-transform duration-300 ease-out ${ledgerCollapsed ? '-rotate-90' : 'rotate-0'}`} />
                 </button>
 
-                {!ledgerCollapsed && (
+                <div
+                    id="deep-ledger-body"
+                    className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out ${ledgerCollapsed ? 'max-h-0 -translate-y-1 opacity-0' : 'max-h-80 translate-y-0 opacity-100'}`}
+                >
                     <div className="px-4 pb-4">
                         <div className="space-y-2 text-xs text-slate-200 font-mono">
                             <div className="flex justify-between gap-6">
@@ -101,21 +121,27 @@ export const UndergroundHUD: React.FC<UndergroundHUDProps> = ({ underground }) =
                             The surface tells the public story. The Deep Ledger records what happens beneath it.
                         </div>
                     </div>
-                )}
+                </div>
             </div>
 
-            <div className="pointer-events-auto bg-slate-950/92 border border-cyan-500/35 rounded-lg shadow-xl w-[min(26rem,calc(100vw-2rem))] backdrop-blur-md overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-3 py-2">
+            <div className="pointer-events-auto bg-slate-950/92 border border-cyan-500/35 rounded-[6px] shadow-xl w-[min(26rem,calc(100vw-2rem))] backdrop-blur-md overflow-hidden animate-in fade-in slide-in-from-right-2 duration-200">
+                <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-900/80">
                     <button
                         type="button"
+                        aria-expanded={!consoleCollapsed}
+                        aria-controls="mine-console-body"
                         onClick={() => setConsoleCollapsed(value => !value)}
-                        className="min-w-0 flex-1 text-left flex items-center gap-2 hover:text-cyan-200 transition-colors"
+                        className="min-w-0 flex-1 text-left flex items-center gap-2 hover:text-cyan-200 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400/60 rounded-[4px]"
                         title={consoleCollapsed ? 'Expand Mine Console' : 'Collapse Mine Console'}
                     >
-                        <span className="text-cyan-300 text-xs font-black tracking-widest uppercase font-['Rajdhani']">Mine Console</span>
-                        <span className="text-[10px] text-slate-500 font-mono truncate">Click blocks after choosing a mode</span>
+                        <ChevronDown size={15} className={`shrink-0 text-cyan-300 transition-transform duration-300 ease-out ${consoleCollapsed ? '-rotate-90' : 'rotate-0'}`} />
+                        <div className="min-w-0">
+                            <div className="text-cyan-300 text-xs font-black tracking-widest uppercase font-['Rajdhani']">Mine Console</div>
+                            <div className="text-[10px] text-slate-500 font-mono truncate">{activeModeLabel} mode // Click blocks after choosing a mode</div>
+                        </div>
                     </button>
                     <div className="flex items-center gap-1.5 shrink-0">
+                        <UndergroundSummaryPill label="Rub" value={openPit ? `${rubblePercent}%` : '--'} tone={openPit?.capacityBlocked ? 'text-amber-300' : 'text-cyan-200'} />
                         <button
                             onClick={() => emitDungeonAction('SURFACE_RESOURCES')}
                             className="h-8 px-2.5 rounded-[4px] bg-emerald-700 hover:bg-emerald-600 border border-emerald-400/60 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors"
@@ -123,21 +149,16 @@ export const UndergroundHUD: React.FC<UndergroundHUDProps> = ({ underground }) =
                         >
                             <Upload size={13} /> Surface
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => setConsoleCollapsed(value => !value)}
-                            className="h-8 w-8 rounded-[4px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-200 flex items-center justify-center transition-colors"
-                            title={consoleCollapsed ? 'Expand Mine Console' : 'Collapse Mine Console'}
-                        >
-                            {consoleCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
-                        </button>
                     </div>
                 </div>
 
-                {!consoleCollapsed && (
-                    <div className="px-3 pb-3">
+                <div
+                    id="mine-console-body"
+                    className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out ${consoleCollapsed ? 'max-h-0 -translate-y-1 opacity-0' : 'max-h-[42rem] translate-y-0 opacity-100'}`}
+                >
+                    <div className="px-3 pb-3 pt-2">
                         {openPit && (
-                            <div className={`mb-3 rounded-[6px] border p-3 ${openPit.capacityBlocked ? 'border-amber-500/60 bg-amber-950/25' : 'border-slate-700 bg-slate-900/75'}`}>
+                            <div className={`mb-3 rounded-[6px] border p-3 transition-colors duration-200 ${openPit.capacityBlocked ? 'border-amber-500/60 bg-amber-950/25' : 'border-slate-700 bg-slate-900/75'}`}>
                                 <div className="flex items-center justify-between gap-3 mb-2">
                                     <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-cyan-200 font-['Rajdhani']">
                                         {openPit.capacityBlocked ? <AlertTriangle size={14} className="text-amber-300" /> : <Boxes size={14} className="text-cyan-300" />}
@@ -206,7 +227,7 @@ export const UndergroundHUD: React.FC<UndergroundHUDProps> = ({ underground }) =
                             ))}
                         </div>
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );
