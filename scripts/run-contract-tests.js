@@ -41,6 +41,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/hud-redesign-contract.test.ts',
     'tests/fps-ability-hud-contract.test.ts',
     'tests/contract-tracker-hud-contract.test.ts',
+    'tests/underground-hud-drawer-contract.test.ts',
 ];
 
 const testFiles = STABILIZATION_CONTRACTS.filter((file) => existsSync(path.join(repoRoot, file)));
