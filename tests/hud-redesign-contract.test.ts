@@ -56,3 +56,39 @@ test('HUD groups gameplay signals by player intent', () => {
     '<MarketBlock state={state}',
   ]);
 });
+
+test('HUD clusters are cleanly collapsible with persistent summaries', () => {
+  const hud = source('components/HUD.tsx');
+
+  assert.match(hud, /import \{ ChevronDown,/);
+  assert.match(hud, /const HUDSummaryPill/);
+  assert.match(hud, /const \[collapsedClusters, setCollapsedClusters\] = useState<Record<string, boolean>>\(\{\}\)/);
+  assert.match(hud, /aria-expanded=\{!collapsed\}/);
+  assert.match(hud, /aria-controls=\{contentId\}/);
+  assert.match(hud, /style=\{\{ gridTemplateRows: collapsed \? '0fr' : '1fr' \}\}/);
+  assert.match(hud, /transition-\[grid-template-rows,opacity,transform\]/);
+  assert.match(hud, /collapsed \? '-rotate-90' : 'rotate-0'/);
+
+  assertInOrder(hud, [
+    '<HUDSummaryPill label="AGT"',
+    '<HUDSummaryPill label="Eco"',
+    '<HUDSummaryPill label="Pop"',
+    '<HUDSummaryPill label="Ore"',
+    '<HUDSummaryPill label="Wood"',
+    '<HUDSummaryPill label="Stone"',
+    '<HUDSummaryPill label="Grid"',
+    '<HUDSummaryPill label="Flow"',
+    '<HUDSummaryPill label="Rail"',
+  ]);
+});
+
+test('collapsing a HUD cluster clears an expanded block inside that cluster', () => {
+  const hud = source('components/HUD.tsx');
+
+  assert.match(hud, /const CLUSTER_BLOCK_IDS: Record<string, string\[\]>/);
+  assert.match(hud, /core: \['era', 'agt', 'eco', 'trust', 'pop'\]/);
+  assert.match(hud, /materials: \['minerals', 'wood', 'stone', 'gems'\]/);
+  assert.match(hud, /industry: \['refined', 'alloys', 'parts', 'kits', 'chains', 'grid', 'flow', 'rail', 'charge', 'market'\]/);
+  assert.match(hud, /if \(nextCollapsed && activeBlock && CLUSTER_BLOCK_IDS\[clusterId\]\.includes\(activeBlock\)\) \{/);
+  assert.match(hud, /onToggleBlock\(null\);/);
+});
