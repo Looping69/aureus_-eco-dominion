@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import React from 'react';
-import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX } from 'lucide-react';
+import React, { useState } from 'react';
+import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX, ChevronDown } from 'lucide-react';
 import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode, SfxType } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import { useAureusAudio } from '../game/audio/useAureusAudio';
@@ -38,6 +38,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     debugMode, interactionMode, undergroundUnlocked, activeView, overlayMode, onToggleView,
     selectedAgentId, activeLayer, minLayer, maxLayer
 }) => {
+    const [commandRailCollapsed, setCommandRailCollapsed] = useState(false);
     const audioBelowSurface = activeLayer < SURFACE_LAYER || activeView === 'DUNGEON';
     const { audioEnabled, toggleAudio, playAudioSfx } = useAureusAudio({
         activeView: audioBelowSurface ? 'DUNGEON' : 'SURFACE',
@@ -78,6 +79,13 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     const isBelowSurface = activeLayer < SURFACE_LAYER;
     const lowerLayer = Math.max(minLayer, activeLayer - 1);
     const upperLayer = Math.min(maxLayer, activeLayer + 1);
+    const modeLabel = interactionMode.replace(/_/g, ' ');
+    const overlayLabel = overlayMode === 'WATER'
+        ? 'Water'
+        : normalizedOverlayMode === 'OFF'
+            ? 'Overlay off'
+            : normalizedOverlayMode.replace(/_/g, ' ');
+    const layerLabel = isBelowSurface ? `Layer ${activeLayer}` : 'Surface';
     const setLayerTool = (mode: LayerToolMode) => {
         dispatch({ type: 'SET_INTERACTION_MODE', payload: interactionMode === mode ? 'INSPECT' : mode });
         playSfx('UI_CLICK');
@@ -88,7 +96,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     };
 
     return (
-        <div className="absolute bottom-16 sm:bottom-6 left-3 right-3 sm:left-6 sm:right-6 z-[120] flex justify-between pointer-events-none gap-4">
+        <div className="absolute bottom-16 sm:bottom-6 left-3 right-3 sm:left-6 sm:right-6 z-[120] flex justify-between pointer-events-none gap-3 sm:gap-4">
             <button
                 type="button"
                 onMouseDown={(event) => event.stopPropagation()}
@@ -113,7 +121,36 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                 <span className="hidden sm:inline font-black text-sm uppercase tracking-widest font-['Rajdhani']">Ops</span>
             </button>
 
-            <div className="flex gap-3 pointer-events-auto items-end pb-1">
+            <div className="pointer-events-auto flex max-w-[calc(100vw-8.5rem)] flex-col items-center gap-1 pb-1 sm:max-w-none">
+                <button
+                    type="button"
+                    aria-expanded={!commandRailCollapsed}
+                    aria-controls="command-rail-actions"
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setCommandRailCollapsed(value => !value);
+                        playSfx('UI_CLICK');
+                    }}
+                    className="group flex h-8 max-w-full items-center gap-2 rounded-[5px] border border-slate-800 bg-slate-950/88 px-2.5 text-left shadow-[3px_3px_0_rgba(0,0,0,0.28)] backdrop-blur-md transition-colors duration-200 hover:border-slate-700 hover:bg-slate-900/92 focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
+                    title={commandRailCollapsed ? 'Expand command rail' : 'Collapse command rail'}
+                >
+                    <ChevronDown size={14} strokeWidth={3} className={`shrink-0 text-slate-500 transition-transform duration-300 ease-out ${commandRailCollapsed ? '-rotate-90' : 'rotate-0'}`} />
+                    <span className="shrink-0 text-[9px] font-black uppercase tracking-widest text-slate-300 font-['Rajdhani']">Command Rail</span>
+                    <span className="hidden h-4 w-px bg-slate-800 sm:block" />
+                    <span className="truncate font-mono text-[9px] font-bold uppercase text-cyan-300">{modeLabel}</span>
+                    <span className="hidden font-mono text-[9px] font-bold uppercase text-slate-500 sm:inline">{overlayLabel}</span>
+                    <span className="hidden font-mono text-[9px] font-bold uppercase text-amber-300 md:inline">{layerLabel}</span>
+                </button>
+
+                <div
+                    id="command-rail-actions"
+                    className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out ${commandRailCollapsed ? 'pointer-events-none translate-y-1 opacity-0' : 'translate-y-0 opacity-100'}`}
+                    style={{ gridTemplateRows: commandRailCollapsed ? '0fr' : '1fr' }}
+                >
+                    <div className="overflow-hidden">
+                        <div className="flex flex-wrap justify-center gap-2 pt-1 sm:gap-3 items-end">
                 <button
                     type="button"
                     onMouseDown={(event) => event.stopPropagation()}
@@ -382,6 +419,9 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                         {isBelowSurface ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
                     </button>
                 )}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <button
