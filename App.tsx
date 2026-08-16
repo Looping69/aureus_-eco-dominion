@@ -14,6 +14,7 @@ import { GoalWidget } from './components/GoalWidget';
 import { ContractTracker } from './components/ContractTracker';
 import { AIOverseerPanel } from './components/AIOverseerPanel';
 import { WorldHoverTooltip } from './components/WorldHoverTooltip';
+import { AgentCommandHUD } from './components/AgentCommandHUD';
 import {
     TutorialOverlay,
     ConstructionModal,
@@ -528,6 +529,7 @@ const App: React.FC = () => {
                                                         <NewsTicker news={state.newsFeed} onDismiss={(id) => dispatch({ type: 'DISMISS_NEWS', payload: id })} playSfx={playSfx} />
                                                     </div>
 
+                                                    <AgentCommandHUD agents={state.agents} selectedAgentId={state.selectedAgentId} selectedAgentIds={state.selectedAgentIds} />
                                                     <CommandFailureToast result={state.ui?.lastCommandResult} />
                                                     <InventoryHUD inventory={state.inventory} selectedBuilding={state.selectedBuilding} dispatch={dispatch} playSfx={playSfx} step={state.step} />
 
