@@ -20,6 +20,17 @@ test('controls rail uses a native collapsible command surface', () => {
     assert.match(controls, /group-open:translate-y-0/);
 });
 
+test('controls build placement prompt stays compact and cancelable', () => {
+    assert.match(controls, /if \(selectedBuilding\) \{/);
+    assert.match(controls, /pointer-events-none flex justify-center/);
+    assert.match(controls, /max-w-xl animate-in slide-in-from-bottom-4 items-center justify-between/);
+    assert.match(controls, /text-\[10px\] font-black uppercase tracking-widest text-amber-300">Placement/);
+    assert.match(controls, /\{BUILDINGS\[selectedBuilding\]\.name\}/);
+    assert.match(controls, /dispatch\(\{ type: 'SELECT_BUILDING_TO_PLACE', payload: null \}\)/);
+    assert.match(controls, /<X size=\{16\} \/>/);
+    assert.match(controls, />Cancel<\/span>/);
+});
+
 test('controls rail summary pills expose current command context', () => {
     assert.match(controls, /const commandContextLabel = selectedAgentId \? 'Agent' : isBelowSurface \|\| activeView === 'DUNGEON' \? 'Dungeon' : 'Surface';/);
     assert.match(controls, /const overlaySummaryLabel = overlayMode === 'WATER' \? 'Water' : normalizedOverlayMode === 'OFF' \? 'No overlay' : normalizedOverlayMode;/);
