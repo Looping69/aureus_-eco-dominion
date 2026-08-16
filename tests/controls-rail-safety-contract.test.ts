@@ -18,7 +18,17 @@ test('controls rail uses a native collapsible command surface', () => {
     assert.match(controls, /group-open:grid-rows-\[1fr\]/);
     assert.match(controls, /group-open:opacity-100/);
     assert.match(controls, /group-open:translate-y-0/);
-    assert.match(controls, /selectedAgentId \? 'Agent' : 'Core'/);
+});
+
+test('controls rail summary pills expose current command context', () => {
+    assert.match(controls, /const commandContextLabel = selectedAgentId \? 'Agent' : isBelowSurface \|\| activeView === 'DUNGEON' \? 'Dungeon' : 'Surface';/);
+    assert.match(controls, /const overlaySummaryLabel = overlayMode === 'WATER' \? 'Water' : normalizedOverlayMode === 'OFF' \? 'No overlay' : normalizedOverlayMode;/);
+    assert.match(controls, /const layerSummaryLabel = canUseLayerTools \? `L\$\{activeLayer\}` : 'L0';/);
+    assert.match(controls, /\{commandContextLabel\}/);
+    assert.match(controls, /\{overlaySummaryLabel\}/);
+    assert.match(controls, /\{layerSummaryLabel\}/);
+    assert.match(controls, /selectedAgentId \? 'border-indigo-400\/60 bg-indigo-500\/15 text-indigo-100'/);
+    assert.match(controls, /activeView === 'DUNGEON' \? 'border-amber-400\/60 bg-amber-500\/15 text-amber-100'/);
 });
 
 test('controls rail keeps stable command anchors through the collapse redesign', () => {
