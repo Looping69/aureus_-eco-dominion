@@ -32,6 +32,15 @@ interface ControlsProps {
 
 const OVERLAY_SEQUENCE: LogisticsOverlayMode[] = ['OFF', 'FLOW', 'CONGESTION', 'JUNCTIONS'];
 const SURFACE_LAYER = 0;
+const TOOL_SUMMARY_LABEL: Record<ControlsProps['interactionMode'], string> = {
+    BUILD: 'Build',
+    BULLDOZE: 'Bulldoze',
+    INSPECT: 'Inspect',
+    TEST_DESTRUCT: 'Test',
+    DIG: 'Dig',
+    DUMP_RUBBLE: 'Dump',
+    FILL_RUBBLE: 'Fill',
+};
 
 export const Controls: React.FC<ControlsProps> = React.memo(({
     selectedBuilding, dispatch, setSidebarOpen, playSfx, step,
@@ -79,6 +88,14 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
     const commandContextLabel = selectedAgentId ? 'Agent' : isBelowSurface || activeView === 'DUNGEON' ? 'Dungeon' : 'Surface';
     const overlaySummaryLabel = overlayMode === 'WATER' ? 'Water' : normalizedOverlayMode === 'OFF' ? 'No overlay' : normalizedOverlayMode;
     const layerSummaryLabel = canUseLayerTools ? `L${activeLayer}` : 'L0';
+    const activeToolLabel = TOOL_SUMMARY_LABEL[interactionMode];
+    const activeToolClassName = interactionMode === 'DIG' || interactionMode === 'DUMP_RUBBLE' || interactionMode === 'FILL_RUBBLE'
+        ? 'border-amber-400/60 bg-amber-500/15 text-amber-100'
+        : interactionMode === 'BULLDOZE' || interactionMode === 'TEST_DESTRUCT'
+            ? 'border-rose-400/60 bg-rose-500/15 text-rose-100'
+            : interactionMode === 'BUILD'
+                ? 'border-emerald-400/60 bg-emerald-500/15 text-emerald-100'
+                : 'border-slate-500/50 bg-slate-700/40 text-slate-200';
     const lowerLayer = Math.max(minLayer, activeLayer - 1);
     const upperLayer = Math.min(maxLayer, activeLayer + 1);
     const setLayerTool = (mode: LayerToolMode) => {
@@ -126,6 +143,7 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
                     <Menu size={15} className="text-emerald-300 transition-transform duration-200 group-open:rotate-90" />
                     <span className="hidden sm:inline font-['Rajdhani']">Commands</span>
                     <span className={`inline-flex h-5 items-center rounded-[3px] border px-1.5 font-mono text-[9px] ${selectedAgentId ? 'border-indigo-400/60 bg-indigo-500/15 text-indigo-100' : isBelowSurface || activeView === 'DUNGEON' ? 'border-amber-400/60 bg-amber-500/15 text-amber-100' : 'border-emerald-400/60 bg-emerald-500/15 text-emerald-100'}`}>{commandContextLabel}</span>
+                    <span className={`inline-flex h-5 items-center rounded-[3px] border px-1.5 font-mono text-[9px] ${activeToolClassName}`}>{activeToolLabel}</span>
                     <span className="hidden h-5 items-center rounded-[3px] border border-cyan-400/40 bg-cyan-500/10 px-1.5 font-mono text-[9px] text-cyan-100 md:inline-flex">{overlaySummaryLabel}</span>
                     <span className="hidden h-5 items-center rounded-[3px] border border-slate-500/50 bg-slate-700/40 px-1.5 font-mono text-[9px] text-slate-200 lg:inline-flex">{layerSummaryLabel}</span>
                 </summary>
