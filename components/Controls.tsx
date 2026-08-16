@@ -55,26 +55,34 @@ export const Controls: React.FC<ControlsProps> = React.memo(({
 
     if (selectedBuilding) {
         return (
-            <div className="absolute bottom-20 sm:bottom-12 left-4 right-4 z-[120] animate-in slide-in-from-bottom-4 pointer-events-auto flex flex-col gap-2 max-w-sm mx-auto items-center">
-                <div className="px-4 py-2.5 rounded-[4px] border-2 shadow-[4px_4px_0_0_rgba(0,0,0,0.4)] font-bold flex items-center justify-center gap-2 text-xs bg-amber-500 text-amber-950 border-amber-800">
-                    <Hammer size={16} className="animate-pulse" />
-                    <span className="font-['Rajdhani'] uppercase tracking-wider">
-                        {`Deploy: ${BUILDINGS[selectedBuilding].name}`}
-                    </span>
+            <div className="absolute bottom-20 sm:bottom-12 left-3 right-3 z-[120] pointer-events-none flex justify-center">
+                <div className="pointer-events-auto flex w-full max-w-xl animate-in slide-in-from-bottom-4 items-center justify-between gap-3 rounded-[6px] border-2 border-b-[6px] border-amber-900 bg-slate-950/92 px-3 py-2.5 text-amber-50 shadow-[4px_4px_0_0_rgba(0,0,0,0.36)] backdrop-blur-sm sm:px-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[4px] border-2 border-amber-800 bg-amber-500 text-amber-950 shadow-[2px_2px_0_0_rgba(0,0,0,0.25)]">
+                            <Hammer size={18} className="animate-pulse" />
+                        </span>
+                        <div className="min-w-0">
+                            <div className="font-['Rajdhani'] text-[10px] font-black uppercase tracking-widest text-amber-300">Placement</div>
+                            <div className="truncate font-['Rajdhani'] text-sm font-black uppercase tracking-wide text-white sm:text-base">
+                                {BUILDINGS[selectedBuilding].name}
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            dispatch({ type: 'SELECT_BUILDING_TO_PLACE', payload: null });
+                            playSfx('UI_CLICK');
+                        }}
+                        className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-[4px] border-2 border-b-[4px] border-slate-950 bg-slate-800 px-3 text-xs font-black uppercase tracking-wider text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-slate-700 active:translate-y-0.5 active:border-b-2"
+                    >
+                        <X size={16} />
+                        <span className="hidden sm:inline">Cancel</span>
+                    </button>
                 </div>
-                <button
-                    type="button"
-                    onMouseDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        dispatch({ type: 'SELECT_BUILDING_TO_PLACE', payload: null });
-                        playSfx('UI_CLICK');
-                    }}
-                    className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-2 rounded-[4px] border-2 border-b-4 border-slate-950 font-bold text-xs flex items-center justify-center gap-2 active:border-b-2 active:translate-y-0.5 transition-all shadow-lg"
-                >
-                    <X size={16} /> CANCEL
-                </button>
             </div>
         );
     }
