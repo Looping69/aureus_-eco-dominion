@@ -31,6 +31,18 @@ test('controls rail summary pills expose current command context', () => {
     assert.match(controls, /activeView === 'DUNGEON' \? 'border-amber-400\/60 bg-amber-500\/15 text-amber-100'/);
 });
 
+test('controls rail summary includes the active interaction tool', () => {
+    assert.match(controls, /const TOOL_SUMMARY_LABEL: Record<ControlsProps\['interactionMode'\], string> = \{/);
+    for (const label of ['Build', 'Bulldoze', 'Inspect', 'Test', 'Dig', 'Dump', 'Fill']) {
+        assert.match(controls, new RegExp(`${label}'`));
+    }
+    assert.match(controls, /const activeToolLabel = TOOL_SUMMARY_LABEL\[interactionMode\];/);
+    assert.match(controls, /const activeToolClassName = interactionMode === 'DIG' \|\| interactionMode === 'DUMP_RUBBLE' \|\| interactionMode === 'FILL_RUBBLE'/);
+    assert.match(controls, /interactionMode === 'BULLDOZE' \|\| interactionMode === 'TEST_DESTRUCT'/);
+    assert.match(controls, /interactionMode === 'BUILD'/);
+    assert.match(controls, /\$\{activeToolClassName\}`}>\{activeToolLabel\}<\/span>/);
+});
+
 test('controls rail keeps stable command anchors through the collapse redesign', () => {
     assert.match(controls, /setSidebarOpen\('OPS'\)/);
     assert.match(controls, /setSidebarOpen\('SHOP'\)/);
