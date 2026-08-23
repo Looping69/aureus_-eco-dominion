@@ -13,6 +13,14 @@ interface AgentCommandHUDProps {
     selectedAgentIds?: string[];
 }
 
+const ORDER_TONE_CLASS: Record<string, string> = {
+    AGGRESSIVE: 'border-rose-400/50 bg-rose-500/15 text-rose-100',
+    HOLD: 'border-amber-400/50 bg-amber-500/15 text-amber-100',
+    ATTACK: 'border-indigo-400/50 bg-indigo-500/15 text-indigo-100',
+    AUTO: 'border-slate-500/50 bg-slate-700/40 text-slate-200',
+    MIXED: 'border-cyan-400/45 bg-cyan-500/10 text-cyan-100',
+};
+
 const getCombatHealthLabel = (agent: Agent): string => {
     if (!agent.combat) return 'n/a';
     return `${Math.ceil(agent.combat.currentHealth)}/${Math.ceil(agent.combat.maxHealth)}`;
@@ -32,15 +40,20 @@ export const AgentCommandHUD: React.FC<AgentCommandHUDProps> = ({ agents, select
     if (selectedAgents.length === 0) return null;
 
     const leadAgent = selectedAgents[0];
+    const stanceSet = new Set(selectedAgents.map(getCombatStanceLabel));
+    const orderStateLabel = stanceSet.size === 1 ? getCombatStanceLabel(leadAgent) : 'MIXED';
+    const orderToneClass = ORDER_TONE_CLASS[orderStateLabel] ?? ORDER_TONE_CLASS.AUTO;
+    const readyAgents = selectedAgents.filter((agent) => agent.combat && agent.combat.currentHealth > 0).length;
+    const armedAgents = selectedAgents.filter((agent) => getWeaponLabel(agent) !== 'Unarmed').length;
     const groupLabel = selectedAgents.length > 1 ? `${selectedAgents.length} selected` : leadAgent.name;
     const stanceLabel = selectedAgents.length > 1
-        ? `${new Set(selectedAgents.map(getCombatStanceLabel)).size} stances`
+        ? orderStateLabel === 'MIXED' ? `${stanceSet.size} stances` : orderStateLabel
         : getCombatStanceLabel(leadAgent);
     const weaponLabel = selectedAgents.length > 1
-        ? `${selectedAgents.filter((agent) => getWeaponLabel(agent) !== 'Unarmed').length}/${selectedAgents.length} armed`
+        ? `${armedAgents}/${selectedAgents.length} armed`
         : getWeaponLabel(leadAgent);
     const healthLabel = selectedAgents.length > 1
-        ? `${selectedAgents.filter((agent) => agent.combat && agent.combat.currentHealth > 0).length}/${selectedAgents.length} ready`
+        ? `${readyAgents}/${selectedAgents.length} ready`
         : getCombatHealthLabel(leadAgent);
 
     return (
@@ -56,9 +69,14 @@ export const AgentCommandHUD: React.FC<AgentCommandHUDProps> = ({ agents, select
                             <div className="truncate font-['Rajdhani'] text-sm font-black uppercase tracking-wide text-white">{groupLabel}</div>
                         </div>
                     </div>
-                    <span className="shrink-0 rounded-[3px] border border-slate-500/50 bg-slate-800/80 px-2 py-1 font-mono text-[9px] font-bold uppercase text-slate-200">
-                        {leadAgent.state}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                        <span className={`rounded-[3px] border px-2 py-1 font-mono text-[9px] font-bold uppercase ${orderToneClass}`}>
+                            {orderStateLabel}
+                        </span>
+                        <span className="rounded-[3px] border border-slate-500/50 bg-slate-800/80 px-2 py-1 font-mono text-[9px] font-bold uppercase text-slate-200">
+                            {leadAgent.state}
+                        </span>
+                    </div>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 text-[9px] font-mono uppercase">
                     <div className="rounded-[3px] border border-rose-400/30 bg-rose-500/10 px-2 py-1 text-rose-100">
@@ -66,7 +84,7 @@ export const AgentCommandHUD: React.FC<AgentCommandHUDProps> = ({ agents, select
                         <div className="truncate font-bold">{weaponLabel}</div>
                     </div>
                     <div className="rounded-[3px] border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-amber-100">
-                        <div className="text-[7px] text-amber-300/70">Stance</div>
+                        <div className="text-[7px] text-amber-300/70">Order</div>
                         <div className="truncate font-bold">{stanceLabel}</div>
                     </div>
                     <div className="rounded-[3px] border border-emerald-400/30 bg-emerald-500/10 px-2 py-1 text-emerald-100">
