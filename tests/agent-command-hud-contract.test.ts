@@ -14,16 +14,27 @@ test('agent command HUD exposes selected combat command feedback', () => {
     assert.match(agentHud, /if \(selectedAgents\.length === 0\) return null;/);
     assert.match(agentHud, /Command Link/);
     assert.match(agentHud, /Weapon/);
-    assert.match(agentHud, /Stance/);
+    assert.match(agentHud, /Order/);
     assert.match(agentHud, /HP/);
 });
 
 test('agent command HUD summarizes single and grouped selections', () => {
     assert.match(agentHud, /const groupLabel = selectedAgents\.length > 1 \? `\$\{selectedAgents\.length\} selected` : leadAgent\.name;/);
-    assert.match(agentHud, /new Set\(selectedAgents\.map\(getCombatStanceLabel\)\)\.size/);
-    assert.match(agentHud, /selectedAgents\.filter\(\(agent\) => getWeaponLabel\(agent\) !== 'Unarmed'\)\.length/);
-    assert.match(agentHud, /selectedAgents\.filter\(\(agent\) => agent\.combat && agent\.combat\.currentHealth > 0\)\.length/);
+    assert.match(agentHud, /const stanceSet = new Set\(selectedAgents\.map\(getCombatStanceLabel\)\);/);
+    assert.match(agentHud, /const orderStateLabel = stanceSet\.size === 1 \? getCombatStanceLabel\(leadAgent\) : 'MIXED';/);
+    assert.match(agentHud, /const readyAgents = selectedAgents\.filter\(\(agent\) => agent\.combat && agent\.combat\.currentHealth > 0\)\.length;/);
+    assert.match(agentHud, /const armedAgents = selectedAgents\.filter\(\(agent\) => getWeaponLabel\(agent\) !== 'Unarmed'\)\.length;/);
     assert.match(agentHud, /selectedAgents\.length > 1 \? <Users size=\{16\} \/> : <Target size=\{16\} \/>/);
+});
+
+test('agent command HUD shows compact order tone state', () => {
+    assert.match(agentHud, /const ORDER_TONE_CLASS: Record<string, string> = \{/);
+    for (const stance of ['AGGRESSIVE', 'HOLD', 'ATTACK', 'AUTO', 'MIXED']) {
+        assert.match(agentHud, new RegExp(`${stance}:`));
+    }
+    assert.match(agentHud, /const orderToneClass = ORDER_TONE_CLASS\[orderStateLabel\] \?\? ORDER_TONE_CLASS\.AUTO;/);
+    assert.match(agentHud, /\$\{orderToneClass\}`}>\s*\{orderStateLabel\}/);
+    assert.match(agentHud, /orderStateLabel === 'MIXED' \? `\$\{stanceSet\.size\} stances` : orderStateLabel/);
 });
 
 test('App renders agent command HUD with floating HUD visibility', () => {
