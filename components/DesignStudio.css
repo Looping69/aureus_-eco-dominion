@@ -1,0 +1,102 @@
+main:has(section canvas) {
+    overflow-x: hidden;
+}
+
+main:has(section canvas) > div {
+    width: min(100%, 80rem);
+}
+
+main:has(section canvas) section:has(canvas) {
+    min-width: 0;
+    max-width: 100%;
+}
+
+main:has(section canvas) section:has(canvas) > div:first-child > div:last-child {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    width: 100%;
+}
+
+main:has(section canvas) section:has(canvas) > div:first-child > div:last-child > * {
+    min-width: 0 !important;
+    width: 100%;
+    justify-content: center;
+}
+
+main:has(section canvas) section:has(canvas) > div:nth-child(2) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    max-width: 100%;
+}
+
+main:has(section canvas) section:has(canvas) > div:nth-child(2) > div:first-child {
+    min-width: 0;
+    overflow: hidden;
+    height: min(62svh, 34rem);
+    min-height: 22rem;
+}
+
+main:has(section canvas) section:has(canvas) > div:nth-child(2) > div:first-child > div:first-child {
+    overflow: hidden;
+}
+
+main:has(section canvas) section:has(canvas) canvas {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    touch-action: none;
+}
+
+main:has(section canvas) section:has(canvas) > div:nth-child(2) > div:nth-child(2) {
+    min-width: 0;
+    overflow-y: auto;
+}
+
+main:has(section canvas) section:has(canvas) pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+@media (min-width: 1280px) {
+    main:has(section canvas) section:has(canvas) > div:nth-child(2) {
+        grid-template-columns: minmax(0, 1fr) minmax(17rem, 19rem);
+    }
+
+    main:has(section canvas) section:has(canvas) > div:nth-child(2) > div:nth-child(2) {
+        max-height: min(62svh, 34rem);
+    }
+}
+
+@media (max-width: 640px) {
+    main:has(section canvas) > div {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }
+
+    main:has(section canvas) header > div:last-child {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+    }
+
+    main:has(section canvas) header > div:last-child > * {
+        min-width: 0;
+        width: 100%;
+        justify-content: center;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    main:has(section canvas) section:has(canvas) > div:nth-child(2) > div:first-child {
+        height: 58svh;
+        min-height: 20rem;
+    }
+
+    main:has(section canvas) section:has(canvas) > div:nth-child(2) > div:first-child > div:nth-child(2) {
+        left: 0.75rem;
+        right: 0.75rem;
+        max-width: calc(100% - 1.5rem);
+    }
+}
