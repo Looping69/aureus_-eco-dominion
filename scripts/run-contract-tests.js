@@ -39,6 +39,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/overseer-local-qwen-contract.test.ts',
     'tests/app-helper-extraction-contract.test.ts',
     'tests/hud-redesign-contract.test.ts',
+    'tests/mobile-hud-layout-contract.test.ts',
     'tests/fps-ability-hud-contract.test.ts',
     'tests/contract-tracker-hud-contract.test.ts',
     'tests/underground-hud-drawer-contract.test.ts',
