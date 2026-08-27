@@ -40,3 +40,38 @@
 .view-switch-button.is-dungeon:hover {
     background: #312e81;
 }
+
+@media (max-width: 640px) {
+    div:has(> details #command-rail-panel) {
+        left: 0.5rem !important;
+        right: 0.5rem !important;
+        gap: 0.5rem !important;
+        align-items: flex-end;
+    }
+
+    div:has(> details #command-rail-panel) > button {
+        width: 3rem !important;
+        height: 3rem !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    details:has(#command-rail-panel) {
+        max-width: calc(100vw - 7rem) !important;
+        padding-bottom: 0.125rem;
+    }
+
+    #command-rail-panel > div {
+        max-height: 42svh;
+        overflow-y: auto !important;
+        overscroll-behavior: contain;
+        padding-bottom: 0.125rem;
+    }
+
+    .absolute.top-14.left-2.z-40 {
+        right: 0.5rem;
+        max-width: calc(100vw - 1rem);
+    }
+}
