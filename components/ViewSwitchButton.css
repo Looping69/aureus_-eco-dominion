@@ -152,22 +152,41 @@
     .relative.w-full.h-full:has(.fixed.right-0.top-14.bottom-20) .absolute.top-14.left-2.z-40,
     .relative.w-full.h-full:has(.fixed.right-0.top-14.bottom-20) .absolute.bottom-\[8\.75rem\].left-2.right-2.z-\[70\],
     .relative.w-full.h-full:has(.fixed.right-0.top-14.bottom-20) .absolute.bottom-36.sm\:bottom-28.left-1\/2.-translate-x-1\/2.z-30,
-    .relative.w-full.h-full:has(.fixed.right-0.top-14.bottom-20) div:has(> details #command-rail-panel) {
+    .relative.w-full.h-full:has(.fixed.right-0.top-14.bottom-20) div:has(> details #command-rail-panel),
+    .relative.w-full.h-full:has(.absolute.inset-y-0.left-0.w-full) .absolute.top-0.left-0.right-0.z-10,
+    .relative.w-full.h-full:has(.absolute.inset-y-0.left-0.w-full) .absolute.top-20.right-2,
+    .relative.w-full.h-full:has(.absolute.inset-y-0.left-0.w-full) .absolute.top-14.left-2.z-40,
+    .relative.w-full.h-full:has(.absolute.inset-y-0.left-0.w-full) .absolute.bottom-\[8\.75rem\].left-2.right-2.z-\[70\],
+    .relative.w-full.h-full:has(.absolute.inset-y-0.left-0.w-full) .absolute.bottom-36.sm\:bottom-28.left-1\/2.-translate-x-1\/2.z-30,
+    .relative.w-full.h-full:has(.absolute.inset-y-0.left-0.w-full) div:has(> details #command-rail-panel),
+    .relative.w-full.h-full:has(.fixed.top-0.right-0.h-full) .absolute.top-0.left-0.right-0.z-10,
+    .relative.w-full.h-full:has(.fixed.top-0.right-0.h-full) .absolute.top-20.right-2,
+    .relative.w-full.h-full:has(.fixed.top-0.right-0.h-full) .absolute.top-14.left-2.z-40,
+    .relative.w-full.h-full:has(.fixed.top-0.right-0.h-full) .absolute.bottom-\[8\.75rem\].left-2.right-2.z-\[70\],
+    .relative.w-full.h-full:has(.fixed.top-0.right-0.h-full) .absolute.bottom-36.sm\:bottom-28.left-1\/2.-translate-x-1\/2.z-30,
+    .relative.w-full.h-full:has(.fixed.top-0.right-0.h-full) div:has(> details #command-rail-panel) {
         opacity: 0 !important;
         pointer-events: none !important;
         transform: translateY(0.5rem) !important;
         transition: opacity 160ms ease, transform 160ms ease;
     }
 
-    .fixed.right-0.top-14.bottom-20 {
+    .fixed.right-0.top-14.bottom-20,
+    .absolute.inset-y-0.left-0.w-full,
+    .fixed.top-0.right-0.h-full {
         inset: 4.25rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom)) 0.75rem !important;
         width: auto !important;
+        max-width: none !important;
+        height: auto !important;
         z-index: 140 !important;
     }
 
-    .fixed.right-0.top-14.bottom-20 > div {
+    .fixed.right-0.top-14.bottom-20 > div,
+    .absolute.inset-y-0.left-0.w-full,
+    .fixed.top-0.right-0.h-full {
         border: 1px solid rgba(51, 65, 85, 0.9) !important;
         border-radius: 8px !important;
         box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, 0.72) !important;
+        overflow: hidden;
     }
 }
