@@ -57,9 +57,9 @@ export const AgentCommandHUD: React.FC<AgentCommandHUDProps> = ({ agents, select
         : getCombatHealthLabel(leadAgent);
 
     return (
-        <div className="absolute bottom-36 left-1/2 z-[70] w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 pointer-events-none sm:bottom-28">
-            <div className="pointer-events-auto rounded-[6px] border-2 border-b-[6px] border-slate-950 bg-slate-950/90 px-3 py-2.5 text-white shadow-[4px_4px_0_rgba(0,0,0,0.35)] backdrop-blur-sm animate-in slide-in-from-bottom-3 duration-200">
-                <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="absolute bottom-[8.75rem] left-2 right-2 z-[70] w-auto pointer-events-none sm:bottom-28 sm:left-1/2 sm:right-auto sm:w-[min(24rem,calc(100vw-2rem))] sm:-translate-x-1/2">
+            <div className="pointer-events-auto rounded-[6px] border-2 border-b-[6px] border-slate-950 bg-slate-950/90 px-2.5 py-2.5 text-white shadow-[4px_4px_0_rgba(0,0,0,0.35)] backdrop-blur-sm animate-in slide-in-from-bottom-3 duration-200 sm:px-3">
+                <div className="mb-2 flex items-center justify-between gap-2 sm:gap-3">
                     <div className="flex min-w-0 items-center gap-2">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] border border-indigo-400/40 bg-indigo-500/15 text-indigo-100">
                             {selectedAgents.length > 1 ? <Users size={16} /> : <Target size={16} />}
@@ -69,11 +69,11 @@ export const AgentCommandHUD: React.FC<AgentCommandHUDProps> = ({ agents, select
                             <div className="truncate font-['Rajdhani'] text-sm font-black uppercase tracking-wide text-white">{groupLabel}</div>
                         </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                        <span className={`rounded-[3px] border px-2 py-1 font-mono text-[9px] font-bold uppercase ${orderToneClass}`}>
+                    <div className="flex max-w-[48%] shrink-0 items-center gap-1.5 overflow-hidden">
+                        <span className={`truncate rounded-[3px] border px-2 py-1 font-mono text-[9px] font-bold uppercase ${orderToneClass}`}>
                             {orderStateLabel}
                         </span>
-                        <span className="rounded-[3px] border border-slate-500/50 bg-slate-800/80 px-2 py-1 font-mono text-[9px] font-bold uppercase text-slate-200">
+                        <span className="truncate rounded-[3px] border border-slate-500/50 bg-slate-800/80 px-2 py-1 font-mono text-[9px] font-bold uppercase text-slate-200">
                             {leadAgent.state}
                         </span>
                     </div>
