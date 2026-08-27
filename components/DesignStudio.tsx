@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Check, Clipboard, Palette, RotateCcw, Save } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BuildingVoxelStudio } from './BuildingVoxelStudio';
+import './DesignStudio.css';
 import {
     BUILDING_STYLE_PRESETS,
     BUILDING_STYLE_STORAGE_KEY,
