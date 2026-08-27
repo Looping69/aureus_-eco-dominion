@@ -74,15 +74,26 @@ test('left floating stack and minimap stop competing with core mobile play space
 });
 
 test('open mobile drawers own the screen and suppress background HUD layers', () => {
-    assert.match(viewSwitchCss, /\.relative\.w-full\.h-full:has\(\.fixed\.right-0\.top-14\.bottom-20\) \.absolute\.top-0\.left-0\.right-0\.z-10/);
-    assert.match(viewSwitchCss, /\.relative\.w-full\.h-full:has\(\.fixed\.right-0\.top-14\.bottom-20\) div:has\(> details #command-rail-panel\)/);
+    for (const drawerSelector of [
+        '.fixed.right-0.top-14.bottom-20',
+        '.absolute.inset-y-0.left-0.w-full',
+        '.fixed.top-0.right-0.h-full',
+    ]) {
+        assert.match(viewSwitchCss, new RegExp(`\\.relative\\.w-full\\.h-full:has\\(${drawerSelector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\) \\.absolute\\.top-0\\.left-0\\.right-0\\.z-10`));
+        assert.match(viewSwitchCss, new RegExp(`\\.relative\\.w-full\\.h-full:has\\(${drawerSelector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\) div:has\\(> details #command-rail-panel\\)`));
+    }
+
     assert.match(viewSwitchCss, /opacity: 0 !important;/);
     assert.match(viewSwitchCss, /pointer-events: none !important;/);
     assert.match(viewSwitchCss, /transform: translateY\(0\.5rem\) !important;/);
     assert.match(viewSwitchCss, /transition: opacity 160ms ease, transform 160ms ease;/);
-    assert.match(viewSwitchCss, /\.fixed\.right-0\.top-14\.bottom-20 \{/);
+    assert.match(viewSwitchCss, /\.fixed\.right-0\.top-14\.bottom-20,/);
+    assert.match(viewSwitchCss, /\.absolute\.inset-y-0\.left-0\.w-full,/);
+    assert.match(viewSwitchCss, /\.fixed\.top-0\.right-0\.h-full \{/);
     assert.match(viewSwitchCss, /inset: 4\.25rem 0\.75rem calc\(0\.75rem \+ env\(safe-area-inset-bottom\)\) 0\.75rem !important;/);
     assert.match(viewSwitchCss, /width: auto !important;/);
+    assert.match(viewSwitchCss, /max-width: none !important;/);
+    assert.match(viewSwitchCss, /height: auto !important;/);
     assert.match(viewSwitchCss, /z-index: 140 !important;/);
     assert.match(viewSwitchCss, /border-radius: 8px !important;/);
 });
