@@ -45,12 +45,23 @@ test('expanded command rail is bounded and scrollable on phones', () => {
     assert.match(viewSwitchCss, /details:has\(#command-rail-panel\) \{/);
     assert.match(viewSwitchCss, /max-width: calc\(100vw - 7\.5rem\) !important;/);
     assert.match(viewSwitchCss, /details:has\(#command-rail-panel\) > summary \{/);
+    assert.match(viewSwitchCss, /margin-bottom: 0 !important;/);
     assert.match(viewSwitchCss, /max-width: 100%;/);
     assert.match(viewSwitchCss, /overflow: hidden;/);
     assert.match(viewSwitchCss, /#command-rail-panel > div \{/);
     assert.match(viewSwitchCss, /max-height: 30svh;/);
     assert.match(viewSwitchCss, /overflow-y: auto !important;/);
     assert.match(viewSwitchCss, /overscroll-behavior: contain;/);
+});
+
+test('mobile command rail stays collapsed at rest and expands while focused', () => {
+    assert.match(viewSwitchCss, /details:has\(#command-rail-panel\):not\(:focus-within\) #command-rail-panel \{/);
+    assert.match(viewSwitchCss, /grid-template-rows: 0fr !important;/);
+    assert.match(viewSwitchCss, /opacity: 0 !important;/);
+    assert.match(viewSwitchCss, /pointer-events: none !important;/);
+    assert.match(viewSwitchCss, /transform: translateY\(0\.35rem\) !important;/);
+    assert.match(viewSwitchCss, /details:has\(#command-rail-panel\):focus-within > summary \{/);
+    assert.match(viewSwitchCss, /margin-bottom: 0\.35rem !important;/);
 });
 
 test('selected-agent and inventory HUDs stay in the bottom command band', () => {
