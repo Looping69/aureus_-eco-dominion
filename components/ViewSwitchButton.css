@@ -118,9 +118,20 @@
     }
 
     details:has(#command-rail-panel) > summary {
-        margin-bottom: 0.35rem !important;
+        margin-bottom: 0 !important;
         max-width: 100%;
         overflow: hidden;
+    }
+
+    details:has(#command-rail-panel):not(:focus-within) #command-rail-panel {
+        grid-template-rows: 0fr !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transform: translateY(0.35rem) !important;
+    }
+
+    details:has(#command-rail-panel):focus-within > summary {
+        margin-bottom: 0.35rem !important;
     }
 
     #command-rail-panel > div {
