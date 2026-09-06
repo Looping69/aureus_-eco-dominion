@@ -15,12 +15,15 @@ import { getActionBranch } from './helpers/actionBranch.ts';
 function createFixture() {
     const manager = new StateManager();
     const state = manager.getMutableState();
-    assert.ok(state.factory, 'the colony fixture must initialize factory state');
     const north: FactorySectorState = {
         name: 'North', exportFocus: 'MINERALS', importFocus: 'WOOD',
         exportBonus: 0, importDiscount: 0, demandBonus: 0, stationCount: 1, throughput: 10,
     };
-    state.factory.sectors = [north, { ...north, name: 'South' }];
+    // Factory state is optional until the factory system is initialized.
+    state.factory = {
+        nodes: {}, packets: [], throughput: 0, backlog: 0, stalledNodes: 0, lastNetworkTick: 0,
+        sectors: [north, { ...north, name: 'South' }],
+    };
     state.tickCount = 42;
     state.commandQueue = [];
     state.debug.commandTrace = [];
@@ -101,6 +104,18 @@ test('dispatcher rejects an invalid mixed sector patch without partial gameplay 
     assert.equal(state.ui.lastCommandResult?.ok, false);
     assert.match(state.ui.lastCommandResult?.reason || '', /positive finite/);
     assert.equal(state.debug.commandTrace[0].validationResult, 'rejected');
+});
+
+test('policy commands reject an uninitialized factory without creating one', () => {
+    const { state, world, tick } = createFixture();
+    state.factory = undefined;
+    const resources = structuredClone(state.resources);
+    enqueueWorldCommand(world, 'UPDATE_SECTOR_POLICY', { sectorName: 'North', directive: 'EXPORT' });
+    tick();
+    assert.equal(state.factory, undefined);
+    assert.deepEqual(state.resources, resources);
+    assert.equal(state.ui.lastCommandResult?.ok, false);
+    assert.match(state.ui.lastCommandResult?.reason || '', /sector not found/);
 });
 
 for (const rewardType of ['AGT', 'GEMS'] as const) {
