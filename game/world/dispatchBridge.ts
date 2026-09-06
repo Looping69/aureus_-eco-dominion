@@ -93,6 +93,8 @@ export function dispatchWorldAction(action: Action, deps: WorldDispatchBridgeDep
             deps.selectBuilding(action.payload.type);
             break;
         case 'UPDATE_LOGISTICS': deps.updateLogistics(action.payload); break;
+        case 'UPDATE_SECTOR_POLICY': deps.pushCommand('UPDATE_SECTOR_POLICY', action.payload); break;
+        case 'CLAIM_GOAL': deps.pushCommand('CLAIM_GOAL'); break;
         case 'UNLOCK_TECH': deps.researchTech(action.payload); break;
         case 'TOGGLE_DEBUG': deps.toggleDebug(); break;
         case 'TOGGLE_CHEATS': deps.toggleCheats(); break;
