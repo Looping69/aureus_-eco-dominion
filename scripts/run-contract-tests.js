@@ -21,6 +21,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/game-definition-payload-schema-source-contract.test.ts',
     'tests/build-action-payload-schema-contract.test.ts',
     'tests/command-boundary-contract.test.ts',
+    'tests/goal-command-boundary-contract.test.ts',
     'tests/deterministic-network-layer-contract.test.ts',
     'tests/lockstep-command-buffer-contract.test.ts',
     'tests/lockstep-state-bridge-contract.test.ts',
