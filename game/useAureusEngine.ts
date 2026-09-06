@@ -18,7 +18,6 @@ import { AureusWorld, AureusWorldConfig } from './AureusWorld';
 import { GameState, SfxType } from '../types';
 import { ChunkStore } from '../engine/space/ChunkStore';
 import {
-    claimCompletedGoal,
     enqueueWorldCommand,
     enterDigMode,
     findPlannerPreviewPosition,
@@ -361,11 +360,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
             }
 
             if (action?.type === 'CLAIM_GOAL') {
-                const state = world.getState();
-                const updatedState = claimCompletedGoal(state);
-                if (updatedState) {
-                    reloadWorldState(world, updatedState);
-                }
+                enqueueWorldCommand(world, 'CLAIM_GOAL');
                 return;
             }
 
