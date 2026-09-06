@@ -7,6 +7,7 @@ import { BaseSimSystem } from '../Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
 import { Contract, GameState, GameCommand, SfxType } from '../../../types';
 import { designateRubbleDropZone, fillSubsurfaceCellWithRubble, queueSubsurfaceExcavationJob, queueSubsurfaceRubbleClearJob } from '../../subsurface/SubsurfaceModel';
+import { applySectorPolicyCommand } from '../logic/sectorPolicyCommand';
 
 const CONTRACT_COMPLETION_TTL = 75;
 const CONTRACT_WORK_SECONDS = 300;
@@ -51,6 +52,9 @@ export class CommandDispatcher extends BaseSimSystem {
 
         if (commandType === 'CLAIM_GOAL') {
             result = this.claimGoal(state);
+            handledBy = this.id;
+        } else if (commandType === 'UPDATE_SECTOR_POLICY') {
+            result = this.updateSectorPolicy(cmd, state);
             handledBy = this.id;
         } else if (commandType === 'ACCEPT_CONTRACT') {
             result = this.acceptContract(cmd, state);
@@ -99,6 +103,14 @@ export class CommandDispatcher extends BaseSimSystem {
         }
 
         this.reportResult(cmd.id, result, state, handledBy, cmd, sequence);
+    }
+
+    private updateSectorPolicy(cmd: GameCommand, state: GameState): CommandResult {
+        const result = applySectorPolicyCommand(state.factory?.sectors, cmd.payload);
+        if (result.ok === false) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: result.reason };
+        }
+        return { ok: true };
     }
 
     private claimGoal(state: GameState): CommandResult {
@@ -289,7 +301,7 @@ export class CommandDispatcher extends BaseSimSystem {
         const reason = result.ok ? undefined : (result as any).reason;
 
         // 2. Update UI-safe feedback
-        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'CLAIM_GOAL', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT', 'DIG_VOXEL', 'CLEAR_RUBBLE', 'DESIGNATE_RUBBLE_DUMP', 'FILL_VOXEL'];
+        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'CLAIM_GOAL', 'UPDATE_SECTOR_POLICY', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT', 'DIG_VOXEL', 'CLEAR_RUBBLE', 'DESIGNATE_RUBBLE_DUMP', 'FILL_VOXEL'];
         if (!ok || (cmd && feedbackTypes.includes(cmd.type as string))) {
             state.ui.lastCommandResult = {
                 commandId,

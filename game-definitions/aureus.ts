@@ -4,6 +4,7 @@ import { BUILDINGS, INITIAL_RESOURCES } from '../engine/data/VoxelConstants';
 import { RAW_AGENT_ROLE_SCHEMA } from '../engine/data/agentRoles';
 import { COMBAT_WEAPONS, ROLE_WEAPON_LOADOUTS } from '../engine/data/combatWeapons';
 import { RESOURCE_GRID_ROLE_SCHEMA } from '../engine/data/resourceGridRoleSchema';
+import { SECTOR_POLICY_PAYLOAD_SCHEMA } from '../engine/data/sectorPolicy';
 import { defineGameDefinition, type EntityArchetypeDefinition, type GameActionDefinition, type GameActionPayloadOptionSource, type GameResourceDefinition, type GameSystemBindingDefinition } from '../engine/game-definition';
 
 const resourceDefinitions: GameResourceDefinition[] = [
@@ -273,6 +274,8 @@ const resourcePayloadSchema = singleStringPayloadSchema('resource', 'Market reso
 const techIdPayloadSchema = singleStringPayloadSchema('techId', 'Technology identifier accepted either as { techId } or as a legacy primitive string payload.', 'techs');
 
 const actionDefinitions: GameActionDefinition[] = [
+    { id: 'action.claimGoal', label: 'Claim Goal', category: 'economy', commandType: 'CLAIM_GOAL', target: 'screen', payloadFields: [], description: 'Claims a completed goal reward during simulation command dispatch.' },
+    { id: 'action.updateSectorPolicy', label: 'Update Sector Policy', category: 'economy', commandType: 'UPDATE_SECTOR_POLICY', target: 'screen', payloadFields: Object.keys(SECTOR_POLICY_PAYLOAD_SCHEMA), payloadSchema: SECTOR_POLICY_PAYLOAD_SCHEMA, description: 'Updates a factory sector policy after tick-time validation.' },
     { id: 'action.placeBuilding', label: 'Place Building', category: 'build', commandType: 'PLACE_BUILDING', target: 'tile', payloadFields: ['x', 'z', 'buildingType'], payloadSchema: placeBuildingPayloadSchema, description: 'Places a building archetype on a surface tile.' },
     { id: 'action.buyBuilding', label: 'Buy Building', category: 'economy', commandType: 'BUY_BUILDING', target: 'screen', payloadFields: ['buildingType', 'cost'], payloadSchema: buyBuildingPayloadSchema, description: 'Adds a building archetype to player inventory.' },
     { id: 'action.bulldoze', label: 'Bulldoze', category: 'build', commandType: 'BULLDOZE', target: 'tile', payloadFields: ['x', 'z'], payloadSchema: tilePayloadSchema, description: 'Removes or damages a tile structure.' },
