@@ -49,7 +49,10 @@ export class CommandDispatcher extends BaseSimSystem {
         let result: CommandResult | null = null;
         const commandType = cmd.type as string;
 
-        if (commandType === 'ACCEPT_CONTRACT') {
+        if (commandType === 'CLAIM_GOAL') {
+            result = this.claimGoal(state);
+            handledBy = this.id;
+        } else if (commandType === 'ACCEPT_CONTRACT') {
             result = this.acceptContract(cmd, state);
             handledBy = this.id;
         } else if (commandType === 'DELIVER_CONTRACT') {
@@ -96,6 +99,35 @@ export class CommandDispatcher extends BaseSimSystem {
         }
 
         this.reportResult(cmd.id, result, state, handledBy, cmd, sequence);
+    }
+
+    private claimGoal(state: GameState): CommandResult {
+        const goal = state.activeGoal;
+        if (!goal) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'No active goal to claim.' };
+        }
+        if (!goal.completed) {
+            return { ok: false, code: CommandErrorCode.INVALID_TARGET, reason: 'Active goal is not complete yet.' };
+        }
+
+        if (goal.reward.type === 'AGT') {
+            state.resources.agt += goal.reward.amount;
+        } else {
+            state.resources.gems += goal.reward.amount;
+        }
+
+        state.newsFeed.unshift({
+            id: `goal_claim_${state.tickCount}_${goal.id}`,
+            headline: `MISSION COMPLETE: ${goal.title} reward claimed.`,
+            type: 'POSITIVE',
+            timestamp: state.tickCount,
+        });
+        if (state.newsFeed.length > 8) {
+            state.newsFeed.length = 8;
+        }
+        state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.COMPLETE });
+        state.activeGoal = null;
+        return { ok: true };
     }
 
     private getVoxelTarget(cmd: GameCommand): { x: number; y: number; z: number } | CommandResult {
@@ -257,7 +289,7 @@ export class CommandDispatcher extends BaseSimSystem {
         const reason = result.ok ? undefined : (result as any).reason;
 
         // 2. Update UI-safe feedback
-        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT', 'DIG_VOXEL', 'CLEAR_RUBBLE', 'DESIGNATE_RUBBLE_DUMP', 'FILL_VOXEL'];
+        const feedbackTypes = ['PLACE_BUILDING', 'BUY_BUILDING', 'BULLDOZE', 'BULLDOZE_SUB', 'PLACE_SUB_BUILDING', 'UPGRADE_BUILDING', 'SELL_RESOURCE', 'BUY_RESOURCE', 'CLAIM_GOAL', 'ACCEPT_CONTRACT', 'DELIVER_CONTRACT', 'ABANDON_CONTRACT', 'DIG_VOXEL', 'CLEAR_RUBBLE', 'DESIGNATE_RUBBLE_DUMP', 'FILL_VOXEL'];
         if (!ok || (cmd && feedbackTypes.includes(cmd.type as string))) {
             state.ui.lastCommandResult = {
                 commandId,
