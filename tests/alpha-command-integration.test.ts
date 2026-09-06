@@ -57,7 +57,7 @@ test('sector hook queues policy commands and never reloads state in that branch'
 
 test('world dispatch also forwards goal and sector actions through its command boundary', () => {
     const queued: Array<[string, unknown]> = [];
-    const deps = { pushCommand: (type: string, payload?: unknown) => queued.push([type, payload]) } as WorldDispatchBridgeDeps;
+    const deps = { pushCommand: (type: string, payload?: unknown): void => { queued.push([type, payload]); } } as WorldDispatchBridgeDeps;
     const payload = { sectorName: 'North', directive: 'EXPORT' };
     dispatchWorldAction({ type: 'CLAIM_GOAL' }, deps);
     dispatchWorldAction({ type: 'UPDATE_SECTOR_POLICY', payload }, deps);
