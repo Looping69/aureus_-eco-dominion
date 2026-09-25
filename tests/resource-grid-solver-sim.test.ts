@@ -5,8 +5,8 @@ import path from 'node:path';
 
 import { StateManager } from '../game/state/StateManager.ts';
 import { ChunkStore } from '../engine/space/ChunkStore.ts';
-import { collectAureusWaterGridParticipants } from '../engine/sim/resourceGrid/AureusWaterGridAdapter.ts';
-import { collectAureusPowerGridParticipants } from '../engine/sim/resourceGrid/AureusPowerGridAdapter.ts';
+import { collectAureusWaterGridParticipants } from '../game/sim/utility/AureusWaterGridAdapter.ts';
+import { collectAureusPowerGridParticipants } from '../game/sim/utility/AureusPowerGridAdapter.ts';
 import { solveResourceGridNetwork } from '../engine/sim/resourceGrid/ResourceGridSolver.ts';
 import { BuildingType } from '../types.ts';
 import type { GameState, GridTile } from '../types.ts';
@@ -206,8 +206,8 @@ test('Aureus power adapter collects schema-backed production and demand amounts'
 });
 
 test('water network delegates connectivity and allocation to the resource grid solver', () => {
-    const waterSystem = source('engine/sim/systems/WaterNetworkSystem.ts');
-    const adapter = source('engine/sim/resourceGrid/AureusWaterGridAdapter.ts');
+    const waterSystem = source('game/sim/utility/WaterNetworkSystem.ts');
+    const adapter = source('game/sim/utility/AureusWaterGridAdapter.ts');
 
     assert.match(waterSystem, /solveResourceGridNetwork\(WATER_NETWORK_TYPE, participants\)/);
     assert.match(waterSystem, /collectAureusWaterGridParticipants\(state\)/);
@@ -228,8 +228,8 @@ test('water network delegates connectivity and allocation to the resource grid s
 });
 
 test('power grid delegates connectivity and allocation to the resource grid solver', () => {
-    const powerSystem = source('engine/sim/systems/PowerGridSystem.ts');
-    const adapter = source('engine/sim/resourceGrid/AureusPowerGridAdapter.ts');
+    const powerSystem = source('game/sim/utility/PowerGridSystem.ts');
+    const adapter = source('game/sim/utility/AureusPowerGridAdapter.ts');
 
     assert.match(powerSystem, /solveResourceGridNetwork\(POWER_NETWORK_TYPE, participants\)/);
     assert.match(powerSystem, /collectAureusPowerGridParticipants\(state\)/);
@@ -249,11 +249,11 @@ test('power grid delegates connectivity and allocation to the resource grid solv
 });
 
 test('Aureus adapters share structure and footprint helper logic', () => {
-    const utilities = source('engine/sim/resourceGrid/AureusResourceGridAdapterUtils.ts');
-    const waterAdapter = source('engine/sim/resourceGrid/AureusWaterGridAdapter.ts');
-    const powerAdapter = source('engine/sim/resourceGrid/AureusPowerGridAdapter.ts');
-    const waterSystem = source('engine/sim/systems/WaterNetworkSystem.ts');
-    const powerSystem = source('engine/sim/systems/PowerGridSystem.ts');
+    const utilities = source('game/sim/utility/AureusResourceGridAdapterUtils.ts');
+    const waterAdapter = source('game/sim/utility/AureusWaterGridAdapter.ts');
+    const powerAdapter = source('game/sim/utility/AureusPowerGridAdapter.ts');
+    const waterSystem = source('game/sim/utility/WaterNetworkSystem.ts');
+    const powerSystem = source('game/sim/utility/PowerGridSystem.ts');
 
     assert.match(utilities, /export function isStructureHead/);
     assert.match(utilities, /export function getStructureKey/);
@@ -270,8 +270,8 @@ test('Aureus adapters share structure and footprint helper logic', () => {
 test('static resource grid roles live in declarative schema data', () => {
     const roleData = source('engine/data/resourceGridRoles.ts');
     const roleSchema = source('engine/data/resourceGridRoleSchema.ts');
-    const waterAdapter = source('engine/sim/resourceGrid/AureusWaterGridAdapter.ts');
-    const powerAdapter = source('engine/sim/resourceGrid/AureusPowerGridAdapter.ts');
+    const waterAdapter = source('game/sim/utility/AureusWaterGridAdapter.ts');
+    const powerAdapter = source('game/sim/utility/AureusPowerGridAdapter.ts');
 
     assert.match(roleData, /RESOURCE_GRID_BUILDING_ROLES/);
     assert.match(roleData, /buildResourceGridBuildingRoles\(RESOURCE_GRID_ROLE_SCHEMA\)/);
