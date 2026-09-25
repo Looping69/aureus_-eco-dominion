@@ -8,7 +8,7 @@ const gameTypesPath = path.join(process.cwd(), 'engine', 'types', 'game.ts');
 const typesBarrelPath = path.join(process.cwd(), 'types.ts');
 const generatorPath = path.join(process.cwd(), 'engine', 'worldgen', 'LayeredWorldGenerator.ts');
 const stateManagerPath = path.join(process.cwd(), 'game', 'state', 'createAureusInitialState.ts');
-const persistencePath = path.join(process.cwd(), 'engine', 'sim', 'PersistenceManager.ts');
+const persistencePath = path.join(process.cwd(), 'game', 'state', 'PersistenceManager.ts');
 
 function assertIncludes(source: string, snippet: string) {
   assert.equal(source.includes(snippet), true, `Missing expected snippet: ${snippet}`);
