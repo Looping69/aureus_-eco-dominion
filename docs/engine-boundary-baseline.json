@@ -1,0 +1,298 @@
+[
+  {
+    "source": "engine/data/agentRoles.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/agentRoles.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/buildings.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/combatPerimeters.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/combatPerimeters.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/combatWeapons.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/eras.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/industrialCosts.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/resourceGridRoles.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/tech.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/voxels/agents/index.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/voxels/buildings/common/index.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/voxels/buildings/era1/index.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/voxels/buildings/era2/index.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/voxels/buildings/era3/index.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/voxels/buildings/era4/index.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/voxels/buildings/era5/index.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/voxels/buildings/infrastructure/index.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/data/voxels/BuildingStages.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/jobs/engine.worker.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/net/DeterministicCommand.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/net/LockstepCommandBuffer.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/net/LockstepReplay.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/net/LockstepStateBridge.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/render/utils/VoxelBuilder.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/algorithms/HierarchicalPathfinding.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/algorithms/Pathfinding.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/construction/PlacementCore.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/logic/AiLogic.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/logic/SimulationLogic.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/PersistenceManager.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/resourceGrid/AureusPowerGridAdapter.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/resourceGrid/AureusResourceGridAdapterUtils.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/resourceGrid/AureusWaterGridAdapter.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/AgentSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/AIOverseerAutopilotSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/AIOverseerPlaySystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/AIOverseerSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/AmbientNPCSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/BureaucracySystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/ColonySystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/CombatSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/CombatSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/CommandDispatcher.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/ConstructionSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/EconomySystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/EmploymentSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/EmploymentSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/EnvironmentSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/EraSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/EventSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/JobGenerationSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/LogisticsSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/MissionSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/PowerGridSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/ProductionSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/ResearchSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/TutorialDemoSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/UndergroundSurveySystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/systems/WaterNetworkSystem.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/utility/UtilityReadability.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/utility/UtilityReadability.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/sim/utility/WaterDiagnostics.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/space/ChunkStore.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/state/StateManager.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/stateMachines/contractLifecycle.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/subsurface/RubbleHaul.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/subsurface/SubsurfaceModel.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/underground/UndergroundConnectivity.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/underground/UndergroundGenerator.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/utils/buildingLevels.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/worldgen/Core.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/worldgen/LayeredWorldGenerator.ts",
+    "target": "types"
+  },
+  {
+    "source": "engine/worldgen/LayeredWorldGenerator.ts",
+    "target": "types"
+  }
+]

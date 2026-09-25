@@ -11,6 +11,7 @@
     "vite": "vite",
     "build": "node scripts/build.js",
     "typecheck": "tsc --noEmit",
+    "test:boundary": "node scripts/check-engine-boundary.js && node --experimental-strip-types --test tests/engine-boundary.test.ts && node --import tsx --test tests/seeded-random.test.ts",
     "test:contracts": "node scripts/run-contract-tests.js",
     "preview": "vite preview"
   },
