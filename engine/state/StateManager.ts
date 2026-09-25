@@ -15,6 +15,7 @@ import { flushLockstepCommandsToQueue } from '../net/LockstepStateBridge';
 import { normalizeUndergroundState } from '../underground/UndergroundGenerator';
 import { createWeatherState } from '../weather/weatherModel';
 import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';
+import { createSeededRandom, type SeededRandom } from '../kernel/SeededRandom';
 
 export type StateListener = (newState: GameState) => void;
 
@@ -25,28 +26,6 @@ export interface StateManagerOptions {
 
 type MutableContext = 'none' | 'command' | 'simTick';
 type LegacyCommandResultStatus = string | boolean;
-
-type SeededRandom = {
-    seed: number;
-    next: () => number;
-    range: (min: number, max: number) => number;
-    rangeInt: (min: number, max: number) => number;
-    chance: (probability: number) => boolean;
-};
-
-function createSeededRandom(seed: number): SeededRandom {
-    let value = (seed >>> 0) || 1;
-    return {
-        seed: value,
-        next: () => {
-            value = (value * 1664525 + 1013904223) >>> 0;
-            return value / 0x100000000;
-        },
-        range: (min: number, max: number) => min + ((value = (value * 1664525 + 1013904223) >>> 0) / 0x100000000) * (max - min),
-        rangeInt: (min: number, max: number) => Math.floor(min + ((value = (value * 1664525 + 1013904223) >>> 0) / 0x100000000) * (max - min)),
-        chance: (probability: number) => ((value = (value * 1664525 + 1013904223) >>> 0) / 0x100000000) < probability,
-    };
-}
 
 function createStarterAgents(spawnX: number, spawnZ: number): Agent[] {
     const names = ['Mira', 'Juno', 'Tebogo'];
