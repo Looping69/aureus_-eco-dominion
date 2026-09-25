@@ -1,5 +1,5 @@
 
-import { StateManager } from '../../engine/state/StateManager';
+import { StateManager } from '../state/StateManager';
 import { IsoCameraSystem } from '../render/IsoCameraSystem';
 
 export class AgentManager {

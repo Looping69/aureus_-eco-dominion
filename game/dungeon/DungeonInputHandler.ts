@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { StateManager } from '../../engine/state/StateManager';
+import { StateManager } from '../state/StateManager';
 import { DungeonEngine } from '../../engine/dungeon/DungeonEngine';
 import { DungeonMinerType } from '../../engine/dungeon/DungeonTypes';
 

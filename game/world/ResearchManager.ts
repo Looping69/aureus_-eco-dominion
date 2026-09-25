@@ -3,7 +3,7 @@
  * Handles technology research and unlocking.
  */
 
-import { StateManager } from '../../engine/state/StateManager';
+import { StateManager } from '../state/StateManager';
 import { TechId, SfxType } from '../../types';
 import { TECHNOLOGIES } from '../../engine/data/VoxelConstants';
 

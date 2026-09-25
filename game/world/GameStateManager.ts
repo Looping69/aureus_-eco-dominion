@@ -3,7 +3,7 @@
  * Handles save/load, tutorial progression, and debug features.
  */
 
-import { StateManager } from '../../engine/state/StateManager';
+import { StateManager } from '../state/StateManager';
 import { WorkerPool } from '../../engine/jobs';
 import { GameStep, SfxType } from '../../types';
 

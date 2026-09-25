@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { StateManager } from '../engine/state/StateManager.ts';
+import { StateManager } from '../game/state/StateManager.ts';
 import { CommandDispatcher } from '../engine/sim/systems/CommandDispatcher.ts';
 import { validateGameCommandType } from '../engine/game-definition/GameCommandValidator.ts';
 import { AUREUS_GAME_DEFINITION } from '../game-definitions/aureus.ts';

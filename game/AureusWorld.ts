@@ -40,7 +40,7 @@ import { DungeonCameraSystem } from './render/DungeonCameraSystem';
 import { FPSCameraSystem } from './render/FPSCameraSystem';
 import { DungeonInputHandler } from './dungeon/DungeonInputHandler';
 import { InputSystem } from '../engine/input/InputSystem';
-import { StateManager, StateListener } from '../engine/state/StateManager';
+import { StateManager, StateListener } from './state/StateManager';
 import { EconomyManager, BuildingManager, ResearchManager, AgentManager } from './world';
 import { ChunkStore } from '../engine/space/ChunkStore';
 import { confirmMobilePlacement } from './mobilePlacement';

@@ -3,7 +3,7 @@
  * Handles all building-related operations: placement, bulldozing, selection, and ghost previews.
  */
 
-import { StateManager } from '../../engine/state/StateManager';
+import { StateManager } from '../state/StateManager';
 import { BuildingRenderSystem } from '../render/systems/BuildingRenderSystem';
 import { BuildingType, SfxType, Chunk } from '../../types';
 import { BUILDINGS } from '../../engine/data/VoxelConstants';

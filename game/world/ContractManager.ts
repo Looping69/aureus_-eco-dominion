@@ -3,7 +3,7 @@
  * Handles contract acceptance and delivery.
  */
 
-import { StateManager } from '../../engine/state/StateManager';
+import { StateManager } from '../state/StateManager';
 import { SfxType } from '../../types';
 
 export class ContractManager {
