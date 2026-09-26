@@ -44,8 +44,8 @@ export class StateManager extends StateStore<GameState> {
     }
 
     override loadState(newState: GameState): void {
-        this.rng = createSeededRandom(newState.seed);
         super.loadState(newState);
+        this.rng = createSeededRandom(this.state.seed);
     }
 
     setActiveGameDefinitionProvider(provider: ActiveGameDefinitionProvider | null): void {
