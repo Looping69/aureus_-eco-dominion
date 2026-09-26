@@ -1,4 +1,4 @@
-import { StateManager } from '../../engine/state/StateManager';
+import { StateManager } from '../state/StateManager';
 
 export type ContractCommandType = 'ACCEPT_CONTRACT' | 'DELIVER_CONTRACT' | 'ABANDON_CONTRACT';
 

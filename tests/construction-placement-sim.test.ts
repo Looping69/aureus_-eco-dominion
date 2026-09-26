@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { BUILDINGS } from '../engine/data/VoxelConstants.ts';
-import { StateManager } from '../engine/state/StateManager.ts';
+import { StateManager } from '../game/state/StateManager.ts';
 import { ChunkStore } from '../engine/space/ChunkStore.ts';
 import { BuildingType } from '../types.ts';
 import type { GameState } from '../types.ts';

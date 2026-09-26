@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { StateManager } from '../engine/state/StateManager.ts';
+import { StateManager } from '../game/state/StateManager.ts';
 import { CommandDispatcher } from '../engine/sim/systems/CommandDispatcher.ts';
 import type { Contract, GameCommand } from '../types.ts';
 

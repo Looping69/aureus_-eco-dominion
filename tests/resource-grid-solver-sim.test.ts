@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { StateManager } from '../engine/state/StateManager.ts';
+import { StateManager } from '../game/state/StateManager.ts';
 import { ChunkStore } from '../engine/space/ChunkStore.ts';
 import { collectAureusWaterGridParticipants } from '../engine/sim/resourceGrid/AureusWaterGridAdapter.ts';
 import { collectAureusPowerGridParticipants } from '../engine/sim/resourceGrid/AureusPowerGridAdapter.ts';

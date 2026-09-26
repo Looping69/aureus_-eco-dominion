@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createSeededRandom } from '../engine/kernel/SeededRandom.ts';
-import { StateManager } from '../engine/state/StateManager.ts';
+import { StateManager } from '../game/state/StateManager.ts';
 
 test('the engine random stream is reproducible and independent of Aureus state', () => {
     const first = createSeededRandom(42);

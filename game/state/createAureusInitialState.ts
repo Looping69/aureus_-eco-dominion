@@ -1,31 +1,11 @@
 import { Agent, BuildingType, Era, FogExplorationState, GameState, GameStep } from '../../types';
-import { INITIAL_PERMITS, INITIAL_NPCS } from '../data/bureaucracy';
-import { INITIAL_RESOURCES } from '../data/resources';
-import type { ActiveGameDefinitionProvider } from '../game-definition';
-import {
-    createQueuedGameCommandCandidateEnvelope,
-    GAME_COMMAND_CANDIDATE_SOURCES,
-    validateGameCommandForActiveDefinition,
-} from '../game-definition';
-import { DAY_NIGHT } from '../sim/dayNightCycle';
-import { ChunkStore } from '../space/ChunkStore';
-import type { DeterministicCommandInput } from '../net/DeterministicCommand';
-import { LockstepCommandBuffer } from '../net/LockstepCommandBuffer';
-import { flushLockstepCommandsToQueue } from '../net/LockstepStateBridge';
-import { normalizeUndergroundState } from '../underground/UndergroundGenerator';
-import { createWeatherState } from '../weather/weatherModel';
-import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';
-import { createSeededRandom, type SeededRandom } from '../kernel/SeededRandom';
-
-export type StateListener = (newState: GameState) => void;
-
-export interface StateManagerOptions {
-    lockstepCommandBuffer?: LockstepCommandBuffer | null;
-    activeGameDefinitionProvider?: ActiveGameDefinitionProvider | null;
-}
-
-type MutableContext = 'none' | 'command' | 'simTick';
-type LegacyCommandResultStatus = string | boolean;
+import { INITIAL_PERMITS, INITIAL_NPCS } from '../../engine/data/bureaucracy';
+import { INITIAL_RESOURCES } from '../../engine/data/resources';
+import { DAY_NIGHT } from '../../engine/sim/dayNightCycle';
+import { ChunkStore } from '../../engine/space/ChunkStore';
+import { normalizeUndergroundState } from '../../engine/underground/UndergroundGenerator';
+import { createWeatherState } from '../../engine/weather/weatherModel';
+import { normalizeLayeredWorldState } from '../../engine/worldgen/LayeredWorldGenerator';
 
 function createStarterAgents(spawnX: number, spawnZ: number): Agent[] {
     const names = ['Mira', 'Juno', 'Tebogo'];
@@ -140,23 +120,7 @@ function normalizeFogExplorationState(fogExploration: any): FogExplorationState 
     };
 }
 
-export class StateManager {
-    private state: GameState;
-    private listeners = new Set<StateListener>();
-    private dirtyKeys = new Set<keyof GameState>();
-    private mutableContext: MutableContext = 'none';
-    private rng: SeededRandom;
-    private lockstepCommandBuffer: LockstepCommandBuffer | null = null;
-    private activeGameDefinitionProvider: ActiveGameDefinitionProvider | null = null;
-
-    constructor(overrides?: Partial<GameState>, options?: StateManagerOptions) {
-        this.state = this.createInitialState(overrides);
-        this.rng = createSeededRandom(this.state.seed);
-        this.lockstepCommandBuffer = options?.lockstepCommandBuffer ?? null;
-        this.activeGameDefinitionProvider = options?.activeGameDefinitionProvider ?? null;
-    }
-
-    private createInitialChunks(seed: number, chunks?: GameState['chunks']): GameState['chunks'] {
+function createInitialChunks(seed: number, chunks?: GameState['chunks']): GameState['chunks'] {
         if (chunks && Object.keys(chunks).length > 0) {
             return chunks;
         }
@@ -170,11 +134,11 @@ export class StateManager {
         return initialChunks;
     }
 
-    private createInitialState(overrides?: Partial<GameState>): GameState {
+export function createAureusInitialState(overrides?: Partial<GameState>): GameState {
         const seed = overrides?.seed ?? Math.floor(Math.random() * 1000000);
         const spawnX = overrides?.spawnX ?? 0;
         const spawnZ = overrides?.spawnZ ?? 0;
-        const initialChunks = this.createInitialChunks(seed, overrides?.chunks);
+        const initialChunks = createInitialChunks(seed, overrides?.chunks);
 
         const baseState: GameState = {
             resources: {
@@ -308,7 +272,7 @@ export class StateManager {
         const eraUnlockedPopup = overrides?.eraUnlockedPopup && !unlockedEras.includes(overrides.eraUnlockedPopup)
             ? overrides.eraUnlockedPopup
             : null;
-        const chunks = this.createInitialChunks(seed, overrides?.chunks);
+        const chunks = createInitialChunks(seed, overrides?.chunks);
         const selectedAgentIds = normalizeSelectedAgentIds(overrides?.selectedAgentId, overrides?.selectedAgentIds);
 
         return {
@@ -398,152 +362,3 @@ export class StateManager {
         };
     }
 
-    getState(): GameState {
-        return this.state;
-    }
-
-    getMutableState(): GameState {
-        return this.state;
-    }
-
-    setMutableContext(context: MutableContext): void {
-        this.mutableContext = context;
-    }
-
-    getRandom(): SeededRandom {
-        return this.rng;
-    }
-
-    getNextId(prefix: string): string {
-        this.state.idCounter += 1;
-        this.markDirty('idCounter');
-        return `${prefix}_${this.state.idCounter}`;
-    }
-
-    subscribe(listener: StateListener): () => void {
-        this.listeners.add(listener);
-        return () => this.listeners.delete(listener);
-    }
-
-    notifyIfDirty(): void {
-        if (this.dirtyKeys.size === 0) return;
-        this.listeners.forEach((listener) => listener(this.state));
-        this.dirtyKeys.clear();
-    }
-
-    markDirty(...keys: (keyof GameState)[]): void {
-        keys.forEach((key) => this.dirtyKeys.add(key));
-    }
-
-    getDirtyKeys(): Set<keyof GameState> {
-        return new Set(this.dirtyKeys);
-    }
-
-    mutate<K extends keyof GameState>(key: K, value: GameState[K]): void {
-        if (this.mutableContext === 'none') {
-            console.warn(`[StateManager] Direct mutation of '${String(key)}' outside sim/command context. Use update() for UI actions.`);
-        }
-        this.state[key] = value;
-        this.markDirty(key);
-    }
-
-    update(partial: Partial<GameState>): void {
-        Object.assign(this.state, partial);
-        this.markDirty(...(Object.keys(partial) as (keyof GameState)[]));
-    }
-
-    loadState(newState: GameState): void {
-        this.state = this.createInitialState(newState);
-        this.rng = createSeededRandom(this.state.seed);
-        this.markDirty(...(Object.keys(this.state) as (keyof GameState)[]));
-        this.notifyIfDirty();
-    }
-
-    serializeState(): string {
-        return JSON.stringify(this.state);
-    }
-
-    setActiveGameDefinitionProvider(provider: ActiveGameDefinitionProvider | null): void {
-        this.activeGameDefinitionProvider = provider;
-    }
-
-    private rejectCommandOutsideActiveDefinition(type: string, payload?: any): boolean {
-        if (!this.activeGameDefinitionProvider) return false;
-
-        const validation = validateGameCommandForActiveDefinition(this.activeGameDefinitionProvider, type, payload);
-        if (validation.ok) return false;
-
-        const commandId = this.getNextId('cmd_reject');
-        const reason = validation.reason ?? `Command type ${type} is not declared by the active game definition.`;
-        console.warn(`[StateManager] Rejected command '${type}': ${reason}`);
-        this.state.ui.lastCommandResult = {
-            commandId,
-            type,
-            ok: false,
-            code: validation.action ? 'COMMAND_PAYLOAD_INVALID' : 'COMMAND_NOT_DECLARED',
-            reason,
-        };
-        this.markDirty('ui');
-        return true;
-    }
-
-    pushCommand(type: string, payload?: any): void {
-        if (this.rejectCommandOutsideActiveDefinition(type, payload)) {
-            return;
-        }
-
-        const issuedAtTick = this.state.tickCount;
-        const command = createQueuedGameCommandCandidateEnvelope(
-            type,
-            payload,
-            GAME_COMMAND_CANDIDATE_SOURCES.UI,
-            'StateManager pushCommand',
-            issuedAtTick,
-            this.state.commandQueue.length,
-            this.getNextId('cmd'),
-        );
-        this.state.commandQueue.push(command as GameState['commandQueue'][number]);
-        this.markDirty('commandQueue');
-    }
-
-    setLockstepCommandBuffer(buffer: LockstepCommandBuffer | null): void {
-        this.lockstepCommandBuffer = buffer;
-    }
-
-    scheduleDeterministicCommand(input: DeterministicCommandInput) {
-        if (!this.lockstepCommandBuffer) {
-            throw new Error('Lockstep command buffer is not enabled for this StateManager');
-        }
-        return this.lockstepCommandBuffer.accept(input, this.state.tickCount);
-    }
-
-    flushReadyLockstepCommands(): void {
-        if (!this.lockstepCommandBuffer) return;
-        flushLockstepCommandsToQueue(this.lockstepCommandBuffer, this.state);
-        this.markDirty('commandQueue');
-    }
-
-    drainCommands(): Array<{ type: string; payload?: any }> {
-        const commands = this.state.commandQueue.map(({ type, payload }) => ({ type, payload }));
-        this.state.commandQueue = [];
-        this.markDirty('commandQueue');
-        return commands;
-    }
-
-    pushEffect(effect: any): void {
-        this.state.pendingEffects.push(effect);
-        this.markDirty('pendingEffects');
-    }
-
-    setCommandResult(status: LegacyCommandResultStatus, message: string): void {
-        const statusText = typeof status === 'string' ? status : status ? 'SUCCESS' : 'ERROR';
-        this.state.ui.lastCommandResult = {
-            commandId: this.getNextId('result'),
-            type: 'LEGACY',
-            ok: typeof status === 'boolean' ? status : ['SUCCESS', 'OK', 'ACCEPTED'].includes(status),
-            code: statusText,
-            reason: message || undefined,
-        };
-        this.markDirty('ui');
-    }
-}

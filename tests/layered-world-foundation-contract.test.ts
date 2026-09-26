@@ -7,7 +7,7 @@ const layeredTypesPath = path.join(process.cwd(), 'engine', 'types', 'layeredWor
 const gameTypesPath = path.join(process.cwd(), 'engine', 'types', 'game.ts');
 const typesBarrelPath = path.join(process.cwd(), 'types.ts');
 const generatorPath = path.join(process.cwd(), 'engine', 'worldgen', 'LayeredWorldGenerator.ts');
-const stateManagerPath = path.join(process.cwd(), 'engine', 'state', 'StateManager.ts');
+const stateManagerPath = path.join(process.cwd(), 'game', 'state', 'createAureusInitialState.ts');
 const persistencePath = path.join(process.cwd(), 'engine', 'sim', 'PersistenceManager.ts');
 
 function assertIncludes(source: string, snippet: string) {
@@ -83,10 +83,10 @@ test('initial state and persistence backfill layered world from current chunks',
   const persistence = readFileSync(persistencePath, 'utf8');
 
   for (const snippet of [
-    "import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';",
-    'const initialChunks = this.createInitialChunks(seed, overrides?.chunks);',
+    "import { normalizeLayeredWorldState } from '../../engine/worldgen/LayeredWorldGenerator';",
+    'const initialChunks = createInitialChunks(seed, overrides?.chunks);',
     'layeredWorld: normalizeLayeredWorldState(initialChunks, overrides?.layeredWorld),',
-    'const chunks = this.createInitialChunks(seed, overrides?.chunks);',
+    'const chunks = createInitialChunks(seed, overrides?.chunks);',
     'layeredWorld: normalizeLayeredWorldState(chunks, overrides?.layeredWorld),',
   ]) {
     assertIncludes(stateManager, snippet);

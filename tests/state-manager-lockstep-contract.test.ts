@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { StateManager } from '../engine/state/StateManager.ts';
+import { StateManager } from '../game/state/StateManager.ts';
 import { LockstepCommandBuffer } from '../engine/net/index.ts';
 import { GAME_DEFINITION_REGISTRY } from '../game-definitions/activeGameDefinition.ts';
 import type { GameCommand } from '../types.ts';

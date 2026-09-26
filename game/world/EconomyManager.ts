@@ -3,7 +3,7 @@
  * Handles all economy-related operations: selling, buying, and resource management.
  */
 
-import { StateManager } from '../../engine/state/StateManager';
+import { StateManager } from '../state/StateManager';
 import { SfxType, BuildingType } from '../../types';
 import { getEcoMultiplier } from '../../engine/utils/GameUtils';
 import { BUILDINGS } from '../../engine/data/VoxelConstants';

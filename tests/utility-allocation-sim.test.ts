@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { BUILDINGS } from '../engine/data/VoxelConstants.ts';
-import { StateManager } from '../engine/state/StateManager.ts';
+import { StateManager } from '../game/state/StateManager.ts';
 import { ChunkStore } from '../engine/space/ChunkStore.ts';
 import { PowerGridSystem } from '../engine/sim/systems/PowerGridSystem.ts';
 import { WaterNetworkSystem } from '../engine/sim/systems/WaterNetworkSystem.ts';

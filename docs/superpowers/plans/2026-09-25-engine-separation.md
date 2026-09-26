@@ -25,6 +25,6 @@
 6. **Commands and saves.** Route planner and other gameplay writes through fixed-tick commands, separate camera/overlay presentation, and tag saves with pack identity and version while migrating legacy Aureus saves.
 7. **Play verification.** Run fixed-seed replay and cross-pack isolation tests, then browser-play the Eco Dominion factory and Deep Ledger loops.
 
-## This branch
+## State extraction branch
 
-Execute tasks 1 and the deterministic RNG portion of task 2. Later tasks each require their own independently reviewable PR because moving all 214 engine files in one diff would make regressions hard to locate.
+Move the Aureus state manager and initial-state factory into `game/state/`, introduce the generic `StateStore` under `engine/state/`, update callers and state tests, and verify legacy-state normalization. Subsequent simulation and persistence extractions each require their own independently reviewable PR because moving all 214 engine files in one diff would make regressions hard to locate.
