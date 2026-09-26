@@ -35,7 +35,7 @@ export class StateStore<State extends object> {
 
     mutate<Key extends keyof State>(key: Key, value: State[Key]): void {
         if (this.mutableContext === 'none') {
-            console.warn(`[StateManager] Direct mutation of '${String(key)}' outside sim/command context. Use update() for UI actions.`);
+            console.warn(`[StateStore] Direct mutation of '${String(key)}' outside a command or simulation context. Use update() for external actions.`);
         }
         this.state[key] = value;
         this.markDirty(key);
