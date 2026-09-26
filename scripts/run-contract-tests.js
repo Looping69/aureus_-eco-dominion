@@ -21,6 +21,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/engine-boundary.test.ts',
     'tests/seeded-random.test.ts',
     'tests/state-store-separation.test.ts',
+    'tests/save-storage-separation.test.ts',
     'tests/game-definition-payload-schema-source-contract.test.ts',
     'tests/build-action-payload-schema-contract.test.ts',
     'tests/command-boundary-contract.test.ts',
