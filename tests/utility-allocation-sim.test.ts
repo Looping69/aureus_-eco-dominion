@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { BUILDINGS } from '../engine/data/VoxelConstants.ts';
 import { StateManager } from '../game/state/StateManager.ts';
 import { ChunkStore } from '../engine/space/ChunkStore.ts';
-import { PowerGridSystem } from '../engine/sim/systems/PowerGridSystem.ts';
-import { WaterNetworkSystem } from '../engine/sim/systems/WaterNetworkSystem.ts';
+import { PowerGridSystem } from '../game/sim/utility/PowerGridSystem.ts';
+import { WaterNetworkSystem } from '../game/sim/utility/WaterNetworkSystem.ts';
 import { BuildingType } from '../types.ts';
 import type { GameState, GridTile } from '../types.ts';
 

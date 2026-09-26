@@ -4,17 +4,17 @@
  * Buildings that are piped but not supplied during a shortage are marked disconnected with a shortage flag.
  */
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext } from '../../../engine/kernel';
 import { GameState, GridTile } from '../../../types';
-import { BUILDINGS } from '../../data/VoxelConstants';
-import { solveResourceGridNetwork } from '../resourceGrid/ResourceGridSolver';
+import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { solveResourceGridNetwork } from '../../../engine/sim/resourceGrid/ResourceGridSolver';
 import {
     collectAureusWaterGridParticipants,
     isWaterParticipantTile,
     WATER_NETWORK_TYPE,
-} from '../resourceGrid/AureusWaterGridAdapter';
-import { getStructureKey, isStructureHead, setStructureUtilityStatus } from '../resourceGrid/AureusResourceGridAdapterUtils';
+} from './AureusWaterGridAdapter';
+import { getStructureKey, isStructureHead, setStructureUtilityStatus } from './AureusResourceGridAdapterUtils';
 
 export class WaterNetworkSystem extends BaseSimSystem {
     readonly id = 'waterNetwork';

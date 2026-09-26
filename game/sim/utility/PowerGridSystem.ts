@@ -4,18 +4,18 @@
  * Buildings that are wired but not supplied during a brownout are marked disconnected.
  */
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext } from '../../../engine/kernel';
 import { GameState, GridTile } from '../../../types';
-import { BUILDINGS } from '../../data/VoxelConstants';
-import { solveResourceGridNetwork } from '../resourceGrid/ResourceGridSolver';
+import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { solveResourceGridNetwork } from '../../../engine/sim/resourceGrid/ResourceGridSolver';
 import {
     collectAureusPowerGridParticipants,
     isIndustrialPowerConsumer,
     isPowerParticipantTile,
     POWER_NETWORK_TYPE,
-} from '../resourceGrid/AureusPowerGridAdapter';
-import { getStructureKey, isStructureHead, setStructureUtilityStatus } from '../resourceGrid/AureusResourceGridAdapterUtils';
+} from './AureusPowerGridAdapter';
+import { getStructureKey, isStructureHead, setStructureUtilityStatus } from './AureusResourceGridAdapterUtils';
 
 export class PowerGridSystem extends BaseSimSystem {
     readonly id = 'powerGrid';
