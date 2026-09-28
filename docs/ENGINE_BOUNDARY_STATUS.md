@@ -2,19 +2,20 @@
 
 This is a migration ledger, not a claim that `engine/` is already game-independent.
 
-The automated guard in `scripts/check-engine-boundary.js` resolves relative TypeScript imports from `engine/` and compares imports leaving the directory with `docs/engine-boundary-baseline.json`. The original baseline has **74 edges, all targeting root `types.ts`**; this extraction reduces the live count to **73**. Removing edges passes automatically; adding a new edge fails `npm run test:boundary`. The check does not yet detect game ownership hidden inside `engine/`, and it is not an import-cycle analysis.
+The automated guard in `scripts/check-engine-boundary.js` resolves relative TypeScript imports from `engine/` and compares imports leaving the directory with `docs/engine-boundary-baseline.json`. The original baseline has **74 edges, all targeting root `types.ts`**; the state and persistence extractions reduce the live count to **72**. Removing edges passes automatically; adding a new edge fails `npm run test:boundary`. The check does not yet detect game ownership hidden inside `engine/`, and it is not an import-cycle analysis.
 
 | Cluster | Current coupling | Destination | Order |
 | --- | --- | --- | --- |
 | `game/state/StateManager.ts` | Aureus command queue, lockstep integration, ID creation, and active definition validation | Keep in game pack until generic command services have been extracted | In progress |
 | `game/state/createAureusInitialState.ts` | Constructs and revives AGT, agents, dungeon, weather, bureaucracy, and other Eco Dominion state | Game-owned factory injected into generic `engine/state/StateStore.ts` | Extracted |
+| `game/state/PersistenceManager.ts` | Aureus save key, chunk pruning, and legacy save migration | Game-owned codec using `engine/state/JsonSaveStorage.ts` for generic keyed storage | Extracted |
 | `engine/sim/systems/` | 26 direct root-type imports; many systems implement Eco Dominion rules | Eco Dominion systems under a game-owned composition root; reusable simulation scheduler stays in engine | After state factory |
 | `engine/data/voxels/` | 9 direct root-type imports and building/biome assumptions | Eco Dominion definitions; retain only generic voxel geometry in engine | After state schema |
 | `engine/sim/resourceGrid/` | Explicit Aureus adapters import root types | Game-owned adapters against generic resource-grid contracts | After system ownership |
 | `engine/worldgen/` and `engine/underground/` | Mixes procedural algorithms with Eco Dominion layers and survey rules | Split generic generation from pack-specific policies and normalization | After save fixtures |
 | `engine/game-pack/` | Generic metadata and registry, but no executable runtime factory | Reusable runtime contract | After extraction boundary |
 
-The reusable mechanisms are `engine/kernel/SeededRandom.ts` and `engine/state/StateStore.ts`. Neither imports Eco Dominion state. `StateStore` accepts an initial-state factory and owns subscriptions, dirty keys, mutation context, and serialization; the game-owned state manager supplies the Aureus factory and handles its commands.
+The reusable mechanisms are `engine/kernel/SeededRandom.ts`, `engine/state/StateStore.ts`, and `engine/state/JsonSaveStorage.ts`. None imports Eco Dominion state. `StateStore` accepts an initial-state factory and owns subscriptions, dirty keys, mutation context, and serialization; the game-owned state manager supplies the Aureus factory and handles its commands. `JsonSaveStorage` accepts a game-specific key and leaves serialization and migration with the pack.
 
 ## Release gates
 
