@@ -1,5 +1,5 @@
 
-import { NPC, Permit, DialogueNode } from '../types/bureaucracy';
+import { NPC, Permit, DialogueNode } from '../../engine/types/bureaucracy';
 
 export const INITIAL_NPCS: Record<string, NPC> = {
     'licensing': {

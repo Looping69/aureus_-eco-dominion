@@ -1,8 +1,8 @@
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
-import { GameState, GameCommand, SfxType } from '../../../types';
-import { DIALOGUE_TREES } from '../../data/bureaucracy';
+import { BaseSimSystem } from '../../engine/sim/Simulation';
+import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../engine/kernel/Types';
+import { GameState, GameCommand, SfxType } from '../../types';
+import { DIALOGUE_TREES } from '../data/bureaucracy';
 
 export class BureaucracySystem extends BaseSimSystem {
     readonly id = 'bureaucracy';

@@ -12,7 +12,6 @@ export * from './ProductionSystem';
 export * from './ConstructionSystem';
 export * from './EraSystem';
 export * from './AmbientNPCSystem';
-export * from './BureaucracySystem';
 export * from './EmploymentSystem';
 export * from './AIOverseerPlaySystem';
 

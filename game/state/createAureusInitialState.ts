@@ -1,5 +1,5 @@
 import { Agent, BuildingType, Era, FogExplorationState, GameState, GameStep } from '../../types';
-import { INITIAL_PERMITS, INITIAL_NPCS } from '../../engine/data/bureaucracy';
+import { INITIAL_PERMITS, INITIAL_NPCS } from '../data/bureaucracy';
 import { INITIAL_RESOURCES } from '../../engine/data/resources';
 import { DAY_NIGHT } from '../../engine/sim/dayNightCycle';
 import { ChunkStore } from '../../engine/space/ChunkStore';
@@ -361,4 +361,3 @@ export function createAureusInitialState(overrides?: Partial<GameState>): GameSt
             },
         };
     }
-
