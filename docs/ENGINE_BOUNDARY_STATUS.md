@@ -2,7 +2,7 @@
 
 This is a migration ledger, not a claim that `engine/` is already game-independent.
 
-The automated guard in `scripts/check-engine-boundary.js` resolves relative TypeScript imports from `engine/` and compares imports leaving the directory with `docs/engine-boundary-baseline.json`. The original baseline has **74 edges, all targeting root `types.ts`**; the state and persistence extractions reduce the live count to **72**. Removing edges passes automatically; adding a new edge fails `npm run test:boundary`. The check does not yet detect game ownership hidden inside `engine/`, and it is not an import-cycle analysis.
+The automated guard in `scripts/check-engine-boundary.js` resolves relative TypeScript imports from `engine/` and compares imports leaving the directory with `docs/engine-boundary-baseline.json`. The original baseline has **74 edges, all targeting root `types.ts`**; the state, persistence, and utility extractions reduce the live count to **67**. Removing edges passes automatically; adding a new edge fails `npm run test:boundary`. The check does not yet detect game ownership hidden inside `engine/`, and it is not an import-cycle analysis.
 
 | Cluster | Current coupling | Destination | Order |
 | --- | --- | --- | --- |
@@ -11,7 +11,7 @@ The automated guard in `scripts/check-engine-boundary.js` resolves relative Type
 | `game/state/PersistenceManager.ts` | Aureus save key, chunk pruning, and legacy save migration | Game-owned codec using `engine/state/JsonSaveStorage.ts` for generic keyed storage | Extracted |
 | `engine/sim/systems/` | 26 direct root-type imports; many systems implement Eco Dominion rules | Eco Dominion systems under a game-owned composition root; reusable simulation scheduler stays in engine | After state factory |
 | `engine/data/voxels/` | 9 direct root-type imports and building/biome assumptions | Eco Dominion definitions; retain only generic voxel geometry in engine | After state schema |
-| `engine/sim/resourceGrid/` | Explicit Aureus adapters import root types | Game-owned adapters against generic resource-grid contracts | After system ownership |
+| `game/sim/utility/` | Aureus power/water adapters and systems own building-specific allocation, while `engine/sim/resourceGrid/ResourceGridSolver.ts` retains the reusable allocation algorithm | Game-owned system composition using engine solver | Extracted |
 | `engine/worldgen/` and `engine/underground/` | Mixes procedural algorithms with Eco Dominion layers and survey rules | Split generic generation from pack-specific policies and normalization | After save fixtures |
 | `engine/game-pack/` | Generic metadata and registry, but no executable runtime factory | Reusable runtime contract | After extraction boundary |
 

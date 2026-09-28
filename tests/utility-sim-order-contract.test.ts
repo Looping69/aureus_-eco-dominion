@@ -5,8 +5,8 @@ import { test } from 'node:test';
 
 const simulationSource = readFileSync(path.join(process.cwd(), 'engine', 'sim', 'Simulation.ts'), 'utf8');
 const constructionSource = readFileSync(path.join(process.cwd(), 'engine', 'sim', 'systems', 'ConstructionSystem.ts'), 'utf8');
-const powerSource = readFileSync(path.join(process.cwd(), 'engine', 'sim', 'systems', 'PowerGridSystem.ts'), 'utf8');
-const waterSource = readFileSync(path.join(process.cwd(), 'engine', 'sim', 'systems', 'WaterNetworkSystem.ts'), 'utf8');
+const powerSource = readFileSync(path.join(process.cwd(), 'game', 'sim', 'utility', 'PowerGridSystem.ts'), 'utf8');
+const waterSource = readFileSync(path.join(process.cwd(), 'game', 'sim', 'utility', 'WaterNetworkSystem.ts'), 'utf8');
 const productionSource = readFileSync(path.join(process.cwd(), 'engine', 'sim', 'systems', 'ProductionSystem.ts'), 'utf8');
 
 function priorityOf(source: string): number {
