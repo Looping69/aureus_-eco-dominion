@@ -6,6 +6,5 @@
 
 export * from './colors';
 export * from './buildings';
-export * from './eras';
 export * from './resources';
 export * from './tech';

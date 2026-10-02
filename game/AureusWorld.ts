@@ -14,13 +14,14 @@ import { Simulation } from '../engine/sim';
 import {
     AgentSystem, JobGenerationSystem, EnvironmentSystem, EconomySystem,
     ColonySystem, LogisticsSystem, EventSystem, MissionSystem,
-    ProductionSystem, ConstructionSystem, EraSystem,
+    ProductionSystem, ConstructionSystem,
     TutorialDemoSystem, CommandDispatcher, UndergroundSurveySystem,
     ResearchSystem, EmploymentSystem, AmbientNPCSystem,
     AIOverseerSystem, CombatSystem
 } from '../engine/sim/systems';
 import { PowerGridSystem } from './sim/utility/PowerGridSystem';
 import { WaterNetworkSystem } from './sim/utility/WaterNetworkSystem';
+import { EraSystem } from './sim/EraSystem';
 import { BureaucracySystem } from './sim/BureaucracySystem';
 import { DungeonMinerSystem } from '../engine/sim/systems/DungeonMinerSystem';
 import { DungeonStabilitySystem } from '../engine/sim/systems/DungeonStabilitySystem';

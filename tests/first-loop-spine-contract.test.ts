@@ -12,7 +12,7 @@ const agentSystemPath = path.join(root, 'engine', 'sim', 'systems', 'AgentSystem
 const productionPath = path.join(root, 'engine', 'sim', 'systems', 'ProductionSystem.ts');
 const missionPath = path.join(root, 'engine', 'sim', 'systems', 'MissionSystem.ts');
 const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
-const eraPath = path.join(root, 'engine', 'sim', 'systems', 'EraSystem.ts');
+const eraPath = path.join(root, 'game', 'sim', 'EraSystem.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);

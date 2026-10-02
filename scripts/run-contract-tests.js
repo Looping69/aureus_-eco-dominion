@@ -19,6 +19,7 @@ const STABILIZATION_CONTRACTS = [
     'tests/game-definition-contract.test.ts',
     'tests/game-pack-boundary-contract.test.ts',
     'tests/engine-boundary.test.ts',
+    'tests/era-game-separation.test.ts',
     'tests/seeded-random.test.ts',
     'tests/state-store-separation.test.ts',
     'tests/save-storage-separation.test.ts',

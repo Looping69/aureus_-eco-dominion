@@ -3,11 +3,11 @@
  * Handles game progression by checking unlock conditions for different eras.
  */
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
-import { GameState, Era, SfxType, BuildingType, GridTile } from '../../../types';
+import { BaseSimSystem } from '../../engine/sim/Simulation';
+import { FixedContext } from '../../engine/kernel';
+import { GameState, Era, SfxType, BuildingType, GridTile } from '../../types';
 
-import { ERAS } from '../../data/VoxelConstants';
+import { ERAS } from '../data/eras';
 
 export class EraSystem extends BaseSimSystem {
     readonly id = 'era';

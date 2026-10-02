@@ -10,7 +10,6 @@ export * from './MissionSystem';
 export * from './CombatSystem';
 export * from './ProductionSystem';
 export * from './ConstructionSystem';
-export * from './EraSystem';
 export * from './AmbientNPCSystem';
 export * from './EmploymentSystem';
 export * from './AIOverseerPlaySystem';
