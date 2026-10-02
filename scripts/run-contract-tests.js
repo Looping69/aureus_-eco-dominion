@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 
 const STABILIZATION_CONTRACTS = [
+    'tests/executable-pack-runtime.test.ts',
     'tests/spatial-engine-separation.test.ts',
     'tests/first-loop-spine-contract.test.ts',
     'tests/starter-shop-contract.test.ts',

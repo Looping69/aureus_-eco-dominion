@@ -27,8 +27,19 @@ Commit `457fa34` fixes the pre-existing save-key mismatch using the existing `au
 
 After the spatial extraction, isolated local Chromium rendered the colony, advanced real ticks, purchased Diamond-Tipped Drills for 2,000 AGT, saved, reloaded, displayed Continue, restored the research, and resumed ticking (observed tick 109). All 79 registered voxel factories instantiated without exceptions. Browser storage was temporary. External fonts, analytics, and CDN requests were blocked and caused fetch errors, so this is not an error-free console or a visual-polish certification.
 
-## Next milestone: executable pack host
+## Executable pack milestone
 
-The launcher still constructs Aureus directly. Sample colony metadata points to runtime/state/UI modules that do not exist, and unsupported selection still falls back to Aureus. Introduce one typed runtime factory registry and route both packs through it. Explicit unknown or unsupported pack IDs must reject rather than silently boot Aureus.
+`engine/game-pack/RuntimeRegistry.ts` registers typed asynchronous world factories without game IDs or services in engine code. `game-definitions/runtimeRegistry.ts` is the composition root. Both the Aureus hook/bootstrap and independent sample instantiate through this registry and run actual Runtime/WorldHost instances. The sample UI is available at `/sample-colony` or `/?pack=sample.micro-colony`; Aureus remains the default. Unknown IDs reject instead of falling back. Lazy entry points keep Aureus implementation modules out of the sample browser load.
 
-For independent-pack proof, implement an unrelated state shape with a resource-changing command and tick rule, then use the real Runtime and WorldHost for startup, snapshots, save/load, and teardown. Verify that the sample runtime dependency closure excludes AureusWorld, initial-state factory, authored data, and domain enums. Reject incompatible pack saves before mutation and preserve legacy Aureus saves. Browser-test both launch paths through the same registry. No second-pack independence proof is claimed yet.
+The independent sample uses StateStore, Simulation, BaseWorld, command-definition validation, JsonSaveStorage, Runtime, and WorldHost. Its unrelated state is `{ticks, energy, beacons}`. One energy is generated per thirty ticks; queued SAMPLE_PING commands spend five energy for a beacon. Saves use a separate key and a validated pack/version envelope. Invalid saves reject before mutation; successful loads clear pending commands. Legacy Aureus serialization is unchanged, but foreign envelopes are rejected before migration.
+
+Verification at this milestone: TypeScript, 283 configured tests, production build, and five boundary/RNG checks pass. The broader 157-test set remains 140 passing with the same 17 pre-existing failures. Browser proof covers sample registration/boot, resource ticks, command effects, save/load after reload, unknown-ID rejection, and actual runtime stop/unload. The sample route loads zero Aureus application modules. The sample runtime dependency closure test includes type imports and permits only sample modules and engine. Aureus browser smoke again passes purchase, save, reload, Continue, and resumed ticks through the same factory.
+
+Self-review added foreign-save rejection and cancellation cleanup for Aureus initialization. The sample provides an independent runtime proof, not a feature-complete second game. Game UI adapters and save codecs remain pack-specific. The registry is a trusted local composition boundary, not a plugin sandbox. Shared Simulation still accepts broad state types, and the worker/render APIs retain original-use-case assumptions. Global engine telemetry/events and multi-world concurrency are not isolated; the supported browser flow runs one active UI pack. Bundle-size and stale Browserslist warnings remain; browser external fonts/CDN/analytics are blocked during tests.
+
+## Remaining roadmap
+
+1. Inspect and repair objective fog-of-war defects in a separate gameplay commit; preserve save history and engine boundaries.
+2. Refine typed simulation state/command dispatch and formal pack save-codec/lifecycle contracts.
+3. Expand rendering/input/worker portability with a second graphical use case and measured lifecycle/performance tests.
+4. Resolve the separately baselined source-contract drift and building-level fixture failures.

@@ -1,3 +1,4 @@
+import { PACK_RUNTIME_REGISTRY } from '../game-definitions/runtimeRegistry';
 /**
  * Game Bootstrap
  * Entry point for running Aureus on the new engine spine
@@ -10,7 +11,7 @@
 import { WorldHost, Runtime } from '../engine';
 import { RuntimeQualityGovernor, ThreeRenderAdapter, getRecommendedRenderQuality } from '../engine/render';
 import { DebugHud } from '../engine/tools';
-import { AureusWorld } from './AureusWorld';
+import type { AureusWorld } from './AureusWorld';
 
 export interface BootstrapResult {
     runtime: Runtime;
@@ -50,7 +51,7 @@ export async function bootstrap(container: HTMLElement): Promise<BootstrapResult
     });
 
     // Create and load game world
-    const world = new AureusWorld(renderer);
+    const world = await PACK_RUNTIME_REGISTRY.create('aureus.eco-dominion', { renderer });
     await worldHost.setWorld(world);
 
     // Create debug HUD

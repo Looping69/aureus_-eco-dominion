@@ -31,7 +31,7 @@ test('design studio has a browser route entry and game return path', () => {
   const studioText = source(studioPath);
 
   for (const snippet of [
-    "import { DesignStudio } from './components/DesignStudio';",
+    "const DesignStudio = React.lazy(() => import('./components/DesignStudio')",
     "import { BrowserRouter, useLocation } from 'react-router-dom';",
     'function RootRoute() {',
     "location.pathname === '/design-studio' ? <DesignStudio /> : <App />",

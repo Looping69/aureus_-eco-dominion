@@ -4,7 +4,7 @@ export const SAMPLE_COLONY_GAME_DEFINITION = defineGameDefinition({
   id: 'sample.micro-colony',
   title: 'Sample Micro Colony',
   version: '0.1.0',
-  description: 'A tiny non-Aureus definition used to prove the engine can register another game pack.',
+  description: 'A solar colony running on the shared engine: harvest energy and commission beacons.',
   genreTags: ['sample', 'colony-sim'],
   engineCapabilities: ['game-pack-registry', 'command-validation', 'runtime-module-metadata'],
   resources: [
@@ -40,7 +40,7 @@ export const SAMPLE_COLONY_GAME_DEFINITION = defineGameDefinition({
       commandType: 'SAMPLE_PING',
       target: 'none',
       payloadFields: [],
-      description: 'A no-op command used to validate non-Aureus command registration.',
+      description: 'Spend five energy to commission a beacon on the next simulation tick.',
     },
   ],
   systems: [
@@ -50,7 +50,7 @@ export const SAMPLE_COLONY_GAME_DEFINITION = defineGameDefinition({
       module: 'game-definitions/sampleColonyRuntime',
       reads: ['resources.energy'],
       writes: ['resources.energy'],
-      description: 'A placeholder runtime binding for sample pack registry validation.',
+      description: 'Generate one energy every thirty fixed ticks, up to one hundred.',
     },
   ],
 });

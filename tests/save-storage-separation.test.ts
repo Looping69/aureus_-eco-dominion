@@ -78,3 +78,11 @@ test('Continue loads the stored colony before dismissing the home screen', () =>
     assert.match(handler, /if \(world\?\.hasSave\(\) && world\.loadGame\(\)\)/);
     assert.ok(handler.indexOf('world.loadGame()') < handler.indexOf('setShowHomePage(false)'));
 });
+
+test('Aureus rejects foreign pack envelopes before migration without changing legacy saves', () => {
+    const persistence = new PersistenceManager();
+    const foreign = JSON.stringify({packId: 'sample.micro-colony', schemaVersion: 1, state: {ticks: 30, energy: 6, beacons: 1}});
+    assert.equal(persistence.reviveState(foreign), null);
+    const legacy = new StateManager({seed: 42}).serializeState();
+    assert.equal(persistence.reviveState(legacy)?.seed, 42);
+});

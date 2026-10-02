@@ -1,9 +1,9 @@
 import { createGameDefinitionRegistry, type GameDefinitionRegistry } from '../engine/game-definition/GameDefinitionRegistry';
 import type { GamePack } from '../engine/game-pack';
 import { GAME_PACK_REGISTRY, getActiveGamePack } from '../game-definitions/activeGameDefinition';
-import { AUREUS_GAME_PACK } from '../game-definitions/aureusGamePack';
+import { PACK_RUNTIME_REGISTRY } from '../game-definitions/runtimeRegistry';
 
-export type GamePackRuntimeSelectionStatus = 'selected' | 'fallback';
+export type GamePackRuntimeSelectionStatus = 'selected';
 
 export interface GamePackRuntimeSelection {
   requestedPackId: string;
@@ -15,10 +15,10 @@ export interface GamePackRuntimeSelection {
   fallbackReason?: string;
 }
 
-const BOOTABLE_WORLD_MODULES = new Set([AUREUS_GAME_PACK.runtime.worldModule]);
+
 
 export function canBootGamePackRuntime(pack: GamePack): boolean {
-  return BOOTABLE_WORLD_MODULES.has(pack.runtime.worldModule);
+  return PACK_RUNTIME_REGISTRY.has(pack.id);
 }
 
 export function createRuntimeDefinitionRegistry(pack: GamePack): GameDefinitionRegistry {
@@ -28,22 +28,14 @@ export function createRuntimeDefinitionRegistry(pack: GamePack): GameDefinitionR
 export function selectGamePackRuntime(requestedPackId?: string): GamePackRuntimeSelection {
   const activePack = getActiveGamePack();
   const requestedPack = requestedPackId ? GAME_PACK_REGISTRY.get(requestedPackId) : activePack;
-  const resolvedRequestedPack = requestedPack ?? activePack;
-  const canBootRequestedPack = requestedPack !== null && canBootGamePackRuntime(resolvedRequestedPack);
-  const runtimePack = canBootRequestedPack ? resolvedRequestedPack : AUREUS_GAME_PACK;
-  const unknownPackReason = requestedPackId && !requestedPack ? `Unknown game pack '${requestedPackId}'` : null;
-  const unsupportedRuntimeReason = requestedPack && !canBootGamePackRuntime(resolvedRequestedPack)
-    ? `Game pack '${resolvedRequestedPack.id}' declares runtime '${resolvedRequestedPack.runtime.worldModule}', which is not bootable yet`
-    : null;
-  const fallbackReason = unknownPackReason ?? unsupportedRuntimeReason ?? undefined;
-
+  if (!requestedPack) throw new Error(`Unknown game pack '${requestedPackId}'`);
+  if (!canBootGamePackRuntime(requestedPack)) throw new Error(`Game pack '${requestedPack.id}' has no executable runtime`);
   return {
-    requestedPackId: requestedPackId ?? activePack.id,
-    requestedPack: resolvedRequestedPack,
-    runtimePack,
-    definitionRegistry: createRuntimeDefinitionRegistry(runtimePack),
-    canBootRequestedPack,
-    status: fallbackReason ? 'fallback' : 'selected',
-    fallbackReason,
+    requestedPackId: requestedPack.id,
+    requestedPack,
+    runtimePack: requestedPack,
+    definitionRegistry: createRuntimeDefinitionRegistry(requestedPack),
+    canBootRequestedPack: true,
+    status: 'selected',
   };
 }

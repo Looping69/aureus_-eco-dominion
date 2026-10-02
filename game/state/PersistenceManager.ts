@@ -182,6 +182,8 @@ export class PersistenceManager {
                 }
                 return value;
             }) as GameState;
+            // Legacy Aureus saves have no envelope. Never migrate another pack's envelope.
+            if (state && typeof state === 'object' && 'packId' in state) return null;
 
             // Post-load validation / migration
             // Ensure essential arrays exist
@@ -224,6 +226,8 @@ export class PersistenceManager {
                 }
                 return value;
             }) as GameState;
+            // Legacy Aureus saves have no envelope. Never migrate another pack's envelope.
+            if (state && typeof state === 'object' && 'packId' in state) return null;
 
             // Post-load validation / migration
             if (!state.agents) state.agents = [];
