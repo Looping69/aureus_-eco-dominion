@@ -6,8 +6,8 @@ import test from 'node:test';
 const contractTrackerPath = path.join(process.cwd(), 'components', 'ContractTracker.tsx');
 const contractPanelStorePath = path.join(process.cwd(), 'components', 'state', 'useContractPanelStore.ts');
 const contractLifecyclePath = path.join(process.cwd(), 'engine', 'stateMachines', 'contractLifecycle.ts');
-const productionSystemPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'ProductionSystem.ts');
-const colonySystemPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'ColonySystem.ts');
+const productionSystemPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'ProductionSystem.ts');
+const colonySystemPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'ColonySystem.ts');
 const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
 
 function includesAll(source: string, snippets: string[]) {

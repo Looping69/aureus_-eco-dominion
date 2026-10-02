@@ -1,6 +1,6 @@
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext } from '../../../engine/kernel';
 import {
     BuildingType,
     FactoryCorridorState,
@@ -15,8 +15,8 @@ import {
     FactoryState,
     GameState,
 } from '../../../types';
-import { updateWaterConnectivity } from '../../utils/GameUtils';
-import { ChunkStore } from '../../space/ChunkStore';
+import { updateWaterConnectivity } from '../../../engine/utils/GameUtils';
+import { ChunkStore } from '../../../engine/space/ChunkStore';
 
 export class LogisticsSystem extends BaseSimSystem {
     readonly id = 'logistics';

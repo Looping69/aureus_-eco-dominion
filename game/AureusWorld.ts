@@ -18,13 +18,13 @@ import {
     TutorialDemoSystem, CommandDispatcher, UndergroundSurveySystem,
     ResearchSystem, EmploymentSystem, AmbientNPCSystem,
     AIOverseerSystem, CombatSystem
-} from '../engine/sim/systems';
+} from './sim/systems';
 import { PowerGridSystem } from './sim/utility/PowerGridSystem';
 import { WaterNetworkSystem } from './sim/utility/WaterNetworkSystem';
 import { EraSystem } from './sim/EraSystem';
 import { BureaucracySystem } from './sim/BureaucracySystem';
-import { DungeonMinerSystem } from '../engine/sim/systems/DungeonMinerSystem';
-import { DungeonStabilitySystem } from '../engine/sim/systems/DungeonStabilitySystem';
+import { DungeonMinerSystem } from './sim/systems/DungeonMinerSystem';
+import { DungeonStabilitySystem } from './sim/systems/DungeonStabilitySystem';
 import { PersistenceManager } from './state/PersistenceManager';
 import { getOpenPitEntryLayer, setActiveSubsurfaceLayer } from '../engine/subsurface/SubsurfaceModel';
 import { GameState, GameStep, BuildingType, SfxType, Action } from '../types';

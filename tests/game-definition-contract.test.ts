@@ -65,7 +65,7 @@ test('game definition registry validates active packs and exposes lookups', () =
     assert.equal(registry.getResource('agt')?.label, 'AGT');
     assert.equal(registry.getEntityArchetype(`building.${BuildingType.SECURITY_POST}`)?.category, 'building');
     assert.equal(registry.getAction('action.attackTarget')?.commandType, 'COMBAT_ATTACK_TARGET');
-    assert.equal(registry.getSystem('system.combat')?.module, 'engine/sim/systems/CombatSystem');
+    assert.equal(registry.getSystem('system.combat')?.module, 'game/sim/systems/CombatSystem');
     assert.throws(() => registry.setActive('missing.definition'), /Unknown game definition/);
 });
 

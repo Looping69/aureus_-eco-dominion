@@ -1,8 +1,8 @@
 
-import { BaseSimSystem } from '../Simulation';
-import { GameState } from '../../types/game';
-import { DungeonEngine } from '../../dungeon/DungeonEngine';
-import { FixedContext } from '../../kernel/Types';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { GameState } from '../../../engine/types/game';
+import { DungeonEngine } from '../../../engine/dungeon/DungeonEngine';
+import { FixedContext } from '../../../engine/kernel/Types';
 
 export class DungeonStabilitySystem extends BaseSimSystem {
     readonly id = 'dungeon_stability';

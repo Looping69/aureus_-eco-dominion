@@ -4,19 +4,19 @@
  * This version uses Synchronous Pathfinding for immediate response.
  */
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext } from '../../../engine/kernel';
 import { Agent, GameState, GridTile, BuildingType, SfxType, PathStep, Chunk } from '../../../types';
-import { findPath } from '../algorithms/Pathfinding';
-import { JobSystem, PathfindResult } from '../../jobs';
+import { findPath } from '../../../engine/sim/algorithms/Pathfinding';
+import { JobSystem, PathfindResult } from '../../../engine/jobs';
 import { ConstructionSystem } from './ConstructionSystem';
-import { PathPool } from '../../utils/PathPool';
-import { ChunkStore } from '../../space/ChunkStore';
-import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../utils/GameUtils';
-import { worldToChunk, CHUNK_SIZE } from '../../utils/coords';
-import { excavateSubsurfaceCell, getSubsurfaceCell, isSubsurfaceDigJob } from '../../subsurface/SubsurfaceModel';
-import { clearSubsurfaceRubbleForHaul, depositCarriedRubble } from '../../subsurface/RubbleHaul';
-import { getEventEnvironmentModifiers, getWeatherGameplayEffects } from '../../weather/weatherModel';
+import { PathPool } from '../../../engine/utils/PathPool';
+import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../../engine/utils/GameUtils';
+import { worldToChunk, CHUNK_SIZE } from '../../../engine/utils/coords';
+import { excavateSubsurfaceCell, getSubsurfaceCell, isSubsurfaceDigJob } from '../../../engine/subsurface/SubsurfaceModel';
+import { clearSubsurfaceRubbleForHaul, depositCarriedRubble } from '../../../engine/subsurface/RubbleHaul';
+import { getEventEnvironmentModifiers, getWeatherGameplayEffects } from '../../../engine/weather/weatherModel';
 
 // Configuration
 const CONFIG = {

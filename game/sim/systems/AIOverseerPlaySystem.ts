@@ -1,15 +1,15 @@
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext, CommandContext, CommandResult } from '../../kernel/Types';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext, CommandContext, CommandResult } from '../../../engine/kernel/Types';
 import { BuildingType, Contract, Era, GameCommand, GameState, GridTile, SfxType } from '../../../types';
-import { BUILDINGS } from '../../data/VoxelConstants';
-import { ChunkStore } from '../../space/ChunkStore';
-import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../utils/GameUtils';
+import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../../engine/utils/GameUtils';
 import {
     createGameCommandCandidate,
     createGameCommandCandidateEnvelope,
     createGameCommandCandidateId,
     GAME_COMMAND_CANDIDATE_SOURCES,
-} from '../../game-definition';
+} from '../../../engine/game-definition';
 
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
 type OverseerPilotProvider = 'HEURISTIC' | 'LOCAL_QWEN';

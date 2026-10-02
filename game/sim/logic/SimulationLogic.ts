@@ -1,7 +1,7 @@
 
 import { GameState, Agent, BuildingType, GridTile, SimulationEffect, NewsItem, AgentRole } from '../../../types';
-import { BUILDINGS } from '../../data/VoxelConstants';
-import { FixedContext } from '../../kernel';
+import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { FixedContext } from '../../../engine/kernel';
 
 // --- CONFIGURATION ---
 export const MAX_AGENTS = 30;

@@ -6,9 +6,9 @@
 
 import { GameState, Goal, GlobalEvent, NewsItem, GridTile, Agent, BuildingType, Chunk } from '../../../types';
 import { createColonist } from './SimulationLogic';
-import { FixedContext } from '../../kernel';
-import { toChunkKey, worldToChunk } from '../../utils/coords';
-import { CHUNK_SIZE } from '../../space/ChunkStore';
+import { FixedContext } from '../../../engine/kernel';
+import { toChunkKey, worldToChunk } from '../../../engine/utils/coords';
+import { CHUNK_SIZE } from '../../../engine/space/ChunkStore';
 
 const isStructureHead = (tile: GridTile) =>
     tile.structureHeadX === undefined || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);

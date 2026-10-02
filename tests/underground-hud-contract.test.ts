@@ -9,7 +9,7 @@ const undergroundHudPath = path.join(process.cwd(), 'components', 'UndergroundHU
 const inputSystemPath = path.join(process.cwd(), 'engine', 'input', 'InputSystem.ts');
 const dungeonInputPath = path.join(process.cwd(), 'game', 'dungeon', 'DungeonInputHandler.ts');
 const dungeonTypesPath = path.join(process.cwd(), 'engine', 'dungeon', 'DungeonTypes.ts');
-const dungeonMinerSystemPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'DungeonMinerSystem.ts');
+const dungeonMinerSystemPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'DungeonMinerSystem.ts');
 const dungeonRenderSystemPath = path.join(process.cwd(), 'game', 'render', 'systems', 'DungeonRenderSystem.ts');
 const renderFramePath = path.join(process.cwd(), 'game', 'world', 'renderFrame.ts');
 

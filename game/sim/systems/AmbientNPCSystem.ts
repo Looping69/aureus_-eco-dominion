@@ -1,9 +1,9 @@
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext } from '../../../engine/kernel';
 import { Agent, GameState, BuildingType, PathStep } from '../../../types';
-import { findPath } from '../algorithms/Pathfinding';
-import { PathPool } from '../../utils/PathPool';
+import { findPath } from '../../../engine/sim/algorithms/Pathfinding';
+import { PathPool } from '../../../engine/utils/PathPool';
 
 const CONFIG = {
     MAX_NPCS: 10,

@@ -3,7 +3,7 @@ import { ChevronUp, Maximize2, Radio, Signal, Trees, Users, Zap } from 'lucide-r
 import { BuildingType, Era, GameState, SfxType } from '../types';
 import type { BuildingDef, GridTile } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
-import { getWaterDiagnostic } from '../engine/sim/utility/WaterDiagnostics';
+import { getWaterDiagnostic } from '../game/sim/utility/WaterDiagnostics';
 
 interface NarrativePanelProps {
     state: GameState;

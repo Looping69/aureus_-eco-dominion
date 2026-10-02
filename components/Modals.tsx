@@ -9,7 +9,7 @@ import { Gem, AlertTriangle, RefreshCw, Lock, ArrowRight, Radio, XCircle, CheckC
 import { GameStep, Action, GameState, BuildingType, Chunk, Agent, SidebarMode } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';
 import { resolveBuildingDefinition } from '../engine/utils/buildingLevels';
-import { getUtilityReadability } from '../engine/sim/utility/UtilityReadability';
+import { getUtilityReadability } from '../game/sim/utility/UtilityReadability';
 
 interface TutorialOverlayProps {
     step: GameStep;

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-const demoSource = readFileSync('engine/sim/systems/TutorialDemoSystem.ts', 'utf8');
+const demoSource = readFileSync('game/sim/systems/TutorialDemoSystem.ts', 'utf8');
 const homeSource = readFileSync('components/HomePage.tsx', 'utf8');
 
 test('demo is a five-minute guided playthrough, not an instant catalogue', () => {

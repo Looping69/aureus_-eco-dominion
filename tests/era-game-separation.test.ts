@@ -37,7 +37,7 @@ const context = (time: number) => ({
 test('era ownership stays in the game with no engine compatibility exports', () => {
   assert.equal(existsSync('engine/sim/systems/EraSystem.ts'), false);
   assert.equal(existsSync('engine/data/eras.ts'), false);
-  assert.doesNotMatch(readFileSync('engine/sim/systems/index.ts', 'utf8'), /EraSystem/);
+  assert.equal(existsSync('engine/sim/systems/index.ts'), false);
   assert.doesNotMatch(readFileSync('engine/data/VoxelConstants.ts', 'utf8'), /eras/);
   assert.match(readFileSync('game/AureusWorld.ts', 'utf8'), /import \{ EraSystem \} from '.\/sim\/EraSystem'/);
 });

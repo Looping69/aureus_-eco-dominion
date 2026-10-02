@@ -1,5 +1,5 @@
-import { SECTOR_POLICY_OPTIONS, SECTOR_POLICY_PAYLOAD_SCHEMA, type SectorPolicyPayload } from '../../data/sectorPolicy.ts';
-import type { FactorySectorState } from '../../types/game';
+import { SECTOR_POLICY_OPTIONS, SECTOR_POLICY_PAYLOAD_SCHEMA, type SectorPolicyPayload } from '../../../engine/data/sectorPolicy.ts';
+import type { FactorySectorState } from '../../../engine/types/game';
 
 export type SectorPolicyResult = { ok: true } | { ok: false; reason: string };
 

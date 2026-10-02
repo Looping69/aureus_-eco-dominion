@@ -3,10 +3,10 @@
  * Handles technology research and unlocking.
  */
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../../engine/kernel/Types';
 import { GameState, GameCommand, TechId, SfxType } from '../../../types';
-import { TECHNOLOGIES } from '../../data/VoxelConstants';
+import { TECHNOLOGIES } from '../../data/tech';
 
 export class ResearchSystem extends BaseSimSystem {
     readonly id = 'research';

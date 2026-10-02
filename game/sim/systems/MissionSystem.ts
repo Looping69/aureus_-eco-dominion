@@ -3,11 +3,11 @@
  * Handles automated generation of goals and shipping contracts.
  */
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext } from '../../../engine/kernel';
 import { BuildingType, Contract, GameState, GridTile } from '../../../types';
 import { generateGoal } from '../logic/AiLogic';
-import { BUILDINGS } from '../../data/VoxelConstants';
+import { BUILDINGS } from '../../../engine/data/VoxelConstants';
 
 const MAX_ACTIVE_CONTRACTS = 3;
 const CONTRACT_WORK_SECONDS = 300;

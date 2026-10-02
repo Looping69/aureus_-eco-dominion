@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const root = process.cwd();
-const agentSystemPath = path.join(root, 'engine', 'sim', 'systems', 'AgentSystem.ts');
+const agentSystemPath = path.join(root, 'game', 'sim', 'systems', 'AgentSystem.ts');
 const interactionPath = path.join(root, 'game', 'world', 'interaction.ts');
 const subsurfaceModelPath = path.join(root, 'engine', 'subsurface', 'SubsurfaceModel.ts');
 

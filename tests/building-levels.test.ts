@@ -5,7 +5,7 @@ import { Era, BuildingType } from '../types.ts';
 import { BUILDINGS } from '../engine/data/VoxelConstants.ts';
 import { StateManager } from '../game/state/StateManager.ts';
 import { ChunkStore } from '../engine/space/ChunkStore.ts';
-import { ConstructionSystem } from '../engine/sim/systems/ConstructionSystem.ts';
+import { ConstructionSystem } from '../game/sim/systems/ConstructionSystem.ts';
 import { getVisualBuildingLevel, resolveBuildingDefinition } from '../engine/utils/buildingLevels.ts';
 
 test('placeBuilding initializes upgradeable buildings at level 1', () => {

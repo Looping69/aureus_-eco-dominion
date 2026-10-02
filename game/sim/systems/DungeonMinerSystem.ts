@@ -1,9 +1,9 @@
 
-import { BaseSimSystem } from '../Simulation';
-import { GameState } from '../../types/game';
-import { DungeonState, DungeonMiner, DungeonMinerType } from '../../dungeon/DungeonTypes';
-import { DungeonEngine } from '../../dungeon/DungeonEngine';
-import { FixedContext } from '../../kernel/Types';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { GameState } from '../../../engine/types/game';
+import { DungeonState, DungeonMiner, DungeonMinerType } from '../../../engine/dungeon/DungeonTypes';
+import { DungeonEngine } from '../../../engine/dungeon/DungeonEngine';
+import { FixedContext } from '../../../engine/kernel/Types';
 
 const MINER_CONFIGS = {
     driller: { speed: 0.15, miningSpeed: 0.1, color: 0xffaa00, scale: 0.3 },

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applySectorPolicyCommand } from '../engine/sim/logic/sectorPolicyCommand.ts';
+import { applySectorPolicyCommand } from '../game/sim/logic/sectorPolicyCommand.ts';
 import type { FactorySectorState } from '../engine/types/game';
 
 function sector(name = 'North'): FactorySectorState {

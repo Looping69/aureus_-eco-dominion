@@ -1,11 +1,13 @@
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext, CommandContext, CommandResult } from '../../kernel/Types';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext, CommandContext, CommandResult } from '../../../engine/kernel/Types';
 import { BuildingType, Contract, Era, GameCommand, GameState, GridTile, SfxType } from '../../../types';
-import { BUILDINGS } from '../../data/VoxelConstants';
-import { ChunkStore } from '../../space/ChunkStore';
-import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../utils/GameUtils';
+import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../../engine/utils/GameUtils';
 
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
+type ResourceKey = 'minerals' | 'gems' | 'wood' | 'stone';
+type Point = { x: number; z: number };
 
 type OverseerState = {
     enabled: boolean;
@@ -19,13 +21,18 @@ type OverseerState = {
     actionLog: Array<{ tick: number; label: string }>;
 };
 
-type ResourceKey = 'minerals' | 'gems' | 'wood' | 'stone';
-
 type BuildIntent = {
     type: BuildingType;
     reason: string;
     desiredCount?: number;
     minEra?: Era;
+};
+
+type InfrastructureNeed = {
+    type: BuildingType.ROAD | BuildingType.PIPE | BuildingType.POWER_LINE | BuildingType.FENCE | BuildingType.RAIL_LINE;
+    x: number;
+    z: number;
+    reason: string;
 };
 
 const DEFAULT_OVERSEER: OverseerState = {
@@ -69,23 +76,35 @@ const BUILD_RESOURCE_LABEL: Record<ResourceKey, string> = {
     stone: 'Stone',
 };
 
+const INFRASTRUCTURE_TYPES = new Set<BuildingType>([
+    BuildingType.ROAD,
+    BuildingType.PIPE,
+    BuildingType.POWER_LINE,
+    BuildingType.FENCE,
+    BuildingType.RAIL_LINE,
+]);
+
 const STARTER_SPINE: BuildIntent[] = [
     { type: BuildingType.STAFF_QUARTERS, reason: 'first shelter and worker recovery' },
     { type: BuildingType.STORAGE_DEPOT, reason: 'storage for deliveries and worker deposits' },
+    { type: BuildingType.SOLAR_ARRAY, reason: 'clean power before utility demand appears' },
+    { type: BuildingType.WATER_WELL, reason: 'water supply before utility demand appears' },
     { type: BuildingType.WASH_PLANT, reason: 'first mineral production chain' },
     { type: BuildingType.MINING_HEADFRAME, reason: 'stronger mineral production for contracts' },
+    { type: BuildingType.CANTEEN, reason: 'worker hunger recovery' },
 ];
 
 const FULL_GAME_BUILD_PLAN: BuildIntent[] = [
     ...STARTER_SPINE,
-    { type: BuildingType.SOLAR_ARRAY, reason: 'baseline clean power', desiredCount: 2 },
-    { type: BuildingType.WATER_WELL, reason: 'baseline water supply', desiredCount: 1 },
-    { type: BuildingType.CANTEEN, reason: 'agent hunger recovery', desiredCount: 1 },
-    { type: BuildingType.STAFF_QUARTERS, reason: 'capacity for recruitment and era growth', desiredCount: 3, minEra: Era.GROWTH },
+    { type: BuildingType.SOLAR_ARRAY, reason: 'more clean power capacity', desiredCount: 3 },
+    { type: BuildingType.WATER_WELL, reason: 'more water capacity', desiredCount: 2 },
+    { type: BuildingType.SAWMILL, reason: 'steady construction wood' },
+    { type: BuildingType.STONE_QUARRY, reason: 'steady construction stone' },
+    { type: BuildingType.STAFF_QUARTERS, reason: 'capacity for recruitment and era growth', desiredCount: 4, minEra: Era.GROWTH },
     { type: BuildingType.STOCKPILE, reason: 'larger storage for industrial resources', desiredCount: 1, minEra: Era.GROWTH },
     { type: BuildingType.GENERATOR, reason: 'backup power for heavier production', desiredCount: 1, minEra: Era.GROWTH },
-    { type: BuildingType.WIND_TURBINE, reason: 'cleaner power and eco recovery', desiredCount: 1, minEra: Era.GROWTH },
-    { type: BuildingType.COMMUNITY_GARDEN, reason: 'trust and eco-friendly development', desiredCount: 2, minEra: Era.GROWTH },
+    { type: BuildingType.WIND_TURBINE, reason: 'cleaner power and eco recovery', desiredCount: 2, minEra: Era.GROWTH },
+    { type: BuildingType.COMMUNITY_GARDEN, reason: 'trust and eco-friendly development', desiredCount: 3, minEra: Era.GROWTH },
     { type: BuildingType.MEDICAL_BAY, reason: 'colonist support for larger workforce', desiredCount: 1, minEra: Era.GROWTH },
     { type: BuildingType.TRAINING_CENTER, reason: 'faster workforce skill growth', desiredCount: 1, minEra: Era.GROWTH },
     { type: BuildingType.SECURITY_POST, reason: 'trust and settlement safety', desiredCount: 1, minEra: Era.GROWTH },
@@ -94,17 +113,17 @@ const FULL_GAME_BUILD_PLAN: BuildIntent[] = [
     { type: BuildingType.WORKSHOP, reason: 'machine parts and automation support', desiredCount: 1, minEra: Era.INDUSTRY },
     { type: BuildingType.DISTRIBUTION_HUB, reason: 'automated logistics throughput', desiredCount: 1, minEra: Era.INDUSTRY },
     { type: BuildingType.TRAIN_STATION, reason: 'regional bulk logistics', desiredCount: 1, minEra: Era.INDUSTRY },
-    { type: BuildingType.RAIL_LINE, reason: 'rail network connection', desiredCount: 8, minEra: Era.INDUSTRY },
+    { type: BuildingType.RAIL_LINE, reason: 'rail network connection', desiredCount: 10, minEra: Era.INDUSTRY },
     { type: BuildingType.GEM_REFINERY, reason: 'premium resource production', desiredCount: 1, minEra: Era.INDUSTRY },
     { type: BuildingType.RECYCLING_PLANT, reason: 'cleaner mineral processing', desiredCount: 1, minEra: Era.INDUSTRY },
     { type: BuildingType.GEOTHERMAL_PLANT, reason: 'stable late-game power', desiredCount: 1, minEra: Era.SUSTAINABILITY },
     { type: BuildingType.WASTE_TREATMENT, reason: 'pollution control for eco recovery', desiredCount: 1, minEra: Era.SUSTAINABILITY },
-    { type: BuildingType.NATURE_RESERVE, reason: 'major eco and trust recovery', desiredCount: 1, minEra: Era.SUSTAINABILITY },
+    { type: BuildingType.NATURE_RESERVE, reason: 'major eco and trust recovery', desiredCount: 2, minEra: Era.SUSTAINABILITY },
     { type: BuildingType.HYDROPONICS, reason: 'advanced food and sustainability support', desiredCount: 1, minEra: Era.SUSTAINABILITY },
     { type: BuildingType.DRONE_DEPOT, reason: 'late-game delivery automation', desiredCount: 1, minEra: Era.SUSTAINABILITY },
     { type: BuildingType.RESERVOIR, reason: 'large-scale water stability', desiredCount: 1, minEra: Era.SUSTAINABILITY },
     { type: BuildingType.MONUMENT, reason: 'prosperity victory landmark', desiredCount: 1, minEra: Era.PROSPERITY },
-    { type: BuildingType.SPACEPORT, reason: 'endgame export economy', desiredCount: 1, minEra: Era.PROSPERITY },
+    { type: BuildingType.SPACEPORT, reason: 'final export economy', desiredCount: 1, minEra: Era.PROSPERITY },
     { type: BuildingType.SAFARI_LODGE, reason: 'prosperity income and eco tourism', desiredCount: 1, minEra: Era.PROSPERITY },
     { type: BuildingType.GREEN_TECH_LAB, reason: 'planetary restoration technology', desiredCount: 1, minEra: Era.PROSPERITY },
 ];
@@ -136,7 +155,7 @@ export class AIOverseerSystem extends BaseSimSystem {
         if (!overseer.enabled) return;
         if (ctx.time < overseer.nextReviewAt) return;
 
-        overseer.nextReviewAt = ctx.time + 4;
+        overseer.nextReviewAt = ctx.time + (overseer.mode === 'AUTOPILOT' && overseer.autoAct ? 1.5 : 4);
         const insight = this.analyze(state);
         overseer.confidence = insight.confidence;
         overseer.currentFocus = insight.focus;
@@ -172,6 +191,16 @@ export class AIOverseerSystem extends BaseSimSystem {
             };
         }
 
+        const infrastructure = this.getInfrastructureNeed(state);
+        if (infrastructure) {
+            const def = BUILDINGS[infrastructure.type];
+            return {
+                focus: `Layout work: ${def.name}`,
+                recommendation: `Place ${def.name} at ${infrastructure.x},${infrastructure.z} to ${infrastructure.reason}.`,
+                confidence: 0.86,
+            };
+        }
+
         const blockedAgents = state.agents.filter(agent => agent.statusTone === 'blocked' || hasActiveRouteCooldown(agent, state.tickCount));
         if (blockedAgents.length > 0) {
             const sample = blockedAgents[0];
@@ -182,23 +211,13 @@ export class AIOverseerSystem extends BaseSimSystem {
             };
         }
 
-        const waitingAgents = state.agents.filter(agent => agent.statusTone === 'warning');
-        if (waitingAgents.length > 0) {
-            const sample = waitingAgents[0];
-            return {
-                focus: 'Agent needs attention',
-                recommendation: `${waitingAgents.length} agent${waitingAgents.length === 1 ? '' : 's'} waiting on colony support. ${sample.name}: ${sample.statusReason || 'Needs support.'}`,
-                confidence: 0.78,
-            };
-        }
-
         const stabilityIntent = this.getStabilityBuildIntent(state);
         if (stabilityIntent) {
             const def = BUILDINGS[stabilityIntent.type];
             return {
                 focus: `Stability need: ${def.name}`,
                 recommendation: `Build ${def.name} for ${stabilityIntent.reason}.`,
-                confidence: 0.82,
+                confidence: 0.84,
             };
         }
 
@@ -207,8 +226,8 @@ export class AIOverseerSystem extends BaseSimSystem {
             const def = BUILDINGS[strategicIntent.type];
             return {
                 focus: `Autonomous plan: ${def.name}`,
-                recommendation: `Next Pilot build: ${def.name} for ${strategicIntent.reason}.`,
-                confidence: 0.8,
+                recommendation: `Pilot wants ${def.name}: ${strategicIntent.reason}.`,
+                confidence: 0.82,
             };
         }
 
@@ -218,36 +237,10 @@ export class AIOverseerSystem extends BaseSimSystem {
             const coverage = Math.min(1, stock / Math.max(1, available.amount));
             return {
                 focus: `Available contract: ${RESOURCE_LABEL[available.resource]}`,
-                recommendation: coverage >= 0.5
-                    ? `Accept the ${RESOURCE_LABEL[available.resource]} contract; current stock already covers ${Math.round(coverage * 100)}%.`
-                    : `Prepare ${RESOURCE_LABEL[available.resource]} production before accepting that contract.`,
-                confidence: coverage >= 0.5 ? 0.82 : 0.62,
-            };
-        }
-
-        if (state.powerGrid?.deficit > 0) {
-            return {
-                focus: 'Power instability',
-                recommendation: `Power deficit detected: ${Math.ceil(state.powerGrid.deficit)} units. Stabilize utilities before expanding production.`,
-                confidence: 0.78,
-            };
-        }
-
-        if (state.waterNetwork?.deficit > 0) {
-            return {
-                focus: 'Water instability',
-                recommendation: `Water deficit detected: ${Math.ceil(state.waterNetwork.deficit)} units. Add supply or reduce demand before scaling.`,
-                confidence: 0.76,
-            };
-        }
-
-        const idleWorkers = state.agents.filter(agent => agent.state === 'IDLE' && agent.type !== 'ILLEGAL_MINER').length;
-        if (idleWorkers > 0 && state.jobs.length > 0) {
-            const stuckIdle = state.agents.find(agent => agent.state === 'IDLE' && agent.statusReason);
-            return {
-                focus: 'Workforce routing',
-                recommendation: `${idleWorkers} worker${idleWorkers === 1 ? '' : 's'} idle while ${state.jobs.length} job${state.jobs.length === 1 ? '' : 's'} exist. ${stuckIdle?.statusReason || 'Inspect unreachable jobs, professions, or missing resources.'}`,
-                confidence: 0.74,
+                recommendation: coverage >= 0.35
+                    ? `Accept the ${RESOURCE_LABEL[available.resource]} contract; stock covers ${Math.round(coverage * 100)}%.`
+                    : `Build production before accepting the ${RESOURCE_LABEL[available.resource]} contract.`,
+                confidence: coverage >= 0.35 ? 0.76 : 0.62,
             };
         }
 
@@ -260,9 +253,9 @@ export class AIOverseerSystem extends BaseSimSystem {
         }
 
         return {
-            focus: 'Balanced operations',
-            recommendation: 'No urgent bottleneck. Pilot can continue toward full-era completion when Auto Act is enabled.',
-            confidence: 0.58,
+            focus: 'Autopilot cruising',
+            recommendation: 'No urgent bottleneck. Pilot will keep harvesting, selling surplus, accepting safe contracts, and expanding the build plan.',
+            confidence: 0.62,
         };
     }
 
@@ -271,6 +264,14 @@ export class AIOverseerSystem extends BaseSimSystem {
         if (state.commandQueue.some(command => String(command.id).startsWith('ai_cmd_'))) return;
 
         if (this.claimCompletedGoal(state, overseer)) return;
+
+        if (overseer.mode === 'AUTOPILOT') {
+            const infra = this.getInfrastructureNeed(state);
+            if (infra && this.tryPlaceInfrastructure(ctx, state, overseer, infra)) return;
+
+            const owned = this.getOwnedBuildingToPlace(state);
+            if (owned && this.trySupportBuild(ctx, state, overseer, owned)) return;
+        }
 
         if (overseer.mode === 'CONTRACTS' || overseer.mode === 'GROWTH' || overseer.mode === 'AUTOPILOT') {
             const ready = state.contracts.find(contract => this.isReady(contract, state));
@@ -289,12 +290,6 @@ export class AIOverseerSystem extends BaseSimSystem {
         }
 
         if (overseer.mode === 'STABILITY' || overseer.mode === 'AUTOPILOT') {
-            const blockedAgents = state.agents.filter(agent => agent.statusTone === 'blocked' || hasActiveRouteCooldown(agent, state.tickCount)).length;
-            if (blockedAgents > 0) {
-                this.log(state, overseer, `Held expansion: ${blockedAgents} blocked agent route${blockedAgents === 1 ? '' : 's'}`);
-                return;
-            }
-
             const stabilityIntent = this.getStabilityBuildIntent(state);
             if (stabilityIntent && this.trySupportBuild(ctx, state, overseer, stabilityIntent)) return;
         }
@@ -312,11 +307,9 @@ export class AIOverseerSystem extends BaseSimSystem {
         const goal = state.activeGoal;
         if (!goal?.completed) return false;
 
-        if (goal.reward.type === 'AGT') {
-            state.resources.agt += goal.reward.amount;
-        } else {
-            state.resources.gems += goal.reward.amount;
-        }
+        if (goal.reward.type === 'AGT') state.resources.agt += goal.reward.amount;
+        else state.resources.gems += goal.reward.amount;
+
         state.activeGoal = null;
         state.pendingEffects.push({ type: 'AUDIO', sfx: SfxType.COMPLETE });
         state.newsFeed.unshift({
@@ -408,39 +401,21 @@ export class AIOverseerSystem extends BaseSimSystem {
         return null;
     }
 
-    private isBuildIntentAvailable(state: GameState, intent: BuildIntent): boolean {
-        const def = BUILDINGS[intent.type];
-        if (!def || intent.type === BuildingType.EMPTY) return false;
-        const requiredEra = intent.minEra || def.era || Era.SETTLEMENT;
-        return this.isEraAvailable(state, requiredEra);
-    }
-
-    private isEraAvailable(state: GameState, era: Era): boolean {
-        return ERA_ORDER[state.currentEra] >= ERA_ORDER[era] || Boolean(state.unlockedEras?.includes(era));
-    }
-
-    private hasBuildingOrInventory(state: GameState, buildingType: BuildingType): boolean {
-        return this.countPlacedAndOwned(state, buildingType) > 0;
-    }
-
-    private countPlacedAndOwned(state: GameState, buildingType: BuildingType): number {
-        return this.countPlacedBuildings(state, buildingType) + (state.inventory?.[buildingType] || 0);
-    }
-
-    private countPlacedBuildings(state: GameState, buildingType: BuildingType): number {
-        let count = 0;
-        for (const chunk of Object.values(state.chunks)) {
-            for (const tile of chunk.tiles) {
-                if (tile.buildingType !== buildingType) continue;
-                if (!this.isStructureHead(tile)) continue;
-                count++;
-            }
+    private getOwnedBuildingToPlace(state: GameState): BuildIntent | null {
+        for (const intent of FULL_GAME_BUILD_PLAN) {
+            if ((state.inventory?.[intent.type] || 0) > 0 && this.isBuildIntentAvailable(state, intent)) return intent;
         }
-        return count;
-    }
 
-    private isStructureHead(tile: GridTile): boolean {
-        return tile.structureHeadX === undefined || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
+        for (const [type, count] of Object.entries(state.inventory || {})) {
+            const buildingType = type as BuildingType;
+            if (!count || count <= 0 || buildingType === BuildingType.EMPTY) continue;
+            if (INFRASTRUCTURE_TYPES.has(buildingType)) continue;
+            const def = BUILDINGS[buildingType];
+            if (!def || !this.isEraAvailable(state, def.era || Era.SETTLEMENT)) continue;
+            return { type: buildingType, reason: 'owned building waiting in inventory' };
+        }
+
+        return null;
     }
 
     private trySupportBuild(ctx: FixedContext, state: GameState, overseer: OverseerState, intent: BuildIntent): boolean {
@@ -449,7 +424,7 @@ export class AIOverseerSystem extends BaseSimSystem {
         if (!this.isBuildIntentAvailable(state, intent)) return false;
 
         if ((state.inventory?.[intent.type] || 0) > 0) {
-            const placement = this.findPlacement(state, intent.type);
+            const placement = this.findPlannedPlacement(state, intent.type);
             if (!placement) {
                 this.log(state, overseer, `Could not place ${def.name}: no clear footprint`);
                 return true;
@@ -474,10 +449,254 @@ export class AIOverseerSystem extends BaseSimSystem {
         }
 
         const imported = this.tryImportMissingResource(ctx, state, overseer, missing);
-        if (!imported) {
-            this.log(state, overseer, `Waiting for resources to buy ${def.name}`);
+        if (!imported) this.log(state, overseer, `Waiting for resources to buy ${def.name}`);
+        return true;
+    }
+
+    private getInfrastructureNeed(state: GameState): InfrastructureNeed | null {
+        const heads = this.getPlacedStructureHeads(state)
+            .filter(tile => !tile.isUnderConstruction && !INFRASTRUCTURE_TYPES.has(tile.buildingType));
+
+        for (const head of heads) {
+            const road = this.findLineGapToStructure(state, head, BuildingType.ROAD);
+            if (road) return { type: BuildingType.ROAD, ...road, reason: `connect ${BUILDINGS[head.buildingType]?.name || 'building'} to the road spine` };
+        }
+
+        for (const head of heads) {
+            const def = BUILDINGS[head.buildingType];
+            if (!def?.power) continue;
+            const power = this.findLineGapToStructure(state, head, BuildingType.POWER_LINE);
+            if (power) return { type: BuildingType.POWER_LINE, ...power, reason: `connect ${def.name} to the power spine` };
+        }
+
+        for (const head of heads) {
+            const def = BUILDINGS[head.buildingType];
+            if (!def?.water) continue;
+            const pipe = this.findLineGapToStructure(state, head, BuildingType.PIPE);
+            if (pipe) return { type: BuildingType.PIPE, ...pipe, reason: `connect ${def.name} to the water spine` };
+        }
+
+        const fence = this.findFenceGap(state, heads);
+        if (fence) return fence;
+
+        return null;
+    }
+
+    private tryPlaceInfrastructure(ctx: FixedContext, state: GameState, overseer: OverseerState, need: InfrastructureNeed): boolean {
+        const def = BUILDINGS[need.type];
+        if (!def) return false;
+
+        if ((state.inventory?.[need.type] || 0) > 0) {
+            this.queueCommand(ctx, state, 'PLACE_BUILDING', { x: need.x, z: need.z, buildingType: need.type });
+            this.log(state, overseer, `Placed ${def.name}: ${need.reason}`);
+            return true;
+        }
+
+        if (!this.hasEnoughAgtForBuild(state, need.type)) {
+            if (!this.tryRaiseAgt(ctx, state, overseer, this.getAgtCost(need.type))) {
+                this.log(state, overseer, `Waiting for AGT to buy ${def.name}`);
+            }
+            return true;
+        }
+
+        const missing = this.getMissingBuildResources(state, need.type);
+        if (missing.length > 0) {
+            if (!this.tryImportMissingResource(ctx, state, overseer, missing)) {
+                this.log(state, overseer, `Waiting for resources to buy ${def.name}`);
+            }
+            return true;
+        }
+
+        this.queueCommand(ctx, state, 'BUY_BUILDING', { buildingType: need.type, cost: def.cost });
+        this.log(state, overseer, `Bought ${def.name} for layout`);
+        return true;
+    }
+
+    private findLineGapToStructure(state: GameState, head: GridTile, lineType: BuildingType): Point | null {
+        const def = BUILDINGS[head.buildingType];
+        if (!def) return null;
+
+        const width = def.width || 1;
+        const depth = def.depth || 1;
+        const target = this.findBestAdjacentPoint(state, head.x, head.z, width, depth, lineType);
+        if (!target) return null;
+
+        const start = { x: Math.round(state.spawnX || 0), z: Math.round(state.spawnZ || 0) };
+        const path = this.makeManhattanPath(start, target);
+        for (const point of path) {
+            if (this.hasLineAt(state, point.x, point.z, lineType)) continue;
+            if (this.canPlaceAt(state, lineType, point.x, point.z, 1, 1)) return point;
+        }
+
+        return null;
+    }
+
+    private findBestAdjacentPoint(state: GameState, x: number, z: number, width: number, depth: number, lineType: BuildingType): Point | null {
+        const candidates: Point[] = [];
+        for (let dx = 0; dx < width; dx++) {
+            candidates.push({ x: x + dx, z: z - 1 }, { x: x + dx, z: z + depth });
+        }
+        for (let dz = 0; dz < depth; dz++) {
+            candidates.push({ x: x - 1, z: z + dz }, { x: x + width, z: z + dz });
+        }
+
+        const centerX = Math.round(state.spawnX || 0);
+        const centerZ = Math.round(state.spawnZ || 0);
+        return candidates
+            .filter(point => this.hasLineAt(state, point.x, point.z, lineType) || this.canPlaceAt(state, lineType, point.x, point.z, 1, 1))
+            .sort((a, b) => (Math.abs(a.x - centerX) + Math.abs(a.z - centerZ)) - (Math.abs(b.x - centerX) + Math.abs(b.z - centerZ)))[0] || null;
+    }
+
+    private makeManhattanPath(start: Point, target: Point): Point[] {
+        const path: Point[] = [];
+        const stepX = target.x >= start.x ? 1 : -1;
+        for (let x = start.x; x !== target.x; x += stepX) path.push({ x, z: start.z });
+        const stepZ = target.z >= start.z ? 1 : -1;
+        for (let z = start.z; z !== target.z; z += stepZ) path.push({ x: target.x, z });
+        path.push(target);
+        return path;
+    }
+
+    private hasLineAt(state: GameState, x: number, z: number, lineType: BuildingType): boolean {
+        const tile = ChunkStore.getTile(state.chunks, x, z);
+        return Boolean(tile && tile.buildingType === lineType);
+    }
+
+    private findFenceGap(state: GameState, heads: GridTile[]): InfrastructureNeed | null {
+        if (heads.length < 5 || this.countPlacedBuildings(state, BuildingType.FENCE) >= 32) return null;
+
+        const minX = Math.min(...heads.map(tile => tile.x)) - 3;
+        const maxX = Math.max(...heads.map(tile => tile.x + (BUILDINGS[tile.buildingType]?.width || 1))) + 2;
+        const minZ = Math.min(...heads.map(tile => tile.z)) - 3;
+        const maxZ = Math.max(...heads.map(tile => tile.z + (BUILDINGS[tile.buildingType]?.depth || 1))) + 2;
+        const edges: Point[] = [];
+
+        for (let x = minX; x <= maxX; x++) edges.push({ x, z: minZ }, { x, z: maxZ });
+        for (let z = minZ + 1; z < maxZ; z++) edges.push({ x: minX, z }, { x: maxX, z });
+
+        const target = edges.find(point => !this.hasLineAt(state, point.x, point.z, BuildingType.FENCE) && this.canPlaceAt(state, BuildingType.FENCE, point.x, point.z, 1, 1));
+        return target ? { type: BuildingType.FENCE, ...target, reason: 'secure the autonomous settlement perimeter' } : null;
+    }
+
+    private findPlannedPlacement(state: GameState, buildingType: BuildingType): Point | null {
+        const def = BUILDINGS[buildingType];
+        if (!def) return null;
+
+        if (INFRASTRUCTURE_TYPES.has(buildingType)) {
+            return this.findPlacement(state, buildingType);
+        }
+
+        const width = def.width || 1;
+        const depth = def.depth || 1;
+        const centerX = Math.round(state.spawnX || 0);
+        const centerZ = Math.round(state.spawnZ || 0);
+        const placedCount = this.getPlacedStructureHeads(state).filter(tile => !INFRASTRUCTURE_TYPES.has(tile.buildingType)).length;
+        const lane = placedCount % 4;
+        const laneOffset = Math.floor(placedCount / 4) * 4;
+        const seeds: Point[] = [
+            { x: centerX + 3 + laneOffset, z: centerZ + lane * 4 },
+            { x: centerX - 5 - laneOffset, z: centerZ + lane * 4 },
+            { x: centerX + lane * 4, z: centerZ + 3 + laneOffset },
+            { x: centerX + lane * 4, z: centerZ - 5 - laneOffset },
+        ];
+
+        for (const seed of seeds) {
+            const placement = this.searchFrom(state, buildingType, seed.x, seed.z, width, depth, 7);
+            if (placement) return placement;
+        }
+
+        return this.findPlacement(state, buildingType);
+    }
+
+    private searchFrom(state: GameState, buildingType: BuildingType, startX: number, startZ: number, width: number, depth: number, maxRadius: number): Point | null {
+        for (let radius = 0; radius <= maxRadius; radius++) {
+            for (let dz = -radius; dz <= radius; dz++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) continue;
+                    const x = startX + dx;
+                    const z = startZ + dz;
+                    if (this.canPlaceAt(state, buildingType, x, z, width, depth)) return { x, z };
+                }
+            }
+        }
+        return null;
+    }
+
+    private findPlacement(state: GameState, buildingType: BuildingType): Point | null {
+        const def = BUILDINGS[buildingType];
+        if (!def) return null;
+
+        const width = def.width || 1;
+        const depth = def.depth || 1;
+        const centerX = Math.round(state.spawnX || 0);
+        const centerZ = Math.round(state.spawnZ || 0);
+
+        for (let radius = 2; radius <= 36; radius++) {
+            for (let dz = -radius; dz <= radius; dz++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) continue;
+                    const x = centerX + dx;
+                    const z = centerZ + dz;
+                    if (this.canPlaceAt(state, buildingType, x, z, width, depth)) return { x, z };
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private canPlaceAt(state: GameState, buildingType: BuildingType, x: number, z: number, width: number, depth: number): boolean {
+        const def = BUILDINGS[buildingType];
+        if (!def) return false;
+
+        for (let dz = 0; dz < depth; dz++) {
+            for (let dx = 0; dx < width; dx++) {
+                const tile = ChunkStore.getTile(state.chunks, x + dx, z + dz);
+                if (!tile || tile.locked || tile.isUnderConstruction) return false;
+                const isEmpty = tile.buildingType === BuildingType.EMPTY;
+                const isAllowedWater = tile.buildingType === BuildingType.POND && Boolean(def.waterPlaceable);
+                if (!isEmpty && !isAllowedWater) return false;
+            }
         }
         return true;
+    }
+
+    private getPlacedStructureHeads(state: GameState): GridTile[] {
+        const heads: GridTile[] = [];
+        for (const chunk of Object.values(state.chunks)) {
+            for (const tile of chunk.tiles) {
+                if (tile.buildingType === BuildingType.EMPTY || !this.isStructureHead(tile)) continue;
+                heads.push(tile);
+            }
+        }
+        return heads;
+    }
+
+    private countPlacedBuildings(state: GameState, buildingType: BuildingType): number {
+        return this.getPlacedStructureHeads(state).filter(tile => tile.buildingType === buildingType).length;
+    }
+
+    private countPlacedAndOwned(state: GameState, buildingType: BuildingType): number {
+        return this.countPlacedBuildings(state, buildingType) + (state.inventory?.[buildingType] || 0);
+    }
+
+    private isStructureHead(tile: GridTile): boolean {
+        return tile.structureHeadX === undefined || (tile.x === tile.structureHeadX && tile.z === tile.structureHeadZ);
+    }
+
+    private isBuildIntentAvailable(state: GameState, intent: BuildIntent): boolean {
+        const def = BUILDINGS[intent.type];
+        if (!def || intent.type === BuildingType.EMPTY) return false;
+        const requiredEra = intent.minEra || def.era || Era.SETTLEMENT;
+        return this.isEraAvailable(state, requiredEra);
+    }
+
+    private isEraAvailable(state: GameState, era: Era): boolean {
+        return ERA_ORDER[state.currentEra] >= ERA_ORDER[era] || Boolean(state.unlockedEras?.includes(era));
+    }
+
+    private hasBuildingOrInventory(state: GameState, buildingType: BuildingType): boolean {
+        return this.countPlacedAndOwned(state, buildingType) > 0;
     }
 
     private hasEnoughAgtForBuild(state: GameState, buildingType: BuildingType): boolean {
@@ -515,9 +734,8 @@ export class AIOverseerSystem extends BaseSimSystem {
 
     private getReserveForResource(resource: ResourceKey): number {
         if (resource === 'gems') return 20;
-        if (resource === 'minerals') return 800;
-        if (resource === 'stone') return 800;
-        return 800;
+        if (resource === 'minerals') return 700;
+        return 700;
     }
 
     private tryImportMissingResource(ctx: FixedContext, state: GameState, overseer: OverseerState, missing: Array<{ resource: ResourceKey; amount: number }>): boolean {
@@ -525,48 +743,9 @@ export class AIOverseerSystem extends BaseSimSystem {
         if (!target || target.amount <= 0) return false;
         if (state.resources.agt < 500) return false;
 
-        const amount = Math.max(25, Math.min(250, target.amount));
+        const amount = Math.max(25, Math.min(400, target.amount));
         this.queueCommand(ctx, state, 'BUY_RESOURCE', { resource: target.resource, amount });
         this.log(state, overseer, `Imported ${amount} ${BUILD_RESOURCE_LABEL[target.resource]}`);
-        return true;
-    }
-
-    private findPlacement(state: GameState, buildingType: BuildingType): { x: number; z: number } | null {
-        const def = BUILDINGS[buildingType];
-        if (!def) return null;
-
-        const width = def.width || 1;
-        const depth = def.depth || 1;
-        const centerX = Math.round(state.spawnX || 0);
-        const centerZ = Math.round(state.spawnZ || 0);
-
-        for (let radius = 2; radius <= 28; radius++) {
-            for (let dz = -radius; dz <= radius; dz++) {
-                for (let dx = -radius; dx <= radius; dx++) {
-                    if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) continue;
-                    const x = centerX + dx;
-                    const z = centerZ + dz;
-                    if (this.canPlaceAt(state, buildingType, x, z, width, depth)) return { x, z };
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private canPlaceAt(state: GameState, buildingType: BuildingType, x: number, z: number, width: number, depth: number): boolean {
-        const def = BUILDINGS[buildingType];
-        if (!def) return false;
-
-        for (let dz = 0; dz < depth; dz++) {
-            for (let dx = 0; dx < width; dx++) {
-                const tile = ChunkStore.getTile(state.chunks, x + dx, z + dz);
-                if (!tile || tile.locked || tile.isUnderConstruction) return false;
-                const isEmpty = tile.buildingType === BuildingType.EMPTY;
-                const isAllowedWater = tile.buildingType === BuildingType.POND && Boolean(def.waterPlaceable);
-                if (!isEmpty && !isAllowedWater) return false;
-            }
-        }
         return true;
     }
 
@@ -577,7 +756,7 @@ export class AIOverseerSystem extends BaseSimSystem {
     }
 
     private tryMarkUsefulHarvest(ctx: FixedContext, state: GameState, overseer: OverseerState): boolean {
-        if (state.jobs.length > state.agents.length + 2) return false;
+        if (state.jobs.length > state.agents.length + 3) return false;
 
         const resource = this.pickNeededHarvestResource(state);
         const target = this.findHarvestTarget(state, resource);
@@ -589,13 +768,13 @@ export class AIOverseerSystem extends BaseSimSystem {
     }
 
     private pickNeededHarvestResource(state: GameState): ResourceKey {
-        if (state.resources.wood < 1200) return 'wood';
-        if (state.resources.stone < 1200) return 'stone';
-        if (state.resources.minerals < 600) return 'minerals';
+        if (state.resources.wood < 1500) return 'wood';
+        if (state.resources.stone < 1500) return 'stone';
+        if (state.resources.minerals < 900) return 'minerals';
         return 'wood';
     }
 
-    private findHarvestTarget(state: GameState, resource: ResourceKey): { x: number; z: number } | null {
+    private findHarvestTarget(state: GameState, resource: ResourceKey): Point | null {
         const centerX = Math.round(state.spawnX || 0);
         const centerZ = Math.round(state.spawnZ || 0);
         let best: { x: number; z: number; distance: number } | null = null;
@@ -612,9 +791,7 @@ export class AIOverseerSystem extends BaseSimSystem {
                 if (!matches) continue;
 
                 const distance = Math.abs(tile.x - centerX) + Math.abs(tile.z - centerZ);
-                if (!best || distance < best.distance) {
-                    best = { x: tile.x, z: tile.z, distance };
-                }
+                if (!best || distance < best.distance) best = { x: tile.x, z: tile.z, distance };
             }
         }
 
@@ -631,8 +808,9 @@ export class AIOverseerSystem extends BaseSimSystem {
         if ((contract.status || 'AVAILABLE') !== 'AVAILABLE') return false;
         const stock = state.resources[RESOURCE_KEY[contract.resource]] || 0;
         const coverage = stock / Math.max(1, contract.amount);
-        if (coverage >= 0.8) return true;
-        return contract.resource === 'MINERALS' && coverage >= 0.5 && contract.reward >= contract.penalty * 3;
+        if (coverage >= 0.7) return true;
+        if (contract.resource === 'MINERALS' && this.hasBuildingOrInventory(state, BuildingType.WASH_PLANT)) return coverage >= 0.25 && contract.reward >= contract.penalty * 2;
+        return false;
     }
 
     private queueCommand(ctx: FixedContext, state: GameState, type: GameCommand['type'], payload: any): void {

@@ -7,4 +7,3 @@
 export * from './colors';
 export * from './buildings';
 export * from './resources';
-export * from './tech';

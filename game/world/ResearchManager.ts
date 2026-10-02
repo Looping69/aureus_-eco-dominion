@@ -5,7 +5,7 @@
 
 import { StateManager } from '../state/StateManager';
 import { TechId, SfxType } from '../../types';
-import { TECHNOLOGIES } from '../../engine/data/VoxelConstants';
+import { TECHNOLOGIES } from '../data/tech';
 
 export class ResearchManager {
     private stateManager: StateManager;

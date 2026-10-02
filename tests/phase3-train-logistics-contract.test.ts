@@ -4,14 +4,14 @@ import path from 'node:path';
 import test from 'node:test';
 
 const gameTypesPath = path.join(process.cwd(), 'engine', 'types', 'game.ts');
-const logisticsPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'LogisticsSystem.ts');
+const logisticsPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'LogisticsSystem.ts');
 const buildingsPath = path.join(process.cwd(), 'engine', 'data', 'buildings.ts');
 const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
 const tradeTerminalPath = path.join(process.cwd(), 'components', 'TradeTerminal.tsx');
 const engineBridgePath = path.join(process.cwd(), 'game', 'useAureusEngine.ts');
-const economyPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'EconomySystem.ts');
+const economyPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'EconomySystem.ts');
 const buildingRenderPath = path.join(process.cwd(), 'game', 'render', 'systems', 'BuildingRenderSystem.ts');
-const productionPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'ProductionSystem.ts');
+const productionPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'ProductionSystem.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

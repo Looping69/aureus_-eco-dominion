@@ -1,13 +1,13 @@
-import { FixedContext } from '../../kernel/Types';
+import { FixedContext } from '../../../engine/kernel/Types';
 import { BuildingType, GameState } from '../../../types';
-import { BaseSimSystem } from '../Simulation';
-import { applyDeepLedgerSurvey } from '../../underground/UndergroundGenerator';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { applyDeepLedgerSurvey } from '../../../engine/underground/UndergroundGenerator';
 import {
     SUBSURFACE_CLEAR_RUBBLE_JOB_PREFIX,
     SUBSURFACE_DIG_JOB_PREFIX,
     SUBSURFACE_MAX_OPEN_PIT_DEPTH,
     SUBSURFACE_SURFACE_RUBBLE_DUMP_CAPACITY,
-} from '../../subsurface/SubsurfaceModel';
+} from '../../../engine/subsurface/SubsurfaceModel';
 
 /**
  * Engine-owned Phase 1 Deep Ledger survey sync. (|/) Klaasvaakie

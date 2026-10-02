@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { StateManager } from '../game/state/StateManager.ts';
-import { CommandDispatcher } from '../engine/sim/systems/CommandDispatcher.ts';
+import { CommandDispatcher } from '../game/sim/systems/CommandDispatcher.ts';
 import { validateGameCommandType } from '../engine/game-definition/GameCommandValidator.ts';
 import { AUREUS_GAME_DEFINITION } from '../game-definitions/aureus.ts';
 import { enqueueWorldCommand } from '../game/useAureusEngineActions.ts';

@@ -3,8 +3,8 @@
  * Handles random world events, disasters, and special visual themes.
  */
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext } from '../../../engine/kernel';
 import { GameState, SfxType } from '../../../types';
 
 import { checkAndGenerateEvent } from '../logic/AiLogic';

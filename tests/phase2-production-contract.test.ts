@@ -4,12 +4,12 @@ import path from 'node:path';
 import test from 'node:test';
 
 const gameTypesPath = path.join(process.cwd(), 'engine', 'types', 'game.ts');
-const productionPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'ProductionSystem.ts');
-const logisticsPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'LogisticsSystem.ts');
+const productionPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'ProductionSystem.ts');
+const logisticsPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'LogisticsSystem.ts');
 const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
 const persistencePath = path.join(process.cwd(), 'game', 'state', 'PersistenceManager.ts');
 const powerGridPath = path.join(process.cwd(), 'game', 'sim', 'utility', 'PowerGridSystem.ts');
-const economyPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'EconomySystem.ts');
+const economyPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'EconomySystem.ts');
 const supplySidebarPath = path.join(process.cwd(), 'components', 'SupplySidebar.tsx');
 const industrialCostsPath = path.join(process.cwd(), 'engine', 'data', 'industrialCosts.ts');
 const buildingTypesPath = path.join(process.cwd(), 'engine', 'types', 'buildings.ts');

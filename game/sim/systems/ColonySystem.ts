@@ -1,6 +1,6 @@
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext } from '../../../engine/kernel';
 import { GameState, BuildingType, SfxType, AgentRole, Agent, Chunk, GridTile } from '../../../types';
 import { createColonist, MAX_AGENTS, CAPACITY_PER_QUARTERS } from '../logic/SimulationLogic';
 

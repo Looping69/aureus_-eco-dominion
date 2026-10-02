@@ -1,11 +1,11 @@
-import { BaseSimSystem } from '../Simulation';
-import type { CommandResult, FixedContext } from '../../kernel';
-import { CommandErrorCode } from '../../kernel';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import type { CommandResult, FixedContext } from '../../../engine/kernel';
+import { CommandErrorCode } from '../../../engine/kernel';
 import { SfxType } from '../../../types';
 import type { Agent, AgentCombatState, AgentRole, CombatFaction, GameCommand, GameState } from '../../../types';
-import { getAgentRoleDef } from '../../data/agentRoles';
-import { getPerimeterCombatModifier } from '../../data/combatPerimeters';
-import { getCombatWeaponForRole } from '../../data/combatWeapons';
+import { getAgentRoleDef } from '../../../engine/data/agentRoles';
+import { getPerimeterCombatModifier } from '../../../engine/data/combatPerimeters';
+import { getCombatWeaponForRole } from '../../../engine/data/combatWeapons';
 
 export const COMBAT_SCAN_RANGE = 7;
 export const DEFAULT_COMBAT_RANGE = 1.6;

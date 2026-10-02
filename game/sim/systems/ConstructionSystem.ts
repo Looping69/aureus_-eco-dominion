@@ -4,15 +4,15 @@
  * Manages consistency for multi-tile structures.
  */
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../../engine/kernel/Types';
 import { GameState, GridTile, BuildingType, SfxType, Chunk, GameCommand } from '../../../types';
-import { BUILDINGS } from '../../data/VoxelConstants';
-import { updateWaterConnectivity } from '../../utils/GameUtils';
-import { ChunkStore } from '../../space/ChunkStore';
-import { worldToChunk, worldToLocal, CHUNK_SIZE } from '../../utils/coords';
-import { DungeonEngine } from '../../dungeon/DungeonEngine';
-import { applyDeepLedgerSurvey } from '../../underground/UndergroundGenerator';
+import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { updateWaterConnectivity } from '../../../engine/utils/GameUtils';
+import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { worldToChunk, worldToLocal, CHUNK_SIZE } from '../../../engine/utils/coords';
+import { DungeonEngine } from '../../../engine/dungeon/DungeonEngine';
+import { applyDeepLedgerSurvey } from '../../../engine/underground/UndergroundGenerator';
 import { completeConstructionCore, placeBuildingCore, progressConstructionCore } from '../construction/PlacementCore';
 
 export class ConstructionSystem extends BaseSimSystem {

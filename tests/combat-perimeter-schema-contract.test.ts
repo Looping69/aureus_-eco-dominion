@@ -29,7 +29,7 @@ test('combat perimeter schema defines defensive infrastructure data', () => {
 });
 
 test('combat system delegates defensive perimeter math to perimeter schema', () => {
-    const combat = source('engine/sim/systems/CombatSystem.ts');
+    const combat = source('game/sim/systems/CombatSystem.ts');
 
     assert.match(combat, /getPerimeterCombatModifier/);
     assert.equal(combat.includes('BuildingType.FENCE'), false);

@@ -3,17 +3,17 @@
  * Handles building maintenance (upkeep), resource generation, and auto-sell logistics.
  */
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext } from '../../../engine/kernel';
 import { BuildingType, Chunk, Era, FactoryNodeState, FactoryResourceType, FactoryState, GameState, GridTile, IndustryState, SfxType } from '../../../types';
-import { BUILDINGS } from '../../data/VoxelConstants';
-import { getEcoMultiplier, HARVESTABLE_TREES, HARVESTABLE_ROCKS, isHarvestable } from '../../utils/GameUtils';
+import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { getEcoMultiplier, HARVESTABLE_TREES, HARVESTABLE_ROCKS, isHarvestable } from '../../../engine/utils/GameUtils';
 import { BASE_STORAGE_CAPACITY, DEPOT_CAPACITY_BONUS, STOCKPILE_CAPACITY_BONUS } from '../logic/SimulationLogic';
 import { getHarvestVisualStage } from '../logic/HarvestVisualProgress';
-import { ChunkStore } from '../../space/ChunkStore';
-import { worldToChunk, CHUNK_SIZE } from '../../utils/coords';
-import { isSubsurfaceDigJob } from '../../subsurface/SubsurfaceModel';
-import { getEventEnvironmentModifiers, getWeatherGameplayEffects } from '../../weather/weatherModel';
+import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { worldToChunk, CHUNK_SIZE } from '../../../engine/utils/coords';
+import { isSubsurfaceDigJob } from '../../../engine/subsurface/SubsurfaceModel';
+import { getEventEnvironmentModifiers, getWeatherGameplayEffects } from '../../../engine/weather/weatherModel';
 
 export class ProductionSystem extends BaseSimSystem {
     readonly id = 'production';

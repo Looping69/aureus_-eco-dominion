@@ -288,7 +288,7 @@ test('BuildingInspectorModal delegates utility failure labels to UtilityReadabil
     const modals = source('components/Modals.tsx');
 
     assert.match(modals, /getUtilityReadability/);
-    assert.match(modals, /from '\.\.\/engine\/sim\/utility\/UtilityReadability'/);
+    assert.match(modals, /from '\.\.\/game\/sim\/utility\/UtilityReadability'/);
     assert.equal(modals.includes("if (needsPower) {\n        if (tile.powerStatus !== 'CONNECTED')"), false);
     assert.equal(modals.includes("if (needsWater) {\n        if (tile.waterStatus !== 'CONNECTED')"), false);
 });
@@ -308,7 +308,7 @@ test('BuildingStatusLabelLayer delegates water labels to WaterDiagnostics', () =
     const labels = source('game/render/systems/BuildingStatusLabelLayer.ts');
 
     assert.match(labels, /getWaterDiagnostic/);
-    assert.match(labels, /from '\.\.\/\.\.\/\.\.\/engine\/sim\/utility\/WaterDiagnostics'/);
+    assert.match(labels, /from '\.\.\/\.\.\/sim\/utility\/WaterDiagnostics'/);
     assert.match(labels, /waterDiagnostic\.blocksProduction/);
     assert.equal(labels.includes("tile.waterStatus === 'DISCONNECTED'"), false);
 });

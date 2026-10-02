@@ -20,7 +20,7 @@ test('radio dispatch names utility-starved structures and connection pieces', ()
 
   for (const snippet of [
     "import { BUILDINGS } from '../engine/data/VoxelConstants';",
-    "import { getWaterDiagnostic } from '../engine/sim/utility/WaterDiagnostics';",
+    "import { getWaterDiagnostic } from '../game/sim/utility/WaterDiagnostics';",
     'type UtilityAlert = {',
     'function getUtilityAlerts(state: GameState): UtilityAlert[]',
     "reason: 'power'",

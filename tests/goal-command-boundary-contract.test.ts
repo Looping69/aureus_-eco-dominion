@@ -6,7 +6,7 @@ import { getActionBranch } from './helpers/actionBranch.ts';
 
 const root = process.cwd();
 const useEnginePath = path.join(root, 'game', 'useAureusEngine.ts');
-const dispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
+const dispatcherPath = path.join(root, 'game', 'sim', 'systems', 'CommandDispatcher.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);

@@ -3,12 +3,12 @@
  * Handles market price fluctuations and economic events.
  */
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../kernel/Types';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../../engine/kernel/Types';
 import { FactoryResourceType, FactorySectorState, GameState, BuildingType, SfxType, GameCommand } from '../../../types';
-import { BUILDINGS } from '../../data/VoxelConstants';
-import { getEcoMultiplier } from '../../utils/GameUtils';
-import { getIndustrialBuildingCosts, getMissingIndustrialCosts } from '../../data/industrialCosts';
+import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { getEcoMultiplier } from '../../../engine/utils/GameUtils';
+import { getIndustrialBuildingCosts, getMissingIndustrialCosts } from '../../../engine/data/industrialCosts';
 
 
 type TradableResource = 'minerals' | 'gems' | 'wood' | 'stone';

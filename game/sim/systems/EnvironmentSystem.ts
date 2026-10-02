@@ -3,10 +3,10 @@
  * Handles day/night cycle, weather, and light synchronization.
  */
 
-import { BaseSimSystem } from '../Simulation';
-import { FixedContext } from '../../kernel';
+import { BaseSimSystem } from '../../../engine/sim/Simulation';
+import { FixedContext } from '../../../engine/kernel';
 import { GameState } from '../../../types';
-import { buildDayNightCycle, DAY_NIGHT, getDaylightFactor } from '../dayNightCycle';
+import { buildDayNightCycle, DAY_NIGHT, getDaylightFactor } from '../../../engine/sim/dayNightCycle';
 import {
     getWeatherHeadline,
     getWeatherOverride,
@@ -14,7 +14,7 @@ import {
     normalizeWeatherState,
     pickNextWeather,
     withWeatherCurrent,
-} from '../../weather/weatherModel';
+} from '../../../engine/weather/weatherModel';
 
 export class EnvironmentSystem extends BaseSimSystem {
     readonly id = 'environment';
