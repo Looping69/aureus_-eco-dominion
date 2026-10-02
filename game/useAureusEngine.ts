@@ -16,7 +16,7 @@ import { DebugHud } from '../engine/tools';
 import { GAME_DEFINITION_REGISTRY } from '../game-definitions/activeGameDefinition';
 import { AureusWorld, AureusWorldConfig } from './AureusWorld';
 import { GameState, SfxType } from '../types';
-import { ChunkStore } from '../engine/space/ChunkStore';
+import { ChunkStore } from './space/ChunkStore';
 import {
     enqueueWorldCommand,
     enterDigMode,

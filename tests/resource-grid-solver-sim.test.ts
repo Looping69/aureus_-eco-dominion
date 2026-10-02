@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { StateManager } from '../game/state/StateManager.ts';
-import { ChunkStore } from '../engine/space/ChunkStore.ts';
+import { ChunkStore } from '../game/space/ChunkStore.ts';
 import { collectAureusWaterGridParticipants } from '../game/sim/utility/AureusWaterGridAdapter.ts';
 import { collectAureusPowerGridParticipants } from '../game/sim/utility/AureusPowerGridAdapter.ts';
 import { solveResourceGridNetwork } from '../engine/sim/resourceGrid/ResourceGridSolver.ts';

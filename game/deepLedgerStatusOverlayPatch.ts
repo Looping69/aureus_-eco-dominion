@@ -1,5 +1,5 @@
 import { AureusWorld } from './AureusWorld';
-import { ensureUndergroundState } from '../engine/underground/UndergroundGenerator';
+import { ensureUndergroundState } from './underground/UndergroundGenerator';
 import { UndergroundTile } from '../types';
 
 /**

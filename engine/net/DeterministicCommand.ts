@@ -1,4 +1,4 @@
-import type { GameCommand } from '../../types';
+import type { EngineCommand } from '../kernel/Command';
 
 export interface DeterministicCommandEnvelope {
     id: string;
@@ -6,14 +6,14 @@ export interface DeterministicCommandEnvelope {
     targetTick: number;
     sequence: number;
     payloadHash: string;
-    command: GameCommand;
+    command: EngineCommand;
 }
 
 export interface DeterministicCommandInput {
     playerId: string;
     targetTick: number;
     sequence: number;
-    command: GameCommand;
+    command: EngineCommand;
 }
 
 export function createDeterministicCommandEnvelope(input: DeterministicCommandInput): DeterministicCommandEnvelope {
@@ -44,7 +44,7 @@ export function getDeterministicCommandKey(command: Pick<DeterministicCommandEnv
     return `${command.playerId}:${command.sequence}`;
 }
 
-export function hashCommandPayload(command: GameCommand): string {
+export function hashCommandPayload(command: EngineCommand): string {
     return fnv1a(stableStringify({ type: command.type, payload: command.payload }));
 }
 
@@ -70,7 +70,7 @@ function normalizeNonNegativeInteger(value: number, field: string): number {
     return value;
 }
 
-function normalizeCommand(command: GameCommand): GameCommand {
+function normalizeCommand(command: EngineCommand): EngineCommand {
     if (!command || typeof command.id !== 'string' || !command.id.trim()) {
         throw new Error('command.id is required for deterministic commands');
     }

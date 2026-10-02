@@ -8,10 +8,10 @@
 
 import { createNoise2D } from 'simplex-noise';
 import { GridTile, Chunk } from '../../types';
-import { getTerrainMacroStep } from '../render/utils/TerrainLod';
-import { getCarvedWaterbedY, getTerrainSurfaceY, getWaterSurfaceY } from '../render/utils/GroundAnchors';
+import { getTerrainMacroStep } from '../../engine/render/utils/TerrainLod';
+import { getCarvedWaterbedY, getTerrainSurfaceY, getWaterSurfaceY } from '../../engine/render/utils/GroundAnchors';
 import { getBiomeAt as getBiomeAtImpl, getFoliageAt as getFoliageAtImpl } from '../worldgen/Core';
-import { Job, PathfindJob, PathfindResult, MeshChunkJob, MeshChunkResult, ENGINE_SCHEMA_VERSION } from './jobs.types';
+import { Job, PathfindJob, PathfindResult, MeshChunkJob, MeshChunkResult, ENGINE_SCHEMA_VERSION } from '../../engine/jobs/jobs.types';
 import { findPath } from '../sim/algorithms/Pathfinding';
 
 let localChunks: Record<string, Chunk> = {};

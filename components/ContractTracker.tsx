@@ -2,7 +2,7 @@ import React from 'react';
 import { Briefcase, CheckCircle2, ChevronUp, Clock, Package, XCircle } from 'lucide-react';
 import { Contract, GameCommand, GameState, SfxType } from '../types';
 import { createQueuedGameCommandCandidateEnvelope, GAME_COMMAND_CANDIDATE_SOURCES } from '../engine/game-definition';
-import { getContractLifecycleState } from '../engine/stateMachines/contractLifecycle';
+import { getContractLifecycleState } from '../game/stateMachines/contractLifecycle';
 import { useContractPanelStore } from './state/useContractPanelStore';
 
 interface ContractTrackerProps {

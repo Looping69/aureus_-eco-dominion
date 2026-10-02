@@ -1,7 +1,7 @@
 import { BuildingType, type GameState, type WorldVoxelCell, type WorldVoxelMaterial } from '../../types';
-import { CommandErrorCode, type CommandResult } from '../kernel/Types';
+import { CommandErrorCode, type CommandResult } from '../../engine/kernel/Types';
 import { ChunkStore } from '../space/ChunkStore';
-import { CHUNK_SIZE, toChunkKey, worldToChunk } from '../utils/coords';
+import { CHUNK_SIZE, toChunkKey, worldToChunk } from '../../engine/utils/coords';
 import {
     applySubsurfaceYield,
     getSubsurfaceCell,

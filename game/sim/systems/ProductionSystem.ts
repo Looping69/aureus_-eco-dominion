@@ -10,10 +10,10 @@ import { BUILDINGS } from '../../data/VoxelConstants';
 import { getEcoMultiplier, HARVESTABLE_TREES, HARVESTABLE_ROCKS, isHarvestable } from '../../utils/GameUtils';
 import { BASE_STORAGE_CAPACITY, DEPOT_CAPACITY_BONUS, STOCKPILE_CAPACITY_BONUS } from '../logic/SimulationLogic';
 import { getHarvestVisualStage } from '../logic/HarvestVisualProgress';
-import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { ChunkStore } from '../../space/ChunkStore';
 import { worldToChunk, CHUNK_SIZE } from '../../../engine/utils/coords';
-import { isSubsurfaceDigJob } from '../../../engine/subsurface/SubsurfaceModel';
-import { getEventEnvironmentModifiers, getWeatherGameplayEffects } from '../../../engine/weather/weatherModel';
+import { isSubsurfaceDigJob } from '../../subsurface/SubsurfaceModel';
+import { getEventEnvironmentModifiers, getWeatherGameplayEffects } from '../../weather/weatherModel';
 
 export class ProductionSystem extends BaseSimSystem {
     readonly id = 'production';

@@ -6,7 +6,7 @@ import test from 'node:test';
 const root = process.cwd();
 const renderFramePath = path.join(root, 'game', 'world', 'renderFrame.ts');
 const environmentRenderPath = path.join(root, 'game', 'render', 'systems', 'EnvironmentRenderSystem.ts');
-const gameTypesPath = path.join(root, 'engine', 'types', 'game.ts');
+const gameTypesPath = path.join(root, 'game', 'types', 'game.ts');
 const stateManagerPath = path.join(root, 'game', 'state', 'createAureusInitialState.ts');
 const persistenceManagerPath = path.join(root, 'game', 'state', 'PersistenceManager.ts');
 const debugMenuPath = path.join(root, 'components', 'DebugMenu.tsx');

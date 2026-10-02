@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const contractTrackerPath = path.join(process.cwd(), 'components', 'ContractTracker.tsx');
 const contractPanelStorePath = path.join(process.cwd(), 'components', 'state', 'useContractPanelStore.ts');
-const contractLifecyclePath = path.join(process.cwd(), 'engine', 'stateMachines', 'contractLifecycle.ts');
+const contractLifecyclePath = path.join(process.cwd(), 'game', 'stateMachines', 'contractLifecycle.ts');
 const productionSystemPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'ProductionSystem.ts');
 const colonySystemPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'ColonySystem.ts');
 const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
@@ -59,7 +59,7 @@ test('contract lifecycle is represented by an XState machine and consumed by the
 
   const tracker = readFileSync(contractTrackerPath, 'utf8');
   includesAll(tracker, [
-    "import { getContractLifecycleState } from '../engine/stateMachines/contractLifecycle';",
+    "import { getContractLifecycleState } from '../game/stateMachines/contractLifecycle';",
     'const lifecycleState = getContractLifecycleState(status);',
     "lifecycleState === 'readyToDeliver'",
   ]);

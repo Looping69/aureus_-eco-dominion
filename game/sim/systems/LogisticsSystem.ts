@@ -16,7 +16,7 @@ import {
     GameState,
 } from '../../../types';
 import { updateWaterConnectivity } from '../../utils/GameUtils';
-import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { ChunkStore } from '../../space/ChunkStore';
 
 export class LogisticsSystem extends BaseSimSystem {
     readonly id = 'logistics';

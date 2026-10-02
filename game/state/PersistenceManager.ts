@@ -6,8 +6,8 @@
 
 import { GameState, Agent, GridTile, BuildingType, FogExplorationState } from '../../types';
 import { DEFAULT_VIEW_RADIUS } from '../utils/GameUtils';
-import { applyDeepLedgerSurvey } from '../../engine/underground/UndergroundGenerator';
-import { normalizeLayeredWorldState } from '../../engine/worldgen/LayeredWorldGenerator';
+import { applyDeepLedgerSurvey } from '../underground/UndergroundGenerator';
+import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';
 import { AUREUS_SAVE_KEY } from './saveKey';
 import { JsonSaveStorage } from '../../engine/state/JsonSaveStorage';
 

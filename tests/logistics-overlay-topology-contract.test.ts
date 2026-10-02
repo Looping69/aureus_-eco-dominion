@@ -17,7 +17,7 @@ test('Logistics overlay topology helpers are split into a dedicated module', () 
   for (const snippet of [
     "import * as THREE from 'three';",
     "import { BuildingType, Chunk, FactoryNodeState, FactoryState } from '../../../types';",
-    "import { ChunkStore } from '../../../engine/space/ChunkStore';",
+    "import { ChunkStore } from '../../space/ChunkStore';",
     'export function resourceTotal(bucket: Partial<Record<string, number>>) {',
     'export function isRecentlyActive(node: FactoryNodeState, lastTick: number) {',
     'export function getFactoryNeighbors(factory: FactoryState, node: FactoryNodeState): FactoryNodeState[] {',

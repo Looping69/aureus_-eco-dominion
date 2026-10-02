@@ -6,7 +6,7 @@
 import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../../engine/kernel/Types';
 import { Contract, GameState, GameCommand, SfxType } from '../../../types';
-import { designateRubbleDropZone, fillSubsurfaceCellWithRubble, queueSubsurfaceExcavationJob, queueSubsurfaceRubbleClearJob } from '../../../engine/subsurface/SubsurfaceModel';
+import { designateRubbleDropZone, fillSubsurfaceCellWithRubble, queueSubsurfaceExcavationJob, queueSubsurfaceRubbleClearJob } from '../../subsurface/SubsurfaceModel';
 import { applySectorPolicyCommand } from '../logic/sectorPolicyCommand';
 
 const CONTRACT_COMPLETION_TTL = 75;

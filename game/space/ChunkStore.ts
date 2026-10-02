@@ -1,3 +1,4 @@
+import { ensureChunk, getTile } from '../../engine/space/TileStore';
 /**
  * ChunkStore
  * 
@@ -6,7 +7,7 @@
  */
 
 import { Chunk, GridTile, BuildingType, BiomeType } from '../../types';
-import { floorDiv, mod, toChunkKey, worldToChunk, worldToLocal } from '../utils/coords';
+import { toChunkKey, worldToChunk } from '../../engine/utils/coords';
 import { getBiomeAt, getFoliageAt } from '../worldgen/Core';
 // import { VOXEL_BUFFER_SIZE, getVoxelIndex, VoxelBits, V_ORE_MASK } from '../types/voxels';
 
@@ -19,12 +20,7 @@ export class ChunkStore {
      * Generates it if missing.
      */
     public static ensureChunk(chunks: Record<string, Chunk>, cx: number, cz: number, seed: number): Chunk {
-        const key = toChunkKey(cx, cz);
-        if (chunks[key]) return chunks[key];
-
-        const chunk = this.createChunk(cx, cz, seed);
-        chunks[key] = chunk;
-        return chunk;
+        return ensureChunk(chunks, cx, cz, (x, z) => this.createChunk(x, z, seed));
     }
 
     /**
@@ -77,12 +73,7 @@ export class ChunkStore {
      * Optional: creates chunk if missing.
      */
     public static getTile(chunks: Record<string, Chunk>, x: number, z: number): GridTile | null {
-        const { cx, cz } = worldToChunk(x, z, CHUNK_SIZE);
-        const chunk = chunks[toChunkKey(cx, cz)];
-        if (!chunk) return null;
-
-        const { lx, lz } = worldToLocal(x, z, CHUNK_SIZE);
-        return chunk.tiles[lz * CHUNK_SIZE + lx];
+        return getTile(chunks, x, z, CHUNK_SIZE);
     }
 
     /**

@@ -2,7 +2,7 @@
 import React from 'react';
 import { FileText, CheckCircle2, XCircle, Clock, Send, User } from 'lucide-react';
 import { GameState, Action } from '../types';
-import { NPC, Permit, PermitStatus } from '../engine/types/bureaucracy';
+import { NPC, Permit, PermitStatus } from '../game/types/bureaucracy';
 
 interface BureaucracyOfficeProps {
     state: GameState;

@@ -26,10 +26,10 @@ import { BureaucracySystem } from './sim/BureaucracySystem';
 import { DungeonMinerSystem } from './sim/systems/DungeonMinerSystem';
 import { DungeonStabilitySystem } from './sim/systems/DungeonStabilitySystem';
 import { PersistenceManager } from './state/PersistenceManager';
-import { getOpenPitEntryLayer, setActiveSubsurfaceLayer } from '../engine/subsurface/SubsurfaceModel';
+import { getOpenPitEntryLayer, setActiveSubsurfaceLayer } from './subsurface/SubsurfaceModel';
 import { GameState, GameStep, BuildingType, SfxType, Action } from '../types';
 import { BUILDINGS } from './data/VoxelConstants';
-import { getBiomeAt } from '../engine/worldgen/Core';
+import { getBiomeAt } from './worldgen/Core';
 import { TerrainRenderSystem } from './render/systems/TerrainRenderSystem';
 import { FoliageRenderSystem } from './render/systems/FoliageRenderSystem';
 import { BuildingRenderSystem } from './render/systems/BuildingRenderSystem';
@@ -45,7 +45,7 @@ import { DungeonInputHandler } from './dungeon/DungeonInputHandler';
 import { InputSystem } from '../engine/input/InputSystem';
 import { StateManager, StateListener } from './state/StateManager';
 import { EconomyManager, BuildingManager, ResearchManager, AgentManager } from './world';
-import { ChunkStore } from '../engine/space/ChunkStore';
+import { ChunkStore } from './space/ChunkStore';
 import { confirmMobilePlacement } from './mobilePlacement';
 import { drawWorldFrame } from './world/renderFrame';
 import { handleSurfaceInteraction as handleWorldSurfaceInteraction, SurfaceInteractionType } from './world/interaction';
@@ -120,7 +120,9 @@ export class AureusWorld extends BaseWorld {
             maxUnloadsPerFrame: 16,
         });
         this.jobs = new JobSystem();
-        this.workerPool = new WorkerPool();
+        this.workerPool = new WorkerPool({
+            createWorker: () => new Worker(new URL('./jobs/aureus.worker.ts', import.meta.url), { type: 'module' }),
+        });
         this.sim = new Simulation();
 
         const econ = this.registerSimulationSystems();

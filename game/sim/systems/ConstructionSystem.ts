@@ -9,10 +9,10 @@ import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '.
 import { GameState, GridTile, BuildingType, SfxType, Chunk, GameCommand } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
 import { updateWaterConnectivity } from '../../utils/GameUtils';
-import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { ChunkStore } from '../../space/ChunkStore';
 import { worldToChunk, worldToLocal, CHUNK_SIZE } from '../../../engine/utils/coords';
-import { DungeonEngine } from '../../../engine/dungeon/DungeonEngine';
-import { applyDeepLedgerSurvey } from '../../../engine/underground/UndergroundGenerator';
+import { DungeonEngine } from '../../dungeon/DungeonEngine';
+import { applyDeepLedgerSurvey } from '../../underground/UndergroundGenerator';
 import { completeConstructionCore, placeBuildingCore, progressConstructionCore } from '../construction/PlacementCore';
 
 export class ConstructionSystem extends BaseSimSystem {

@@ -9,8 +9,8 @@ import { WeatherState } from '../../../types';
 import { COLORS } from '../../data/VoxelConstants';
 import { ThreeRenderAdapter } from '../../../engine/render/ThreeRenderAdapter';
 import { oilWaterMaterial, reservoirWaterMaterial, waterFlowMaterial } from '../materials/VoxelMaterials';
-import { getCelestialPosition, getDaylightFactor, isDaytime } from '../../../engine/sim/dayNightCycle';
-import { isRainWeather, isStormWeather, normalizeWeatherState } from '../../../engine/weather/weatherModel';
+import { getCelestialPosition, getDaylightFactor, isDaytime } from '../../sim/dayNightCycle';
+import { isRainWeather, isStormWeather, normalizeWeatherState } from '../../weather/weatherModel';
 
 const WATER_REFLECTION_MATERIALS = [waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial] as THREE.Material[];
 const CELESTIAL_RENDER_ORDER = 10050;

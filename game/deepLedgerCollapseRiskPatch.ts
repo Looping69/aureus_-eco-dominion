@@ -1,6 +1,6 @@
 import { AureusWorld } from './AureusWorld';
-import { recalculateUndergroundConnectivity } from '../engine/underground/UndergroundConnectivity';
-import { ensureUndergroundState } from '../engine/underground/UndergroundGenerator';
+import { recalculateUndergroundConnectivity } from './underground/UndergroundConnectivity';
+import { ensureUndergroundState } from './underground/UndergroundGenerator';
 import { SfxType, UndergroundTile } from '../types';
 
 /**

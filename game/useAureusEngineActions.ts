@@ -2,7 +2,7 @@ import {
     createQueuedGameCommandCandidateEnvelope,
     GAME_COMMAND_CANDIDATE_SOURCES,
 } from '../engine/game-definition';
-import { ChunkStore } from '../engine/space/ChunkStore';
+import { ChunkStore } from './space/ChunkStore';
 import { BuildingType, SfxType } from '../types';
 import type { GameCommand, GameState, LogisticsOverlayMode } from '../types';
 import type { AureusWorld } from './AureusWorld';

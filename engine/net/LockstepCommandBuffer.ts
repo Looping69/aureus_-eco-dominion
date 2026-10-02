@@ -1,4 +1,4 @@
-import type { GameCommand } from '../../types';
+import type { EngineCommand } from '../kernel/Command';
 import {
     DeterministicCommandEnvelope,
     DeterministicCommandInput,
@@ -44,7 +44,7 @@ export class LockstepCommandBuffer {
         return ready;
     }
 
-    drainReadyCommands(currentTick: number): GameCommand[] {
+    drainReadyCommands(currentTick: number): EngineCommand[] {
         return this.drainReady(currentTick).map((envelope) => envelope.command);
     }
 

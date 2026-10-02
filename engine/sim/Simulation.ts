@@ -4,7 +4,7 @@
  */
 
 import { FixedContext, CommandResult, CommandContext } from '../kernel/Types';
-import { GameCommand } from '../types';
+import type { EngineCommand } from '../kernel/Command';
 
 /**
  * A simulation system runs during the fixed-step simulation phase
@@ -27,7 +27,7 @@ export interface SimSystem {
     tick(ctx: FixedContext, state: any): void;
 
     /** Handle a game command. Return null if not handled by this system. */
-    handleCommand(cmd: GameCommand, ctx: CommandContext, state: any): CommandResult | null;
+    handleCommand(cmd: EngineCommand, ctx: CommandContext, state: any): CommandResult | null;
 
     /** Cleanup system */
     dispose(): void;
@@ -142,7 +142,7 @@ export abstract class BaseSimSystem implements SimSystem {
 
     init(): void { }
     abstract tick(ctx: FixedContext, state: any): void;
-    handleCommand(cmd: GameCommand, ctx: CommandContext, state: any): CommandResult | null {
+    handleCommand(cmd: EngineCommand, ctx: CommandContext, state: any): CommandResult | null {
         return null;
     }
     dispose(): void { }

@@ -2,7 +2,7 @@
 import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { FixedContext } from '../../../engine/kernel';
 import { Agent, GameState, BuildingType, PathStep } from '../../../types';
-import { findPath } from '../../../engine/sim/algorithms/Pathfinding';
+import { findPath } from '../algorithms/Pathfinding';
 import { PathPool } from '../../../engine/utils/PathPool';
 
 const CONFIG = {

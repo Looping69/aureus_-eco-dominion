@@ -6,7 +6,7 @@
 import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { FixedContext } from '../../../engine/kernel';
 import { GameState } from '../../../types';
-import { buildDayNightCycle, DAY_NIGHT, getDaylightFactor } from '../../../engine/sim/dayNightCycle';
+import { buildDayNightCycle, DAY_NIGHT, getDaylightFactor } from '../dayNightCycle';
 import {
     getWeatherHeadline,
     getWeatherOverride,
@@ -14,7 +14,7 @@ import {
     normalizeWeatherState,
     pickNextWeather,
     withWeatherCurrent,
-} from '../../../engine/weather/weatherModel';
+} from '../../weather/weatherModel';
 
 export class EnvironmentSystem extends BaseSimSystem {
     readonly id = 'environment';

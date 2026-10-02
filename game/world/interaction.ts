@@ -1,6 +1,6 @@
 import { BuildingType } from '../../types';
-import { ChunkStore } from '../../engine/space/ChunkStore';
-import { getSubsurfaceCell } from '../../engine/subsurface/SubsurfaceModel';
+import { ChunkStore } from '../space/ChunkStore';
+import { getSubsurfaceCell } from '../subsurface/SubsurfaceModel';
 import { isHarvestable } from '../utils/GameUtils';
 
 export type SurfaceInteractionType = 'click' | 'right-click' | 'hover';

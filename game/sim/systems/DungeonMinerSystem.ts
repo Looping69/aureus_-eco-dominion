@@ -1,8 +1,8 @@
 
 import { BaseSimSystem } from '../../../engine/sim/Simulation';
-import { GameState } from '../../../engine/types/game';
-import { DungeonState, DungeonMiner, DungeonMinerType } from '../../../engine/dungeon/DungeonTypes';
-import { DungeonEngine } from '../../../engine/dungeon/DungeonEngine';
+import { GameState } from '../../types/game';
+import { DungeonState, DungeonMiner, DungeonMinerType } from '../../dungeon/DungeonTypes';
+import { DungeonEngine } from '../../dungeon/DungeonEngine';
 import { FixedContext } from '../../../engine/kernel/Types';
 
 const MINER_CONFIGS = {

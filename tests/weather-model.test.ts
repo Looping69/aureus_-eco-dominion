@@ -7,7 +7,7 @@ import {
     getWeatherGameplayEffects,
     normalizeWeatherState,
     pickNextWeather,
-} from '../engine/weather/weatherModel.ts';
+} from '../game/weather/weatherModel.ts';
 
 test('normalizeWeatherState migrates legacy weather names into the shared model', () => {
     const weather = normalizeWeatherState({

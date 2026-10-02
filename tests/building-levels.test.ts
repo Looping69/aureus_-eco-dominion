@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import { Era, BuildingType } from '../types.ts';
 import { BUILDINGS } from '../game/data/VoxelConstants.ts';
 import { StateManager } from '../game/state/StateManager.ts';
-import { ChunkStore } from '../engine/space/ChunkStore.ts';
+import { ChunkStore } from '../game/space/ChunkStore.ts';
 import { ConstructionSystem } from '../game/sim/systems/ConstructionSystem.ts';
-import { getVisualBuildingLevel, resolveBuildingDefinition } from '../engine/utils/buildingLevels.ts';
+import { getVisualBuildingLevel, resolveBuildingDefinition } from '../game/utils/buildingLevels.ts';
 
 test('placeBuilding initializes upgradeable buildings at level 1', () => {
     const stateManager = new StateManager();

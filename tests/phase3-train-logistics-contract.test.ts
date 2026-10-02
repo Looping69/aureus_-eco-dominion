@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-const gameTypesPath = path.join(process.cwd(), 'engine', 'types', 'game.ts');
+const gameTypesPath = path.join(process.cwd(), 'game', 'types', 'game.ts');
 const logisticsPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'LogisticsSystem.ts');
 const buildingsPath = path.join(process.cwd(), 'game', 'data', 'buildings.ts');
 const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
@@ -18,7 +18,7 @@ function escapeRegExp(value: string) {
 }
 
 test('Phase 3 shared types expose transport, sector policy, planner pressure, and corridor history state', () => {
-  assert.equal(existsSync(gameTypesPath), true, 'engine/types/game.ts is missing');
+  assert.equal(existsSync(gameTypesPath), true, 'game/types/game.ts is missing');
 
   const source = readFileSync(gameTypesPath, 'utf8');
 

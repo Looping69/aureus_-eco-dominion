@@ -52,3 +52,9 @@ All 195 tests in affected existing test files were also run against both the ext
 All 84 moved module bodies retain identical non-import TypeScript syntax trees. The two extracted procedural math functions are also unchanged. The build passes type checking and 271 configured contracts. Boundary checks pass at 17 external imports, without increasing the baseline. The new authored-assets guard rejects source files under `engine/data` and the removed game adapters; generic geometry is exercised with caller-supplied material in Node without a DOM.
 
 All 151 affected existing tests were compared with detached baseline `e9207b01c3eb743963fb3b9932eeb64ecc92475a`: both report 134 passes, 14 failures, 3 skips, with identical failure titles and zero new failures. Local Chromium smoke verification and the pre-existing Continue save-key mismatch are documented in `ENGINE_RUNTIME_READINESS.md`. No independent second pack has been booted.
+
+## Spatial/domain extraction: current status
+
+The earlier 17-edge table is historical. The current inventory is **zero external engine imports**, and `tests/engine-boundary.test.ts` now enforces zero without expanding the saved baseline. Aureus domain types, generation, underground/subsurface, dungeon, weather, lifecycle, and day/night policies live in game. Generic command envelopes, tile indexing, A*, and injected worker construction remain in engine.
+
+Typecheck and production build pass with 276 configured contracts. Five boundary/RNG checks pass. All 157 affected existing tests match detached baseline 457fa34: 140 passes and the same 17 failures. Exact pre-extraction chunk and path fixtures pass; 27 relocated module bodies preserve their non-import syntax trees. Continue is fixed in a separate commit and actual browser save/resume succeeds. See ENGINE_RUNTIME_READINESS.md for evidence, limitations, and the still-unimplemented second-pack runtime gate.

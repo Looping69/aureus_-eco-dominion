@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { externalEngineImports } from '../scripts/check-engine-boundary.js';
+import { externalEngineImports, inventory } from '../scripts/check-engine-boundary.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -23,4 +23,8 @@ test('boundary resolves relative imports and recognizes game-owned code', () => 
 
 test('engine has no newly introduced external imports', () => {
   assert.doesNotThrow(() => execFileSync(process.execPath, ['scripts/check-engine-boundary.js'], { cwd: root }));
+});
+
+test('engine imports stay entirely inside the reusable boundary', () => {
+  assert.deepEqual(inventory(root), []);
 });

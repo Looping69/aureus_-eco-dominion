@@ -5,13 +5,13 @@ import test from 'node:test';
 
 const root = process.cwd();
 const buildingsDataPath = path.join(root, 'game', 'data', 'buildings.ts');
-const subsurfaceModelPath = path.join(root, 'engine', 'subsurface', 'SubsurfaceModel.ts');
-const rubbleHaulPath = path.join(root, 'engine', 'subsurface', 'RubbleHaul.ts');
+const subsurfaceModelPath = path.join(root, 'game', 'subsurface', 'SubsurfaceModel.ts');
+const rubbleHaulPath = path.join(root, 'game', 'subsurface', 'RubbleHaul.ts');
 const commandDispatcherPath = path.join(root, 'game', 'sim', 'systems', 'CommandDispatcher.ts');
 const agentSystemPath = path.join(root, 'game', 'sim', 'systems', 'AgentSystem.ts');
-const agentTypesPath = path.join(root, 'engine', 'types', 'agents.ts');
+const agentTypesPath = path.join(root, 'game', 'types', 'agents.ts');
 const undergroundSurveySystemPath = path.join(root, 'game', 'sim', 'systems', 'UndergroundSurveySystem.ts');
-const undergroundTypesPath = path.join(root, 'engine', 'types', 'underground.ts');
+const undergroundTypesPath = path.join(root, 'game', 'types', 'underground.ts');
 const controlsPath = path.join(root, 'components', 'Controls.tsx');
 const undergroundHudPath = path.join(root, 'components', 'UndergroundHUD.tsx');
 const interactionPath = path.join(root, 'game', 'world', 'interaction.ts');

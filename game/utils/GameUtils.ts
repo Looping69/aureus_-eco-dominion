@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import { BuildingType, BiomeType, GridTile, FoliageType, Chunk } from '../../engine/types';
+import { BuildingType, BiomeType, GridTile, FoliageType, Chunk } from '../types';
 import { BUILDINGS } from '../data/VoxelConstants';
-import { getBiomeAt } from '../../engine/worldgen/Core';
+import { getBiomeAt } from '../worldgen/Core';
 
 // Map Constants
 export const DEFAULT_VIEW_RADIUS = 6;
@@ -16,7 +16,7 @@ export const DEFAULT_VIEW_RADIUS = 6;
 
 // --- GAME LOGIC ---
 
-import { ChunkStore } from '../../engine/space/ChunkStore';
+import { ChunkStore } from '../space/ChunkStore';
 
 const WATER_PIPE_SUPPLY_RADIUS = 3;
 

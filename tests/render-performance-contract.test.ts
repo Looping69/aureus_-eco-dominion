@@ -9,7 +9,7 @@ const packetLayerPath = path.join(process.cwd(), 'game', 'render', 'systems', 'P
 const agentRenderPath = path.join(process.cwd(), 'game', 'render', 'systems', 'AgentRenderSystem.ts');
 const buildingStatusLabelPath = path.join(process.cwd(), 'game', 'render', 'systems', 'BuildingStatusLabelLayer.ts');
 const renderFramePath = path.join(process.cwd(), 'game', 'world', 'renderFrame.ts');
-const engineWorkerPath = path.join(process.cwd(), 'engine', 'jobs', 'engine.worker.ts');
+const engineWorkerPath = path.join(process.cwd(), 'game', 'jobs', 'aureus.worker.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

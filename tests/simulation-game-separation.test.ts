@@ -26,7 +26,7 @@ test('Aureus simulation rules and technology data cannot return to the engine', 
   assert.match(readFileSync('game/AureusWorld.ts', 'utf8'), /from '.\/sim\/systems'/);
   assert.ok(existsSync('engine/sim/Simulation.ts'));
   assert.ok(existsSync('engine/sim/resourceGrid/ResourceGridSolver.ts'));
-  assert.ok(existsSync('engine/sim/algorithms/Pathfinding.ts'));
+  assert.ok(existsSync('engine/sim/algorithms/GridPathfinding.ts'));
 });
 
 function fixture() {

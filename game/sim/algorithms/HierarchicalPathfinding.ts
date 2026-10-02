@@ -7,7 +7,7 @@
 import { GridTile, BuildingType, Chunk } from '../../../types';
 import { COST, findPath } from './Pathfinding';
 
-import { BinaryHeap } from '../../utils/BinaryHeap';
+import { BinaryHeap } from '../../../engine/utils/BinaryHeap';
 
 // Hierarchical pathfinding constants for unbounded world
 const CHUNK_SIZE = 15;

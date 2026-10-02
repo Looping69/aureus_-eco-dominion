@@ -1,4 +1,4 @@
-import type { GameCommand } from '../../types';
+import type { EngineCommand } from '../kernel/Command';
 import {
     DeterministicCommandEnvelope,
     createDeterministicCommandEnvelope,
@@ -9,7 +9,7 @@ export interface LockstepReplayFrame {
     targetTick: number;
     sequence: number;
     payloadHash: string;
-    command: GameCommand;
+    command: EngineCommand;
 }
 
 export function serializeLockstepReplay(envelopes: DeterministicCommandEnvelope[]): string {

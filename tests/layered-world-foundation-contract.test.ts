@@ -3,10 +3,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-const layeredTypesPath = path.join(process.cwd(), 'engine', 'types', 'layeredWorld.ts');
-const gameTypesPath = path.join(process.cwd(), 'engine', 'types', 'game.ts');
+const layeredTypesPath = path.join(process.cwd(), 'game', 'types', 'layeredWorld.ts');
+const gameTypesPath = path.join(process.cwd(), 'game', 'types', 'game.ts');
 const typesBarrelPath = path.join(process.cwd(), 'types.ts');
-const generatorPath = path.join(process.cwd(), 'engine', 'worldgen', 'LayeredWorldGenerator.ts');
+const generatorPath = path.join(process.cwd(), 'game', 'worldgen', 'LayeredWorldGenerator.ts');
 const stateManagerPath = path.join(process.cwd(), 'game', 'state', 'createAureusInitialState.ts');
 const persistencePath = path.join(process.cwd(), 'game', 'state', 'PersistenceManager.ts');
 
@@ -75,7 +75,7 @@ test('game state and public type exports expose layered world state', () => {
     assertIncludes(gameTypes, snippet);
   }
 
-  assert.match(barrel, /export \* from '\.\/engine\/types\/layeredWorld';/);
+  assert.match(barrel, /export \* from '\.\/game\/types\/layeredWorld';/);
 });
 
 test('initial state and persistence backfill layered world from current chunks', () => {
@@ -83,7 +83,7 @@ test('initial state and persistence backfill layered world from current chunks',
   const persistence = readFileSync(persistencePath, 'utf8');
 
   for (const snippet of [
-    "import { normalizeLayeredWorldState } from '../../engine/worldgen/LayeredWorldGenerator';",
+    "import { normalizeLayeredWorldState } from '../../game/worldgen/LayeredWorldGenerator';",
     'const initialChunks = createInitialChunks(seed, overrides?.chunks);',
     'layeredWorld: normalizeLayeredWorldState(initialChunks, overrides?.layeredWorld),',
     'const chunks = createInitialChunks(seed, overrides?.chunks);',

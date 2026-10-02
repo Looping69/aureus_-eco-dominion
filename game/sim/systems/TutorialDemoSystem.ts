@@ -2,7 +2,7 @@ import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { GameState, GameStep, BuildingType, SfxType, Era, GameCommand, GridTile } from '../../../types';
 import { FixedContext, CommandContext, CommandResult } from '../../../engine/kernel/Types';
 import { BUILDINGS } from '../../data/VoxelConstants';
-import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { ChunkStore } from '../../space/ChunkStore';
 import { worldToChunk, CHUNK_SIZE } from '../../../engine/utils/coords';
 import { updateWaterConnectivity } from '../../utils/GameUtils';
 

@@ -12,7 +12,7 @@ function source(relativePath: string): string {
 }
 
 test('combat exposes aggression as a persistent stance', () => {
-    const agentTypes = source('engine/types/agents.ts');
+    const agentTypes = source('game/types/agents.ts');
     const combatSystem = source('game/sim/systems/CombatSystem.ts');
 
     assert.match(agentTypes, /CombatOrderStance = 'AUTO' \| 'ATTACK' \| 'HOLD' \| 'AGGRESSIVE'/);
@@ -41,7 +41,7 @@ test('toolbar combat commands use full selected agent groups when available', ()
 });
 
 test('combat weapon loadouts are data-driven and applied by the combat system', () => {
-    const agentTypes = source('engine/types/agents.ts');
+    const agentTypes = source('game/types/agents.ts');
     const weapons = source('game/data/combatWeapons.ts');
     const combatSystem = source('game/sim/systems/CombatSystem.ts');
 

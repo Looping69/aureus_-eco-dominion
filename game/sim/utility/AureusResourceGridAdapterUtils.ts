@@ -1,6 +1,6 @@
 import { GameState, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
-import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { ChunkStore } from '../../space/ChunkStore';
 import type { ResourceGridParticipant } from '../../../engine/sim/resourceGrid/ResourceGridSolver';
 
 export function isStructureHead(tile: GridTile): boolean {

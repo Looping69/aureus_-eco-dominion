@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-const pathfindingPath = path.join(process.cwd(), 'engine', 'sim', 'algorithms', 'Pathfinding.ts');
+const pathfindingPath = path.join(process.cwd(), 'game', 'sim', 'algorithms', 'Pathfinding.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -13,6 +13,8 @@ export interface WorkerPoolConfig {
     workerCount: number;
     /** Path to worker script */
     workerScript: string;
+    /** Bundler-compatible worker factory supplied by the game. */
+    createWorker?: () => Worker;
     /** Max jobs to dispatch per frame */
     maxJobsPerFrame: number;
 }
@@ -31,9 +33,9 @@ export class WorkerPool {
 
     constructor(config: Partial<WorkerPoolConfig> = {}) {
         this.config = {
-            workerCount: Math.max(1, (navigator.hardwareConcurrency || 4) - 1),
+            workerCount: Math.max(1, ((typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4) - 1),
             // Use Vite/Webpack compatible worker import
-            workerScript: '', // Handled in init
+            workerScript: '', // Supply a URL or a bundler-compatible factory
             maxJobsPerFrame: 8,
             ...config,
         };
@@ -44,11 +46,15 @@ export class WorkerPool {
      */
     init(): void {
         if (this.initialized) return;
+        if (!this.config.createWorker && !this.config.workerScript) {
+            throw new Error('WorkerPool requires a worker factory or script URL');
+        }
 
         for (let i = 0; i < this.config.workerCount; i++) {
             try {
-                // Ensure this path is correct relative to WorkerPool.ts
-                const worker = new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' });
+                const worker = this.config.createWorker
+                    ? this.config.createWorker()
+                    : new Worker(this.config.workerScript, { type: 'module' });
 
                 const entry: WorkerEntry = {
                     worker,

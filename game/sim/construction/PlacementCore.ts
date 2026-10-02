@@ -1,7 +1,7 @@
 import { CommandErrorCode, CommandResult } from '../../../engine/kernel/Types';
 import { BuildingType, GameState, GridTile } from '../../../types';
 import { BUILDINGS } from '../../data/VoxelConstants';
-import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { ChunkStore } from '../../space/ChunkStore';
 import { CHUNK_SIZE, worldToChunk } from '../../../engine/utils/coords';
 
 export interface CompletedConstructionResult {

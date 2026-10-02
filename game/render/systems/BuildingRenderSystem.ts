@@ -17,7 +17,7 @@ import {
 } from '../../../types';
 import { BuildingFactory } from '../utils/VoxelGenerators';
 import { BUILDINGS } from '../../data/VoxelConstants';
-import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { ChunkStore } from '../../space/ChunkStore';
 import { SmoothDetailLevel } from '../../../engine/render';
 import { PacketInstancedLayer, PacketInstanceSpec } from './PacketInstancedLayer';
 

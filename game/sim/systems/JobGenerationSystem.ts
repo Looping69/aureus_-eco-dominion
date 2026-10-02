@@ -3,8 +3,8 @@ import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { FixedContext } from '../../../engine/kernel';
 import { GameState, Job, GridTile, BuildingType, Chunk } from '../../../types';
 import { isHarvestable, HARVESTABLE_TREES, HARVESTABLE_ROCKS } from '../../utils/GameUtils';
-import { ChunkStore } from '../../../engine/space/ChunkStore';
-import { getSubsurfaceCell, isSubsurfaceDigJob } from '../../../engine/subsurface/SubsurfaceModel';
+import { ChunkStore } from '../../space/ChunkStore';
+import { getSubsurfaceCell, isSubsurfaceDigJob } from '../../subsurface/SubsurfaceModel';
 
 export class JobGenerationSystem extends BaseSimSystem {
     readonly id = 'job_generation';

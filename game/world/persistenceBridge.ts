@@ -1,6 +1,6 @@
 import { AUREUS_SAVE_KEY } from '../state/saveKey';
 import { SfxType } from '../../types';
-import { applyDeepLedgerSurvey } from '../../engine/underground/UndergroundGenerator';
+import { applyDeepLedgerSurvey } from '../underground/UndergroundGenerator';
 
 export interface PersistenceBridgeDeps {
     stateManager: any;

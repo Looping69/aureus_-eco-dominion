@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { WeatherState } from '../types';
-import { getWeatherDisplayName, normalizeWeatherState } from '../engine/weather/weatherModel';
+import { getWeatherDisplayName, normalizeWeatherState } from '../game/weather/weatherModel';
 
 type OverlayParticle = {
     id: number;

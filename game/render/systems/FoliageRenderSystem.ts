@@ -15,7 +15,7 @@ import { foliageInstancedMaterial } from '../materials/VoxelMaterials';
 import { mergeGroupGeometry } from '../../../engine/render/utils/VoxelUtils';
 import { getRenderDeviceProfile } from '../../../engine/render/ThreeRenderAdapter';
 import { BuildingType, GridTile } from '../../../types';
-import { getDaylightFactor } from '../../../engine/sim/dayNightCycle';
+import { getDaylightFactor } from '../../sim/dayNightCycle';
 
 export interface FoliageItem {
     x: number;

@@ -1,7 +1,7 @@
 import { BuildingType, type GameState, type GridTile, type LayeredWorldState, type WorldVoxelCell, type WorldVoxelMaterial } from '../../types';
-import { CommandErrorCode, type CommandResult } from '../kernel/Types';
+import { CommandErrorCode, type CommandResult } from '../../engine/kernel/Types';
 import { ChunkStore } from '../space/ChunkStore';
-import { CHUNK_SIZE, toChunkKey, worldToChunk } from '../utils/coords';
+import { CHUNK_SIZE, toChunkKey, worldToChunk } from '../../engine/utils/coords';
 
 export const SUBSURFACE_CHUNK_SIZE = 16;
 export const SUBSURFACE_FOUNDATION_VERSION = 1;

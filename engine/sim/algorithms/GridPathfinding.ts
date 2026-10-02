@@ -1,20 +1,5 @@
-/**
- * Engine Pathfinding Algorithm (A*)
- * Surface-only 2D implementation.
- */
-
-import { GridTile, BuildingType, Chunk } from '../../../types';
+/** Generic A* over caller-supplied traversal costs. Search order preserves existing replays. */
 import { BinaryHeap } from '../../utils/BinaryHeap';
-import { CHUNK_SIZE, worldToChunk, worldToLocal } from '../../utils/coords';
-
-// Costs for different terrains
-export const COST = {
-    ROAD: 0.5,
-    BASE: 1.0,
-    ROUGH: 1.5,
-    OBSTACLE: 2.0,
-    WATER: 48.0
-};
 
 // Node wrapper for Heap
 interface PathNode {
@@ -28,31 +13,11 @@ const getDistance2D = (ax: number, az: number, bx: number, bz: number) => {
     return Math.max(Math.abs(ax - bx), Math.abs(az - bz));
 };
 
-const isWaterTile = (tile: GridTile): boolean => {
-    return tile.terrainHeight === 0 || tile.buildingType === BuildingType.POND || tile.buildingType === BuildingType.RESERVOIR;
-};
-
-const getTileCost = (tile: GridTile): number => {
-    if (tile.buildingType === BuildingType.ROAD) return COST.ROAD;
-    if (isWaterTile(tile)) return COST.WATER;
-    if (tile.buildingType !== BuildingType.EMPTY && !tile.isUnderConstruction) return 1.0; // Indoors
-
-    switch (tile.biome) {
-        case 'SAND': return COST.OBSTACLE;
-        case 'SNOW': return COST.OBSTACLE;
-        case 'STONE': return COST.ROUGH;
-        default: return COST.BASE;
-    }
-};
-
-/**
- * A* Pathfinding (Surface 2D)
- * Returns array of { x, z } steps
- */
-export function findPath(
+export function findGridPath(
     startX: number, startZ: number,
     endX: number, endZ: number,
-    chunks: Record<string, Chunk>
+    getTraversalCost: (x: number, z: number) => number | null,
+    impassableDestinationCost = 2
 ): { x: number, z: number }[] | null {
     if (startX === endX && startZ === endZ) {
         return [{ x: endX, z: endZ }];
@@ -104,20 +69,13 @@ export function findPath(
                 const nKey = `${nx},${nz}`;
                 if (visited.has(nKey)) continue;
 
-                const { cx: ncx, cz: ncz } = worldToChunk(nx, nz, CHUNK_SIZE);
-                const nChunk = chunks[`${ncx},${ncz}`];
-                if (!nChunk) continue;
-
-                const { lx, lz } = worldToLocal(nx, nz, CHUNK_SIZE);
-                const neighborTile = nChunk.tiles[lx + lz * CHUNK_SIZE];
-                if (!neighborTile || neighborTile.locked) continue;
-
-                let cost = getTileCost(neighborTile);
+                let cost = getTraversalCost(nx, nz);
+                if (cost === null) continue;
 
                 // Special case: Allow reaching the destination even if it's technically impassable (e.g. for construction)
                 if (cost === Infinity) {
                     if (nx === endX && nz === endZ) {
-                        cost = COST.OBSTACLE;
+                        cost = impassableDestinationCost;
                     } else {
                         continue;
                     }

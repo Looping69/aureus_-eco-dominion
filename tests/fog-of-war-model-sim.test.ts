@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const root = process.cwd();
-const chunkStorePath = path.join(root, 'engine', 'space', 'ChunkStore.ts');
+const chunkStorePath = path.join(root, 'game', 'space', 'ChunkStore.ts');
 const fogModelPath = path.join(root, 'engine', 'sim', 'fogOfWar', 'FogOfWarModel.ts');
 const renderFramePath = path.join(root, 'game', 'world', 'renderFrame.ts');
 

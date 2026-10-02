@@ -1,8 +1,8 @@
 import { BuildingType, GameState, GridTile } from '../../../types';
 import { getResourceGridConsumerPriority, getResourceGridRoleDef } from '../../data/resourceGridRoles';
 import type { ResourceGridBuildingRoleDef } from '../../data/resourceGridRoles';
-import { getWeatherGameplayEffects } from '../../../engine/weather/weatherModel';
-import { getSolarEfficiency } from '../../../engine/sim/dayNightCycle';
+import { getWeatherGameplayEffects } from '../../weather/weatherModel';
+import { getSolarEfficiency } from '../dayNightCycle';
 import type { ResourceGridParticipant, ResourceGridServiceMetric } from '../../../engine/sim/resourceGrid/ResourceGridSolver';
 import { getResourceParticipantId, isStructureHead, uniqueResourceGridRoles } from './AureusResourceGridAdapterUtils';
 

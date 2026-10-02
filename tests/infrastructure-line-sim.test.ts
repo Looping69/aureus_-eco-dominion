@@ -155,7 +155,7 @@ test('pipe placement keeps the surface render fully visible', () => {
 
 test('water view has a direct toggle in the controls', () => {
     const controls = source('components/Controls.tsx');
-    const gameTypes = source('engine/types/game.ts');
+    const gameTypes = source('game/types/game.ts');
 
     assert.match(gameTypes, /LogisticsOverlayMode = 'OFF' \| 'FLOW' \| 'CONGESTION' \| 'JUNCTIONS' \| 'WATER'/);
     assert.match(controls, /toggleWaterView/);

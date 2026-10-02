@@ -1,11 +1,11 @@
 import { Agent, BuildingType, Era, FogExplorationState, GameState, GameStep } from '../../types';
 import { INITIAL_PERMITS, INITIAL_NPCS } from '../data/bureaucracy';
 import { INITIAL_RESOURCES } from '../data/resources';
-import { DAY_NIGHT } from '../../engine/sim/dayNightCycle';
-import { ChunkStore } from '../../engine/space/ChunkStore';
-import { normalizeUndergroundState } from '../../engine/underground/UndergroundGenerator';
-import { createWeatherState } from '../../engine/weather/weatherModel';
-import { normalizeLayeredWorldState } from '../../engine/worldgen/LayeredWorldGenerator';
+import { DAY_NIGHT } from '../sim/dayNightCycle';
+import { ChunkStore } from '../space/ChunkStore';
+import { normalizeUndergroundState } from '../underground/UndergroundGenerator';
+import { createWeatherState } from '../weather/weatherModel';
+import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';
 
 function createStarterAgents(spawnX: number, spawnZ: number): Agent[] {
     const names = ['Mira', 'Juno', 'Tebogo'];

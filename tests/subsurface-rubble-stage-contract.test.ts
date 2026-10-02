@@ -6,7 +6,7 @@ import test from 'node:test';
 const root = process.cwd();
 const agentSystemPath = path.join(root, 'game', 'sim', 'systems', 'AgentSystem.ts');
 const interactionPath = path.join(root, 'game', 'world', 'interaction.ts');
-const subsurfaceModelPath = path.join(root, 'engine', 'subsurface', 'SubsurfaceModel.ts');
+const subsurfaceModelPath = path.join(root, 'game', 'subsurface', 'SubsurfaceModel.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);

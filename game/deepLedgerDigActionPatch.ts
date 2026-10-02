@@ -1,7 +1,7 @@
 import { AureusWorld } from './AureusWorld';
-import { ensureUndergroundState } from '../engine/underground/UndergroundGenerator';
-import { isUndergroundTileConnected, recalculateUndergroundConnectivity } from '../engine/underground/UndergroundConnectivity';
-import { DEEP_LEDGER_TUNING } from '../engine/underground/DeepLedgerTuning';
+import { ensureUndergroundState } from './underground/UndergroundGenerator';
+import { isUndergroundTileConnected, recalculateUndergroundConnectivity } from './underground/UndergroundConnectivity';
+import { DEEP_LEDGER_TUNING } from './underground/DeepLedgerTuning';
 import { SfxType, UndergroundTile } from '../types';
 import { getSelectedDeepLedgerTileId, setSelectedDeepLedgerTileId } from './deepLedgerSelection';
 

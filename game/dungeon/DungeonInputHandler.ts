@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { StateManager } from '../state/StateManager';
-import { DungeonEngine } from '../../engine/dungeon/DungeonEngine';
-import { DungeonMinerType } from '../../engine/dungeon/DungeonTypes';
+import { DungeonEngine } from './DungeonEngine';
+import { DungeonMinerType } from './DungeonTypes';
 
 export type DungeonInteractionMode = 'mine' | 'build_support' | 'build_recharger';
 

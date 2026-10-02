@@ -5,7 +5,7 @@ import type {
     FactorySectorDirective,
     FactorySectorFlowMode,
     FactorySectorState,
-} from '../../engine/types/game';
+} from '../types/game';
 
 export type SectorPolicyPayload = { sectorName: string } & Partial<Pick<
     FactorySectorState,

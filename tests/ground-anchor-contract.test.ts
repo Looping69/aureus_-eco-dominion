@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const anchorsPath = path.join(process.cwd(), 'engine', 'render', 'utils', 'GroundAnchors.ts');
-const workerPath = path.join(process.cwd(), 'engine', 'jobs', 'engine.worker.ts');
+const workerPath = path.join(process.cwd(), 'game', 'jobs', 'aureus.worker.ts');
 const linePreviewPath = path.join(process.cwd(), 'game', 'render', 'LinePlacementPreview.ts');
 
 function escapeRegExp(value: string) {
@@ -43,7 +43,7 @@ test('water mesh generation anchors surfaces to carved voxel basins instead of f
   const source = readFileSync(workerPath, 'utf8');
 
   for (const snippet of [
-    "import { getCarvedWaterbedY, getTerrainSurfaceY, getWaterSurfaceY } from '../render/utils/GroundAnchors';",
+    "import { getCarvedWaterbedY, getTerrainSurfaceY, getWaterSurfaceY } from '../../engine/render/utils/GroundAnchors';",
     "if (data.bt === 'POND' || data.bt === 'RESERVOIR') return getCarvedWaterbedY(data.h);",
     'if (!data.in && data.h === 0) return getCarvedWaterbedY(data.h);',
     'return getTerrainSurfaceY(data.h);',
