@@ -1,3 +1,4 @@
+import { arrivalZoom } from './CameraArrival';
 /**
  * Isometric Camera System
  * Handles orthographic camera control for the isometric RTS view.
@@ -21,6 +22,7 @@ export class IsoCameraSystem {
     public cameraZoom: number;
     public zoomLevel = 5; // Mid-range
     public maxZoomLevel = 7; // User requested reduction
+    private intro: { elapsed: number; duration: number; start: number; target: number; complete: () => void } | null = null;
     private targetZoomLevel = 5; // Target for smooth zooming
     public cameraFocus = new THREE.Vector3(0, 0, 0);
     public cameraAngle = Math.PI / 4;  // 45 degrees - isometric view
@@ -64,6 +66,7 @@ export class IsoCameraSystem {
     }
 
     public setEnabled(enabled: boolean): void {
+        if (!enabled) this.finishIntroAnimation();
         this.enabled = enabled;
         if (enabled) {
             this.adapter.setCamera(this.camera);
@@ -98,6 +101,7 @@ export class IsoCameraSystem {
     }
 
     public dispose(): void {
+        this.cancelIntroAnimation();
         this.unbindEvents();
     }
 
@@ -261,6 +265,13 @@ export class IsoCameraSystem {
     }
 
     public update(dt: number): void {
+        if (this.intro) {
+            this.intro.elapsed += Math.max(0, dt);
+            this.cameraZoom = arrivalZoom(this.intro.start, this.intro.target, this.intro.elapsed, this.intro.duration);
+            this.updateCameraTransform();
+            if (this.intro.elapsed >= this.intro.duration) this.finishIntroAnimation();
+            return;
+        }
         // Smoothly interpolate vertical focus
         const lerpSpeed = 5.0; // Adjust for transition speed
         const dy = this.targetFocusY - this.currentFocusY;
@@ -296,6 +307,7 @@ export class IsoCameraSystem {
     // --- Camera Actions (Based on legacy SceneManager) ---
 
     public pan(screenDx: number, screenDy: number): void {
+        this.finishIntroAnimation();
         // Convert screen movement to world movement
         // The pan speed should be proportional to zoom level
         const panSpeed = this.cameraZoom / window.innerHeight;
@@ -316,11 +328,13 @@ export class IsoCameraSystem {
     }
 
     public rotate(screenDx: number): void {
+        this.finishIntroAnimation();
         this.cameraAngle -= screenDx * 0.005;
         this.updateCameraTransform();
     }
 
     public zoom(delta: number, smooth: boolean = false): void {
+        this.finishIntroAnimation();
         if (smooth) {
             // Direct zoom for pinch gesture - real-time feedback
             this.cameraZoom = Math.max(15, Math.min(85, this.cameraZoom + delta));
@@ -367,25 +381,32 @@ export class IsoCameraSystem {
 
     // --- Intro Animation ---
 
-    public playIntroAnimation(onComplete: () => void): void {
-        let progress = 0;
-        const startZoom = 250;
-        const targetZoom = this.cameraZoom;
+    public playIntroAnimation(onComplete: () => void, reducedMotion = false): () => void {
+        this.cancelIntroAnimation();
+        const target = this.cameraZoom;
+        if (reducedMotion) { onComplete(); return () => {}; }
+        this.intro = { elapsed: 0, duration: 1.8, start: Math.max(86, target * 3.5), target, complete: onComplete };
+        this.cameraZoom = this.intro.start;
+        this.updateCameraTransform();
+        const intro = this.intro;
+        return () => { if (this.intro === intro) this.cancelIntroAnimation(); };
+    }
 
-        const animate = () => {
-            progress += 0.015;
-            if (progress >= 1) {
-                this.cameraZoom = targetZoom;
-                this.updateCameraTransform();
-                onComplete();
-                return;
-            }
-            // Ease out cubic
-            this.cameraZoom = startZoom + (targetZoom - startZoom) * (1 - Math.pow(1 - progress, 3));
-            this.updateCameraTransform();
-            requestAnimationFrame(animate);
-        };
-        animate();
+    public finishIntroAnimation(): void {
+        const intro = this.intro;
+        if (!intro) return;
+        this.cancelIntroAnimation();
+        intro.complete();
+    }
+
+    public cancelIntroAnimation(): void {
+        const intro = this.intro;
+        if (!intro) return;
+        this.intro = null;
+        this.cameraZoom = intro.target;
+        this.zoomLevel = (intro.target - 10) / 8;
+        this.targetZoomLevel = this.zoomLevel;
+        this.updateCameraTransform();
     }
 
     // --- Getters for external use ---

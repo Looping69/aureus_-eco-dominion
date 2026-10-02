@@ -76,6 +76,6 @@ test('Aureus activation is explicit and teardown does not unconditionally save',
     const lifecycle=readFileSync(new URL('../game/world/lifecycle.ts',import.meta.url),'utf8');
     assert.match(world,/if \(loaded\) this\.beginColonySession\(\)/);
     assert.match(world,/if \(this\.state !== 'ready'\) return;/);
-    assert.match(app,/const handleNewGame = \(\) => \{\s*world\?\.beginColonySession\(\)/);
+    assert.match(app,/if \(startNew\) world\.beginColonySession\(\)/);
     assert.doesNotMatch(lifecycle,/deps\.saveGameQuiet\(\)/);
 });

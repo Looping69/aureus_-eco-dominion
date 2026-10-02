@@ -73,6 +73,15 @@ const App: React.FC = () => {
     const [sidebarOpen, setSidebarOpen] = useState<SidebarMode>('NONE');
     const [showHomePage, setShowHomePage] = useState(true);
     const [isIntroAnim, setIsIntroAnim] = useState(false);
+    const [startError, setStartError] = useState<string | null>(null);
+    const arrivalCancel = useRef<(() => void) | null>(null);
+    const arrivalAttempt = useRef(0);
+    const arrivalActive = useRef(false);
+    useEffect(() => () => {
+        arrivalAttempt.current++;
+        arrivalActive.current = false;
+        arrivalCancel.current?.();
+    }, []);
     const [showWorldMap, setShowWorldMap] = useState(false);
     const [activeHUDBlock, setActiveHUDBlock] = useState<string | null>(null);
     const [dismissedEraPopup, setDismissedEraPopup] = useState<string | null>(null);
@@ -351,25 +360,45 @@ const App: React.FC = () => {
         playSfx(SfxType.UI_OPEN);
     }, [applyPanelOpenTransition, clearPlacementPrompt, playSfx]);
 
-    const handleNewGame = () => {
-        world?.beginColonySession();
+    const beginArrival = (startNew: boolean) => {
+        if (!world || arrivalActive.current) return;
+        arrivalActive.current = true;
+        const attempt = ++arrivalAttempt.current;
+        setStartError(null);
         setDismissedEraPopup(null);
-        world?.dismissEraPopup?.();
+        world.dismissEraPopup();
         applyPanelOpenTransition(getClosedPanelTransition());
         clearPlacementPrompt();
-        setShowHomePage(false);
         setIsIntroAnim(true);
-        setTimeout(() => setIsIntroAnim(false), 2000);
+        const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const finish = () => {
+            if (attempt !== arrivalAttempt.current) return;
+            motion.removeEventListener('change', onMotionChange);
+            arrivalActive.current = false;
+            arrivalCancel.current = null;
+            if (startNew) world.beginColonySession();
+            setIsIntroAnim(false);
+        };
+        const onMotionChange = () => { if (motion.matches) world.finishSettlementArrival(); };
+        motion.addEventListener('change', onMotionChange);
+        const cancel = world.playSettlementArrival(finish, motion.matches);
+        arrivalCancel.current = () => { motion.removeEventListener('change', onMotionChange); cancel(); };
+    };
+
+    const handleNewGame = () => {
+        if (arrivalActive.current) return;
+        setShowHomePage(false);
+        beginArrival(true);
     };
 
     const onContinue = () => {
+        if (arrivalActive.current) return;
         if (world?.hasSave() && world.loadGame()) {
-            setDismissedEraPopup(null);
-            world?.dismissEraPopup?.();
-            applyPanelOpenTransition(getClosedPanelTransition());
-            clearPlacementPrompt();
             setShowHomePage(false);
+            beginArrival(false);
             playSfx(SfxType.UI_CLICK);
+        } else {
+            setStartError('This colony could not be restored. Your saved game has been kept.');
         }
     };
 
@@ -390,6 +419,10 @@ const App: React.FC = () => {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (showHomePage) return;
+            if (arrivalActive.current) {
+                if (e.code === 'Escape') { e.preventDefault(); world?.finishSettlementArrival(); }
+                return;
+            }
 
             if (e.code === 'Escape') {
                 e.preventDefault();
@@ -481,7 +514,7 @@ const App: React.FC = () => {
                     <Route path="/" element={
                         <div className="absolute inset-0 pointer-events-none">
                             {showHomePage && (
-                                <div className="absolute inset-0 z-[100] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
+                                <div className="absolute inset-0 z-[100] pointer-events-auto">
                                     <HomePage
                                         onStartGame={handleNewGame}
                                         onStartDemo={() => {
@@ -493,10 +526,18 @@ const App: React.FC = () => {
                                             setShowHomePage(false);
                                         }}
                                         onContinueGame={onContinue}
+                                        error={startError}
                                         hasSave={world.hasSave()}
                                     />
                                 </div>
                             )}
+
+                            {isIntroAnim && <div className="absolute inset-x-0 bottom-10 z-[110] flex justify-center pointer-events-none">
+                                <div className="flex items-center gap-5 rounded-full bg-[#112a26]/95 px-6 py-3 text-[#f5e8c8] shadow-xl pointer-events-auto" style={{fontFamily:'system-ui'}}>
+                                    <span role="status">Arriving at your colony</span>
+                                    <button type="button" onClick={() => world.finishSettlementArrival()} className="border-l border-white/25 pl-5 underline underline-offset-4 focus-visible:outline focus-visible:outline-2">Skip arrival</button>
+                                </div>
+                            </div>}
 
                             {eraModalOpen && (
                                 <EraUnlockedModal era={state.eraUnlockedPopup} onClose={handleEraModalClose} playSfx={playSfx} />
