@@ -39,7 +39,11 @@ Self-review added foreign-save rejection and cancellation cleanup for Aureus ini
 
 ## Remaining roadmap
 
-1. Inspect and repair objective fog-of-war defects in a separate gameplay commit; preserve save history and engine boundaries.
+1. Follow up on current-visibility styling, minimap consistency, and first-person night lighting after the isolated functional fog repair (see FIRST_PERSON_FOG_REPAIR.md).
 2. Refine typed simulation state/command dispatch and formal pack save-codec/lifecycle contracts.
 3. Expand rendering/input/worker portability with a second graphical use case and measured lifecycle/performance tests.
 4. Resolve the separately baselined source-contract drift and building-level fixture failures.
+
+## Subsequent first-person fog checkpoint
+
+The isolated functional fog repair moves exploration updates into simulation and fixes first-person boundary anchoring and foreground depth behavior. Final configured count is 288 tests; broader affected count is 161 with 145 passes and 16 pre-existing failures, zero new failures. Engine boundary stays zero. See FIRST_PERSON_FOG_REPAIR.md for reproduction, browser evidence, preserved save semantics, and remaining limits.

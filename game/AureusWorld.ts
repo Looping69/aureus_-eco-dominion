@@ -1,3 +1,4 @@
+import { FogOfWarSystem } from './sim/systems/FogOfWarSystem';
 /**
  * Aureus Game World (v2 - Engine Owned State)
  *
@@ -226,6 +227,7 @@ export class AureusWorld extends BaseWorld {
         this.agentSystem = new AgentSystem(this.jobs, this.constructionSystem);
         this.sim.addSystem(this.agentSystem);
         this.sim.addSystem(new AmbientNPCSystem());
+        this.sim.addSystem(new FogOfWarSystem(() => this.stateManager.markDirty('fogExploration')));
         this.combatSystem = new CombatSystem();
         this.sim.addSystem(this.combatSystem);
 
