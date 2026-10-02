@@ -6,7 +6,7 @@
 import { StateManager } from '../state/StateManager';
 import { BuildingRenderSystem } from '../render/systems/BuildingRenderSystem';
 import { BuildingType, SfxType, Chunk } from '../../types';
-import { BUILDINGS } from '../../engine/data/VoxelConstants';
+import { BUILDINGS } from '../data/VoxelConstants';
 import { ChunkStore } from '../../engine/space/ChunkStore';
 export class BuildingManager {
     private stateManager: StateManager;

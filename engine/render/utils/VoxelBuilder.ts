@@ -7,8 +7,6 @@
 
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { BiomeType } from '../../../types';
-import { mats } from '../materials/VoxelMaterials';
 import { greedyMesh } from './GreedyMesher';
 
 // --- GEOMETRY CACHE (For standard primitives) ---

@@ -22,7 +22,7 @@ test('Aureus simulation rules and technology data cannot return to the engine', 
     assert.deepEqual(sourceFiles(`engine/sim/${folder}`), [], `${folder} belongs to the game`);
   }
   assert.equal(existsSync('engine/data/tech.ts'), false);
-  assert.doesNotMatch(readFileSync('engine/data/VoxelConstants.ts', 'utf8'), /export.*tech/);
+  assert.equal(existsSync('engine/data/VoxelConstants.ts'), false);
   assert.match(readFileSync('game/AureusWorld.ts', 'utf8'), /from '.\/sim\/systems'/);
   assert.ok(existsSync('engine/sim/Simulation.ts'));
   assert.ok(existsSync('engine/sim/resourceGrid/ResourceGridSolver.ts'));

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Text } from 'troika-three-text';
 import { BuildingType, Chunk, GridTile } from '../../../types';
-import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { BUILDINGS } from '../../data/VoxelConstants';
 import { getWaterDiagnostic } from '../../sim/utility/WaterDiagnostics';
 
 type BuildingStatusText = InstanceType<typeof Text>;

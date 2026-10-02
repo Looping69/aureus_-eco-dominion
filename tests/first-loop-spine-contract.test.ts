@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const root = process.cwd();
-const resourcesPath = path.join(root, 'engine', 'data', 'resources.ts');
+const resourcesPath = path.join(root, 'game', 'data', 'resources.ts');
 const constructionPath = path.join(root, 'game', 'sim', 'systems', 'ConstructionSystem.ts');
 const placementCorePath = path.join(root, 'game', 'sim', 'construction', 'PlacementCore.ts');
 const utilityReadabilityPath = path.join(root, 'game', 'sim', 'utility', 'UtilityReadability.ts');

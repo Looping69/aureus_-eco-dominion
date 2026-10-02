@@ -7,7 +7,7 @@
 import React from 'react';
 import { BuildingType, Action, GameStep } from '../types';
 import { getBuildingIcon } from './SupplySidebar';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from '../game/data/VoxelConstants';
 
 interface InventoryHUDProps {
     inventory: Partial<Record<BuildingType, number>>;

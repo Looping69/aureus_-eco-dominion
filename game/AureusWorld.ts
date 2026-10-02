@@ -28,7 +28,7 @@ import { DungeonStabilitySystem } from './sim/systems/DungeonStabilitySystem';
 import { PersistenceManager } from './state/PersistenceManager';
 import { getOpenPitEntryLayer, setActiveSubsurfaceLayer } from '../engine/subsurface/SubsurfaceModel';
 import { GameState, GameStep, BuildingType, SfxType, Action } from '../types';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from './data/VoxelConstants';
 import { getBiomeAt } from '../engine/worldgen/Core';
 import { TerrainRenderSystem } from './render/systems/TerrainRenderSystem';
 import { FoliageRenderSystem } from './render/systems/FoliageRenderSystem';

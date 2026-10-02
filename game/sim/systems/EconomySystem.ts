@@ -6,9 +6,9 @@
 import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../../engine/kernel/Types';
 import { FactoryResourceType, FactorySectorState, GameState, BuildingType, SfxType, GameCommand } from '../../../types';
-import { BUILDINGS } from '../../../engine/data/VoxelConstants';
-import { getEcoMultiplier } from '../../../engine/utils/GameUtils';
-import { getIndustrialBuildingCosts, getMissingIndustrialCosts } from '../../../engine/data/industrialCosts';
+import { BUILDINGS } from '../../data/VoxelConstants';
+import { getEcoMultiplier } from '../../utils/GameUtils';
+import { getIndustrialBuildingCosts, getMissingIndustrialCosts } from '../../data/industrialCosts';
 
 
 type TradableResource = 'minerals' | 'gems' | 'wood' | 'stone';

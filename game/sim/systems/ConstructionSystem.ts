@@ -7,8 +7,8 @@
 import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { FixedContext, CommandContext, CommandResult, CommandErrorCode } from '../../../engine/kernel/Types';
 import { GameState, GridTile, BuildingType, SfxType, Chunk, GameCommand } from '../../../types';
-import { BUILDINGS } from '../../../engine/data/VoxelConstants';
-import { updateWaterConnectivity } from '../../../engine/utils/GameUtils';
+import { BUILDINGS } from '../../data/VoxelConstants';
+import { updateWaterConnectivity } from '../../utils/GameUtils';
 import { ChunkStore } from '../../../engine/space/ChunkStore';
 import { worldToChunk, worldToLocal, CHUNK_SIZE } from '../../../engine/utils/coords';
 import { DungeonEngine } from '../../../engine/dungeon/DungeonEngine';

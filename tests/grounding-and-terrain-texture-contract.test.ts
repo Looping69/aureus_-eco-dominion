@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const groundingPath = path.join(process.cwd(), 'engine', 'physics', 'RapierGroundingProbe.ts');
 const agentRenderPath = path.join(process.cwd(), 'game', 'render', 'systems', 'AgentRenderSystem.ts');
-const voxelMaterialsPath = path.join(process.cwd(), 'engine', 'render', 'materials', 'VoxelMaterials.ts');
+const voxelMaterialsPath = path.join(process.cwd(), 'game', 'render', 'materials', 'VoxelMaterials.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

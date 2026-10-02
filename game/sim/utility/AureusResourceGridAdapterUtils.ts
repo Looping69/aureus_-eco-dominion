@@ -1,5 +1,5 @@
 import { GameState, GridTile } from '../../../types';
-import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { BUILDINGS } from '../../data/VoxelConstants';
 import { ChunkStore } from '../../../engine/space/ChunkStore';
 import type { ResourceGridParticipant } from '../../../engine/sim/resourceGrid/ResourceGridSolver';
 

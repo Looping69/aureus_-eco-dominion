@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const gameTypesPath = path.join(process.cwd(), 'engine', 'types', 'game.ts');
 const logisticsPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'LogisticsSystem.ts');
-const buildingsPath = path.join(process.cwd(), 'engine', 'data', 'buildings.ts');
+const buildingsPath = path.join(process.cwd(), 'game', 'data', 'buildings.ts');
 const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
 const tradeTerminalPath = path.join(process.cwd(), 'components', 'TradeTerminal.tsx');
 const engineBridgePath = path.join(process.cwd(), 'game', 'useAureusEngine.ts');
@@ -141,7 +141,7 @@ test('Economy, production, and render layers consume planner pressure instead of
 });
 
 test('HUD and building text expose regional personalities and dedicated drone support infrastructure', () => {
-  assert.equal(existsSync(buildingsPath), true, 'engine/data/buildings.ts is missing');
+  assert.equal(existsSync(buildingsPath), true, 'game/data/buildings.ts is missing');
   assert.equal(existsSync(hudPath), true, 'components/HUD.tsx is missing');
 
   const buildingsSource = readFileSync(buildingsPath, 'utf8');

@@ -6,9 +6,9 @@
 
 import * as THREE from 'three';
 import { WeatherState } from '../../../types';
-import { COLORS } from '../../../engine/data/VoxelConstants';
+import { COLORS } from '../../data/VoxelConstants';
 import { ThreeRenderAdapter } from '../../../engine/render/ThreeRenderAdapter';
-import { oilWaterMaterial, reservoirWaterMaterial, waterFlowMaterial } from '../../../engine/render/materials/VoxelMaterials';
+import { oilWaterMaterial, reservoirWaterMaterial, waterFlowMaterial } from '../materials/VoxelMaterials';
 import { getCelestialPosition, getDaylightFactor, isDaytime } from '../../../engine/sim/dayNightCycle';
 import { isRainWeather, isStormWeather, normalizeWeatherState } from '../../../engine/weather/weatherModel';
 

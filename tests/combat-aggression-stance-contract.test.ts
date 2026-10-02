@@ -42,7 +42,7 @@ test('toolbar combat commands use full selected agent groups when available', ()
 
 test('combat weapon loadouts are data-driven and applied by the combat system', () => {
     const agentTypes = source('engine/types/agents.ts');
-    const weapons = source('engine/data/combatWeapons.ts');
+    const weapons = source('game/data/combatWeapons.ts');
     const combatSystem = source('game/sim/systems/CombatSystem.ts');
 
     assert.match(agentTypes, /weaponId\?: string/);

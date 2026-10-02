@@ -6,7 +6,7 @@
 import React from 'react';
 import { Menu, Layers, Hammer, X, Activity, TrendingUp, ArrowUp, ArrowDown, Eye, Pickaxe, Palette, Volume2, VolumeX } from 'lucide-react';
 import { BuildingType, Action, GameStep, SidebarMode, LogisticsOverlayMode, SfxType } from '../types';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from '../game/data/VoxelConstants';
 import { useAureusAudio } from '../game/audio/useAureusAudio';
 import '../components/ViewSwitchButton.css';
 

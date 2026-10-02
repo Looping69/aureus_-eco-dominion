@@ -266,7 +266,7 @@ test('WorldHoverTooltip covers inspectable world entities and skips bare grass',
 
     for (const snippet of [
         "import { BuildingType, GameState, GridTile, Agent } from '../types';",
-        "import { BUILDINGS } from '../engine/data/VoxelConstants';",
+        "import { BUILDINGS } from '../game/data/VoxelConstants';",
         'function findAgentsAt(state: GameState, pos: HoverTile): Agent[] {',
         'const allAgents = [...(state.agents || []), ...(state.ambientNpcs || [])];',
         'return getAgentDetail(agent, Boolean((state.ambientNpcs || []).some((npc) => npc.id === agent.id)));',

@@ -1,10 +1,10 @@
 import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { GameState, GameStep, BuildingType, SfxType, Era, GameCommand, GridTile } from '../../../types';
 import { FixedContext, CommandContext, CommandResult } from '../../../engine/kernel/Types';
-import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { BUILDINGS } from '../../data/VoxelConstants';
 import { ChunkStore } from '../../../engine/space/ChunkStore';
 import { worldToChunk, CHUNK_SIZE } from '../../../engine/utils/coords';
-import { updateWaterConnectivity } from '../../../engine/utils/GameUtils';
+import { updateWaterConnectivity } from '../../utils/GameUtils';
 
 interface DemoTask {
     delay: number;

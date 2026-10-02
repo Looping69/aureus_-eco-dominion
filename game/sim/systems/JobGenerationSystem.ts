@@ -2,7 +2,7 @@
 import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { FixedContext } from '../../../engine/kernel';
 import { GameState, Job, GridTile, BuildingType, Chunk } from '../../../types';
-import { isHarvestable, HARVESTABLE_TREES, HARVESTABLE_ROCKS } from '../../../engine/utils/GameUtils';
+import { isHarvestable, HARVESTABLE_TREES, HARVESTABLE_ROCKS } from '../../utils/GameUtils';
 import { ChunkStore } from '../../../engine/space/ChunkStore';
 import { getSubsurfaceCell, isSubsurfaceDigJob } from '../../../engine/subsurface/SubsurfaceModel';
 

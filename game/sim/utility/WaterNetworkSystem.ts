@@ -7,7 +7,7 @@
 import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { FixedContext } from '../../../engine/kernel';
 import { GameState, GridTile } from '../../../types';
-import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { BUILDINGS } from '../../data/VoxelConstants';
 import { solveResourceGridNetwork } from '../../../engine/sim/resourceGrid/ResourceGridSolver';
 import {
     collectAureusWaterGridParticipants,

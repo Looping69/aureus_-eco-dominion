@@ -5,8 +5,8 @@ import test from 'node:test';
 
 const terrainPath = path.join(process.cwd(), 'game', 'render', 'systems', 'TerrainRenderSystem.ts');
 const foliagePath = path.join(process.cwd(), 'game', 'render', 'systems', 'FoliageRenderSystem.ts');
-const voxelGeneratorsPath = path.join(process.cwd(), 'engine', 'render', 'utils', 'VoxelGenerators.ts');
-const voxelMaterialsPath = path.join(process.cwd(), 'engine', 'render', 'materials', 'VoxelMaterials.ts');
+const voxelGeneratorsPath = path.join(process.cwd(), 'game', 'render', 'utils', 'VoxelGenerators.ts');
+const voxelMaterialsPath = path.join(process.cwd(), 'game', 'render', 'materials', 'VoxelMaterials.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -68,7 +68,7 @@ test('low-detail static factory groups can be baked until they change or break',
 
   for (const snippet of [
     "import { bakedBuildingMaterial, waterFlowMaterial, terrainMats } from '../materials/VoxelMaterials';",
-    "import { mergeGroupGeometry } from './VoxelUtils';",
+    "import { mergeGroupGeometry } from '../../../engine/render/utils/VoxelUtils';",
     'const STATIC_BAKE_EXCLUDED_KEYS = new Set([',
     "'ILLEGAL_CAMP',",
     "'WASH_PLANT',",

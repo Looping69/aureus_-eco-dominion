@@ -5,8 +5,8 @@
 
 import { StateManager } from '../state/StateManager';
 import { SfxType, BuildingType } from '../../types';
-import { getEcoMultiplier } from '../../engine/utils/GameUtils';
-import { BUILDINGS } from '../../engine/data/VoxelConstants';
+import { getEcoMultiplier } from '../utils/GameUtils';
+import { BUILDINGS } from '../data/VoxelConstants';
 
 export class EconomyManager {
     private stateManager: StateManager;

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Era, BuildingType } from '../types.ts';
-import { BUILDINGS } from '../engine/data/VoxelConstants.ts';
+import { BUILDINGS } from '../game/data/VoxelConstants.ts';
 import { StateManager } from '../game/state/StateManager.ts';
 import { ChunkStore } from '../engine/space/ChunkStore.ts';
 import { ConstructionSystem } from '../game/sim/systems/ConstructionSystem.ts';

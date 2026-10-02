@@ -5,7 +5,7 @@
  */
 
 import { GameState, Agent, GridTile, BuildingType, FogExplorationState } from '../../types';
-import { DEFAULT_VIEW_RADIUS } from '../../engine/utils/GameUtils';
+import { DEFAULT_VIEW_RADIUS } from '../utils/GameUtils';
 import { applyDeepLedgerSurvey } from '../../engine/underground/UndergroundGenerator';
 import { normalizeLayeredWorldState } from '../../engine/worldgen/LayeredWorldGenerator';
 import { JsonSaveStorage } from '../../engine/state/JsonSaveStorage';

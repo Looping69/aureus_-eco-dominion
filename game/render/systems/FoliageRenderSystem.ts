@@ -10,8 +10,8 @@ import * as THREE from 'three';
 // Keep the adapter local so the grass renderer can use per-blade uniforms without brittle types.
 // @ts-ignore
 import { InstancedUniformsMesh as RuntimeInstancedUniformsMesh } from 'three-instanced-uniforms-mesh';
-import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
-import { foliageInstancedMaterial } from '../../../engine/render/materials/VoxelMaterials';
+import { BuildingFactory } from '../utils/VoxelGenerators';
+import { foliageInstancedMaterial } from '../materials/VoxelMaterials';
 import { mergeGroupGeometry } from '../../../engine/render/utils/VoxelUtils';
 import { getRenderDeviceProfile } from '../../../engine/render/ThreeRenderAdapter';
 import { BuildingType, GridTile } from '../../../types';

@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const workerPath = path.join(process.cwd(), 'engine', 'jobs', 'engine.worker.ts');
-const materialsPath = path.join(process.cwd(), 'engine', 'render', 'materials', 'VoxelMaterials.ts');
+const materialsPath = path.join(process.cwd(), 'game', 'render', 'materials', 'VoxelMaterials.ts');
 const renderAdapterPath = path.join(process.cwd(), 'engine', 'render', 'ThreeRenderAdapter.ts');
 
 function escapeRegExp(value: string) {

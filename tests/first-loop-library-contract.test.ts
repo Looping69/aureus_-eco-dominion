@@ -95,7 +95,7 @@ test('era HUD shows named requirements using the same structure-head building co
 
   const hud = readFileSync(hudPath, 'utf8');
   includesAll(hud, [
-    "import { BUILDINGS } from '../engine/data/VoxelConstants';",
+    "import { BUILDINGS } from '../game/data/VoxelConstants';",
     "import { ERAS } from '../game/data/eras';",
     'const countCompletedBuildings',
     'tile.buildingType !== BuildingType.EMPTY && !tile.isUnderConstruction && isStructureHead(tile)',

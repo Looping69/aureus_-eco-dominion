@@ -15,8 +15,8 @@ import {
     GridTile,
     LogisticsOverlayMode,
 } from '../../../types';
-import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
-import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { BuildingFactory } from '../utils/VoxelGenerators';
+import { BUILDINGS } from '../../data/VoxelConstants';
 import { ChunkStore } from '../../../engine/space/ChunkStore';
 import { SmoothDetailLevel } from '../../../engine/render';
 import { PacketInstancedLayer, PacketInstanceSpec } from './PacketInstancedLayer';

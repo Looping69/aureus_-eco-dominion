@@ -12,7 +12,7 @@ import { JobSystem, PathfindResult } from '../../../engine/jobs';
 import { ConstructionSystem } from './ConstructionSystem';
 import { PathPool } from '../../../engine/utils/PathPool';
 import { ChunkStore } from '../../../engine/space/ChunkStore';
-import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../../engine/utils/GameUtils';
+import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../utils/GameUtils';
 import { worldToChunk, CHUNK_SIZE } from '../../../engine/utils/coords';
 import { excavateSubsurfaceCell, getSubsurfaceCell, isSubsurfaceDigJob } from '../../../engine/subsurface/SubsurfaceModel';
 import { clearSubsurfaceRubbleForHaul, depositCarriedRubble } from '../../../engine/subsurface/RubbleHaul';

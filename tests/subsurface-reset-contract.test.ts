@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const root = process.cwd();
-const buildingsDataPath = path.join(root, 'engine', 'data', 'buildings.ts');
+const buildingsDataPath = path.join(root, 'game', 'data', 'buildings.ts');
 const subsurfaceModelPath = path.join(root, 'engine', 'subsurface', 'SubsurfaceModel.ts');
 const rubbleHaulPath = path.join(root, 'engine', 'subsurface', 'RubbleHaul.ts');
 const commandDispatcherPath = path.join(root, 'game', 'sim', 'systems', 'CommandDispatcher.ts');

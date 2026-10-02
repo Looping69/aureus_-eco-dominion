@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { CombatSystem, areHostile, chebyshevDistance, ensureAgentCombatState, getEffectiveCombatStats } from '../game/sim/systems/CombatSystem.ts';
-import { getPerimeterCombatModifier } from '../engine/data/combatPerimeters.ts';
+import { getPerimeterCombatModifier } from '../game/data/combatPerimeters.ts';
 import { BuildingType } from '../types.ts';
 import type { Agent, GameState, GridTile } from '../types.ts';
 

@@ -1,4 +1,4 @@
-import { BUILDINGS } from './engine/data/buildings';
+import { BUILDINGS } from './game/data/buildings';
 import * as fs from 'fs';
 
 let out = "# Buildings and Their Upgrades\n\n";

@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Gem, AlertTriangle, RefreshCw, Lock, ArrowRight, Radio, XCircle, CheckCircle2, ArrowUp, ChevronDown, ChevronUp, Leaf, Hammer, X, Zap, Droplets, Trash2, Info } from 'lucide-react';
 import { GameStep, Action, GameState, BuildingType, Chunk, Agent, SidebarMode } from '../types';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from '../game/data/VoxelConstants';
 import { resolveBuildingDefinition } from '../engine/utils/buildingLevels';
 import { getUtilityReadability } from '../game/sim/utility/UtilityReadability';
 

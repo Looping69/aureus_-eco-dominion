@@ -1,10 +1,10 @@
 import { BuildingType } from '../types';
 import type { AgentRole } from '../types';
-import { BUILDINGS, INITIAL_RESOURCES } from '../engine/data/VoxelConstants';
-import { RAW_AGENT_ROLE_SCHEMA } from '../engine/data/agentRoles';
-import { COMBAT_WEAPONS, ROLE_WEAPON_LOADOUTS } from '../engine/data/combatWeapons';
-import { RESOURCE_GRID_ROLE_SCHEMA } from '../engine/data/resourceGridRoleSchema';
-import { SECTOR_POLICY_PAYLOAD_SCHEMA } from '../engine/data/sectorPolicy';
+import { BUILDINGS, INITIAL_RESOURCES } from '../game/data/VoxelConstants';
+import { RAW_AGENT_ROLE_SCHEMA } from '../game/data/agentRoles';
+import { COMBAT_WEAPONS, ROLE_WEAPON_LOADOUTS } from '../game/data/combatWeapons';
+import { RESOURCE_GRID_ROLE_SCHEMA } from '../game/data/resourceGridRoleSchema';
+import { SECTOR_POLICY_PAYLOAD_SCHEMA } from '../game/data/sectorPolicy';
 import { defineGameDefinition, type EntityArchetypeDefinition, type GameActionDefinition, type GameActionPayloadOptionSource, type GameResourceDefinition, type GameSystemBindingDefinition } from '../engine/game-definition';
 
 const resourceDefinitions: GameResourceDefinition[] = [
@@ -337,7 +337,7 @@ export const AUREUS_GAME_DEFINITION = defineGameDefinition({
         {
             id: 'system.resourceGridSchema',
             label: 'Resource Grid Schema',
-            module: 'engine/data/resourceGridRoleSchema',
+            module: 'game/data/resourceGridRoleSchema',
             reads: RESOURCE_GRID_ROLE_SCHEMA.map((entry) => `building.${entry.buildingType}`),
             writes: ['powerGrid', 'waterNetwork'],
             description: 'Declarative power and water roles consumed by the utility solver.',

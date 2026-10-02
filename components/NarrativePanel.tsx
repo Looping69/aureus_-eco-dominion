@@ -2,7 +2,7 @@ import React from 'react';
 import { ChevronUp, Maximize2, Radio, Signal, Trees, Users, Zap } from 'lucide-react';
 import { BuildingType, Era, GameState, SfxType } from '../types';
 import type { BuildingDef, GridTile } from '../types';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from '../game/data/VoxelConstants';
 import { getWaterDiagnostic } from '../game/sim/utility/WaterDiagnostics';
 
 interface NarrativePanelProps {

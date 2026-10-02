@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { Box, Copy, Eraser, Eye, EyeOff, MousePointer2, Plus, RotateCcw, Save } from 'lucide-react';
 import { BuildingType } from '../types';
-import { BuildingsFactory } from '../engine/data/voxels/buildings';
+import { BuildingsFactory } from '../game/data/voxels/buildings';
 import { BuildingStyleSettings } from '../game/design/buildingStyle';
 import { applyBuildingStyleToGroup } from '../game/design/buildingStyleRuntime';
 import {

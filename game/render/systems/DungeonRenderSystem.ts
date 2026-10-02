@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { DungeonState } from '../../../engine/dungeon/DungeonTypes';
 import { DungeonEngine } from '../../../engine/dungeon/DungeonEngine';
 import { createDungeonHeart } from '../models/DungeonModels';
-import { createAgentByRole } from '../../../engine/data/voxels/Agent';
+import { createAgentByRole } from '../../data/voxels/Agent';
 
 export class DungeonRenderSystem {
     private scene: THREE.Scene;

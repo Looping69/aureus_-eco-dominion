@@ -1,5 +1,5 @@
 import { BuildingType } from '../../types';
-import { BUILDINGS } from '../../engine/data/buildings';
+import { BUILDINGS } from '../data/buildings';
 import { BuildingStyleSettings } from './buildingStyle';
 
 export type BuildingVoxelRole = 'wall' | 'roof' | 'accent' | 'greenery';

@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { BuildingType } from '../types.ts';
-import { COMBAT_PERIMETER_DEFS, RAW_COMBAT_PERIMETER_SCHEMA, getCombatPerimeterDef } from '../engine/data/combatPerimeters.ts';
+import { COMBAT_PERIMETER_DEFS, RAW_COMBAT_PERIMETER_SCHEMA, getCombatPerimeterDef } from '../game/data/combatPerimeters.ts';
 
 const root = process.cwd();
 

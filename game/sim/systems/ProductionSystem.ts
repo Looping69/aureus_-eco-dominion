@@ -6,8 +6,8 @@
 import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { FixedContext } from '../../../engine/kernel';
 import { BuildingType, Chunk, Era, FactoryNodeState, FactoryResourceType, FactoryState, GameState, GridTile, IndustryState, SfxType } from '../../../types';
-import { BUILDINGS } from '../../../engine/data/VoxelConstants';
-import { getEcoMultiplier, HARVESTABLE_TREES, HARVESTABLE_ROCKS, isHarvestable } from '../../../engine/utils/GameUtils';
+import { BUILDINGS } from '../../data/VoxelConstants';
+import { getEcoMultiplier, HARVESTABLE_TREES, HARVESTABLE_ROCKS, isHarvestable } from '../../utils/GameUtils';
 import { BASE_STORAGE_CAPACITY, DEPOT_CAPACITY_BONUS, STOCKPILE_CAPACITY_BONUS } from '../logic/SimulationLogic';
 import { getHarvestVisualStage } from '../logic/HarvestVisualProgress';
 import { ChunkStore } from '../../../engine/space/ChunkStore';

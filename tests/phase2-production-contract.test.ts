@@ -11,7 +11,7 @@ const persistencePath = path.join(process.cwd(), 'game', 'state', 'PersistenceMa
 const powerGridPath = path.join(process.cwd(), 'game', 'sim', 'utility', 'PowerGridSystem.ts');
 const economyPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'EconomySystem.ts');
 const supplySidebarPath = path.join(process.cwd(), 'components', 'SupplySidebar.tsx');
-const industrialCostsPath = path.join(process.cwd(), 'engine', 'data', 'industrialCosts.ts');
+const industrialCostsPath = path.join(process.cwd(), 'game', 'data', 'industrialCosts.ts');
 const buildingTypesPath = path.join(process.cwd(), 'engine', 'types', 'buildings.ts');
 
 function escapeRegExp(value: string) {

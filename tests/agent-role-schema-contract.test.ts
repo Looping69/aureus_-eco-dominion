@@ -10,7 +10,7 @@ import {
     getAgentRoleDef,
     getAgentRoleForWorkplace,
     getProfessionalWorkplaceTypes,
-} from '../engine/data/agentRoles.ts';
+} from '../game/data/agentRoles.ts';
 import { getDefaultCombatProfile } from '../game/sim/systems/CombatSystem.ts';
 
 const root = process.cwd();

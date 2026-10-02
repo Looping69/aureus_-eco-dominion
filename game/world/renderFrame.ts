@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { FrameContext } from '../../engine/kernel';
 import { ChunkStore } from '../../engine/space/ChunkStore';
 import { DungeonEngine } from '../../engine/dungeon/DungeonEngine';
-import { waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial } from '../../engine/render/materials/VoxelMaterials';
+import { waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial } from '../render/materials/VoxelMaterials';
 import { BuildingType } from '../../types';
 import { BuildingStatusLabelLayer } from '../render/systems/BuildingStatusLabelLayer';
 

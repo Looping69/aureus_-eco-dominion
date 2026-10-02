@@ -1,9 +1,9 @@
 import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import { FixedContext, CommandContext, CommandResult } from '../../../engine/kernel/Types';
 import { BuildingType, Contract, Era, GameCommand, GameState, GridTile, SfxType } from '../../../types';
-import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { BUILDINGS } from '../../data/VoxelConstants';
 import { ChunkStore } from '../../../engine/space/ChunkStore';
-import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../../engine/utils/GameUtils';
+import { HARVESTABLE_ROCKS, HARVESTABLE_TREES } from '../../utils/GameUtils';
 
 type OverseerMode = 'OBSERVE' | 'CONTRACTS' | 'STABILITY' | 'GROWTH' | 'AUTOPILOT';
 type ResourceKey = 'minerals' | 'gems' | 'wood' | 'stone';

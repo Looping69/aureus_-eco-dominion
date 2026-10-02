@@ -1,6 +1,6 @@
 
 import { GameState, Agent, BuildingType, GridTile, SimulationEffect, NewsItem, AgentRole } from '../../../types';
-import { BUILDINGS } from '../../../engine/data/VoxelConstants';
+import { BUILDINGS } from '../../data/VoxelConstants';
 import { FixedContext } from '../../../engine/kernel';
 
 // --- CONFIGURATION ---

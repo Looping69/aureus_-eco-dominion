@@ -15,7 +15,7 @@ import {
     FactoryState,
     GameState,
 } from '../../../types';
-import { updateWaterConnectivity } from '../../../engine/utils/GameUtils';
+import { updateWaterConnectivity } from '../../utils/GameUtils';
 import { ChunkStore } from '../../../engine/space/ChunkStore';
 
 export class LogisticsSystem extends BaseSimSystem {

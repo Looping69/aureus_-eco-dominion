@@ -3,7 +3,7 @@ import { BaseSimSystem } from '../../../engine/sim/Simulation';
 import type { FixedContext } from '../../../engine/kernel';
 import { BuildingType } from '../../../types';
 import type { GameState, Agent, Chunk } from '../../../types';
-import { getAgentRoleForWorkplace, getProfessionalWorkplaceTypes } from '../../../engine/data/agentRoles';
+import { getAgentRoleForWorkplace, getProfessionalWorkplaceTypes } from '../../data/agentRoles';
 
 /**
  * EmploymentSystem manages persistent job assignments.

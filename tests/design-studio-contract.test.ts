@@ -11,7 +11,7 @@ const stylePath = path.join(root, 'game', 'design', 'buildingStyle.ts');
 const styleRuntimePath = path.join(root, 'game', 'design', 'buildingStyleRuntime.ts');
 const blueprintPath = path.join(root, 'game', 'design', 'buildingBlueprint.ts');
 const controlsPath = path.join(root, 'components', 'Controls.tsx');
-const voxelGeneratorsPath = path.join(root, 'engine', 'render', 'utils', 'VoxelGenerators.ts');
+const voxelGeneratorsPath = path.join(root, 'game', 'render', 'utils', 'VoxelGenerators.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);
@@ -205,7 +205,7 @@ test('design studio edits actual source meshes and supports assembly-style part 
 
   for (const snippet of [
     "import * as THREE from 'three';",
-    "import { BuildingsFactory } from '../engine/data/voxels/buildings';",
+    "import { BuildingsFactory } from '../game/data/voxels/buildings';",
     'selectedSourceMeshId',
     'sourceMeshOverrides',
     'function createActualGameBuilding',
