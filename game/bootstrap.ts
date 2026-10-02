@@ -65,6 +65,7 @@ export async function bootstrap(container: HTMLElement): Promise<BootstrapResult
     // Start engine
     runtime.start();
     qualityGovernor.start();
+    world.beginColonySession();
 
     console.log('[Bootstrap] Engine started');
 
@@ -84,6 +85,8 @@ export async function bootstrap(container: HTMLElement): Promise<BootstrapResult
 export function cleanup(result: BootstrapResult): void {
     result.qualityGovernor.stop();
     result.runtime.stop();
-    result.renderer.dispose();
-    result.debugHud.dispose();
+    void result.worldHost.unloadWorld().finally(() => {
+        result.renderer.dispose();
+        result.debugHud.dispose();
+    });
 }

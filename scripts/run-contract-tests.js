@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 
 const STABILIZATION_CONTRACTS = [
+    'tests/colony-autosave-lifecycle.test.ts',
     'tests/fog-of-war-model-sim.test.ts',
     'tests/executable-pack-runtime.test.ts',
     'tests/spatial-engine-separation.test.ts',

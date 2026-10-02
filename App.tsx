@@ -352,6 +352,7 @@ const App: React.FC = () => {
     }, [applyPanelOpenTransition, clearPlacementPrompt, playSfx]);
 
     const handleNewGame = () => {
+        world?.beginColonySession();
         setDismissedEraPopup(null);
         world?.dismissEraPopup?.();
         applyPanelOpenTransition(getClosedPanelTransition());

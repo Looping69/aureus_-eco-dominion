@@ -1,3 +1,4 @@
+import { ColonyAutosave } from './world/ColonyAutosave';
 import { FogOfWarSystem } from './sim/systems/FogOfWarSystem';
 /**
  * Aureus Game World (v2 - Engine Owned State)
@@ -105,9 +106,7 @@ export class AureusWorld extends BaseWorld {
     private gamePaused = false;
     private config: AureusWorldConfig | null = null;
 
-    private autoSaveInterval: ReturnType<typeof setInterval> | null = null;
-    private visibilityHandler: (() => void) | null = null;
-    private readonly AUTO_SAVE_INTERVAL_MS = 60000;
+    private readonly autosave = new ColonyAutosave(() => saveGameQuietly(this.getPersistenceDeps()));
 
     constructor(render: ThreeRenderAdapter) {
         super();
@@ -454,13 +453,27 @@ export class AureusWorld extends BaseWorld {
     advanceTutorial(): void { this.stateManager.pushCommand('ADVANCE_TUTORIAL', {}); }
 
     startDemo(): void {
+        this.beginColonySession();
         this.stateManager.pushCommand('START_DEMO', {});
         this.setGamePaused(false);
     }
 
     rehabilitateTile(x: number, z: number): void { this.stateManager.pushCommand('REHABILITATE', { x, z }); }
-    saveGame(): void { saveGameWithFeedback(this.getPersistenceDeps()); }
-    loadGame(data?: string): boolean { return loadGameState(data, this.getPersistenceDeps()); }
+    beginColonySession(): void {
+        if (this.state === 'ready') this.autosave.activate();
+    }
+
+    saveGame(): void {
+        if (this.state !== 'ready') return;
+        this.beginColonySession();
+        saveGameWithFeedback(this.getPersistenceDeps());
+    }
+    loadGame(data?: string): boolean {
+        if (this.state !== 'ready') return false;
+        const loaded = loadGameState(data, this.getPersistenceDeps());
+        if (loaded) this.beginColonySession();
+        return loaded;
+    }
 
     configure(config: AureusWorldConfig): void {
         this.config = config;
@@ -518,30 +531,8 @@ export class AureusWorld extends BaseWorld {
         return teardownWorldRuntime(this.getLifecycleDeps());
     }
 
-    private setupAutoSave(): void {
-        this.autoSaveInterval = setInterval(() => this.saveGameQuiet(), this.AUTO_SAVE_INTERVAL_MS);
-        this.visibilityHandler = () => {
-            if (document.visibilityState === 'hidden') this.saveGameQuiet();
-        };
-        document.addEventListener('visibilitychange', this.visibilityHandler);
-        window.addEventListener('beforeunload', () => this.saveGameQuiet());
-        console.log('[AureusWorld] Auto-save enabled (interval: 60s)');
-    }
-
-    private cleanupAutoSave(): void {
-        if (this.autoSaveInterval) {
-            clearInterval(this.autoSaveInterval);
-            this.autoSaveInterval = null;
-        }
-        if (this.visibilityHandler) {
-            document.removeEventListener('visibilitychange', this.visibilityHandler);
-            this.visibilityHandler = null;
-        }
-    }
-
-    private saveGameQuiet(): void {
-        saveGameQuietly(this.getPersistenceDeps());
-    }
+    private setupAutoSave(): void { this.autosave.start(); }
+    private cleanupAutoSave(): void { this.autosave.dispose(); }
 
     frameBegin(_ctx: FrameContext): void {}
 
@@ -793,7 +784,6 @@ export class AureusWorld extends BaseWorld {
             render: this.render,
             setupAutoSave: () => this.setupAutoSave(),
             cleanupAutoSave: () => this.cleanupAutoSave(),
-            saveGameQuiet: () => this.saveGameQuiet(),
         };
     }
 }

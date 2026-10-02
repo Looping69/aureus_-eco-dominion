@@ -10,7 +10,6 @@ export interface WorldLifecycleDeps {
     render: any;
     setupAutoSave: () => void;
     cleanupAutoSave: () => void;
-    saveGameQuiet: () => void;
 }
 
 export async function initializeWorldRuntime(deps: WorldLifecycleDeps): Promise<void> {
@@ -49,7 +48,6 @@ export async function teardownWorldRuntime(deps: WorldLifecycleDeps): Promise<vo
     console.log('[AureusWorld] Tearing down...');
 
     deps.cleanupAutoSave();
-    deps.saveGameQuiet();
     deps.sim.dispose();
     deps.workerPool.dispose();
     deps.jobs.clear();

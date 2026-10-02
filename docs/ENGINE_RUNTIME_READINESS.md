@@ -47,3 +47,7 @@ Self-review added foreign-save rejection and cancellation cleanup for Aureus ini
 ## Subsequent first-person fog checkpoint
 
 The isolated functional fog repair moves exploration updates into simulation and fixes first-person boundary anchoring and foreground depth behavior. Final configured count is 288 tests; broader affected count is 161 with 145 passes and 16 pre-existing failures, zero new failures. Engine boundary stays zero. See FIRST_PERSON_FOG_REPAIR.md for reproduction, browser evidence, preserved save semantics, and remaining limits.
+
+## Autosave lifecycle review follow-up
+
+The reviewed cancellation overwrite and retained unload-listener issues are fixed in a separate local commit. Autosaving now requires an explicitly chosen/restored colony session, and disposal removes callbacks before a single eligible shutdown save. Real browser proof preserved existing save bytes after construction-time cancellation and home-screen cancellation, rejected stale-world writes, and retained successful Continue/shutdown behavior. Final configured test count is 293; broader baseline parity is unchanged. See AUTOSAVE_LIFECYCLE_REPAIR.md.
