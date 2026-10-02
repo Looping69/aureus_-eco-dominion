@@ -8,10 +8,11 @@ import { GameState, Agent, GridTile, BuildingType, FogExplorationState } from '.
 import { DEFAULT_VIEW_RADIUS } from '../utils/GameUtils';
 import { applyDeepLedgerSurvey } from '../../engine/underground/UndergroundGenerator';
 import { normalizeLayeredWorldState } from '../../engine/worldgen/LayeredWorldGenerator';
+import { AUREUS_SAVE_KEY } from './saveKey';
 import { JsonSaveStorage } from '../../engine/state/JsonSaveStorage';
 
 export class PersistenceManager {
-    private readonly storage = new JsonSaveStorage('aureus_save_v2');
+    private readonly storage = new JsonSaveStorage(AUREUS_SAVE_KEY);
 
     /**
      * Serializes and saves the current game state

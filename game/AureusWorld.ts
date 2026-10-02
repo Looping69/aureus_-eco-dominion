@@ -456,7 +456,7 @@ export class AureusWorld extends BaseWorld {
 
     rehabilitateTile(x: number, z: number): void { this.stateManager.pushCommand('REHABILITATE', { x, z }); }
     saveGame(): void { saveGameWithFeedback(this.getPersistenceDeps()); }
-    loadGame(data?: string): void { loadGameState(data, this.getPersistenceDeps()); }
+    loadGame(data?: string): boolean { return loadGameState(data, this.getPersistenceDeps()); }
 
     configure(config: AureusWorldConfig): void {
         this.config = config;

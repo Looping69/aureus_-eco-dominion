@@ -1,3 +1,4 @@
+import { AUREUS_SAVE_KEY } from '../state/saveKey';
 import { SfxType } from '../../types';
 import { applyDeepLedgerSurvey } from '../../engine/underground/UndergroundGenerator';
 
@@ -31,7 +32,7 @@ export function saveGameWithFeedback(deps: PersistenceBridgeDeps): void {
     }
 }
 
-export function loadGameState(data: string | undefined, deps: PersistenceBridgeDeps): void {
+export function loadGameState(data: string | undefined, deps: PersistenceBridgeDeps): boolean {
     const loadedState = data ? deps.persistenceManager.reviveState(data) : deps.persistenceManager.loadGame();
     if (loadedState) {
         applyDeepLedgerSurvey(loadedState as any);
@@ -39,8 +40,10 @@ export function loadGameState(data: string | undefined, deps: PersistenceBridgeD
         deps.workerPool.broadcast({ type: 'SYNC_CHUNKS', payload: loadedState.chunks });
         deps.terrainRenderSystem.syncGrid(Object.values(loadedState.chunks).flatMap((chunk: any) => chunk.tiles));
         console.log('[AureusWorld] Game Loaded.');
+        return true;
     } else {
         console.warn('[AureusWorld] No save file found.');
+        return false;
     }
 }
 
@@ -58,5 +61,5 @@ export function saveGameQuietly(deps: Pick<PersistenceBridgeDeps, 'stateManager'
 }
 
 export function hasStoredSave(storage: Storage = localStorage): boolean {
-    return !!storage.getItem('aureus-game-state');
+    return storage.getItem(AUREUS_SAVE_KEY) !== null;
 }
