@@ -15,14 +15,16 @@ import {
     AgentSystem, JobGenerationSystem, EnvironmentSystem, EconomySystem,
     ColonySystem, LogisticsSystem, EventSystem, MissionSystem,
     ProductionSystem, ConstructionSystem, EraSystem,
-    PowerGridSystem, WaterNetworkSystem,
     TutorialDemoSystem, CommandDispatcher, UndergroundSurveySystem,
-    ResearchSystem, EmploymentSystem, BureaucracySystem, AmbientNPCSystem,
+    ResearchSystem, EmploymentSystem, AmbientNPCSystem,
     AIOverseerSystem, CombatSystem
 } from '../engine/sim/systems';
+import { PowerGridSystem } from './sim/utility/PowerGridSystem';
+import { WaterNetworkSystem } from './sim/utility/WaterNetworkSystem';
+import { BureaucracySystem } from './sim/BureaucracySystem';
 import { DungeonMinerSystem } from '../engine/sim/systems/DungeonMinerSystem';
 import { DungeonStabilitySystem } from '../engine/sim/systems/DungeonStabilitySystem';
-import { PersistenceManager } from '../engine/sim/PersistenceManager';
+import { PersistenceManager } from './state/PersistenceManager';
 import { getOpenPitEntryLayer, setActiveSubsurfaceLayer } from '../engine/subsurface/SubsurfaceModel';
 import { GameState, GameStep, BuildingType, SfxType, Action } from '../types';
 import { BUILDINGS } from '../engine/data/VoxelConstants';

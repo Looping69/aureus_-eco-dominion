@@ -5,12 +5,13 @@
  */
 
 import { GameState, Agent, GridTile, BuildingType, FogExplorationState } from '../../types';
-import { DEFAULT_VIEW_RADIUS } from '../utils/GameUtils';
-import { applyDeepLedgerSurvey } from '../underground/UndergroundGenerator';
-import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';
+import { DEFAULT_VIEW_RADIUS } from '../../engine/utils/GameUtils';
+import { applyDeepLedgerSurvey } from '../../engine/underground/UndergroundGenerator';
+import { normalizeLayeredWorldState } from '../../engine/worldgen/LayeredWorldGenerator';
+import { JsonSaveStorage } from '../../engine/state/JsonSaveStorage';
 
 export class PersistenceManager {
-    private readonly STORAGE_KEY = 'aureus_save_v2';
+    private readonly storage = new JsonSaveStorage('aureus_save_v2');
 
     /**
      * Serializes and saves the current game state
@@ -72,7 +73,7 @@ export class PersistenceManager {
                 return value;
             });
 
-            localStorage.setItem(this.STORAGE_KEY, serialized);
+            this.storage.write(serialized);
             return true;
         } catch (e: any) {
             if (e.name === 'QuotaExceededError') {
@@ -170,7 +171,7 @@ export class PersistenceManager {
      */
     public loadGame(): GameState | null {
         try {
-            const serialized = localStorage.getItem(this.STORAGE_KEY);
+            const serialized = this.storage.read();
             if (!serialized) return null;
 
             const state = JSON.parse(serialized, (key, value) => {
@@ -244,11 +245,11 @@ export class PersistenceManager {
     }
 
     public hasSave(): boolean {
-        return !!localStorage.getItem(this.STORAGE_KEY);
+        return this.storage.has();
     }
 
     public clearSave(): void {
-        localStorage.removeItem(this.STORAGE_KEY);
+        this.storage.remove();
         console.log('[PersistenceManager] Save cleared.');
     }
 }
