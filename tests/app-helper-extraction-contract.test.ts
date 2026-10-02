@@ -213,32 +213,10 @@ test('DebugMenu exposes a schema-driven command form for active game pack action
     assert.equal(form.includes("field === 'resource'"), false);
 });
 
-test('HomePage presents an animated drop into the live world', () => {
+test('HomePage presents colony building with real start, continue, and demo actions', () => {
     const home = source('components/HomePage.tsx');
-
-    for (const snippet of [
-        'aureus-scan',
-        'aureus-drop',
-        'aureus-cloud',
-        'aureus-agent',
-        'descentFrames',
-        'setDescentFrame',
-        'Drop sequence armed',
-        'Drop into a living colony sim where every tile, worker, weapon, and perimeter line is part of the machine.',
-        'Drop In',
-        'landing vector locked',
-        'drop camera active',
-        'colonyNodes.map',
-        'systemReadouts.map',
-        'missionPillars.map',
-        'Engine online',
-        'Qwen pilot ready',
-        "event.code === 'Space'",
-    ]) {
-        assertContains(home, snippet);
-    }
-
-    assert.equal(home.includes('tracking-tighter'), false);
+    for (const snippet of ['ColonyLandscape', 'Establish colony', 'Continue colony', 'Guided demo', 'onClick={onStartGame}', 'onClick={onContinueGame}', 'onClick={onStartDemo}']) assertContains(home, snippet);
+    assert.doesNotMatch(home, /Qwen pilot ready|Drop sequence armed|setInterval|event.code === 'Space'/);
 });
 
 test('useAureusEngine activates command validation from the active game definition registry', () => {

@@ -50,8 +50,8 @@ test('guided demo stages mirror real game progression', () => {
 });
 
 test('home screen presents the demo as a guided run', () => {
-    assert.match(homeSource, />Guided Demo</);
-    assert.match(homeSource, />5-Min Run</);
+    assert.match(homeSource, /Guided demo/);
+    assert.match(homeSource, /5 minutes/);
     assert.doesNotMatch(homeSource, />Play Demo</);
     assert.doesNotMatch(homeSource, />Auto-Sim</);
 });
