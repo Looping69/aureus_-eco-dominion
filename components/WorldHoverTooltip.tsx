@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { BuildingType, GameState, GridTile, Agent } from '../types';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from '../game/data/VoxelConstants';
 
 type HoverTile = { x: number; z: number } | null;
 type CursorPoint = { x: number; y: number } | null;

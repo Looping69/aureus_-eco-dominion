@@ -1,4 +1,4 @@
-import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from './data/VoxelConstants';
 import { BuildingType, Era } from '../types';
 
 /**

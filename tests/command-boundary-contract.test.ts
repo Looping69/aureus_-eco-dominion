@@ -5,13 +5,13 @@ import test from 'node:test';
 
 const root = process.cwd();
 const contractTrackerPath = path.join(root, 'components', 'ContractTracker.tsx');
-const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
-const gameTypesPath = path.join(root, 'engine', 'types', 'game.ts');
+const commandDispatcherPath = path.join(root, 'game', 'sim', 'systems', 'CommandDispatcher.ts');
+const gameTypesPath = path.join(root, 'game', 'types', 'game.ts');
 const commandCandidatePath = path.join(root, 'engine', 'game-definition', 'GameCommandCandidate.ts');
 const gameDefinitionIndexPath = path.join(root, 'engine', 'game-definition', 'index.ts');
 const stateManagerPath = path.join(root, 'game', 'state', 'StateManager.ts');
 const lockstepBridgePath = path.join(root, 'engine', 'net', 'LockstepStateBridge.ts');
-const systemsIndexPath = path.join(root, 'engine', 'sim', 'systems', 'index.ts');
+const systemsIndexPath = path.join(root, 'game', 'sim', 'systems', 'index.ts');
 const aureusWorldPath = path.join(root, 'game', 'AureusWorld.ts');
 const contractBridgePath = path.join(root, 'game', 'world', 'contractBridge.ts');
 const dispatchBridgePath = path.join(root, 'game', 'world', 'dispatchBridge.ts');

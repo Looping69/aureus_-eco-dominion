@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pickaxe } from 'lucide-react';
 import { BuildingType, GameState } from '../types';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from '../game/data/VoxelConstants';
 
 interface SurveyDrillQuickBuildProps {
     state: GameState;

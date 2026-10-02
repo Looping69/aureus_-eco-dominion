@@ -1,3 +1,4 @@
+import { PACK_RUNTIME_REGISTRY } from '../game-definitions/runtimeRegistry';
 /**
  * useAureusEngine Hook (v2 - Engine Owned State)
  * 
@@ -14,9 +15,9 @@ import { WorldHost, Runtime } from '../engine';
 import { RuntimeQualityGovernor, ThreeRenderAdapter, getRecommendedRenderQuality } from '../engine/render';
 import { DebugHud } from '../engine/tools';
 import { GAME_DEFINITION_REGISTRY } from '../game-definitions/activeGameDefinition';
-import { AureusWorld, AureusWorldConfig } from './AureusWorld';
+import type { AureusWorld, AureusWorldConfig } from './AureusWorld';
 import { GameState, SfxType } from '../types';
-import { ChunkStore } from '../engine/space/ChunkStore';
+import { ChunkStore } from './space/ChunkStore';
 import {
     enqueueWorldCommand,
     enterDigMode,
@@ -121,6 +122,11 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
 
         console.log('[useAureusEngine] Container ready, starting initialization...');
         let cancelled = false;
+        const releases: (() => void)[] = [];
+        let stopRuntime = () => {};
+        const cleanup = () => {
+            for (const release of releases.splice(0).reverse()) release();
+        };
 
         const initializeEngine = async () => {
             const stageDelay = (ms: number = 500) => new Promise(r => setTimeout(r, ms));
@@ -138,18 +144,23 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                     fogEnabled: true,
                 });
                 render.init(container);
+                releases.push(() => render.dispose());
 
                 if (cancelled) return;
                 await stageDelay();
+                if (cancelled) return;
 
                 setLoading({ stage: 'Creating game world...', percent: 20 });
                 console.log('[useAureusEngine] Creating AureusWorld...');
 
-                const worldInstance = new AureusWorld(render);
+                const worldInstance = await PACK_RUNTIME_REGISTRY.create('aureus.eco-dominion', { renderer: render });
+                releases.push(() => { void worldInstance.teardown(); });
+                if (cancelled) return;
                 (worldInstance as any).stateManager?.setActiveGameDefinitionProvider?.(GAME_DEFINITION_REGISTRY);
 
                 if (cancelled) return;
                 await stageDelay();
+                if (cancelled) return;
 
                 setLoading({ stage: 'Configuring input system...', percent: 30 });
                 console.log('[useAureusEngine] Configuring world...');
@@ -173,6 +184,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
 
                 if (cancelled) return;
                 await stageDelay();
+                if (cancelled) return;
                 console.log('[useAureusEngine] Proceeding to state subscription...');
 
                 const unsubscribe = worldInstance.subscribeToState((newState) => {
@@ -180,6 +192,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 });
                 console.log('[useAureusEngine] ✓ State subscription set up');
 
+                releases.push(unsubscribe);
                 const initialState = worldInstance.getState();
                 console.log('[useAureusEngine] Initial state prepared:', initialState ? 'OK' : 'NULL');
 
@@ -191,6 +204,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 setWorld(worldInstance);
                 console.log('[useAureusEngine] ✓ World set');
                 await stageDelay();
+                if (cancelled) return;
 
                 setLoading({ stage: 'Creating runtime...', percent: 40 });
                 console.log('[useAureusEngine] Creating WorldHost and Runtime...');
@@ -202,6 +216,8 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                     profilerEnabled: true,
                 });
                 const qualityGovernor = new RuntimeQualityGovernor(runtimeInstance, render);
+                stopRuntime = () => { qualityGovernor.stop(); runtimeInstance.stop(); };
+                releases.push(stopRuntime);
                 setRuntime(runtimeInstance);
 
                 if (cancelled) {
@@ -209,6 +225,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                     return;
                 }
                 await stageDelay();
+                if (cancelled) return;
 
                 setLoading({ stage: 'Initializing debug tools...', percent: 50 });
                 console.log('[useAureusEngine] Creating DebugHud...');
@@ -218,6 +235,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                     return;
                 }
                 await stageDelay();
+                if (cancelled) return;
 
                 setLoading({ stage: 'Loading world data...', percent: 60 });
                 console.log('[useAureusEngine] Setting world on host...');
@@ -236,6 +254,7 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                     return;
                 }
                 await stageDelay();
+                if (cancelled) return;
 
                 setLoading({ stage: 'Starting simulation...', percent: 80 });
                 runtimeInstance.start();
@@ -249,12 +268,15 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                 }
 
                 await stageDelay();
+                if (cancelled) return;
                 setLoading({ stage: 'Finalizing...', percent: 90 });
 
                 await stageDelay();
+                if (cancelled) return;
                 setLoading({ stage: 'Game Engine Running!', percent: 100 });
 
                 await new Promise(r => setTimeout(r, 1500));
+                if (cancelled) return;
 
                 setReady(true);
                 setState({ ...worldInstance.getState() });
@@ -264,19 +286,16 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
                     (window as any).__aureusGetState = () => worldInstance.getState();
                 }
 
-                (window as any).__aureusCleanup = () => {
-                    if (import.meta.env.DEV) {
+                releases.push(() => {
+                    if (import.meta.env.DEV && (window as any).__aureusWorld === worldInstance) {
                         delete (window as any).__aureusWorld;
                         delete (window as any).__aureusGetState;
                     }
-                    unsubscribe();
-                    qualityGovernor.stop();
-                    runtimeInstance.stop();
-                    worldInstance.teardown();
-                    render.dispose();
-                };
+                });
 
             } catch (error) {
+                cleanup();
+                if (cancelled) return;
                 console.error('[useAureusEngine] ❌ FATAL ERROR:', error);
                 setLoading({
                     stage: 'Error!',
@@ -286,17 +305,16 @@ export function useAureusEngine(options: UseAureusEngineOptions): AureusEngineHa
             }
         };
 
-        initializeEngine();
+        const initialization = initializeEngine().finally(() => { if (cancelled) cleanup(); });
 
         return () => {
             console.log('[useAureusEngine] Cleaning up...');
             cancelled = true;
             setReady(false);
 
-            if ((window as any).__aureusCleanup) {
-                (window as any).__aureusCleanup();
-                delete (window as any).__aureusCleanup;
-            }
+            stopRuntime();
+            // Wait for an in-flight world initialization before disposing its resources.
+            void initialization.then(cleanup);
 
             setWorld(null);
             setRuntime(null);

@@ -1,3 +1,5 @@
+import { ColonyAutosave } from './world/ColonyAutosave';
+import { FogOfWarSystem } from './sim/systems/FogOfWarSystem';
 /**
  * Aureus Game World (v2 - Engine Owned State)
  *
@@ -14,21 +16,22 @@ import { Simulation } from '../engine/sim';
 import {
     AgentSystem, JobGenerationSystem, EnvironmentSystem, EconomySystem,
     ColonySystem, LogisticsSystem, EventSystem, MissionSystem,
-    ProductionSystem, ConstructionSystem, EraSystem,
+    ProductionSystem, ConstructionSystem,
     TutorialDemoSystem, CommandDispatcher, UndergroundSurveySystem,
     ResearchSystem, EmploymentSystem, AmbientNPCSystem,
     AIOverseerSystem, CombatSystem
-} from '../engine/sim/systems';
+} from './sim/systems';
 import { PowerGridSystem } from './sim/utility/PowerGridSystem';
 import { WaterNetworkSystem } from './sim/utility/WaterNetworkSystem';
+import { EraSystem } from './sim/EraSystem';
 import { BureaucracySystem } from './sim/BureaucracySystem';
-import { DungeonMinerSystem } from '../engine/sim/systems/DungeonMinerSystem';
-import { DungeonStabilitySystem } from '../engine/sim/systems/DungeonStabilitySystem';
+import { DungeonMinerSystem } from './sim/systems/DungeonMinerSystem';
+import { DungeonStabilitySystem } from './sim/systems/DungeonStabilitySystem';
 import { PersistenceManager } from './state/PersistenceManager';
-import { getOpenPitEntryLayer, setActiveSubsurfaceLayer } from '../engine/subsurface/SubsurfaceModel';
+import { getOpenPitEntryLayer, setActiveSubsurfaceLayer } from './subsurface/SubsurfaceModel';
 import { GameState, GameStep, BuildingType, SfxType, Action } from '../types';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
-import { getBiomeAt } from '../engine/worldgen/Core';
+import { BUILDINGS } from './data/VoxelConstants';
+import { getBiomeAt } from './worldgen/Core';
 import { TerrainRenderSystem } from './render/systems/TerrainRenderSystem';
 import { FoliageRenderSystem } from './render/systems/FoliageRenderSystem';
 import { BuildingRenderSystem } from './render/systems/BuildingRenderSystem';
@@ -44,7 +47,7 @@ import { DungeonInputHandler } from './dungeon/DungeonInputHandler';
 import { InputSystem } from '../engine/input/InputSystem';
 import { StateManager, StateListener } from './state/StateManager';
 import { EconomyManager, BuildingManager, ResearchManager, AgentManager } from './world';
-import { ChunkStore } from '../engine/space/ChunkStore';
+import { ChunkStore } from './space/ChunkStore';
 import { confirmMobilePlacement } from './mobilePlacement';
 import { drawWorldFrame } from './world/renderFrame';
 import { handleSurfaceInteraction as handleWorldSurfaceInteraction, SurfaceInteractionType } from './world/interaction';
@@ -103,9 +106,7 @@ export class AureusWorld extends BaseWorld {
     private gamePaused = false;
     private config: AureusWorldConfig | null = null;
 
-    private autoSaveInterval: ReturnType<typeof setInterval> | null = null;
-    private visibilityHandler: (() => void) | null = null;
-    private readonly AUTO_SAVE_INTERVAL_MS = 60000;
+    private readonly autosave = new ColonyAutosave(() => saveGameQuietly(this.getPersistenceDeps()));
 
     constructor(render: ThreeRenderAdapter) {
         super();
@@ -119,7 +120,9 @@ export class AureusWorld extends BaseWorld {
             maxUnloadsPerFrame: 16,
         });
         this.jobs = new JobSystem();
-        this.workerPool = new WorkerPool();
+        this.workerPool = new WorkerPool({
+            createWorker: () => new Worker(new URL('./jobs/aureus.worker.ts', import.meta.url), { type: 'module' }),
+        });
         this.sim = new Simulation();
 
         const econ = this.registerSimulationSystems();
@@ -223,6 +226,7 @@ export class AureusWorld extends BaseWorld {
         this.agentSystem = new AgentSystem(this.jobs, this.constructionSystem);
         this.sim.addSystem(this.agentSystem);
         this.sim.addSystem(new AmbientNPCSystem());
+        this.sim.addSystem(new FogOfWarSystem(() => this.stateManager.markDirty('fogExploration')));
         this.combatSystem = new CombatSystem();
         this.sim.addSystem(this.combatSystem);
 
@@ -449,13 +453,27 @@ export class AureusWorld extends BaseWorld {
     advanceTutorial(): void { this.stateManager.pushCommand('ADVANCE_TUTORIAL', {}); }
 
     startDemo(): void {
+        this.beginColonySession();
         this.stateManager.pushCommand('START_DEMO', {});
         this.setGamePaused(false);
     }
 
     rehabilitateTile(x: number, z: number): void { this.stateManager.pushCommand('REHABILITATE', { x, z }); }
-    saveGame(): void { saveGameWithFeedback(this.getPersistenceDeps()); }
-    loadGame(data?: string): void { loadGameState(data, this.getPersistenceDeps()); }
+    beginColonySession(): void {
+        if (this.state === 'ready') this.autosave.activate();
+    }
+
+    saveGame(): void {
+        if (this.state !== 'ready') return;
+        this.beginColonySession();
+        saveGameWithFeedback(this.getPersistenceDeps());
+    }
+    loadGame(data?: string): boolean {
+        if (this.state !== 'ready') return false;
+        const loaded = loadGameState(data, this.getPersistenceDeps());
+        if (loaded) this.beginColonySession();
+        return loaded;
+    }
 
     configure(config: AureusWorldConfig): void {
         this.config = config;
@@ -513,30 +531,8 @@ export class AureusWorld extends BaseWorld {
         return teardownWorldRuntime(this.getLifecycleDeps());
     }
 
-    private setupAutoSave(): void {
-        this.autoSaveInterval = setInterval(() => this.saveGameQuiet(), this.AUTO_SAVE_INTERVAL_MS);
-        this.visibilityHandler = () => {
-            if (document.visibilityState === 'hidden') this.saveGameQuiet();
-        };
-        document.addEventListener('visibilitychange', this.visibilityHandler);
-        window.addEventListener('beforeunload', () => this.saveGameQuiet());
-        console.log('[AureusWorld] Auto-save enabled (interval: 60s)');
-    }
-
-    private cleanupAutoSave(): void {
-        if (this.autoSaveInterval) {
-            clearInterval(this.autoSaveInterval);
-            this.autoSaveInterval = null;
-        }
-        if (this.visibilityHandler) {
-            document.removeEventListener('visibilitychange', this.visibilityHandler);
-            this.visibilityHandler = null;
-        }
-    }
-
-    private saveGameQuiet(): void {
-        saveGameQuietly(this.getPersistenceDeps());
-    }
+    private setupAutoSave(): void { this.autosave.start(); }
+    private cleanupAutoSave(): void { this.autosave.dispose(); }
 
     frameBegin(_ctx: FrameContext): void {}
 
@@ -788,7 +784,6 @@ export class AureusWorld extends BaseWorld {
             render: this.render,
             setupAutoSave: () => this.setupAutoSave(),
             cleanupAutoSave: () => this.cleanupAutoSave(),
-            saveGameQuiet: () => this.saveGameQuiet(),
         };
     }
 }

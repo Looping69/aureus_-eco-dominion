@@ -4,15 +4,15 @@ import path from 'node:path';
 import test from 'node:test';
 
 const root = process.cwd();
-const resourcesPath = path.join(root, 'engine', 'data', 'resources.ts');
-const constructionPath = path.join(root, 'engine', 'sim', 'systems', 'ConstructionSystem.ts');
-const placementCorePath = path.join(root, 'engine', 'sim', 'construction', 'PlacementCore.ts');
-const utilityReadabilityPath = path.join(root, 'engine', 'sim', 'utility', 'UtilityReadability.ts');
-const agentSystemPath = path.join(root, 'engine', 'sim', 'systems', 'AgentSystem.ts');
-const productionPath = path.join(root, 'engine', 'sim', 'systems', 'ProductionSystem.ts');
-const missionPath = path.join(root, 'engine', 'sim', 'systems', 'MissionSystem.ts');
-const commandDispatcherPath = path.join(root, 'engine', 'sim', 'systems', 'CommandDispatcher.ts');
-const eraPath = path.join(root, 'engine', 'sim', 'systems', 'EraSystem.ts');
+const resourcesPath = path.join(root, 'game', 'data', 'resources.ts');
+const constructionPath = path.join(root, 'game', 'sim', 'systems', 'ConstructionSystem.ts');
+const placementCorePath = path.join(root, 'game', 'sim', 'construction', 'PlacementCore.ts');
+const utilityReadabilityPath = path.join(root, 'game', 'sim', 'utility', 'UtilityReadability.ts');
+const agentSystemPath = path.join(root, 'game', 'sim', 'systems', 'AgentSystem.ts');
+const productionPath = path.join(root, 'game', 'sim', 'systems', 'ProductionSystem.ts');
+const missionPath = path.join(root, 'game', 'sim', 'systems', 'MissionSystem.ts');
+const commandDispatcherPath = path.join(root, 'game', 'sim', 'systems', 'CommandDispatcher.ts');
+const eraPath = path.join(root, 'game', 'sim', 'EraSystem.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);

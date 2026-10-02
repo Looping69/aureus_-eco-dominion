@@ -98,44 +98,26 @@ test('game pack registry can switch packs without changing definition consumers'
   );
 });
 
-test('runtime selector boots Aureus and safely falls back for definition-only packs', () => {
-  const aureusRuntime = selectGamePackRuntime('aureus.eco-dominion');
-  assert.equal(canBootGamePackRuntime(AUREUS_GAME_PACK), true);
-  assert.equal(aureusRuntime.status, 'selected');
-  assert.equal(aureusRuntime.requestedPack, AUREUS_GAME_PACK);
-  assert.equal(aureusRuntime.runtimePack, AUREUS_GAME_PACK);
-  assert.equal(aureusRuntime.definitionRegistry.getActive()?.id, 'aureus.eco-dominion');
-
-  const sampleRuntime = selectGamePackRuntime('sample.micro-colony');
-  assert.equal(canBootGamePackRuntime(SAMPLE_COLONY_GAME_PACK), false);
-  assert.equal(sampleRuntime.status, 'fallback');
-  assert.equal(sampleRuntime.requestedPack, SAMPLE_COLONY_GAME_PACK);
-  assert.equal(sampleRuntime.runtimePack, AUREUS_GAME_PACK);
-  assert.match(sampleRuntime.fallbackReason ?? '', /not bootable yet/);
-  assert.equal(sampleRuntime.definitionRegistry.getActive()?.id, 'aureus.eco-dominion');
-
-  const missingRuntime = selectGamePackRuntime('missing.pack');
-  assert.equal(missingRuntime.status, 'fallback');
-  assert.equal(missingRuntime.requestedPack, AUREUS_GAME_PACK);
-  assert.equal(missingRuntime.runtimePack, AUREUS_GAME_PACK);
-  assert.match(missingRuntime.fallbackReason ?? '', /Unknown game pack/);
+test('runtime selector selects each executable pack and rejects unknown IDs', () => {
+  for (const pack of [AUREUS_GAME_PACK, SAMPLE_COLONY_GAME_PACK]) {
+    const selected = selectGamePackRuntime(pack.id);
+    assert.equal(canBootGamePackRuntime(pack), true);
+    assert.equal(selected.status, 'selected');
+    assert.equal(selected.runtimePack, pack);
+    assert.equal(selected.definitionRegistry.getActive()?.id, pack.id);
+  }
+  assert.throws(() => selectGamePackRuntime('missing.pack'), /Unknown game pack/);
 });
 
-test('runtime selector is isolated from the stable Aureus hook boot path', () => {
-  const hook = source('game/useAureusEngine.ts');
-  const runtimeSelector = source('game/gamePackRuntime.ts');
-
-  assert.match(runtimeSelector, /export function selectGamePackRuntime/);
-  assert.match(runtimeSelector, /BOOTABLE_WORLD_MODULES/);
-  assert.match(runtimeSelector, /createRuntimeDefinitionRegistry/);
-  assert.match(runtimeSelector, /Unknown game pack/);
-  assert.match(hook, /GAME_DEFINITION_REGISTRY/);
-  assert.doesNotMatch(hook, /selectGamePackRuntime/);
+test('Aureus hook and selector use the shared executable registry', () => {
+  assert.match(source('game/useAureusEngine.ts'), /PACK_RUNTIME_REGISTRY\.create\('aureus.eco-dominion'/);
+  assert.match(source('game/gamePackRuntime.ts'), /PACK_RUNTIME_REGISTRY\.has/);
+  assert.doesNotMatch(source('game-definitions/activeGameDefinition.ts'), /BOOTABLE_GAME_PACK_WORLD_MODULES/);
 });
 
 test('active definition module exposes DebugMenu game pack runtime summaries', () => {
   assert.equal(canBootRegisteredGamePack('aureus.eco-dominion'), true);
-  assert.equal(canBootRegisteredGamePack('sample.micro-colony'), false);
+  assert.equal(canBootRegisteredGamePack('sample.micro-colony'), true);
   assert.equal(canBootRegisteredGamePack('missing.pack'), false);
 
   const summaries = getGamePackRuntimeDebugSummaries();
@@ -144,7 +126,7 @@ test('active definition module exposes DebugMenu game pack runtime summaries', (
     summaries.map((pack) => [pack.id, pack.runtimeStatus, pack.fallbackPackId ?? null]),
     [
       ['aureus.eco-dominion', 'active', null],
-      ['sample.micro-colony', 'definition-only', 'aureus.eco-dominion'],
+      ['sample.micro-colony', 'bootable', null],
     ],
   );
   assert.equal(summaries[0].runtimeWorldModule, 'game/AureusWorld');

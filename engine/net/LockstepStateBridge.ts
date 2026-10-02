@@ -1,10 +1,10 @@
-import type { GameCommand, GameState } from '../../types';
+import type { EngineCommand } from '../kernel/Command';
 import type { DeterministicCommandEnvelope, DeterministicCommandInput } from './DeterministicCommand';
 import type { LockstepCommandAcceptResult } from './LockstepCommandBuffer';
 import { LockstepCommandBuffer } from './LockstepCommandBuffer';
 
 export interface LockstepQueueTarget {
-    commandQueue: GameCommand[];
+    commandQueue: EngineCommand[];
     tickCount: number;
 }
 
@@ -18,7 +18,7 @@ export function scheduleLockstepCommand(
 
 export function flushLockstepCommandsToQueue(
     buffer: LockstepCommandBuffer,
-    state: LockstepQueueTarget | GameState,
+    state: LockstepQueueTarget,
     currentTick: number = state.tickCount,
 ): DeterministicCommandEnvelope[] {
     const ready = buffer.drainReady(currentTick);

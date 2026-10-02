@@ -8,9 +8,9 @@ import { AUREUS_GAME_DEFINITION } from '../game-definitions/aureus.ts';
 import { ACTIVE_GAME_DEFINITION, ACTIVE_GAME_DEFINITION_SUMMARY, GAME_DEFINITION_REGISTRY } from '../game-definitions/activeGameDefinition.ts';
 import { createGameDefinitionRegistry } from '../engine/game-definition/GameDefinitionRegistry.ts';
 import { collectGameDefinitionIssues, findActionForCommandType, findMissingPayloadFields, summarizeGameDefinition, validateGameCommandType, validateGameDefinition } from '../engine/game-definition/index.ts';
-import { INITIAL_RESOURCES } from '../engine/data/VoxelConstants.ts';
-import { RAW_AGENT_ROLE_SCHEMA } from '../engine/data/agentRoles.ts';
-import { COMBAT_WEAPONS } from '../engine/data/combatWeapons.ts';
+import { INITIAL_RESOURCES } from '../game/data/VoxelConstants.ts';
+import { RAW_AGENT_ROLE_SCHEMA } from '../game/data/agentRoles.ts';
+import { COMBAT_WEAPONS } from '../game/data/combatWeapons.ts';
 
 function source(relativePath: string): string {
     const filePath = path.join(process.cwd(), relativePath);
@@ -65,7 +65,7 @@ test('game definition registry validates active packs and exposes lookups', () =
     assert.equal(registry.getResource('agt')?.label, 'AGT');
     assert.equal(registry.getEntityArchetype(`building.${BuildingType.SECURITY_POST}`)?.category, 'building');
     assert.equal(registry.getAction('action.attackTarget')?.commandType, 'COMBAT_ATTACK_TARGET');
-    assert.equal(registry.getSystem('system.combat')?.module, 'engine/sim/systems/CombatSystem');
+    assert.equal(registry.getSystem('system.combat')?.module, 'game/sim/systems/CombatSystem');
     assert.throws(() => registry.setActive('missing.definition'), /Unknown game definition/);
 });
 
@@ -173,10 +173,10 @@ test('Aureus definition is assembled from existing data-driven modules', () => {
     const aureus = source('game-definitions/aureus.ts');
 
     for (const snippet of [
-        "import { BUILDINGS, INITIAL_RESOURCES } from '../engine/data/VoxelConstants';",
-        "import { RAW_AGENT_ROLE_SCHEMA } from '../engine/data/agentRoles';",
-        "import { COMBAT_WEAPONS, ROLE_WEAPON_LOADOUTS } from '../engine/data/combatWeapons';",
-        "import { RESOURCE_GRID_ROLE_SCHEMA } from '../engine/data/resourceGridRoleSchema';",
+        "import { BUILDINGS, INITIAL_RESOURCES } from '../game/data/VoxelConstants';",
+        "import { RAW_AGENT_ROLE_SCHEMA } from '../game/data/agentRoles';",
+        "import { COMBAT_WEAPONS, ROLE_WEAPON_LOADOUTS } from '../game/data/combatWeapons';",
+        "import { RESOURCE_GRID_ROLE_SCHEMA } from '../game/data/resourceGridRoleSchema';",
         'const buildingArchetypes: EntityArchetypeDefinition[] = Object.values(BuildingType).map',
         'const agentArchetypes: EntityArchetypeDefinition[] = Object.values(RAW_AGENT_ROLE_SCHEMA).map',
         'const weaponArchetypes: EntityArchetypeDefinition[] = Object.values(COMBAT_WEAPONS).map',

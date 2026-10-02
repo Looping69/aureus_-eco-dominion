@@ -7,7 +7,7 @@
 import React from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { BuildingType } from '../types';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from '../game/data/VoxelConstants';
 
 export const MobileBuildingConfirmation: React.FC<{
     buildingType: BuildingType | null;

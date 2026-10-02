@@ -6,7 +6,7 @@ import test from 'node:test';
 const root = process.cwd();
 const renderFramePath = path.join(root, 'game', 'world', 'renderFrame.ts');
 const environmentRenderPath = path.join(root, 'game', 'render', 'systems', 'EnvironmentRenderSystem.ts');
-const gameTypesPath = path.join(root, 'engine', 'types', 'game.ts');
+const gameTypesPath = path.join(root, 'game', 'types', 'game.ts');
 const stateManagerPath = path.join(root, 'game', 'state', 'createAureusInitialState.ts');
 const persistenceManagerPath = path.join(root, 'game', 'state', 'PersistenceManager.ts');
 const debugMenuPath = path.join(root, 'components', 'DebugMenu.tsx');
@@ -25,45 +25,22 @@ function assertNoSnippet(text: string, snippet: string) {
   assert.doesNotMatch(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
-test('surface renderer keeps explored fog areas revealed with a persistent mask', () => {
+test('surface fog reads persisted exploration without mutating simulation state', () => {
   const text = source(renderFramePath);
-
-  for (const snippet of [
-    'const STARTER_FOG_MASK_TEXTURE_SIZE = 2048;',
-    'const STARTER_FOG_REVEAL_GRID = 6;',
-    'const AGENT_FOG_REVEAL_RADIUS = 12;',
-    'const BUILDING_FOG_REVEAL_RADIUS = 14;',
-    'class FogExplorationTracker',
-    'private centers = new Map<string, FogRevealCenter>();',
-    'function collectCurrentFogRevealCenters(state: any): FogRevealCenter[]',
-    'fogExplorationTracker.updateFromState(state, markFogExplorationDirty);',
-    'this.drawMask(fogExplorationTracker.getCenters(), spawnX, spawnZ);',
-    "this.coverMesh.name = 'starter-fog-persistent-world-mask';",
-    "ctx.globalCompositeOperation = 'destination-out';",
-    'this.texture.needsUpdate = true;',
-    "getStarterFogOfWarOverlay(deps).update(state, deps.getTerrainHeight, () => deps.stateManager.markDirty?.('fogExploration'));",
-  ]) {
-    assertSnippet(text, snippet);
-  }
+  assertSnippet(text, 'this.drawMask(exploration?.centers ?? [], spawnX, spawnZ);');
+  assertSnippet(text, 'exploration === this.lastExploration');
+  assertNoSnippet(text, 'fogExplorationTracker.updateFromState');
+  assertSnippet(text, "this.coverMesh.name = 'starter-fog-persistent-world-mask';");
 });
 
-test('first person view anchors unexplored mist to the nearest persistent reveal without covering the sky', () => {
+test('first person fog follows the explored boundary and respects foreground depth', () => {
   const text = source(renderFramePath);
-
-  for (const snippet of [
-    'class FirstPersonFogOfWarMist',
-    'const FIRST_PERSON_MIST_HEIGHT = 2.5;',
-    'const FIRST_PERSON_MIST_GROUND_OFFSET = 0.05;',
-    'getNearestCenter(point: THREE.Vector3): FogRevealCenter | null',
-    'const center = fogExplorationTracker.getNearestCenter(cameraPosition)',
-    "getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight, camera.position, () => deps.stateManager.markDirty?.('fogExploration'));",
-    'this.group.position.set(center.x, getTerrainHeight(center.x, center.z) + (FIRST_PERSON_MIST_HEIGHT / 2) + FIRST_PERSON_MIST_GROUND_OFFSET, center.z);',
-    'firstPersonFogOfWarMist?.setVisible(false);',
-  ]) {
-    assertSnippet(text, snippet);
-  }
-
-  assertNoSnippet(text, 'scene.fog = new THREE.Fog(firstPersonFogColor, STARTER_FOG_CLEAR_RADIUS, STARTER_FOG_CLEAR_RADIUS + (STARTER_FOG_FEATHER_RADIUS * 3));');
+  assertSnippet(text, 'getExploredRayDistance(cameraPosition,');
+  assertSnippet(text, 'depthWrite: false, depthTest: true');
+  assertSnippet(text, 'this.group.position.set(cameraPosition.x, 0, cameraPosition.z);');
+  assertSnippet(text, 'firstPersonFogOfWarMist?.setVisible(false);');
+  assertNoSnippet(text, 'getNearestCenter');
+  assertNoSnippet(text, 'new THREE.CylinderGeometry');
 });
 
 test('system monitor can remove fog overlays completely', () => {
@@ -117,7 +94,7 @@ test('fog exploration is persisted through save-load game state', () => {
   const gameTypes = source(gameTypesPath);
   const stateManager = source(stateManagerPath);
   const persistenceManager = source(persistenceManagerPath);
-  const renderFrame = source(renderFramePath);
+  const renderFrame = source(path.join(root, 'game', 'fog', 'FogExploration.ts'));
 
   for (const snippet of [
     'export interface FogRevealCenter',

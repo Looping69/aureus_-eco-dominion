@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const root = process.cwd();
-const overseerPath = path.join(root, 'engine', 'sim', 'systems', 'AIOverseerPlaySystem.ts');
+const overseerPath = path.join(root, 'game', 'sim', 'systems', 'AIOverseerPlaySystem.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);

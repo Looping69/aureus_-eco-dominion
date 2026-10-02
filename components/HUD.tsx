@@ -7,7 +7,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Coins, Pickaxe, Leaf, Heart, Gem, Users, Target, Trees, Database, Truck, Hammer, Zap } from 'lucide-react';
 import { GameState, Era, FactoryResourceType, BuildingType } from '../types';
-import { BUILDINGS, ERAS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from '../game/data/VoxelConstants';
+import { ERAS } from '../game/data/eras';
 
 const SECTOR_RESOURCE_LABELS: Record<FactoryResourceType, string> = {
   ORE: 'Ore',

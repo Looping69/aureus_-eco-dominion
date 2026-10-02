@@ -3,15 +3,15 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-const agentIndexPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'agents', 'index.ts');
-const agentExportPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'Agent.ts');
-const commonBasePath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'agents', 'common', 'BaseAgent.ts');
-const workerPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'agents', 'roles', 'Worker.ts');
-const minerPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'agents', 'roles', 'Miner.ts');
-const engineerPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'agents', 'roles', 'Engineer.ts');
-const botanistPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'agents', 'roles', 'Botanist.ts');
-const securityPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'agents', 'roles', 'Security.ts');
-const illegalMinerPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'agents', 'roles', 'IllegalMiner.ts');
+const agentIndexPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'agents', 'index.ts');
+const agentExportPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'Agent.ts');
+const commonBasePath = path.join(process.cwd(), 'game', 'data', 'voxels', 'agents', 'common', 'BaseAgent.ts');
+const workerPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'agents', 'roles', 'Worker.ts');
+const minerPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'agents', 'roles', 'Miner.ts');
+const engineerPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'agents', 'roles', 'Engineer.ts');
+const botanistPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'agents', 'roles', 'Botanist.ts');
+const securityPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'agents', 'roles', 'Security.ts');
+const illegalMinerPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'agents', 'roles', 'IllegalMiner.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

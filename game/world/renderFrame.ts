@@ -1,8 +1,10 @@
+import { getExploredRayDistance } from '../fog/ExploredBoundary';
+import { type FogRevealCenter, type FogExplorationState } from '../fog/FogExploration';
 import * as THREE from 'three';
 import { FrameContext } from '../../engine/kernel';
-import { ChunkStore } from '../../engine/space/ChunkStore';
-import { DungeonEngine } from '../../engine/dungeon/DungeonEngine';
-import { waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial } from '../../engine/render/materials/VoxelMaterials';
+import { ChunkStore } from '../space/ChunkStore';
+import { DungeonEngine } from '../dungeon/DungeonEngine';
+import { waterFlowMaterial, oilWaterMaterial, reservoirWaterMaterial } from '../render/materials/VoxelMaterials';
 import { BuildingType } from '../../types';
 import { BuildingStatusLabelLayer } from '../render/systems/BuildingStatusLabelLayer';
 
@@ -29,14 +31,10 @@ export interface RenderFrameDeps {
 let buildingStatusLabelLayer: BuildingStatusLabelLayer | null = null;
 const dungeonBackgroundColor = new THREE.Color(0x000000);
 const firstPersonFogColor = new THREE.Color(0x05070b);
-const STARTER_FOG_CLEAR_RADIUS = 18;
 const STARTER_FOG_FEATHER_RADIUS = 8;
 const STARTER_FOG_WORLD_EXTENT = 4096;
 const STARTER_FOG_MASK_TEXTURE_SIZE = 2048;
-const STARTER_FOG_REVEAL_GRID = 6;
 const STARTER_FOG_RENDER_ORDER = 10000;
-const AGENT_FOG_REVEAL_RADIUS = 12;
-const BUILDING_FOG_REVEAL_RADIUS = 14;
 const FIRST_PERSON_MIST_HEIGHT = 2.5;
 const FIRST_PERSON_MIST_GROUND_OFFSET = 0.05;
 const FIRST_PERSON_MIST_RENDER_ORDER = 9990;
@@ -44,164 +42,13 @@ const PIPE_TOOL_SURFACE_OPACITY = 0.28;
 const PIPE_TOOL_WATER_OPACITY = 0.18;
 const PIPE_TOOL_AGENT_OPACITY = 0.38;
 const FIRST_PERSON_MIST_BANDS = [
-    { name: 'first-person-fog-mist-1', radius: STARTER_FOG_CLEAR_RADIUS + 1.5, opacity: 0.16 },
-    { name: 'first-person-fog-mist-2', radius: STARTER_FOG_CLEAR_RADIUS + 4.5, opacity: 0.3 },
-    { name: 'first-person-fog-mist-3', radius: STARTER_FOG_CLEAR_RADIUS + STARTER_FOG_FEATHER_RADIUS, opacity: 0.48 },
+    { name: 'first-person-fog-mist-1', offset: 1.5, opacity: 0.16 },
+    { name: 'first-person-fog-mist-2', offset: 4.5, opacity: 0.3 },
+    { name: 'first-person-fog-mist-3', offset: STARTER_FOG_FEATHER_RADIUS, opacity: 0.48 },
 ] as const;
 
 type HoverCell = { x: number; z: number } | null;
-type FogRevealCenter = { key: string; x: number; z: number; radius: number };
-type FogExplorationState = { centers: FogRevealCenter[]; version: number };
 type MaterialFadeState = { transparent: boolean; opacity: number; depthWrite: boolean };
-
-function finiteNumber(value: unknown): number | null {
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function normalizeFogRevealCenter(center: any): FogRevealCenter | null {
-    if (typeof center?.key !== 'string') return null;
-    const x = finiteNumber(center.x);
-    const z = finiteNumber(center.z);
-    const radius = finiteNumber(center.radius);
-    if (x === null || z === null || radius === null || radius <= 0) return null;
-    return { key: center.key, x, z, radius };
-}
-
-function ensureFogExplorationState(state: any): FogExplorationState {
-    const existing = state.fogExploration;
-    const centers = Array.isArray(existing?.centers)
-        ? existing.centers.map(normalizeFogRevealCenter).filter((center): center is FogRevealCenter => Boolean(center))
-        : [];
-    const version = finiteNumber(existing?.version) ?? centers.length;
-
-    if (!existing || !Array.isArray(existing.centers) || centers.length !== existing.centers.length || !Number.isFinite(existing.version)) {
-        state.fogExploration = { centers, version };
-    }
-
-    return state.fogExploration;
-}
-
-function pointFromEntity(entity: any): { x: number; z: number } | null {
-    const x = finiteNumber(entity?.x) ?? finiteNumber(entity?.position?.x) ?? finiteNumber(entity?.worldX);
-    const z = finiteNumber(entity?.z) ?? finiteNumber(entity?.position?.z) ?? finiteNumber(entity?.worldZ);
-    return x === null || z === null ? null : { x, z };
-}
-
-function quantizedKey(prefix: string, x: number, z: number): string {
-    const qx = Math.round(x / STARTER_FOG_REVEAL_GRID) * STARTER_FOG_REVEAL_GRID;
-    const qz = Math.round(z / STARTER_FOG_REVEAL_GRID) * STARTER_FOG_REVEAL_GRID;
-    return `${prefix}:${qx},${qz}`;
-}
-
-function isCompletedBuildingTile(tile: any): boolean {
-    if (!tile || tile.isUnderConstruction) return false;
-    return Boolean(
-        tile.buildingId
-        || tile.buildingType
-        || tile.structureId
-        || tile.structureType
-        || tile.building
-        || tile.structure
-    );
-}
-
-function collectCurrentFogRevealCenters(state: any): FogRevealCenter[] {
-    const centers: FogRevealCenter[] = [];
-    const spawnX = Math.round(state.spawnX ?? 0);
-    const spawnZ = Math.round(state.spawnZ ?? 0);
-    centers.push({ key: 'spawn', x: spawnX, z: spawnZ, radius: STARTER_FOG_CLEAR_RADIUS });
-
-    const agents = [...(state.agents ?? []), ...(state.ambientNpcs ?? [])];
-    for (const agent of agents) {
-        const point = pointFromEntity(agent);
-        if (!point) continue;
-        centers.push({
-            key: quantizedKey('agent', point.x, point.z),
-            x: point.x,
-            z: point.z,
-            radius: AGENT_FOG_REVEAL_RADIUS,
-        });
-    }
-
-    for (const chunk of Object.values(state.chunks ?? {}) as any[]) {
-        for (const tile of chunk?.tiles ?? []) {
-            if (!isCompletedBuildingTile(tile)) continue;
-            const x = finiteNumber(tile.x) ?? finiteNumber(tile.worldX);
-            const z = finiteNumber(tile.z) ?? finiteNumber(tile.worldZ);
-            if (x === null || z === null) continue;
-            centers.push({
-                key: quantizedKey('building', x, z),
-                x,
-                z,
-                radius: BUILDING_FOG_REVEAL_RADIUS,
-            });
-        }
-    }
-
-    return centers;
-}
-
-class FogExplorationTracker {
-    private centers = new Map<string, FogRevealCenter>();
-    private version = 0;
-    private hydratedVersion = -1;
-
-    updateFromState(state: any, onChanged?: () => void): void {
-        this.hydrateFromState(state);
-        let changed = false;
-
-        for (const center of collectCurrentFogRevealCenters(state)) {
-            const previous = this.centers.get(center.key);
-            if (previous && previous.radius >= center.radius) continue;
-            this.centers.set(center.key, center);
-            this.version += 1;
-            changed = true;
-        }
-
-        if (!changed) return;
-        this.writeToState(state);
-        onChanged?.();
-    }
-
-    getCenters(): FogRevealCenter[] {
-        return Array.from(this.centers.values());
-    }
-
-    getVersion(): number {
-        return this.version;
-    }
-
-    getNearestCenter(point: THREE.Vector3): FogRevealCenter | null {
-        let nearest: FogRevealCenter | null = null;
-        let nearestDistanceSq = Infinity;
-        for (const center of this.centers.values()) {
-            const dx = center.x - point.x;
-            const dz = center.z - point.z;
-            const distanceSq = (dx * dx) + (dz * dz);
-            if (distanceSq >= nearestDistanceSq) continue;
-            nearest = center;
-            nearestDistanceSq = distanceSq;
-        }
-        return nearest;
-    }
-
-    private hydrateFromState(state: any): void {
-        const fogState = ensureFogExplorationState(state);
-        if (fogState.version === this.hydratedVersion) return;
-        this.centers = new Map(fogState.centers.map((center) => [center.key, center]));
-        this.version = fogState.version;
-        this.hydratedVersion = fogState.version;
-    }
-
-    private writeToState(state: any): void {
-        const fogState = ensureFogExplorationState(state);
-        fogState.centers = this.getCenters();
-        fogState.version = this.version;
-        this.hydratedVersion = this.version;
-    }
-}
-
-const fogExplorationTracker = new FogExplorationTracker();
 
 class LayeredWorldOverlay {
     private group = new THREE.Group();
@@ -314,8 +161,9 @@ class StarterFogOfWarOverlay {
     private coverMaterial: THREE.MeshBasicMaterial;
     private coverMesh: THREE.Mesh | null = null;
     private lastSignature = '';
+    private lastExploration: FogExplorationState | undefined;
 
-    constructor(scene: THREE.Scene) {
+    constructor(readonly scene: THREE.Scene) {
         this.canvas.width = STARTER_FOG_MASK_TEXTURE_SIZE;
         this.canvas.height = STARTER_FOG_MASK_TEXTURE_SIZE;
         this.context = this.canvas.getContext('2d');
@@ -339,7 +187,7 @@ class StarterFogOfWarOverlay {
         this.group.visible = visible;
     }
 
-    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number, markFogExplorationDirty?: () => void): void {
+    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number): void {
         if (state.fogOfWarDisabled || state.activeView !== 'SURFACE') {
             this.setVisible(false);
             this.lastSignature = '';
@@ -348,14 +196,15 @@ class StarterFogOfWarOverlay {
 
         const spawnX = Math.round(state.spawnX ?? 0);
         const spawnZ = Math.round(state.spawnZ ?? 0);
-        fogExplorationTracker.updateFromState(state, markFogExplorationDirty);
-        const signature = `${spawnX},${spawnZ}|${state.activeView}|${fogExplorationTracker.getVersion()}`;
+        const exploration = state.fogExploration as FogExplorationState | undefined;
+        const signature = `${spawnX},${spawnZ}|${state.activeView}|${exploration?.version ?? 0}`;
         this.ensureMeshes();
         this.group.position.set(spawnX, getTerrainHeight(spawnX, spawnZ) + 0.16, spawnZ);
         this.setVisible(true);
 
-        if (signature === this.lastSignature) return;
-        this.drawMask(fogExplorationTracker.getCenters(), spawnX, spawnZ);
+        if (signature === this.lastSignature && exploration === this.lastExploration) return;
+        this.lastExploration = exploration;
+        this.drawMask(exploration?.centers ?? [], spawnX, spawnZ);
         this.lastSignature = signature;
     }
 
@@ -406,62 +255,76 @@ class StarterFogOfWarOverlay {
 
 class FirstPersonFogOfWarMist {
     private group = new THREE.Group();
-    private materials = FIRST_PERSON_MIST_BANDS.map(({ opacity }) => new THREE.MeshBasicMaterial({
-        color: firstPersonFogColor,
-        transparent: true,
-        opacity,
-        depthWrite: false,
-        depthTest: false,
-        side: THREE.DoubleSide,
-    }));
     private meshes: THREE.Mesh[] = [];
-    private lastSignature = '';
+    private lastExploration: FogExplorationState | undefined;
+    private lastVersion = -1;
+    private lastOrigin = new THREE.Vector2(Infinity, Infinity);
 
-    constructor(scene: THREE.Scene) {
+    constructor(readonly scene: THREE.Scene) {
         this.group.name = 'first-person-fog-of-war-mist';
         this.group.renderOrder = FIRST_PERSON_MIST_RENDER_ORDER;
-        scene.add(this.group);
-    }
-
-    setVisible(visible: boolean): void {
-        this.group.visible = visible;
-    }
-
-    update(state: any, getTerrainHeight: (worldX: number, worldZ: number) => number, cameraPosition: THREE.Vector3, markFogExplorationDirty?: () => void): void {
-        if (state.fogOfWarDisabled || state.activeView !== 'SURFACE') {
-            this.setVisible(false);
-            this.lastSignature = '';
-            return;
-        }
-
-        fogExplorationTracker.updateFromState(state, markFogExplorationDirty);
-        const center = fogExplorationTracker.getNearestCenter(cameraPosition) ?? {
-            key: 'spawn',
-            x: Math.round(state.spawnX ?? 0),
-            z: Math.round(state.spawnZ ?? 0),
-            radius: STARTER_FOG_CLEAR_RADIUS,
-        };
-        const signature = `${center.key}|${fogExplorationTracker.getVersion()}`;
-        this.ensureMeshes();
-        this.group.position.set(center.x, getTerrainHeight(center.x, center.z) + (FIRST_PERSON_MIST_HEIGHT / 2) + FIRST_PERSON_MIST_GROUND_OFFSET, center.z);
-        this.setVisible(true);
-
-        if (signature === this.lastSignature) return;
-        this.lastSignature = signature;
-    }
-
-    private ensureMeshes(): void {
-        if (this.meshes.length > 0) return;
-
-        for (let i = 0; i < FIRST_PERSON_MIST_BANDS.length; i += 1) {
-            const band = FIRST_PERSON_MIST_BANDS[i];
-            const geometry = new THREE.CylinderGeometry(band.radius, band.radius, FIRST_PERSON_MIST_HEIGHT, 192, 1, true);
-            const mesh = new THREE.Mesh(geometry, this.materials[i]);
+        for (const band of FIRST_PERSON_MIST_BANDS) {
+            const material = new THREE.MeshBasicMaterial({
+                color: firstPersonFogColor, transparent: true, opacity: band.opacity,
+                depthWrite: false, depthTest: true, side: THREE.DoubleSide,
+            });
+            const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
             mesh.name = band.name;
             mesh.frustumCulled = false;
             mesh.renderOrder = FIRST_PERSON_MIST_RENDER_ORDER;
             this.meshes.push(mesh);
             this.group.add(mesh);
+        }
+        scene.add(this.group);
+    }
+
+    setVisible(visible: boolean): void { this.group.visible = visible; }
+
+    update(state: any, getTerrainHeight: (x: number, z: number) => number, cameraPosition: THREE.Vector3): void {
+        if (state.fogOfWarDisabled || state.activeView !== 'SURFACE') {
+            this.setVisible(false);
+            return;
+        }
+        this.setVisible(true);
+        const exploration = state.fogExploration as FogExplorationState | undefined;
+        const version = exploration?.version ?? 0;
+        // Rebuild only after meaningful movement or exploration/load changes, never for turning.
+        const dx = cameraPosition.x - this.lastOrigin.x;
+        const dz = cameraPosition.z - this.lastOrigin.y;
+        if (exploration === this.lastExploration && version === this.lastVersion && dx * dx + dz * dz < 0.25) return;
+        this.lastExploration = exploration;
+        this.lastVersion = version;
+        this.lastOrigin.set(cameraPosition.x, cameraPosition.z);
+        this.group.position.set(cameraPosition.x, 0, cameraPosition.z);
+        const centers = exploration?.centers ?? [];
+        const maxDistance = 128;
+        const nearby = centers.filter(center => Math.hypot(center.x - cameraPosition.x, center.z - cameraPosition.z) <= maxDistance + center.radius);
+        const segments = 192;
+        const distances = Array.from({length: segments + 1}, (_, i) => {
+            const angle = i / segments * Math.PI * 2;
+            return getExploredRayDistance(cameraPosition, {x: Math.cos(angle), z: Math.sin(angle)}, nearby, maxDistance);
+        });
+        for (let bandIndex = 0; bandIndex < this.meshes.length; bandIndex++) {
+            const positions: number[] = [];
+            const indices: number[] = [];
+            const offset = FIRST_PERSON_MIST_BANDS[bandIndex].offset;
+            for (let i = 0; i <= segments; i++) {
+                const angle = i / segments * Math.PI * 2;
+                const radius = distances[i] + offset;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+                const ground = getTerrainHeight(cameraPosition.x + x, cameraPosition.z + z) + FIRST_PERSON_MIST_GROUND_OFFSET;
+                positions.push(x, ground, z, x, ground + FIRST_PERSON_MIST_HEIGHT, z);
+                if (i < segments && distances[i] < maxDistance && distances[i + 1] < maxDistance) {
+                    const v = i * 2;
+                    indices.push(v, v+1, v+2, v+1, v+3, v+2);
+                }
+            }
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
+            geometry.setIndex(indices);
+            this.meshes[bandIndex].geometry.dispose();
+            this.meshes[bandIndex].geometry = geometry;
         }
     }
 }
@@ -577,14 +440,14 @@ function getLayeredWorldOverlay(deps: RenderFrameDeps): LayeredWorldOverlay {
 }
 
 function getStarterFogOfWarOverlay(deps: RenderFrameDeps): StarterFogOfWarOverlay {
-    if (!starterFogOfWarOverlay) {
+    if (!starterFogOfWarOverlay || starterFogOfWarOverlay.scene !== deps.render.getScene()) {
         starterFogOfWarOverlay = new StarterFogOfWarOverlay(deps.render.getScene());
     }
     return starterFogOfWarOverlay;
 }
 
 function getFirstPersonFogOfWarMist(deps: RenderFrameDeps): FirstPersonFogOfWarMist {
-    if (!firstPersonFogOfWarMist) {
+    if (!firstPersonFogOfWarMist || firstPersonFogOfWarMist.scene !== deps.render.getScene()) {
         firstPersonFogOfWarMist = new FirstPersonFogOfWarMist(deps.render.getScene());
     }
     return firstPersonFogOfWarMist;
@@ -778,7 +641,7 @@ function updateFirstPersonView(
 
     const camera = deps.render.getCamera();
     deps.fpsCameraSystem.update(ctx.dt, state.agents, deps.getTerrainHeight);
-    getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight, camera.position, () => deps.stateManager.markDirty?.('fogExploration'));
+    getFirstPersonFogOfWarMist(deps).update(state, deps.getTerrainHeight, camera.position);
     deps.agentRenderSystem.setSelectedAgent(state.selectedAgentId);
 
     const allAgents = [...state.agents, ...state.ambientNpcs];
@@ -832,7 +695,7 @@ function updateSurfaceView(
     const cursor = deps.inputSystem?.getCurrentCursor() || null;
     const hoverCell = cursor ? { x: Math.round(cursor.x), z: Math.round(cursor.z) } : null;
     getLayeredWorldOverlay(deps).update(state, deps.getTerrainHeight, hoverCell);
-    getStarterFogOfWarOverlay(deps).update(state, deps.getTerrainHeight, () => deps.stateManager.markDirty?.('fogExploration'));
+    getStarterFogOfWarOverlay(deps).update(state, deps.getTerrainHeight);
 
     deps.buildingRenderSystem.update(
         ctx.dt,

@@ -12,9 +12,9 @@ import {
     FilterX
 } from 'lucide-react';
 import { GameState, BuildingType, Action, Chunk, Era } from '../types';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
-import { calculateBuildingCost } from '../engine/utils/GameUtils';
-import { formatIndustrialCosts, getIndustrialBuildingCosts, getMissingIndustrialCosts } from '../engine/data/industrialCosts';
+import { BUILDINGS } from '../game/data/VoxelConstants';
+import { calculateBuildingCost } from '../game/utils/GameUtils';
+import { formatIndustrialCosts, getIndustrialBuildingCosts, getMissingIndustrialCosts } from '../game/data/industrialCosts';
 
 interface SupplySidebarProps {
     isOpen: boolean;

@@ -12,8 +12,8 @@ function source(relativePath: string): string {
 }
 
 test('combat exposes aggression as a persistent stance', () => {
-    const agentTypes = source('engine/types/agents.ts');
-    const combatSystem = source('engine/sim/systems/CombatSystem.ts');
+    const agentTypes = source('game/types/agents.ts');
+    const combatSystem = source('game/sim/systems/CombatSystem.ts');
 
     assert.match(agentTypes, /CombatOrderStance = 'AUTO' \| 'ATTACK' \| 'HOLD' \| 'AGGRESSIVE'/);
     assert.match(combatSystem, /handleToggleAggression/);
@@ -41,9 +41,9 @@ test('toolbar combat commands use full selected agent groups when available', ()
 });
 
 test('combat weapon loadouts are data-driven and applied by the combat system', () => {
-    const agentTypes = source('engine/types/agents.ts');
-    const weapons = source('engine/data/combatWeapons.ts');
-    const combatSystem = source('engine/sim/systems/CombatSystem.ts');
+    const agentTypes = source('game/types/agents.ts');
+    const weapons = source('game/data/combatWeapons.ts');
+    const combatSystem = source('game/sim/systems/CombatSystem.ts');
 
     assert.match(agentTypes, /weaponId\?: string/);
     assert.match(agentTypes, /weaponName\?: string/);
@@ -59,7 +59,7 @@ test('combat weapon loadouts are data-driven and applied by the combat system', 
 });
 
 test('aggressive colony agents target outsiders while preserving base agents', () => {
-    const combatSystem = source('engine/sim/systems/CombatSystem.ts');
+    const combatSystem = source('game/sim/systems/CombatSystem.ts');
 
     assert.match(combatSystem, /findNearestAggressionTarget/);
     assert.match(combatSystem, /getBaseAgentIds/);

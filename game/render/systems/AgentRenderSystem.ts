@@ -3,8 +3,8 @@
 import * as THREE from 'three';
 import { Text } from 'troika-three-text';
 import { Agent, AgentRole } from '../../../types';
-import { createAgentGroup } from '../../../engine/data/voxels/Agent';
-import { createEagle } from '../../../engine/data/voxels/Eagle';
+import { createAgentGroup } from '../../data/voxels/Agent';
+import { createEagle } from '../../data/voxels/Eagle';
 import { computeGroundedHeight, warmRapierGroundingProbe } from '../../../engine/physics/RapierGroundingProbe';
 import { getAgentWaterWadeY } from '../../../engine/render/utils/GroundAnchors';
 

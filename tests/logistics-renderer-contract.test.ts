@@ -7,8 +7,8 @@ const worldPath = path.join(process.cwd(), 'game', 'AureusWorld.ts');
 const rendererPath = path.join(process.cwd(), 'game', 'render', 'systems', 'BuildingRenderSystem.ts');
 const overlayPresentationPath = path.join(process.cwd(), 'game', 'render', 'systems', 'LogisticsOverlayPresentation.ts');
 const overlayLabelMaterialFactoryPath = path.join(process.cwd(), 'game', 'render', 'systems', 'OverlayLabelMaterialFactory.ts');
-const era4IndexPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'era4', 'index.ts');
-const droneDepotFactoryPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'era4', 'DroneDepot.ts');
+const era4IndexPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'buildings', 'era4', 'index.ts');
+const droneDepotFactoryPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'buildings', 'era4', 'DroneDepot.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -132,8 +132,8 @@ test('Overlay label material construction is split into a dedicated canvas helpe
 });
 
 test('Drone depot renderer hook is backed by a registered voxel factory', () => {
-  assert.equal(existsSync(era4IndexPath), true, 'engine/data/voxels/buildings/era4/index.ts is missing');
-  assert.equal(existsSync(droneDepotFactoryPath), true, 'engine/data/voxels/buildings/era4/DroneDepot.ts is missing');
+  assert.equal(existsSync(era4IndexPath), true, 'game/data/voxels/buildings/era4/index.ts is missing');
+  assert.equal(existsSync(droneDepotFactoryPath), true, 'game/data/voxels/buildings/era4/DroneDepot.ts is missing');
 
   const indexSource = readFileSync(era4IndexPath, 'utf8');
   const factorySource = readFileSync(droneDepotFactoryPath, 'utf8');

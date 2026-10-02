@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { BUILDINGS } from '../engine/data/VoxelConstants.ts';
+import { BUILDINGS } from '../game/data/VoxelConstants.ts';
 import { StateManager } from '../game/state/StateManager.ts';
-import { ChunkStore } from '../engine/space/ChunkStore.ts';
+import { ChunkStore } from '../game/space/ChunkStore.ts';
 import { BuildingType } from '../types.ts';
 import type { GameState } from '../types.ts';
-import { completeConstructionCore, placeBuildingCore, progressConstructionCore } from '../engine/sim/construction/PlacementCore.ts';
+import { completeConstructionCore, placeBuildingCore, progressConstructionCore } from '../game/sim/construction/PlacementCore.ts';
 
 const STAFF_QUARTERS_FOOTPRINT: Array<[number, number]> = [[0, 0], [1, 0], [0, 1], [1, 1]];
 

@@ -9,7 +9,7 @@ import { Menu, ArrowLeft, TrendingUp, FlaskConical, BarChart3, Users, Zap, Utens
 import { GameState, Action, Agent, AgentRole, Chunk } from '../types';
 import { ResearchTree } from './ResearchTree';
 import { BureaucracyOffice } from './BureaucracyOffice';
-import { MAX_AGENTS, CAPACITY_PER_QUARTERS } from '../engine/sim/logic/SimulationLogic';
+import { MAX_AGENTS, CAPACITY_PER_QUARTERS } from '../game/sim/logic/SimulationLogic';
 import { BuildingType } from '../types';
 
 const NeedsBar: React.FC<{ icon: any, value: number, color: string }> = ({ icon, value, color }) => (

@@ -10,8 +10,8 @@ function source(relativePath: string): string {
 }
 
 test('resource grid roles are built from a raw schema-friendly data table', () => {
-    const schema = source('engine/data/resourceGridRoleSchema.ts');
-    const roles = source('engine/data/resourceGridRoles.ts');
+    const schema = source('game/data/resourceGridRoleSchema.ts');
+    const roles = source('game/data/resourceGridRoles.ts');
 
     assert.match(schema, /export const RESOURCE_GRID_ROLE_SCHEMA/);
     assert.match(schema, /buildingType: 'PIPE'/);

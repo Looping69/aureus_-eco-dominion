@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { BUILDINGS } from '../engine/data/VoxelConstants.ts';
-import { getUtilityReadability } from '../engine/sim/utility/UtilityReadability.ts';
-import { getWaterDiagnostic } from '../engine/sim/utility/WaterDiagnostics.ts';
+import { BUILDINGS } from '../game/data/VoxelConstants.ts';
+import { getUtilityReadability } from '../game/sim/utility/UtilityReadability.ts';
+import { getWaterDiagnostic } from '../game/sim/utility/WaterDiagnostics.ts';
 import { BuildingType } from '../types.ts';
 import type { GridTile } from '../types.ts';
 

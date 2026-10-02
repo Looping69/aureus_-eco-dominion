@@ -1,3 +1,4 @@
+import { PACK_RUNTIME_REGISTRY } from './runtimeRegistry';
 import { createGameDefinitionRegistry } from '../engine/game-definition/GameDefinitionRegistry';
 import { createGamePackRegistry } from '../engine/game-pack';
 import { AUREUS_ACTIVE_GAME_DEFINITION, AUREUS_GAME_PACK } from './aureusGamePack';
@@ -7,7 +8,7 @@ export const GAME_PACKS = [AUREUS_GAME_PACK, SAMPLE_COLONY_GAME_PACK] as const;
 
 export const GAME_PACK_REGISTRY = createGamePackRegistry([...GAME_PACKS]);
 
-const BOOTABLE_GAME_PACK_WORLD_MODULES = new Set([AUREUS_GAME_PACK.runtime.worldModule]);
+
 
 export interface GamePackRuntimeDebugSummary {
   id: string;
@@ -32,7 +33,7 @@ export function getActiveGamePackSummary() {
 
 export function canBootRegisteredGamePack(packId: string) {
   const pack = GAME_PACK_REGISTRY.get(packId);
-  return pack ? BOOTABLE_GAME_PACK_WORLD_MODULES.has(pack.runtime.worldModule) : false;
+  return pack ? PACK_RUNTIME_REGISTRY.has(pack.id) : false;
 }
 
 export function getGamePackRuntimeDebugSummaries(): GamePackRuntimeDebugSummary[] {
@@ -48,7 +49,7 @@ export function getGamePackRuntimeDebugSummaries(): GamePackRuntimeDebugSummary[
       bootable,
       runtimeStatus: pack.id === activePack.id ? 'active' : bootable ? 'bootable' : 'definition-only',
       runtimeWorldModule: pack.runtime.worldModule,
-      fallbackPackId: bootable ? undefined : AUREUS_GAME_PACK.id,
+      fallbackPackId: undefined,
       actionCount: pack.definition.actions.length,
       systemCount: pack.definition.systems.length,
     };

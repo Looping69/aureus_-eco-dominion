@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { StateManager } from '../game/state/StateManager.ts';
-import { CommandDispatcher } from '../engine/sim/systems/CommandDispatcher.ts';
+import { CommandDispatcher } from '../game/sim/systems/CommandDispatcher.ts';
 import type { Contract, GameCommand } from '../types.ts';
 
 function tickDispatcher(stateManager: StateManager, dispatcher: CommandDispatcher, time = 1): void {

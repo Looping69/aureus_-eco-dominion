@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BuildingType, Chunk, FactoryNodeState, FactoryState } from '../../../types';
-import { ChunkStore } from '../../../engine/space/ChunkStore';
+import { ChunkStore } from '../../space/ChunkStore';
 
 export function resourceTotal(bucket: Partial<Record<string, number>>) {
     return Object.values(bucket).reduce((sum, value) => sum + (value || 0), 0);

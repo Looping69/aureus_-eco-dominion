@@ -17,8 +17,8 @@ test('Building preview controller helpers are split into a dedicated module', ()
   for (const snippet of [
     "import * as THREE from 'three';",
     "import { BuildingType } from '../../../types';",
-    "import { BUILDINGS } from '../../../engine/data/VoxelConstants';",
-    "import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';",
+    "import { BUILDINGS } from '../../../game/data/VoxelConstants';",
+    "import { BuildingFactory } from '../../../game/render/utils/VoxelGenerators';",
     'export class BuildingPreviewController {',
     'private selectionCursor: THREE.Mesh;',
     'private ghostBuilding: THREE.Group | null = null;',

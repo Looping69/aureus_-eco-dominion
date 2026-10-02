@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
     SURVEY_DRILL_BUILDING_TYPE,
     applyDeepLedgerSurvey,
-} from '../engine/underground/DeepLedgerSurveyCore.ts';
+} from '../game/underground/DeepLedgerSurveyCore.ts';
 
 test('applyDeepLedgerSurvey backfills missing underground state for legacy saves without unlocking access', () => {
     const legacyState: any = {

@@ -6,7 +6,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { GameState, BuildingType, Chunk } from '../types';
-import { ChunkStore } from '../engine/space/ChunkStore';
+import { ChunkStore } from '../game/space/ChunkStore';
 import { Map, Maximize, ChevronUp } from 'lucide-react';
 
 interface MinimapProps {

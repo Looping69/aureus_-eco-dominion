@@ -8,6 +8,10 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 
 const STABILIZATION_CONTRACTS = [
+    'tests/colony-autosave-lifecycle.test.ts',
+    'tests/fog-of-war-model-sim.test.ts',
+    'tests/executable-pack-runtime.test.ts',
+    'tests/spatial-engine-separation.test.ts',
     'tests/first-loop-spine-contract.test.ts',
     'tests/starter-shop-contract.test.ts',
     'tests/narrative-panel-contract.test.ts',
@@ -19,6 +23,9 @@ const STABILIZATION_CONTRACTS = [
     'tests/game-definition-contract.test.ts',
     'tests/game-pack-boundary-contract.test.ts',
     'tests/engine-boundary.test.ts',
+    'tests/era-game-separation.test.ts',
+    'tests/simulation-game-separation.test.ts',
+    'tests/authored-assets-separation.test.ts',
     'tests/seeded-random.test.ts',
     'tests/state-store-separation.test.ts',
     'tests/save-storage-separation.test.ts',

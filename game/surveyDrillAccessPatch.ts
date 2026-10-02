@@ -1,7 +1,7 @@
 import { AureusWorld } from './AureusWorld';
 import { SfxType } from '../types';
 import { SURVEY_DRILL } from './surveyDrillBuildingPatch';
-import { BUILDINGS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from './data/VoxelConstants';
 
 /**
  * Temporary Deep Ledger build access.

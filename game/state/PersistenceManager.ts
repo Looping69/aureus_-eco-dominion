@@ -5,13 +5,14 @@
  */
 
 import { GameState, Agent, GridTile, BuildingType, FogExplorationState } from '../../types';
-import { DEFAULT_VIEW_RADIUS } from '../../engine/utils/GameUtils';
-import { applyDeepLedgerSurvey } from '../../engine/underground/UndergroundGenerator';
-import { normalizeLayeredWorldState } from '../../engine/worldgen/LayeredWorldGenerator';
+import { DEFAULT_VIEW_RADIUS } from '../utils/GameUtils';
+import { applyDeepLedgerSurvey } from '../underground/UndergroundGenerator';
+import { normalizeLayeredWorldState } from '../worldgen/LayeredWorldGenerator';
+import { AUREUS_SAVE_KEY } from './saveKey';
 import { JsonSaveStorage } from '../../engine/state/JsonSaveStorage';
 
 export class PersistenceManager {
-    private readonly storage = new JsonSaveStorage('aureus_save_v2');
+    private readonly storage = new JsonSaveStorage(AUREUS_SAVE_KEY);
 
     /**
      * Serializes and saves the current game state
@@ -181,6 +182,8 @@ export class PersistenceManager {
                 }
                 return value;
             }) as GameState;
+            // Legacy Aureus saves have no envelope. Never migrate another pack's envelope.
+            if (state && typeof state === 'object' && 'packId' in state) return null;
 
             // Post-load validation / migration
             // Ensure essential arrays exist
@@ -223,6 +226,8 @@ export class PersistenceManager {
                 }
                 return value;
             }) as GameState;
+            // Legacy Aureus saves have no envelope. Never migrate another pack's envelope.
+            if (state && typeof state === 'object' && 'packId' in state) return null;
 
             // Post-load validation / migration
             if (!state.agents) state.agents = [];

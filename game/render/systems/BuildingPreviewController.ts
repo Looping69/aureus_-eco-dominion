@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BuildingType } from '../../../types';
-import { BUILDINGS } from '../../../engine/data/VoxelConstants';
-import { BuildingFactory } from '../../../engine/render/utils/VoxelGenerators';
+import { BUILDINGS } from '../../data/VoxelConstants';
+import { BuildingFactory } from '../utils/VoxelGenerators';
 
 export class BuildingPreviewController {
     private scene: THREE.Scene;

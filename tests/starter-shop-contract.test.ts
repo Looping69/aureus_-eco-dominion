@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const root = process.cwd();
 const supplySidebarPath = path.join(root, 'components', 'SupplySidebar.tsx');
-const erasPath = path.join(root, 'engine', 'data', 'eras.ts');
+const erasPath = path.join(root, 'game', 'data', 'eras.ts');
 
 function source(filePath: string) {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);

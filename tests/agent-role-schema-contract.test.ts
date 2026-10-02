@@ -10,8 +10,8 @@ import {
     getAgentRoleDef,
     getAgentRoleForWorkplace,
     getProfessionalWorkplaceTypes,
-} from '../engine/data/agentRoles.ts';
-import { getDefaultCombatProfile } from '../engine/sim/systems/CombatSystem.ts';
+} from '../game/data/agentRoles.ts';
+import { getDefaultCombatProfile } from '../game/sim/systems/CombatSystem.ts';
 
 const root = process.cwd();
 
@@ -68,8 +68,8 @@ test('combat defaults are read from agent role schema', () => {
 });
 
 test('employment and combat systems delegate role metadata to the schema', () => {
-    const employment = source('engine/sim/systems/EmploymentSystem.ts');
-    const combat = source('engine/sim/systems/CombatSystem.ts');
+    const employment = source('game/sim/systems/EmploymentSystem.ts');
+    const combat = source('game/sim/systems/CombatSystem.ts');
 
     assert.match(employment, /getAgentRoleForWorkplace/);
     assert.match(employment, /getProfessionalWorkplaceTypes/);

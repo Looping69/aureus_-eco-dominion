@@ -22,5 +22,5 @@ test('AureusWorld registers the combat simulation system for live ticks and comm
         world.indexOf('this.agentSystem,') < world.indexOf('this.combatSystem,'),
         'combat commands should be routed after agent commands are offered to the agent system',
     );
-    assert.equal(world.includes("from '../engine/sim/systems/CombatSystem'"), false);
+    assert.equal(world.includes("from '../game/sim/systems/CombatSystem'"), false);
 });

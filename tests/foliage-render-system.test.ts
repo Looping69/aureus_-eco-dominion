@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 
 import { FoliageRenderSystem, getTreeHarvestVisual } from '../game/render/systems/FoliageRenderSystem.ts';
-import { getHarvestVisualStage } from '../engine/sim/logic/HarvestVisualProgress.ts';
+import { getHarvestVisualStage } from '../game/sim/logic/HarvestVisualProgress.ts';
 
 test('updating one foliage chunk leaves other chunk meshes intact', () => {
     const scene = new THREE.Scene();

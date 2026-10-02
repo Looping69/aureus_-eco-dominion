@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { StateManager } from '../game/state/StateManager.ts';
-import { ChunkStore } from '../engine/space/ChunkStore.ts';
+import { ChunkStore } from '../game/space/ChunkStore.ts';
 import { collectAureusWaterGridParticipants } from '../game/sim/utility/AureusWaterGridAdapter.ts';
 import { collectAureusPowerGridParticipants } from '../game/sim/utility/AureusPowerGridAdapter.ts';
 import { solveResourceGridNetwork } from '../engine/sim/resourceGrid/ResourceGridSolver.ts';
@@ -268,8 +268,8 @@ test('Aureus adapters share structure and footprint helper logic', () => {
 });
 
 test('static resource grid roles live in declarative schema data', () => {
-    const roleData = source('engine/data/resourceGridRoles.ts');
-    const roleSchema = source('engine/data/resourceGridRoleSchema.ts');
+    const roleData = source('game/data/resourceGridRoles.ts');
+    const roleSchema = source('game/data/resourceGridRoleSchema.ts');
     const waterAdapter = source('game/sim/utility/AureusWaterGridAdapter.ts');
     const powerAdapter = source('game/sim/utility/AureusPowerGridAdapter.ts');
 

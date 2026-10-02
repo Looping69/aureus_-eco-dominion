@@ -7,7 +7,7 @@
 import React from 'react';
 import { Lock, CheckCircle, Zap, Shield, FlaskConical } from 'lucide-react';
 import { TechDefinition, TechId, Action, ResearchState, GameResources } from '../types';
-import { TECHNOLOGIES } from '../engine/data/VoxelConstants';
+import { TECHNOLOGIES } from '../game/data/tech';
 
 interface ResearchTreeProps {
     research: ResearchState;

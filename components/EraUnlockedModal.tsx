@@ -5,7 +5,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Era, BuildingType } from '../types';
-import { ERAS, BUILDINGS } from '../engine/data/VoxelConstants';
+import { BUILDINGS } from '../game/data/VoxelConstants';
+import { ERAS } from '../game/data/eras';
 import { X, Trophy, Unlock, ChevronRight } from 'lucide-react';
 
 interface EraUnlockedModalProps {

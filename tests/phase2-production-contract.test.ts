@@ -3,23 +3,23 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-const gameTypesPath = path.join(process.cwd(), 'engine', 'types', 'game.ts');
-const productionPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'ProductionSystem.ts');
-const logisticsPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'LogisticsSystem.ts');
+const gameTypesPath = path.join(process.cwd(), 'game', 'types', 'game.ts');
+const productionPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'ProductionSystem.ts');
+const logisticsPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'LogisticsSystem.ts');
 const hudPath = path.join(process.cwd(), 'components', 'HUD.tsx');
 const persistencePath = path.join(process.cwd(), 'game', 'state', 'PersistenceManager.ts');
 const powerGridPath = path.join(process.cwd(), 'game', 'sim', 'utility', 'PowerGridSystem.ts');
-const economyPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'EconomySystem.ts');
+const economyPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'EconomySystem.ts');
 const supplySidebarPath = path.join(process.cwd(), 'components', 'SupplySidebar.tsx');
-const industrialCostsPath = path.join(process.cwd(), 'engine', 'data', 'industrialCosts.ts');
-const buildingTypesPath = path.join(process.cwd(), 'engine', 'types', 'buildings.ts');
+const industrialCostsPath = path.join(process.cwd(), 'game', 'data', 'industrialCosts.ts');
+const buildingTypesPath = path.join(process.cwd(), 'game', 'types', 'buildings.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 test('Phase 2 state types expose industrial stocks, connected-grid demand metrics, and late-game logistics economy metrics', () => {
-  assert.equal(existsSync(gameTypesPath), true, 'engine/types/game.ts is missing');
+  assert.equal(existsSync(gameTypesPath), true, 'game/types/game.ts is missing');
 
   const source = readFileSync(gameTypesPath, 'utf8');
 
@@ -176,7 +176,7 @@ test('Advanced buildings spend industrial stock, the market panel exposes region
   assert.equal(existsSync(industrialCostsPath), true, 'industrialCosts.ts is missing');
   assert.equal(existsSync(economyPath), true, 'EconomySystem.ts is missing');
   assert.equal(existsSync(supplySidebarPath), true, 'SupplySidebar.tsx is missing');
-  assert.equal(existsSync(buildingTypesPath), true, 'engine/types/buildings.ts is missing');
+  assert.equal(existsSync(buildingTypesPath), true, 'game/types/buildings.ts is missing');
 
   const costsSource = readFileSync(industrialCostsPath, 'utf8');
   const economySource = readFileSync(economyPath, 'utf8');

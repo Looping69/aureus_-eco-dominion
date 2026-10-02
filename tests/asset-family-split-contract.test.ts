@@ -3,11 +3,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-const buildingIndexPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'index.ts');
-const infrastructurePath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'infrastructure', 'index.ts');
-const era1IndexPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'era1', 'index.ts');
-const era2IndexPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'era2', 'index.ts');
-const era3IndexPath = path.join(process.cwd(), 'engine', 'data', 'voxels', 'buildings', 'era3', 'index.ts');
+const buildingIndexPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'buildings', 'index.ts');
+const infrastructurePath = path.join(process.cwd(), 'game', 'data', 'voxels', 'buildings', 'infrastructure', 'index.ts');
+const era1IndexPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'buildings', 'era1', 'index.ts');
+const era2IndexPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'buildings', 'era2', 'index.ts');
+const era3IndexPath = path.join(process.cwd(), 'game', 'data', 'voxels', 'buildings', 'era3', 'index.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

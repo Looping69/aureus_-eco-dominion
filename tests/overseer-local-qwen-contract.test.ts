@@ -6,7 +6,7 @@ import test from 'node:test';
 const root = process.cwd();
 const servicePath = path.join(root, 'services', 'overseerLocalQwen.ts');
 const panelPath = path.join(root, 'components', 'AIOverseerPanel.tsx');
-const systemPath = path.join(root, 'engine', 'sim', 'systems', 'AIOverseerPlaySystem.ts');
+const systemPath = path.join(root, 'game', 'sim', 'systems', 'AIOverseerPlaySystem.ts');
 const packagePath = path.join(root, 'package.json');
 
 function source(filePath: string): string {

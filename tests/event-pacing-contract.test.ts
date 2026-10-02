@@ -3,8 +3,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-const eventSystemPath = path.join(process.cwd(), 'engine', 'sim', 'systems', 'EventSystem.ts');
-const aiLogicPath = path.join(process.cwd(), 'engine', 'sim', 'logic', 'AiLogic.ts');
+const eventSystemPath = path.join(process.cwd(), 'game', 'sim', 'systems', 'EventSystem.ts');
+const aiLogicPath = path.join(process.cwd(), 'game', 'sim', 'logic', 'AiLogic.ts');
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -352,6 +352,7 @@ const App: React.FC = () => {
     }, [applyPanelOpenTransition, clearPlacementPrompt, playSfx]);
 
     const handleNewGame = () => {
+        world?.beginColonySession();
         setDismissedEraPopup(null);
         world?.dismissEraPopup?.();
         applyPanelOpenTransition(getClosedPanelTransition());
@@ -362,7 +363,7 @@ const App: React.FC = () => {
     };
 
     const onContinue = () => {
-        if (world?.hasSave()) {
+        if (world?.hasSave() && world.loadGame()) {
             setDismissedEraPopup(null);
             world?.dismissEraPopup?.();
             applyPanelOpenTransition(getClosedPanelTransition());

@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { JobSystem, MeshChunkResult, MeshChunkJob, ENGINE_SCHEMA_VERSION, createJob } from '../../../engine/jobs';
 import { GridTile } from '../../../types';
-import { terrainSurfaceMaterial, mats } from '../../../engine/render/materials/VoxelMaterials';
+import { terrainSurfaceMaterial, mats } from '../materials/VoxelMaterials';
 import { getRenderDeviceProfile } from '../../../engine/render/ThreeRenderAdapter';
 import { getTerrainChunkLod } from '../../../engine/render/utils/TerrainLod';
 import { CHUNK_SIZE, worldToChunk, worldToLocal, toChunkKey } from '../../../engine/utils/coords';
