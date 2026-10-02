@@ -459,6 +459,27 @@ export class AureusWorld extends BaseWorld {
     }
 
     rehabilitateTile(x: number, z: number): void { this.stateManager.pushCommand('REHABILITATE', { x, z }); }
+    playSettlementArrival(onComplete: () => void, reducedMotion: boolean): () => void {
+        const state = this.stateManager.getState();
+        if (state.activeView !== 'SURFACE') { onComplete(); return () => {}; }
+        // Seed initial visibility while the game is paused for arrival; no economy tick runs.
+        this.stateManager.setMutableContext('simTick');
+        try {
+            this.sim.getSystem<FogOfWarSystem>('fog-exploration')?.tick({fixedDt: 0, stepIndex: 0, time: 0}, state);
+        } finally { this.stateManager.setMutableContext('none'); }
+        const focus = state.agents.find(agent => agent.id === state.selectedAgentId);
+        const x = focus?.x ?? state.spawnX ?? 0;
+        const z = focus?.z ?? state.spawnZ ?? 0;
+        const height = this.getTerrainHeight(x,z);
+        this.cameraSystem.cameraFocus.y = height;
+        this.cameraSystem.currentFocusY = height;
+        this.cameraSystem.targetFocusY = height;
+        this.cameraSystem.zoomToPosition(x,z,2);
+        return this.cameraSystem.playIntroAnimation(onComplete, reducedMotion);
+    }
+
+    finishSettlementArrival(): void { this.cameraSystem.finishIntroAnimation(); }
+
     beginColonySession(): void {
         if (this.state === 'ready') this.autosave.activate();
     }
@@ -526,6 +547,7 @@ export class AureusWorld extends BaseWorld {
     }
 
     protected async onTeardown(): Promise<void> {
+        this.cameraSystem.dispose();
         this.linePlacementPreview.dispose();
         this.wildlifeRenderSystem.dispose();
         return teardownWorldRuntime(this.getLifecycleDeps());
